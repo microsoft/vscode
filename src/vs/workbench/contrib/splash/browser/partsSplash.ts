@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { getThemeTypeSelector, IPartsSplashPartBounds, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getThemeTypeSelector, IPartsSplashPartBounds } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
@@ -22,6 +22,9 @@ import { ISplashStorageService } from './splash.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { activityBarCornerRadius, secondarySideBarCornerRadius, editorAreaCornerRadius, toolsPanelCornerRadius, primarySideBarCornerRadius } from '../../../../platform/theme/common/sizeRegistry.js';
 
 export class PartsSplash {
 
@@ -34,13 +37,14 @@ export class PartsSplash {
 	private _didChangeTitleBarStyle?: boolean;
 
 	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ISizeService private readonly _sizeService: ISizeService,
 	) {
 		Event.once(_layoutService.onDidLayoutMainContainer)(() => {
 			this._removePartsSplash();
@@ -52,7 +56,7 @@ export class PartsSplash {
 			lastIdleSchedule.value = dom.runWhenWindowIdle(mainWindow, () => this._savePartsSplash(), 2500);
 		};
 		lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			Event.any(Event.filter(onDidChangeFullscreen, windowId => windowId === mainWindow.vscodeWindowId), editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(savePartsSplashSoon, undefined, this._disposables);
+			Event.any(Event.filter(onDidChangeFullscreen, windowId => windowId === mainWindow.vscodeWindowId), editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange, _sizeService.onDidChangeSizes)(savePartsSplashSoon, undefined, this._disposables);
 			savePartsSplashSoon();
 		});
 
@@ -69,7 +73,7 @@ export class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		const theme = this._themeService.getColorTheme();
+		const theme = this._themeService.getBaseColorTheme();
 		const modernUIShellBackground = theme.getColor(themes.MODERN_UI_SHELL_BACKGROUND);
 		const modernUIInactiveShellBackground = theme.getColor(themes.MODERN_UI_INACTIVE_SHELL_BACKGROUND);
 
@@ -118,6 +122,7 @@ export class PartsSplash {
 				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
 				modernUI: this._layoutService.isFloatingPanelsEnabled(),
 				modernUICompact: this._layoutService.isModernUICompact(),
+				panelSpacing: this._layoutService.getPanelSpacing(),
 				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
 					activityBar: this._getPartBounds(Parts.ACTIVITYBAR_PART),
 					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),
@@ -142,11 +147,19 @@ export class PartsSplash {
 		const position = dom.getDomNodePagePosition(container);
 		const classPrefix = part === Parts.EDITOR_PART ? 'floating-editor' : 'floating-part';
 		const activityBarOnLeft = this._layoutService.getSideBarPosition() === Position.LEFT;
+		const radiusToken = {
+			[Parts.ACTIVITYBAR_PART]: activityBarCornerRadius,
+			[Parts.SIDEBAR_PART]: primarySideBarCornerRadius,
+			[Parts.AUXILIARYBAR_PART]: secondarySideBarCornerRadius,
+			[Parts.PANEL_PART]: toolsPanelCornerRadius,
+			[Parts.EDITOR_PART]: editorAreaCornerRadius,
+		}[part];
 		return {
 			top: position.top,
 			left: position.left,
 			width: position.width,
 			height: position.height,
+			cornerRadius: this._sizeService.getSize(radiusToken, this._themeService.getColorTheme())?.value,
 			outerEdges: part === Parts.ACTIVITYBAR_PART ? {
 				left: activityBarOnLeft,
 				right: !activityBarOnLeft,

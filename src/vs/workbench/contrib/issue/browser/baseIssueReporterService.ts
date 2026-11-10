@@ -8,11 +8,12 @@ import { Button, ButtonWithDropdown, unthemedButtonStyles } from '../../../../ba
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { abortOnDispose } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
@@ -24,12 +25,15 @@ import { Action } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
+import { GitHubRequestError, isEqualAuthorization } from '../../../../platform/github/common/githubTypes.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
-import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
+import { getGitHubAuthorization, normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
@@ -40,12 +44,6 @@ const MAX_URL_LENGTH = 7500;
 // ref https://github.com/github/issues/issues/12858
 
 const MAX_EXTENSION_DATA_LENGTH = 60000;
-
-interface SearchResult {
-	html_url: string;
-	title: string;
-	state?: string;
-}
 
 enum IssueSource {
 	VSCode = 'vscode',
@@ -74,6 +72,9 @@ export class BaseIssueReporterService extends Disposable {
 	private createAction: Action;
 	private previewAction: Action;
 	private privateAction: Action;
+	private readonly similarIssueSearch = this._register(new MutableDisposable());
+	private similarIssueSearchGeneration = 0;
+	private readonly disposeSignal = abortOnDispose(this._store);
 
 	constructor(
 		public disableExtensions: boolean,
@@ -86,17 +87,19 @@ export class BaseIssueReporterService extends Disposable {
 		public product: IProductConfiguration,
 		public readonly window: Window,
 		public readonly isWeb: boolean,
+		private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
 		@IIssueFormService public readonly issueFormService: IIssueFormService,
 		@IThemeService public readonly themeService: IThemeService,
 		@IFileService public readonly fileService: IFileService,
 		@IFileDialogService public readonly fileDialogService: IFileDialogService,
 		@IContextMenuService public readonly contextMenuService: IContextMenuService,
 		@IAuthenticationService public readonly authenticationService: IAuthenticationService,
-		@IOpenerService public readonly openerService: IOpenerService
+		@IOpenerService public readonly openerService: IOpenerService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
-		this.issueReporterModel = new IssueReporterModel({
+		this.issueReporterModel = this._register(new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			versionInfo: {
@@ -106,16 +109,26 @@ export class BaseIssueReporterService extends Disposable {
 			extensionsDisabled: !!this.disableExtensions,
 			fileOnExtension: data.extensionId ? !targetExtension?.isBuiltin : undefined,
 			selectedExtension: targetExtension
-		});
+		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async () => {
+			const authorization = this.data.githubAuthorization;
+			// A caller-supplied token without a known session must not switch to another account.
+			if (!authorization && this.data.githubAccessToken) {
+				return;
+			}
 			const previousAuthState = !!this.data.githubAccessToken;
 
 			let githubAccessToken = '';
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
-				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-				githubAccessToken = potentialSessions[0]?.accessToken;
+				const session = githubSessions.find(session => authorization
+					? isEqualAuthorization(authorization, getGitHubAuthorization(session))
+					: session.scopes.includes('repo'));
+				githubAccessToken = session?.accessToken ?? '';
+				if (session) {
+					this.data.githubAuthorization ??= getGitHubAuthorization(session);
+				}
 			} catch (e) {
 				// Ignore
 			}
@@ -696,8 +709,7 @@ export class BaseIssueReporterService extends Disposable {
 			const issueDescription = (<HTMLInputElement>e.target).value;
 			this.issueReporterModel.update({ issueDescription });
 
-			// Only search for extension issues on title change
-			if (this.issueReporterModel.fileOnExtension() === false) {
+			if (this.issueReporterModel.fileOnExtension() === false && !this.issueReporterModel.getData().fileOnMarketplace) {
 				// eslint-disable-next-line no-restricted-syntax
 				const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 				this.searchVSCodeIssues(title, issueDescription);
@@ -852,14 +864,17 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public searchVSCodeIssues(title: string, issueDescription?: string): void {
+		this.clearSearchResults();
 		if (title) {
-			this.searchDuplicates(title, issueDescription);
-		} else {
-			this.clearSearchResults();
+			this.searchDuplicates(title, issueDescription, this.similarIssueSearchGeneration);
 		}
 	}
 
 	public searchIssues(title: string, fileOnExtension: boolean | undefined, fileOnMarketplace: boolean | undefined): void {
+		this.clearSearchResults();
+		if (!title) {
+			return;
+		}
 		if (fileOnExtension) {
 			return this.searchExtensionIssues(title);
 		}
@@ -869,7 +884,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const description = this.issueReporterModel.getData().issueDescription;
-		this.searchVSCodeIssues(title, description);
+		this.searchDuplicates(title, description, this.similarIssueSearchGeneration);
 	}
 
 	private searchExtensionIssues(title: string): void {
@@ -878,7 +893,7 @@ export class BaseIssueReporterService extends Disposable {
 			const matches = /^https?:\/\/github\.com\/(.*)/.exec(url);
 			if (matches && matches.length) {
 				const repo = matches[1];
-				return this.searchGitHub(repo, title);
+				return this.searchGitHub(repo, title, this.similarIssueSearchGeneration);
 			}
 
 			// If the extension has no repository, display empty search results
@@ -896,7 +911,7 @@ export class BaseIssueReporterService extends Disposable {
 		if (title) {
 			const gitHubInfo = this.parseGitHubUrl(this.product.reportMarketplaceIssueUrl!);
 			if (gitHubInfo) {
-				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title);
+				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title, this.similarIssueSearchGeneration);
 			}
 		}
 	}
@@ -906,6 +921,8 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public clearSearchResults(): void {
+		this.similarIssueSearchGeneration++;
+		this.similarIssueSearch.clear();
 		// eslint-disable-next-line no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 		similarIssues.innerText = '';
@@ -913,27 +930,34 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	@debounce(300)
-	private searchGitHub(repo: string, title: string): void {
-		const query = `is:issue+repo:${repo}+${title}`;
+	private searchGitHub(repo: string, title: string, generation: number): void {
+		if (this._store.isDisposed || generation !== this.similarIssueSearchGeneration) {
+			return;
+		}
+		const controller = new AbortController();
+		this.similarIssueSearch.value = toDisposable(() => controller.abort());
 		// eslint-disable-next-line no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 
-		fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
-			response.json().then(result => {
+		void this.issueFormService.searchGitHubIssues(repo, title, controller.signal).then(results => {
+			if (!controller.signal.aborted) {
 				similarIssues.innerText = '';
-				if (result && result.items) {
-					this.displaySearchResults(result.items);
-				}
-			}).catch(_ => {
-				console.warn('Timeout or query limit exceeded');
-			});
-		}).catch(_ => {
-			console.warn('Error fetching GitHub issues');
+				this.displaySearchResults(results);
+			}
+		}).catch(error => {
+			if (!controller.signal.aborted) {
+				this.logService.warn('[IssueReporter] Error fetching GitHub issues', error);
+			}
 		});
 	}
 
 	@debounce(300)
-	private searchDuplicates(title: string, body?: string): void {
+	private searchDuplicates(title: string, body: string | undefined, generation: number): void {
+		if (this._store.isDisposed || generation !== this.similarIssueSearchGeneration) {
+			return;
+		}
+		const controller = new AbortController();
+		this.similarIssueSearch.value = toDisposable(() => controller.abort());
 		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
 		const init = {
 			method: 'POST',
@@ -943,27 +967,27 @@ export class BaseIssueReporterService extends Disposable {
 			}),
 			headers: new Headers({
 				'Content-Type': 'application/json'
-			})
+			}),
+			signal: controller.signal,
 		};
 
-		fetch(url, init).then((response) => {
-			response.json().then(result => {
-				this.clearSearchResults();
-
-				if (result && result.candidates) {
-					this.displaySearchResults(result.candidates);
-				} else {
-					throw new Error('Unexpected response, no candidates property');
-				}
-			}).catch(_ => {
-				// Ignore
-			});
-		}).catch(_ => {
-			// Ignore
+		void this.fetcher(url, init).then(async response => {
+			const result: { candidates?: readonly ISimilarIssue[] } | null = await response.json();
+			if (controller.signal.aborted) {
+				return;
+			}
+			if (!result || !Array.isArray(result.candidates)) {
+				throw new Error('Unexpected response, no candidates property');
+			}
+			this.displaySearchResults(result.candidates);
+		}).catch(error => {
+			if (!controller.signal.aborted) {
+				this.logService.warn('[IssueReporter] Error fetching duplicate issues', error);
+			}
 		});
 	}
 
-	private displaySearchResults(results: SearchResult[]) {
+	private displaySearchResults(results: readonly ISimilarIssue[]) {
 		// eslint-disable-next-line no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 		if (results.length) {
@@ -1260,27 +1284,26 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
-		const init = {
-			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
-				body: issueBody
-			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`,
-				'User-Agent': 'request'
-			})
-		};
-
-		const response = await fetch(url, init);
-		if (!response.ok) {
-			console.error('Invalid GitHub URL provided.');
-			return false;
+		const authorization = this.data.githubAuthorization;
+		let issueUrl: string;
+		try {
+			const sessions = await withGitHubCredentialDeadline(this.disposeSignal, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
+			if (!authorization || !sessions.some(session => isEqualAuthorization(authorization, getGitHubAuthorization(session)))) {
+				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
+			}
+			issueUrl = await this.issueFormService.createGitHubIssue(authorization, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
+			this.disposeSignal.throwIfAborted();
+		} catch (error) {
+			this.disposeSignal.throwIfAborted();
+			if (!isCancellationError(error)) {
+				this.logService.error('[IssueReporter] Failed to create GitHub issue', error);
+			}
+			if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.statusCode >= 400) {
+				return false;
+			}
+			throw error;
 		}
-		const result = await response.json();
-		await this.openLink(result.html_url);
+		await this.openLink(issueUrl);
 		this.close();
 		return true;
 	}

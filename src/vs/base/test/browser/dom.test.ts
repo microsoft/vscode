@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -734,6 +734,22 @@ suite('dom', () => {
 				'context must be cleared at the next frame so a later rendering update does not inherit stale observers',
 			);
 			observer.dispose();
+		});
+	});
+
+	suite('ModifierKeyEmitter', () => {
+		test('exposes the keyboard event only while notifying listeners', () => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			const received: (string | undefined)[] = [];
+			const listener = emitter.event(status => received.push(status.event?.type));
+			try {
+				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+				mainWindow.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', ctrlKey: false }));
+			} finally {
+				listener.dispose();
+			}
+
+			assert.deepStrictEqual({ received, retained: emitter.keyStatus.event }, { received: ['keydown', 'keyup'], retained: undefined });
 		});
 	});
 

@@ -131,10 +131,22 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		}
 
 		// Before starting a session, resolve the input to ensure the underlying web contents exist and can be attached.
-		await known.input.resolve();
+		const model = await known.input.resolve();
 
-		const groupId = await this.cdpService.createSessionGroup(browserId);
+		// Targets created through the session share the browser's network, whose proxy the session holds.
+		const network = model.network;
+		const networkHold = network ? await this.browserViewService.acquireNetwork(network) : undefined;
+		let groupId: string;
+		try {
+			groupId = await this.cdpService.createSessionGroup(browserId, network);
+		} catch (error) {
+			networkHold?.dispose();
+			throw error;
+		}
 		const disposables = new DisposableStore();
+		if (networkHold) {
+			disposables.add(networkHold);
+		}
 
 		// Wire CDP messages from main process back to ext host
 		disposables.add(this.cdpService.onCDPMessage(groupId)(message => {

@@ -5,7 +5,7 @@
 
 /* eslint-disable no-restricted-globals */
 
-import { getPartsSplashColors } from './partsSplash.js';
+import { getPartsSplashColors, getPartsSplashLayoutMetrics, getPartsSplashPartRadius } from './partsSplash.js';
 
 (async function () {
 
@@ -95,11 +95,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
 			const modernUI = layoutInfo.modernUI === true;
-			const floatingMargin = layoutInfo.modernUICompact === true ? 0 : 4;
-			// The cluster perimeter is the same in both densities; only the inter-card gap differs.
-			const floatingOuterMargin = 4;
-			const floatingBorderWidth = 1;
-			const floatingBorderRadius = 8;
+			const { floatingMargin, floatingOuterMargin, floatingBorderWidth } = getPartsSplashLayoutMetrics(layoutInfo);
 			const contentTop = layoutInfo.titleBarHeight;
 			const contentBottom = layoutInfo.statusBarHeight;
 
@@ -211,6 +207,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 				fallbackOuterEdges = { left: true, right: true, top: true, bottom: true },
 				compactBorderColor = colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'
 			) => {
+				const floatingBorderRadius = getPartsSplashPartRadius(layoutInfo, partBounds);
 				element.style.boxSizing = 'border-box';
 				if (layoutInfo.modernUICompact === true) {
 					const outerEdges = partBounds?.outerEdges ?? (partBounds && compactClusterEdges ? {
@@ -237,7 +234,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 			};
 
 			const contentHeight = `calc(100% - ${contentTop + contentBottom}px)`;
-			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingMargin}px)` : contentHeight;
+			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingOuterMargin}px)` : contentHeight;
 			const modernActivityBarBackground = (window.document.hasFocus()
 				? colorInfo.modernActivityBarBackground
 				: colorInfo.modernActivityBarInactiveBackground ?? colorInfo.modernActivityBarBackground)
@@ -306,7 +303,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 				} else if (modernUI) {
 					// The rail is a card here too: rounded on the window side, and square where it
 					// meets the primary side bar so the two read as one connected surface.
-					const radius = `${floatingBorderRadius}px`;
+					const radius = `${getPartsSplashPartRadius(layoutInfo, activityBarBounds)}px`;
 					activityDiv.style.boxSizing = 'border-box';
 					activityDiv.style.backgroundColor = modernActivityBarBackground ?? 'transparent';
 					activityDiv.style.border = `${floatingBorderWidth}px solid ${railBorderColor}`;

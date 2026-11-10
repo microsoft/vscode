@@ -10,18 +10,19 @@ import { IAuthenticationService } from '../../../../platform/authentication/comm
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
-import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation, RESPONSE_CONTAINED_NO_CHOICES } from '../../../../platform/chat/common/commonTypes';
 import { IInteractionService } from '../../../../platform/chat/common/interactionService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
+import { processResponseFromChatEndpoint } from '../../../../platform/endpoint/node/responsesApi';
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback, getCopilotServiceRequestId } from '../../../../platform/networking/common/fetch';
-import { FetcherId, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
+import { FinishedCallback, getCopilotServiceRequestId, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
+import { FetcherId, HeadersImpl, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
-import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
+import { IChatWebSocketConnection, IChatWebSocketManager, IChatWebSocketRequestHandle, NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
@@ -32,7 +33,7 @@ import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyi
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { InstantiationServiceBuilder } from '../../../../util/common/services';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IPowerService, NullPowerService } from '../../../power/common/powerService';
@@ -44,6 +45,7 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 	let mockFetcherService: MockFetcherService;
 	let spyingTelemetryService: SpyingTelemetryService;
 	let cancellationTokenSource: CancellationTokenSource;
+	let instantiationService: IInstantiationService;
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -55,6 +57,12 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 
 		const logService = new TestLogService();
 		const experimentationService = new NullExperimentationService();
+		instantiationService = disposables.add(new InstantiationServiceBuilder([
+			[IFetcherService, mockFetcherService],
+			[ITelemetryService, spyingTelemetryService],
+			[ICAPIClientService, new TestCAPIClientService()],
+			[ILogService, logService],
+		]).seal());
 
 		fetcher = new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
@@ -69,11 +77,7 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 			configurationService,
 			experimentationService,
 			createMockPowerService(),
-			new InstantiationServiceBuilder([
-				[IFetcherService, mockFetcherService as unknown as IFetcherService],
-				[ITelemetryService, spyingTelemetryService],
-				[ICAPIClientService, new TestCAPIClientService() as unknown as ICAPIClientService],
-			]).seal() as unknown as IInstantiationService,
+			instantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 		);
@@ -81,6 +85,75 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 
 	afterEach(() => {
 		disposables.dispose();
+	});
+
+	const reasoningEvent = `event: response.output_item.done\ndata: ${JSON.stringify({
+		type: 'response.output_item.done',
+		output_index: 0,
+		item: { type: 'reasoning', id: 'rs_test', summary: [], encrypted_content: 'synthetic-only' },
+	})}\n\n`;
+	const completedEvent = `event: response.completed\ndata: ${JSON.stringify({
+		type: 'response.completed',
+		response: { id: 'resp_test', model: 'gpt-5-mini', created_at: 0, output: [] },
+	})}\n\n`;
+	const errorEvent = `event: error\ndata: ${JSON.stringify({
+		type: 'error', code: 'server_error', message: 'Synthetic stream failure', param: null,
+	})}\n\n`;
+
+	it.each([
+		['empty body', '', ChatFetchResponseType.Unknown],
+		['reasoning followed by EOF', reasoningEvent, ChatFetchResponseType.Unknown],
+		['unterminated completed frame', reasoningEvent + completedEvent.trimEnd(), ChatFetchResponseType.Unknown],
+		['completed response', reasoningEvent + completedEvent, ChatFetchResponseType.Success],
+		['explicit stream error', reasoningEvent + errorEvent, ChatFetchResponseType.Failed],
+	])('retains HTTP correlation for %s without changing classification', async (_name, body, type) => {
+		const endpoint: IChatEndpoint = {
+			...createResponseApiEndpoint(),
+			processResponseFromChatEndpoint: (telemetryService, logService, response, expectedNumChoices, finishedCb, telemetryData) =>
+				processResponseFromChatEndpoint(instantiationService, telemetryService, logService, response, expectedNumChoices, finishedCb, telemetryData),
+		};
+		mockFetcherService.queueResponse(Response.fromText(200, 'OK', new FakeHeaders(new Map([
+			['content-type', 'text/event-stream'],
+			['x-request-id', 'synthetic-header-request-id'],
+			['x-github-request-id', 'different-github-request-id'],
+			['x-copilot-service-request-id', 'synthetic-service-request-id'],
+			['x-github-copilot-request-te', 'false'],
+		])), body, 'test-stub'));
+
+		const result = await fetcher.fetchMany(createHelloOpts(endpoint), cancellationTokenSource.token);
+
+		expect({
+			type: result.type,
+			serverRequestId: result.serverRequestId,
+			copilotServiceRequestId: result.copilotServiceRequestId,
+			gitHubCopilotRequestTe: result.gitHubCopilotRequestTe,
+			...(type === ChatFetchResponseType.Unknown ? { reason: 'reason' in result ? result.reason : undefined } : {}),
+		}).toEqual({
+			type,
+			serverRequestId: 'synthetic-header-request-id',
+			copilotServiceRequestId: 'synthetic-service-request-id',
+			gitHubCopilotRequestTe: 'false',
+			...(type === ChatFetchResponseType.Unknown ? { reason: RESPONSE_CONTAINED_NO_CHOICES } : {}),
+		});
+	});
+
+	it('does not fabricate HTTP correlation when an incomplete stream has no headers', async () => {
+		const endpoint: IChatEndpoint = {
+			...createResponseApiEndpoint(),
+			processResponseFromChatEndpoint: (telemetryService, logService, response, expectedNumChoices, finishedCb, telemetryData) =>
+				processResponseFromChatEndpoint(instantiationService, telemetryService, logService, response, expectedNumChoices, finishedCb, telemetryData),
+		};
+		mockFetcherService.queueResponse(Response.fromText(200, 'OK', new HeadersImpl({}), reasoningEvent, 'test-stub'));
+
+		const result = await fetcher.fetchMany(createHelloOpts(endpoint), cancellationTokenSource.token);
+
+		expect(result).toMatchObject({
+			type: ChatFetchResponseType.Unknown,
+			reason: RESPONSE_CONTAINED_NO_CHOICES,
+			serverRequestId: undefined,
+			copilotServiceRequestId: undefined,
+		});
+		expect('gitHubCopilotRequestTe' in result).toBe(false);
 	});
 
 	it('logs non-empty messagesJson for Response API requests (input field)', async () => {
@@ -279,6 +352,34 @@ describe('ChatMLFetcherImpl request.options.tools telemetry', () => {
 		expect((successEvent?.properties as Record<string, string>)?.copilotServiceRequestId).toBe('svc-req-abc');
 	});
 
+	it.each(['true', 'false', ' TRUE ', 'yes'])('forwards X-GitHub-Copilot-Request-Te %j unchanged to the result and model-call events', async value => {
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!', new Map([
+			['X-GitHub-Copilot-Request-Te', value],
+		])));
+
+		const result = await fetcher.fetchMany(createHelloOpts(createChatCompletionEndpointWithoutTools()), cancellationTokenSource.token);
+
+		expect({
+			result: result.gitHubCopilotRequestTe,
+			events: getRequestTeByEvent(spyingTelemetryService, ['request.response', 'response.success']),
+		}).toEqual({
+			result: value,
+			events: [['request.response', value], ['response.success', value]],
+		});
+	});
+
+	it('omits gitHubCopilotRequestTe everywhere when the header is absent', async () => {
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+
+		const result = await fetcher.fetchMany(createHelloOpts(createChatCompletionEndpointWithoutTools()), cancellationTokenSource.token);
+
+		const events = spyingTelemetryService.getEvents().telemetryServiceEvents;
+		expect({
+			resultHasProperty: 'gitHubCopilotRequestTe' in result,
+			eventsWithProperty: events.filter(e => 'gitHubCopilotRequestTe' in (e.properties ?? {})).map(e => e.eventName),
+		}).toEqual({ resultHasProperty: false, eventsWithProperty: [] });
+	});
+
 	it('multiplexes messagesJson when tool schemas exceed 8KB', async () => {
 		const endpointWithLargeTools = createEndpointWithLargeTools();
 		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
@@ -430,6 +531,7 @@ function createChatCompletionEndpointWithoutTools(): IChatEndpoint {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
 							copilotServiceRequestId: getCopilotServiceRequestId(response.headers),
+							gitHubCopilotRequestTe: getGitHubCopilotRequestTe(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -666,6 +768,175 @@ function createChatCompletionEndpointWithEmptyMessages(): IChatEndpoint {
 			throw new Error('Not implemented');
 		},
 	} as unknown as IChatEndpoint;
+}
+
+describe('ChatMLFetcherImpl gitHubCopilotRequestTe over WebSocket', () => {
+	let disposables: DisposableStore;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	async function fetchOverWebSocket(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed' = 'response.created') {
+		const spyingTelemetryService = new SpyingTelemetryService();
+		const mockFetcherService = new MockFetcherService();
+		const connection = disposables.add(createFakeWebSocketConnection(envelopeValue, arrivesOn, disposables));
+		const fetcher = disposables.add(new ChatMLFetcherImpl(
+			mockFetcherService as unknown as IFetcherService,
+			spyingTelemetryService,
+			disposables.add(new NullRequestLogger()),
+			new TestLogService(),
+			disposables.add(new TestAuthenticationService()),
+			createMockInteractionService(),
+			createMockChatQuotaService(),
+			new TestCAPIClientService() as unknown as ICAPIClientService,
+			createMockConversationOptions(),
+			new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
+			new NullExperimentationService(),
+			createMockPowerService(),
+			new InstantiationServiceBuilder([
+				[IFetcherService, mockFetcherService as unknown as IFetcherService],
+				[ITelemetryService, spyingTelemetryService],
+				[ILogService, new TestLogService()],
+				[ICAPIClientService, new TestCAPIClientService() as unknown as ICAPIClientService],
+			]).seal() as unknown as IInstantiationService,
+			new FakeWebSocketManager(connection),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+		));
+		const cts = disposables.add(new CancellationTokenSource());
+		const result = await fetcher.fetchMany({
+			...createHelloOpts(createChatCompletionEndpointWithoutTools()),
+			useWebSocket: true,
+			turnId: 'turn-1',
+			conversationId: 'conversation-1',
+		}, cts.token);
+		return { result, spyingTelemetryService };
+	}
+
+	it('uses the per-turn message envelope value, never the connection handshake headers', async () => {
+		const { result, spyingTelemetryService } = await fetchOverWebSocket(' TRUE ');
+
+		expect({
+			result: result.gitHubCopilotRequestTe,
+			events: getRequestTeByEvent(spyingTelemetryService, ['request.sent', 'request.response', 'response.success']),
+		}).toEqual({
+			result: ' TRUE ',
+			events: [['request.response', ' TRUE '], ['request.sent', undefined], ['response.success', ' TRUE ']],
+		});
+	});
+
+	it('uses a value that only arrives on a later envelope for the request-level events too', async () => {
+		const { result, spyingTelemetryService } = await fetchOverWebSocket('false', 'response.completed');
+
+		expect({
+			result: result.gitHubCopilotRequestTe,
+			events: getRequestTeByEvent(spyingTelemetryService, ['request.response', 'response.success']),
+		}).toEqual({
+			result: 'false',
+			events: [['request.response', 'false'], ['response.success', 'false']],
+		});
+	});
+
+	it('omits gitHubCopilotRequestTe when the turn envelope lacks it, even if the handshake had it', async () => {
+		const { result, spyingTelemetryService } = await fetchOverWebSocket(undefined);
+
+		const events = spyingTelemetryService.getEvents().telemetryServiceEvents;
+		expect({
+			resultHasProperty: 'gitHubCopilotRequestTe' in result,
+			eventsWithProperty: events.filter(e => 'gitHubCopilotRequestTe' in (e.properties ?? {})).map(e => e.eventName),
+		}).toEqual({ resultHasProperty: false, eventsWithProperty: [] });
+	});
+
+});
+
+function createHelloOpts(endpoint: IChatEndpoint): IFetchMLOptions {
+	return {
+		debugName: 'test-request-te',
+		messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] }],
+		endpoint,
+		location: ChatLocation.Panel,
+		requestOptions: {},
+		finishedCb: undefined,
+	};
+}
+
+function getRequestTeByEvent(telemetryService: SpyingTelemetryService, eventNames: readonly string[]): [string, string | undefined][] {
+	return telemetryService.getEvents().telemetryServiceEvents
+		.filter(e => eventNames.includes(e.eventName))
+		.map((e): [string, string | undefined] => [e.eventName, (e.properties as Record<string, string> | undefined)?.gitHubCopilotRequestTe])
+		.sort(([a], [b]) => a.localeCompare(b));
+}
+
+class FakeWebSocketManager extends NullChatWebSocketManager implements IChatWebSocketManager {
+	constructor(private readonly _connection: IChatWebSocketConnection) {
+		super();
+	}
+
+	override getOrCreateConnection(): IChatWebSocketConnection {
+		return this._connection;
+	}
+}
+
+/**
+ * A connection whose handshake carries a (stale) header value while each turn reports
+ * its own value through the request handle, as `ChatWebSocketActiveRequest` does.
+ */
+function createFakeWebSocketConnection(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed', disposables: DisposableStore): IChatWebSocketConnection {
+	const createdEvent = { type: 'response.created', response: { id: 'resp-ws-1' } } as unknown as OpenAI.Responses.ResponseStreamEvent;
+	const completedEvent = {
+		type: 'response.completed',
+		response: {
+			id: 'resp-ws-1',
+			model: 'test-model',
+			created_at: 0,
+			usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+			output: [{ type: 'message', content: [{ type: 'output_text', text: 'Hi' }] }],
+		},
+	} as unknown as OpenAI.Responses.ResponseStreamEvent;
+	return {
+		connect: async () => { },
+		isOpen: true,
+		responseHeaders: new HeadersImpl({ 'X-GitHub-Copilot-Request-Te': 'from-handshake' }),
+		responseStatusCode: 101,
+		responseStatusText: 'Switching Protocols',
+		gitHubRequestId: '',
+		copilotServiceRequestId: '',
+		statefulMarker: undefined,
+		dispose: () => { },
+		sendRequest: (): IChatWebSocketRequestHandle => {
+			const onEvent = disposables.add(new Emitter<OpenAI.Responses.ResponseStreamEvent>());
+			let resolveFirstEvent!: (event: OpenAI.Responses.ResponseStreamEvent) => void;
+			let resolveDone!: () => void;
+			const handle = {
+				onEvent: onEvent.event,
+				onCAPIError: Event.None,
+				onError: Event.None,
+				firstEvent: new Promise<OpenAI.Responses.ResponseStreamEvent>(resolve => resolveFirstEvent = resolve),
+				done: new Promise<void>(resolve => resolveDone = resolve),
+				gitHubCopilotRequestTe: undefined as string | undefined,
+			};
+			// Each frame arrives in its own task, as over a real socket.
+			const deliver = (event: OpenAI.Responses.ResponseStreamEvent) => {
+				if (event.type === arrivesOn) {
+					handle.gitHubCopilotRequestTe = envelopeValue;
+				}
+				resolveFirstEvent(event);
+				onEvent.fire(event);
+			};
+			setTimeout(() => {
+				deliver(createdEvent);
+				setTimeout(() => {
+					deliver(completedEvent);
+					resolveDone();
+				}, 0);
+			}, 0);
+			return handle;
+		},
+	};
 }
 
 class MockFetcherService {

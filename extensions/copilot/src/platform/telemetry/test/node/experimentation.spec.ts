@@ -17,6 +17,7 @@ import { ILogService } from '../../../log/common/logService';
 import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { createTasFetch } from '../../vscode-node/tasFetch';
 import { BaseExperimentationService, RevocationGate, TASClientDelegateFn, UserInfoStore } from '../../node/baseExperimentationService';
 
@@ -848,9 +849,9 @@ describe('ExP Service scoped treatment resolution', () => {
 		const delegate = service.delegates[0];
 
 		// The new assignments endpoint returns the key with a `/vscode/` scope prefix only.
-		delegate.setTreatment('/vscode/config.chat.copilot.subagentModelGuidance.enabled', true);
+		delegate.setTreatment('/vscode/config.test.scopedTreatment', true);
 
-		expect(service.getTreatmentVariable<boolean>('config.chat.copilot.subagentModelGuidance.enabled')).toBe(true);
+		expect(service.getTreatmentVariable<boolean>('config.test.scopedTreatment')).toBe(true);
 
 		service.dispose();
 	});

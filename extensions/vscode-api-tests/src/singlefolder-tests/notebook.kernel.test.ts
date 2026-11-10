@@ -357,6 +357,32 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 
 	});
 
+	for (const supportedLanguages of [undefined, []]) {
+		test(`executes after resetting supported languages with ${supportedLanguages === undefined ? 'undefined' : 'an empty array'}`, async () => {
+			const document = await openRandomNotebookDocument();
+			await vscode.window.showNotebookDocument(document);
+			const cell = document.cellAt(0);
+			const execution = { document: document.uri, ranges: [{ start: 0, end: 1 }] };
+
+			defaultKernel.controller.supportedLanguages = ['javascript'];
+			await assertKernel(defaultKernel, document);
+			await vscode.commands.executeCommand('notebook.cell.execute', execution);
+			assert.strictEqual(cell.outputs.length, 0);
+
+			defaultKernel.controller.supportedLanguages = supportedLanguages;
+			await assertKernel(defaultKernel, document);
+			await vscode.commands.executeCommand('notebook.cell.execute', execution);
+
+			assert.deepStrictEqual({
+				outputs: cell.outputs.map(output => output.items.map(item => new TextDecoder().decode(item.data))),
+				success: cell.executionSummary?.success
+			}, {
+				outputs: [['test']],
+				success: true
+			});
+		});
+	}
+
 	test('execution cancelled when delete while executing', async () => {
 		const document = await openRandomNotebookDocument();
 		const cell = document.cellAt(0);

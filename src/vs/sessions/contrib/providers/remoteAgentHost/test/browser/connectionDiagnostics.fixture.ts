@@ -10,11 +10,11 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
-import { showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
-import { MobileHostFilterActionViewItem } from '../../browser/mobileHostFilterActionViewItem.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { showConnectionDiagnosticsSheet } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
+import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 
 const snapshotContent: Omit<IConnectionDiagnosticsSnapshot, 'text'> = {
 	capturedAt: '2026-09-14T19:00:00.000Z',
@@ -29,14 +29,35 @@ const snapshotContent: Omit<IConnectionDiagnosticsSnapshot, 'text'> = {
 			],
 		},
 		{
-			title: 'Mock host - no connection, not in picker',
+			title: 'Work laptop - connected, selectable',
+			hostAddress: 'tunnel:work',
 			collapsed: true,
 			entries: [
 				{ label: 'Online', value: 'Yes' },
-				{ label: 'Cached', value: 'No' },
-				{ label: 'In host picker', value: 'No' },
-				{ label: 'Dismissed', value: 'Yes' },
+				{ label: 'Cached', value: 'Yes' },
+				{ label: 'Selectable', value: 'Yes' },
+				{ label: 'Dismissed', value: 'No' },
 				{ label: 'Host address', value: 'example-host-with-a-long-name-for-verifying-narrow-layout.example.invalid:12345' },
+			],
+		},
+		{
+			title: 'Home server - disconnected, selectable',
+			hostAddress: 'tunnel:home',
+			collapsed: true,
+			entries: [
+				{ label: 'Connection status', value: 'Disconnected' },
+				{ label: 'Selectable', value: 'Yes' },
+				{ label: 'Auto-connect suppressed', value: 'Yes' },
+			],
+		},
+		{
+			title: 'Build machine - no connection, not selectable',
+			hostAddress: 'tunnel:hidden',
+			collapsed: true,
+			entries: [
+				{ label: 'Connection status', value: 'No connection entry' },
+				{ label: 'Selectable', value: 'No' },
+				{ label: 'Persistently dismissed', value: 'Yes' },
 			],
 		},
 		{
@@ -70,7 +91,7 @@ const snapshot: IConnectionDiagnosticsSnapshot = {
 	].join('\n'),
 };
 
-function renderReport(context: ComponentFixtureContext, width: number, expandClient = false): void {
+async function renderReport(context: ComponentFixtureContext, width: number, expandClient = false): Promise<void> {
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench');
 	container.style.width = `${width}px`;
@@ -83,19 +104,68 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 		colorTheme: theme,
 		additionalServices: reg => {
 			reg.defineInstance(IConnectionDiagnosticsService, new class extends mock<IConnectionDiagnosticsService>() {
-				override getSnapshot(): IConnectionDiagnosticsSnapshot { return snapshot; }
+				override readonly onDidChangeHostManagement = Event.None;
+				override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return snapshot; }
+				override getHostManagementState() {
+					return {
+						hosts: [{
+							id: 'connected',
+							label: 'Work laptop',
+							address: 'tunnel:work',
+							status: 'connected' as const,
+							selectable: true,
+							selected: true,
+							hidden: false,
+							autoConnectSuppressed: false,
+							connectable: true,
+						}, {
+							id: 'disconnected',
+							label: 'Home server',
+							address: 'tunnel:home',
+							status: 'disconnected' as const,
+							selectable: true,
+							selected: false,
+							hidden: false,
+							autoConnectSuppressed: true,
+							connectable: true,
+						}, {
+							id: 'tunnel:hidden',
+							label: 'Build machine',
+							address: 'tunnel:hidden',
+							status: 'disconnected' as const,
+							selectable: false,
+							selected: false,
+							hidden: true,
+							autoConnectSuppressed: false,
+							connectable: false,
+						}],
+						isDiscovering: false,
+					};
+				}
+				override async runHostAction(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 		},
 	});
 	void showConnectionDiagnosticsSheet(container, snapshot, instantiationService, {
 		autoFocus: false,
+		enableHostManagement: true,
+		rediscoverOnRefresh: true,
 		onDidCreate: (report, api) => {
 			disposableStore.add(toDisposable(() => api.close()));
+			api.overlay.classList.add(width < 600 ? 'phone-layout' : 'desktop-layout');
 			api.overlay.style.height = '100%';
 			api.sheet.style.maxHeight = '100%';
 			if (expandClient) {
 				for (const target of report.getFocusTargets().slice(1)) {
-					target.click();
+					if (target.tagName === 'SUMMARY') {
+						target.click();
+					}
+				}
+				const content = api.sheet.querySelector<HTMLElement>('.connection-diagnostics-content')!;
+				const style = dom.getWindow(content).getComputedStyle(content);
+				if (content.scrollHeight <= content.clientHeight || style.overflowY !== 'auto' || style.touchAction !== 'pan-y') {
+					throw new Error('Expanded diagnostics must overflow a native vertical touch scroll container.');
 				}
 			}
 			const header = api.sheet.querySelector<HTMLElement>('.mobile-picker-sheet-title-row')!;
@@ -110,6 +180,18 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 			return Disposable.None;
 		},
 	});
+	let previousLayout: string | undefined;
+	await waitForFixtureCondition(() => {
+		const content = container.querySelector<HTMLElement>('.connection-diagnostics-content');
+		const scrollable = container.querySelector<HTMLElement>('.connection-diagnostics-scrollable');
+		if (!content || !scrollable || content.clientHeight === 0) {
+			return false;
+		}
+		const layout = JSON.stringify([content.clientHeight, content.scrollHeight, content.scrollTop, scrollable.clientHeight]);
+		const unchanged = layout === previousLayout;
+		previousLayout = layout;
+		return unchanged;
+	}, 'Connection diagnostics fixture did not settle its layout');
 }
 
 function renderEmptyPicker(context: ComponentFixtureContext): void {
@@ -129,7 +211,7 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 				override readonly onDidChangeDiscovering = Event.None;
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
@@ -138,7 +220,7 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 				override async executeCommand<T>(id: string): Promise<T> {
 					if (id === ShowConnectionDiagnosticsCommandId) {
 						dom.clearNode(container);
-						renderReport(context, 390);
+						await renderReport(context, 390);
 					}
 					return undefined as T;
 				}
@@ -151,10 +233,19 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 	trigger.querySelector<HTMLElement>('.agent-host-filter-dropdown')!.click();
 }
 
+function defineReportFixture(width: number, expandClient = false): ReturnType<typeof defineComponentFixture> {
+	return defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
+		render: context => renderReport(context, width, expandClient),
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/connectionDiagnostics/' }, {
-	MobileDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 390) }),
-	NarrowDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 320) }),
-	DesktopDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 720) }),
-	ClientExpanded: defineComponentFixture({ render: context => renderReport(context, 390, true) }),
+	MobileDismissedDiscovery: defineReportFixture(390),
+	NarrowDismissedDiscovery: defineReportFixture(320),
+	DesktopDismissedDiscovery: defineReportFixture(720),
+	ClientExpanded: defineReportFixture(390, true),
+	NarrowClientExpanded: defineReportFixture(320, true),
 	EmptyHostPicker: defineComponentFixture({ render: renderEmptyPicker }),
 });

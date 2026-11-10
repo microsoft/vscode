@@ -13,57 +13,18 @@ exchanges:
           id: toolcall_0
           name: task
           input:
-            name: echo-child
-            prompt: |-
-              Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-              Do not use any tools.
+            name: child-reply-task
             agent_type: general-purpose
             mode: background
-            description: Echo child initial reply
+            description: Reply exactly CHILD_INITIAL_DONE
+            prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
-        - role: assistant
-          content:
-            - type: thinking
-            - type: tool_use
-              name: task
-              input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
-                agent_type: general-purpose
-                mode: background
-                description: Echo child initial reply
-        - role: user
-          content:
-            - type: tool_result
-              tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
-    response:
-      content:
-        - type: text
-          text: Waiting for the background subagent to finish before continuing.
-        - type: tool_use
-          id: toolcall_1
-          name: read_agent
-          input:
-            agent_id: ${uuid_0}
-            wait: true
-      stopReason: tool_use
-  - request:
-      model: claude-sonnet-5
-      system: ${system}
-      messages:
-        - role: user
-          content: |-
-            Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-            Do not use any tools.
+          content: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
     response:
       content: CHILD_INITIAL_DONE
       stopReason: end_turn
@@ -79,22 +40,53 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
+    response:
+      content:
+        - type: text
+          text: Waiting for the background subagent to complete.
+        - type: tool_use
+          id: toolcall_1
+          name: read_agent
+          input:
+            agent_id: ${uuid_0}
+            wait: true
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: child-reply-task
+                agent_type: general-purpose
+                mode: background
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -105,7 +97,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -124,22 +116,20 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -150,7 +140,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -172,6 +162,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
+        - role: assistant
+          content: CHILD_INITIAL_DONE
+        - role: user
+          content: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+    response:
+      content: CHILD_FOLLOWUP_ONE_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
           content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
         - role: assistant
           content:
@@ -179,22 +182,20 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -205,7 +206,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -239,21 +240,6 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: |-
-            Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-            Do not use any tools.
-        - role: assistant
-          content: CHILD_INITIAL_DONE
-        - role: user
-          content: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
-    response:
-      content: CHILD_FOLLOWUP_ONE_DONE
-      stopReason: end_turn
-  - request:
-      model: claude-sonnet-5
-      system: ${system}
-      messages:
-        - role: user
           content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
         - role: assistant
           content:
@@ -261,22 +247,20 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -287,7 +271,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -319,7 +303,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_3
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 7s, total_turns: 2
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -345,22 +329,20 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -371,7 +353,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -403,7 +385,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_3
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 7s, total_turns: 2
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -432,6 +414,23 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
+        - role: assistant
+          content: CHILD_INITIAL_DONE
+        - role: user
+          content: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: assistant
+          content: CHILD_FOLLOWUP_ONE_DONE
+        - role: user
+          content: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+    response:
+      content: CHILD_FOLLOWUP_TWO_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
           content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
         - role: assistant
           content:
@@ -439,22 +438,20 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -465,7 +462,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -497,7 +494,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_3
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 7s, total_turns: 2
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -538,25 +535,6 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: |-
-            Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-            Do not use any tools.
-        - role: assistant
-          content: CHILD_INITIAL_DONE
-        - role: user
-          content: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
-        - role: assistant
-          content: CHILD_FOLLOWUP_ONE_DONE
-        - role: user
-          content: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
-    response:
-      content: CHILD_FOLLOWUP_TWO_DONE
-      stopReason: end_turn
-  - request:
-      model: claude-sonnet-5
-      system: ${system}
-      messages:
-        - role: user
           content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
         - role: assistant
           content:
@@ -564,22 +542,20 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: echo-child
-                prompt: |-
-                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
-                  Do not use any tools.
+                name: child-reply-task
                 agent_type: general-purpose
                 mode: background
-                description: Echo child initial reply
+                description: Reply exactly CHILD_INITIAL_DONE
+                prompt: Reply exactly with the text "CHILD_INITIAL_DONE" and nothing else. Do not use any tools.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations. Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.'
         - role: assistant
           content:
             - type: text
-              text: Waiting for the background subagent to finish before continuing.
+              text: Waiting for the background subagent to complete.
             - type: tool_use
               name: read_agent
               input:
@@ -590,7 +566,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 1s, total_turns: 1
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -622,7 +598,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_3
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 7s, total_turns: 2
 
                 [Turn 0]
                 CHILD_INITIAL_DONE
@@ -661,7 +637,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_5
               content: |-
-                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 15s, total_turns: 3
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Reply exactly CHILD_INITIAL_DONE, elapsed: 11s, total_turns: 3
 
                 [Turn 0]
                 CHILD_INITIAL_DONE

@@ -22,7 +22,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
 	}
 
 	static _instance: RuntimeExtensionsInput;

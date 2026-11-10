@@ -70,15 +70,19 @@
     ]
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:php-language-features",
-    "watch": "npx gulp watch-extension:php-language-features"
+    "compile": "pnpm exec gulp compile-extension:php-language-features",
+    "watch": "pnpm exec gulp watch-extension:php-language-features"
   },
   "dependencies": {
     "which": "^2.0.2"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "@types/which": "^2.0.0"
+    "@types/sinon": "^10.0.2",
+    "@types/which": "^2.0.0",
+    "mocha": "^10.8.2",
+    "sinon": "^12.0.1"
   },
   "repository": {
     "type": "git",

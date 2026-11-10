@@ -769,4 +769,8 @@ export const codiconsLibrary = {
 	copilotDotCompact: register('copilot-dot-compact', 0xecf3),
 	layoutDensityCompact: register('layout-density-compact', 0xecf4),
 	layoutDensityDefault: register('layout-density-default', 0xecf5),
+	gripperCorner: register('gripper-corner', 0xecf6),
+	meteredConnection: register('metered-connection', 0xecf7),
+	reportQuestion: register('report-question', 0xecf8),
+	trophy: register('trophy', 0xecf9),
 } as const;

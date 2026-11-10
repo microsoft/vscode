@@ -38,6 +38,7 @@ import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.j
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
+import { GPUProcessMainService, IGPUProcessMainService } from '../../platform/gpu/electron-main/gpuProcessMainService.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
@@ -106,13 +107,17 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
+		mark('code/willCreateMainServices');
 		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
+		mark('code/didCreateMainServices');
 
 		try {
 
 			// Init services
 			try {
+				mark('code/willInitMainServices');
 				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
+				mark('code/didInitMainServices');
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -160,6 +165,9 @@ class CodeMain {
 		const services = new ServiceCollection();
 		const disposables = new DisposableStore();
 		process.once('exit', () => disposables.dispose());
+
+		// Capture GPU lifecycle changes before asynchronous startup and window creation.
+		services.set(IGPUProcessMainService, disposables.add(new GPUProcessMainService(app)));
 
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };

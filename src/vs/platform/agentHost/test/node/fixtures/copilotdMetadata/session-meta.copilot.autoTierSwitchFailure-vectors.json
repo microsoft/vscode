@@ -1,0 +1,292 @@
+{
+  "$comment": "Conformance vectors for `copilot.autoTierSwitchFailure` on SessionState._meta: the SDK `session.auto_tier_switch_failed` payload with its two tiers written in the session-config vocabulary (`default` where the runtime reports none), plus the event id. A payload lacking the required fields publishes nothing.",
+  "key": "copilot.autoTierSwitchFailure",
+  "carrier": "SessionState._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: carries the payload and adds the event id",
+      "op": "projectFromSdk",
+      "input": {
+        "eventId": "evt-1",
+        "sdk": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": "efficiency",
+          "reason": "policy_rejected"
+        }
+      },
+      "expected": {
+        "meta": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": "efficiency",
+          "reason": "policy_rejected",
+          "eventId": "evt-1"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: a failed return to provider-default routing names default",
+      "op": "projectFromSdk",
+      "$comment": "The runtime reports the request as a null tier; the notice uses the spelling autoTier and effectiveAutoTier use.",
+      "input": {
+        "eventId": "evt-2",
+        "sdk": {
+          "requestedAutoTier": null,
+          "effectiveAutoTier": "intelligence",
+          "reason": "request_failed"
+        }
+      },
+      "expected": {
+        "meta": {
+          "requestedAutoTier": "default",
+          "effectiveAutoTier": "intelligence",
+          "reason": "request_failed",
+          "eventId": "evt-2"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: provider-default routing in force is written as default",
+      "op": "projectFromSdk",
+      "$comment": "The runtime omits effectiveAutoTier when no tier stays in force.",
+      "input": {
+        "eventId": "evt-3",
+        "sdk": {
+          "requestedAutoTier": "balance",
+          "reason": "unsupported"
+        }
+      },
+      "expected": {
+        "meta": {
+          "requestedAutoTier": "balance",
+          "effectiveAutoTier": "default",
+          "reason": "unsupported",
+          "eventId": "evt-3"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: values and fields newer than the host pass through intact",
+      "op": "projectFromSdk",
+      "$comment": "Only the two tier fields are rewritten, and only their provider-default spelling, so a future tier or reason is not collapsed to a variant name.",
+      "input": {
+        "eventId": "evt-4",
+        "sdk": {
+          "requestedAutoTier": "turbo",
+          "effectiveAutoTier": "balance",
+          "reason": "quota_exhausted",
+          "retryAfterMs": 500
+        }
+      },
+      "expected": {
+        "meta": {
+          "requestedAutoTier": "turbo",
+          "effectiveAutoTier": "balance",
+          "reason": "quota_exhausted",
+          "retryAfterMs": 500,
+          "eventId": "evt-4"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: a payload without a reason publishes nothing",
+      "op": "projectFromSdk",
+      "input": {
+        "eventId": "evt-5",
+        "sdk": {
+          "requestedAutoTier": "fast"
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "projectFromSdk: a payload without the requested tier publishes nothing",
+      "op": "projectFromSdk",
+      "$comment": "The runtime always names the request, null included, so an absent one is malformed rather than provider-default routing.",
+      "input": {
+        "eventId": "evt-6",
+        "sdk": {
+          "reason": "request_failed"
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "projectFromSdk: a non-string reason publishes nothing",
+      "op": "projectFromSdk",
+      "input": {
+        "eventId": "evt-7",
+        "sdk": {
+          "requestedAutoTier": "fast",
+          "reason": 3
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "projectFromSdk: a non-string tier publishes nothing",
+      "op": "projectFromSdk",
+      "input": {
+        "eventId": "evt-8",
+        "sdk": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": 2,
+          "reason": "request_failed"
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "set: stamps the notice onto empty _meta",
+      "op": "set",
+      "input": {
+        "meta": {},
+        "value": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": "efficiency",
+          "reason": "request_failed",
+          "eventId": "evt-1"
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.autoTierSwitchFailure": {
+            "requestedAutoTier": "fast",
+            "effectiveAutoTier": "efficiency",
+            "reason": "request_failed",
+            "eventId": "evt-1"
+          }
+        }
+      }
+    },
+    {
+      "name": "set: preserves sibling metadata",
+      "op": "set",
+      "input": {
+        "meta": {
+          "copilot.usageInfo": {
+            "tokenLimit": 200000
+          }
+        },
+        "value": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": "efficiency",
+          "reason": "request_failed",
+          "eventId": "evt-1"
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageInfo": {
+            "tokenLimit": 200000
+          },
+          "copilot.autoTierSwitchFailure": {
+            "requestedAutoTier": "fast",
+            "effectiveAutoTier": "efficiency",
+            "reason": "request_failed",
+            "eventId": "evt-1"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns a present notice",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.autoTierSwitchFailure": {
+            "requestedAutoTier": "fast",
+            "effectiveAutoTier": "efficiency",
+            "reason": "request_failed",
+            "eventId": "evt-1"
+          }
+        }
+      },
+      "expected": {
+        "failure": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": "efficiency",
+          "reason": "request_failed",
+          "eventId": "evt-1"
+        }
+      }
+    },
+    {
+      "name": "extract: absent key returns null",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.usageInfo": {
+            "tokenLimit": 200000
+          }
+        }
+      },
+      "expected": {
+        "failure": null
+      }
+    },
+    {
+      "name": "extract: empty _meta returns null",
+      "op": "extract",
+      "input": {
+        "meta": {}
+      },
+      "expected": {
+        "failure": null
+      }
+    },
+    {
+      "name": "extract: empty object returns null",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.autoTierSwitchFailure": {}
+        }
+      },
+      "expected": {
+        "failure": null
+      }
+    },
+    {
+      "name": "extract: wrong type returns null",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.autoTierSwitchFailure": "fast"
+        }
+      },
+      "expected": {
+        "failure": null
+      }
+    },
+    {
+      "name": "wireShape: pins the flat dotted notice",
+      "op": "wireShape",
+      "input": {
+        "eventId": "evt-1",
+        "sdk": {
+          "requestedAutoTier": "fast",
+          "effectiveAutoTier": "efficiency",
+          "reason": "policy_rejected"
+        }
+      },
+      "expected": {
+        "json": {
+          "copilot.autoTierSwitchFailure": {
+            "requestedAutoTier": "fast",
+            "effectiveAutoTier": "efficiency",
+            "reason": "policy_rejected",
+            "eventId": "evt-1"
+          }
+        }
+      }
+    }
+  ]
+}

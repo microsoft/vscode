@@ -5,6 +5,7 @@
 
 import { ICustomInstructionsService, ISkillInfo } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IExtensionsService } from '../../../platform/extensions/common/extensionsService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { hash } from '../../../util/vs/base/common/hash';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -16,6 +17,9 @@ import { URI } from '../../../util/vs/base/common/uri';
  *
  * TODO: Add pluginNameHash and pluginVersion properties once vscode core's
  * extensionPromptFileProvider command exposes IAgentPluginService metadata.
+ *
+ * @param gitHubCopilotRequestTe Raw `X-GitHub-Copilot-Request-Te` value of the model call that
+ * requested the skill, when known. Only added to the GitHub events.
  */
 export function sendSkillContentReadTelemetry(
 	telemetryService: ITelemetryService,
@@ -24,6 +28,7 @@ export function sendSkillContentReadTelemetry(
 	uri: URI,
 	skillInfo: ISkillInfo,
 	content: string,
+	gitHubCopilotRequestTe?: string,
 ): void {
 	const extensionSkillInfo = customInstructionsService.getExtensionSkillInfo(uri);
 	const extensionId = extensionSkillInfo?.extensionId ?? '';
@@ -46,9 +51,10 @@ export function sendSkillContentReadTelemetry(
 			skillExtensionVersion: plaintextProps.skillExtensionVersion,
 			skillStorage: plaintextProps.skillStorage,
 			skillContentHash: contentHash,
+			...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe),
 		}
 	);
 
-	telemetryService.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
+	telemetryService.sendEnhancedGHTelemetryEvent('skillContentRead', { ...plaintextProps, ...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe) });
 	telemetryService.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 }

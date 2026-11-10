@@ -14,42 +14,45 @@ import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensi
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { ChangesViewPane, SinglePaneChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
-import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
-import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { ChangesViewPane, DesktopChangesViewPane, ChangesViewPaneContainer } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import './changesView.contribution.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
 import './changesetReviewActions.js';
 import './checksActions.js';
+import './sessionActionContextKeys.contribution.js';
 import './sessionSyncChanges.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ChangesViewService } from './changesViewService.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewService } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { IChangesEditorScope, IChangesViewService, NoChangesEditorScope } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { SessionsChangesAccessibilityHelp } from '../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ChangesActivityContribution } from './changesActivity.js';
 
 /**
- * Registers the custom single-pane Changes editor (multi-diff pane with the header
- * toolbar) and its serializer, only when the single-pane layout is enabled. In the
- * standard layout, changes open as a plain multi-diff editor instead. Registered at
+ * Registers the custom desktop Changes editor (multi-diff pane with the header
+ * toolbar) and its serializer for the desktop workbench. In the mobile
+ * workbench, changes open as a plain multi-diff editor instead. Registered at
  * startup (before editor restore) so persisted Changes tabs can be deserialized.
  */
-class SinglePaneChangesEditorContribution extends Disposable implements IWorkbenchContribution {
+class DesktopChangesEditorContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.sessions.singlePaneChangesEditor';
+	static readonly ID = 'workbench.contrib.sessions.desktopChangesEditor';
 
 	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 	) {
 		super();
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
 
@@ -65,7 +68,8 @@ class SinglePaneChangesEditorContribution extends Disposable implements IWorkben
 	}
 }
 
-registerWorkbenchContribution2(SinglePaneChangesEditorContribution.ID, SinglePaneChangesEditorContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(DesktopChangesEditorContribution.ID, DesktopChangesEditorContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChangesActivityContribution.ID, ChangesActivityContribution, WorkbenchPhase.AfterRestored);
 
 AccessibleViewRegistry.register(new SessionsChangesAccessibilityHelp());
 
@@ -101,21 +105,20 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext);
 
 /**
- * Registers the Changes view with the layout-appropriate pane class: the single-pane
- * {@link SinglePaneChangesViewPane} when the single-pane layout is enabled, otherwise
- * the standard {@link ChangesViewPane}. Registered at startup (the setting is resolved
- * once; toggling requires a window reload).
+ * Registers the Changes view with the presentation-appropriate pane class:
+ * {@link DesktopChangesViewPane} in the desktop workbench and
+ * {@link ChangesViewPane} in the mobile workbench.
  */
 class ChangesViewContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.changesView';
 
 	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 	) {
 		super();
 
-		const ctor = layoutService.isSinglePaneLayoutEnabled ? SinglePaneChangesViewPane : ChangesViewPane;
+		const ctor = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop ? DesktopChangesViewPane : ChangesViewPane;
 		viewsRegistry.registerViews([{
 			id: CHANGES_VIEW_ID,
 			name: localize2('changes', 'Changes'),
@@ -147,3 +150,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
 registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+registerSingleton(IChangesEditorScope, NoChangesEditorScope, InstantiationType.Delayed);

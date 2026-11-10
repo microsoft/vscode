@@ -8,7 +8,81 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
 import { ThemeTypeSelector } from '../../../platform/theme/common/theme.js';
-import { getPartsSplashColors } from '../../electron-browser/workbench/partsSplash.js';
+import { getPartsSplashColors, getPartsSplashLayoutMetrics, getPartsSplashPartRadius } from '../../electron-browser/workbench/partsSplash.js';
+
+suite('Parts splash layout', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores independent semantic component radii and retains compact geometry', () => {
+		const layout = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+			override modernUICompact = false;
+		}();
+		const bounds = { top: 0, left: 0, width: 100, height: 100 };
+		assert.deepStrictEqual({
+			components: [0, 2, 5, 8].map(cornerRadius => getPartsSplashPartRadius(layout, { ...bounds, cornerRadius })),
+			compact: getPartsSplashPartRadius({ ...layout, modernUICompact: true }, { ...bounds, cornerRadius: 5 }),
+			olderData: getPartsSplashPartRadius(layout, bounds),
+			missingBounds: getPartsSplashPartRadius(layout, undefined),
+		}, { components: [0, 2, 5, 8], compact: 0, olderData: 8, missingBounds: 8 });
+	});
+
+	for (const spacing of [0, 1, 4, 8, 16]) {
+		test(`restores ${spacing}px inter-panel spacing without changing outer gutters`, () => {
+			const layout = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+				override panelSpacing = spacing;
+			}();
+			assert.deepStrictEqual({
+				regular: getPartsSplashLayoutMetrics(layout),
+				compact: getPartsSplashLayoutMetrics({ ...layout, modernUICompact: true }),
+			}, {
+				regular: { floatingMargin: spacing, floatingOuterMargin: 4, floatingBorderWidth: 1, floatingBorderRadius: 8 },
+				compact: { floatingMargin: 0, floatingOuterMargin: 0, floatingBorderWidth: 1, floatingBorderRadius: 0 },
+			});
+		});
+	}
+
+	test('keeps compact edges flush and square with and without saved part bounds', () => {
+		const layoutInfo = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+			override modernUI = true;
+			override modernUICompact = true;
+			override partBounds = {
+				activityBar: { top: 35, left: 0, width: 40, height: 600 },
+				sideBar: { top: 35, left: 40, width: 200, height: 600 },
+				editor: { top: 35, left: 240, width: 560, height: 400 },
+				panel: { top: 435, left: 240, width: 560, height: 200 },
+				auxiliaryBar: { top: 35, left: 800, width: 200, height: 600 },
+			};
+		}();
+
+		const expected = {
+			floatingMargin: 0,
+			floatingOuterMargin: 0,
+			floatingBorderWidth: 1,
+			floatingBorderRadius: 0,
+		};
+		assert.deepStrictEqual({
+			savedBounds: getPartsSplashLayoutMetrics(layoutInfo),
+			fallback: getPartsSplashLayoutMetrics({ ...layoutInfo, partBounds: undefined }),
+		}, {
+			savedBounds: expected,
+			fallback: expected,
+		});
+	});
+
+	test('preserves default-density gutters and rounded corners', () => {
+		const layoutInfo = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+			override modernUI = true;
+			override modernUICompact = false;
+		}();
+
+		assert.deepStrictEqual(getPartsSplashLayoutMetrics(layoutInfo), {
+			floatingMargin: 4,
+			floatingOuterMargin: 4,
+			floatingBorderWidth: 1,
+			floatingBorderRadius: 8,
+		});
+	});
+});
 
 suite('Parts splash colors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

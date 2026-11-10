@@ -15,7 +15,7 @@ import { ConfigKey, IConfigurationService } from '../../configuration/common/con
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService, collectSingleLineErrorMessage } from '../../log/common/logService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { getCopilotServiceRequestId } from '../common/fetch';
+import { getCopilotServiceRequestId, getGitHubCopilotRequestTe } from '../common/fetch';
 import { HeadersImpl, IHeaders, WebSocketConnection } from '../common/fetcherService';
 import { stringifyJsonBody } from '../common/jsonBody';
 import { IEndpointBody } from '../common/networking';
@@ -151,6 +151,11 @@ export interface IChatWebSocketRequestHandle {
 	readonly firstEvent: Promise<OpenAI.Responses.ResponseStreamEvent | CAPIWebSocketErrorEvent>;
 	/** Resolves when the request has finished (completed or errored). */
 	readonly done: Promise<void>;
+	/**
+	 * Raw `X-GitHub-Copilot-Request-Te` value from this turn's message envelope `headers`
+	 * map, or `undefined` if no message carried it.
+	 */
+	readonly gitHubCopilotRequestTe?: string;
 }
 
 /**
@@ -508,6 +513,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 					requestId: this._activeRequest?.requestId,
 					gitHubRequestId: this.gitHubRequestId,
 					copilotServiceRequestId: this.copilotServiceRequestId,
+					gitHubCopilotRequestTe: this._activeRequest?.gitHubCopilotRequestTe,
 					modelId: this._activeRequest?.modelId,
 					error: parseErrorMessage,
 					connectionDurationMs,
@@ -542,6 +548,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				requestId: this._activeRequest?.requestId,
 				gitHubRequestId: this.gitHubRequestId,
 				copilotServiceRequestId: this.copilotServiceRequestId,
+				gitHubCopilotRequestTe: this._activeRequest?.gitHubCopilotRequestTe,
 				modelId: this._activeRequest?.modelId,
 				closeCode: event.code,
 				closeReason: closeCodeDescription,
@@ -572,6 +579,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				requestId: this._activeRequest?.requestId,
 				gitHubRequestId: this.gitHubRequestId,
 				copilotServiceRequestId: this.copilotServiceRequestId,
+				gitHubCopilotRequestTe: this._activeRequest?.gitHubCopilotRequestTe,
 				modelId: this._activeRequest?.modelId,
 				error: errorMessage,
 				connectionDurationMs,
@@ -651,6 +659,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				requestId,
 				gitHubRequestId: this.gitHubRequestId,
 				copilotServiceRequestId: this.copilotServiceRequestId,
+				gitHubCopilotRequestTe: request.gitHubCopilotRequestTe,
 				modelId: options.model,
 				requestOutcome: outcome,
 				statefulMarkerMatched,
@@ -762,6 +771,7 @@ class ChatWebSocketActiveRequest implements IChatWebSocketRequestHandle {
 	private _rejectFirstEvent!: (err: Error) => void;
 	private _firstEventSettled = false;
 	readonly firstEvent: Promise<OpenAI.Responses.ResponseStreamEvent | CAPIWebSocketErrorEvent>;
+	gitHubCopilotRequestTe: string | undefined;
 
 	private _resolve!: () => void;
 	private _reject!: (err: Error) => void;
@@ -807,6 +817,10 @@ class ChatWebSocketActiveRequest implements IChatWebSocketRequestHandle {
 				this._logService.error(`[ChatWebSocketManager] Failed to parse simulated WebSocket response: ${collectSingleLineErrorMessage(e)}`);
 			}
 		}
+
+		// CAPI sends per-turn response headers in the message envelope rather than on the handshake.
+		// Its error frames carry an envelope without this header, so keep the first value seen.
+		this.gitHubCopilotRequestTe ??= getGitHubCopilotRequestTe((event as { headers?: Record<string, string> }).headers);
 
 		if (!this._firstEventSettled) {
 			this._firstEventSettled = true;

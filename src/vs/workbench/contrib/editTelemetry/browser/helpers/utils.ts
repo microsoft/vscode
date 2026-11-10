@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableProducer } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, observableValue, runOnChange, transaction, RemoveUndefined } from '../../../../../base/common/observable.js';
 
@@ -28,19 +28,27 @@ export function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithCha
 	return obsResult;
 }
 
+/** Streams changes to a single consumer without retaining consumed values; disposing the store ends the stream after queued changes. */
 export function iterateObservableChanges<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
-	return new AsyncIterableProducer<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
-		if (store.isDisposed) {
-			return;
-		}
-		store.add(runOnChange(obs, (value, prevValue, change) => {
-			e.emitOne({ value, prevValue, change: change });
-		}));
-
-		return new Promise((res) => {
-			store.add(toDisposable(() => {
-				res(undefined);
-			}));
-		});
+	type Change = { value: T; prevValue: T; change: RemoveUndefined<TChange>[] };
+	const finished = new DeferredPromise<void>();
+	const initialChanges: Change[] = [];
+	let emitChange = (change: Change) => { initialChanges.push(change); };
+	const source = new AsyncIterableProducer<Change>(emitter => {
+		emitter.emitMany(initialChanges);
+		initialChanges.length = 0;
+		emitChange = change => emitter.emitOne(change);
+		return finished.p;
 	});
+
+	// Subscribe synchronously: the producer's executor starts in a microtask.
+	if (!store.isDisposed) {
+		store.add(runOnChange(obs, (value, prevValue, change) => {
+			emitChange({ value, prevValue, change });
+		}));
+		store.add(toDisposable(() => finished.complete()));
+	} else {
+		finished.complete();
+	}
+	return source;
 }

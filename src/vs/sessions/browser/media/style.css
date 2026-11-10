@@ -50,13 +50,19 @@
 
 /* ---- Sessions Action Widget Pickers ---- */
 
+.monaco-workbench.agent-sessions-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) {
+	--modern-ui-solid-menu-background: var(--vscode-agentsPanel-background);
+	--modern-ui-solid-quick-input-background: var(--vscode-agentsPanel-background);
+}
+
 .agent-sessions-workbench .action-widget {
-	background-color: var(--vscode-agentsPanel-background);
+	--vscode-menu-background: var(--vscode-agentsPanel-background);
+	background-color: var(--vscode-menu-background);
 }
 
 .agent-sessions-workbench .action-widget .action-widget-action-bar,
 .agent-sessions-workbench .action-widget .action-list-filter {
-	background-color: var(--vscode-agentsPanel-background);
+	background-color: var(--vscode-menu-background);
 }
 
 .agent-sessions-workbench .action-widget .action-list-filter-row {
@@ -64,21 +70,25 @@
 }
 
 .agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
-	background-color: var(--vscode-agentsPanel-background) !important;
+	background-color: var(--vscode-menu-background) !important;
 }
 
 /* ---- Sessions Quick Picks ---- */
 
+.agent-sessions-workbench .quick-input-widget {
+	--vscode-quickInput-background: var(--vscode-agentsPanel-background);
+}
+
 .agent-sessions-workbench .quick-input-widget,
 .agent-sessions-workbench .quick-input-titlebar {
-	background-color: var(--vscode-agentsPanel-background) !important;
+	background-color: var(--vscode-quickInput-background) !important;
 }
 
 .agent-sessions-workbench .quick-input-header,
 .agent-sessions-workbench .quick-input-html-widget,
 .agent-sessions-workbench .quick-input-list .monaco-scrollable-element > .monaco-list-rows,
 .agent-sessions-workbench .quick-input-tree .monaco-scrollable-element > .monaco-list-rows {
-	background-color: var(--vscode-agentsPanel-background) !important;
+	background-color: var(--vscode-quickInput-background) !important;
 }
 
 .agent-sessions-workbench .quick-input-header {
@@ -87,10 +97,14 @@
 
 /* ---- Sessions Context Menus ---- */
 
+.agent-sessions-workbench .context-view.monaco-menu-container {
+	--vscode-menu-background: var(--vscode-agentsPanel-background);
+}
+
 .agent-sessions-workbench .context-view.monaco-menu-container,
 .agent-sessions-workbench .context-view.monaco-menu-container .monaco-menu,
 .agent-sessions-workbench .context-view.monaco-menu-container .monaco-scrollable-element {
-	background-color: var(--vscode-agentsPanel-background) !important;
+	background-color: var(--vscode-menu-background) !important;
 }
 
 /* ---- Widget Customizations ---- */

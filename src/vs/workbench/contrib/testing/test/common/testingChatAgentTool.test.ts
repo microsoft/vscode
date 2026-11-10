@@ -4,39 +4,105 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import * as sinon from 'sinon';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IExtUri } from '../../../../../base/common/resources.js';
+import { ExtUri, IExtUri } from '../../../../../base/common/resources.js';
+import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { FileCoverage, ICoverageAccessor, TestCoverage } from '../../common/testCoverage.js';
 import { LiveTestResult } from '../../common/testResult.js';
-import { ITestResultService } from '../../common/testResultService.js';
-import { IMainThreadTestCollection, ITestService } from '../../common/testService.js';
-import { CoverageDetails, DetailType, IBranchCoverage, IDeclarationCoverage, IFileCoverage, IStatementCoverage, ResolvedTestRunRequest, TestMessageType, TestResultState, TestRunProfileBitset } from '../../common/testTypes.js';
+import { ITestResultService, ResultChangeEvent } from '../../common/testResultService.js';
+import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from '../../common/testService.js';
+import { CoverageDetails, DetailType, IBranchCoverage, IDeclarationCoverage, IFileCoverage, IStatementCoverage, ResolvedTestRunRequest, TestDiffOpType, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset, TestsDiff } from '../../common/testTypes.js';
 import { ITestProfileService } from '../../common/testProfileService.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { TestId } from '../../common/testId.js';
-import { RunTestTool, buildTestRunSummary, getCoverageSummary, getOverallCoverageSummary, getFileCoverageDetails, mergeLineRanges, getFailureDetails } from '../../common/testingChatAgentTool.js';
+import { RunTestTool, TestRunMode, buildTestRunSummary, getCoverageSummary, getOverallCoverageSummary, getFileCoverageDetails, mergeLineRanges, getFailureDetails } from '../../common/testingChatAgentTool.js';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
+import { TestTestCollection, TestTestItem } from './testStubs.js';
 
 suite('Workbench - RunTestTool', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let insertCounter = 0;
 	let tool: RunTestTool;
+	let testService: Mutable<ITestService>;
+	let fileService: IFileService;
+	let workspaceContext: IWorkspaceContextService;
+	let resultService: Mutable<ITestResultService>;
+	let profileService: ITestProfileService;
+	let uriIdentity: IUriIdentityService;
 
 	const noopProgress = {
 		report: (_update: IToolProgressStep) => { },
 	};
 	const noopCountTokens = () => Promise.resolve(0);
+
+	function resultText(result: IToolResult): string {
+		return result.content.flatMap(content => content.kind === 'text' ? [content.value] : []).join('\n');
+	}
+
+	function invoke(parameters: IToolInvocation['parameters'], token = CancellationToken.None) {
+		return tool.invoke(upcastPartial<IToolInvocation>({ parameters }), noopCountTokens, noopProgress, token);
+	}
+
+	function useCollection(extension: TestTestCollection, additional: readonly TestTestCollection[] = []) {
+		const extensions = [extension, ...additional];
+		const diffs = ds.add(new Emitter<TestsDiff>());
+		const apply = (diff: TestsDiff) => {
+			collection.apply(diff);
+			diffs.fire(diff);
+		};
+		const collection = new MainThreadTestCollection(uriIdentity, async (id, levels) => {
+			const provider = extensions.find(extension => extension.root.id === TestId.fromString(id).controllerId)!;
+			const expansion = provider.expand(id, levels);
+			apply(provider.collectDiff());
+			await expansion;
+			apply(provider.collectDiff());
+		});
+		for (const extension of extensions) {
+			ds.add(extension.onDidGenerateDiff(apply));
+			apply(extension.collectDiff());
+		}
+		testService.collection = collection;
+		testService.onDidProcessDiff = diffs.event;
+		testService.getTestControllers = () => extensions.map(extension => upcastPartial<IMainThreadTestController>({ id: extension.root.id }));
+		fileService.stat = async uri => upcastPartial<IFileStatWithPartialMetadata>({ resource: uri });
+		return { collection, diffs, flush: () => apply(extension.collectDiff()) };
+	}
+
+	function useFile(path = '/workspace/a.ts', label = 'test a') {
+		const extension = ds.add(new TestTestCollection());
+		const item = new TestTestItem(new TestId(['ctrlId', 'a']), label, URI.file(path));
+		extension.root.children.add(item);
+		return { extension, item, ...useCollection(extension) };
+	}
+
+	function useCompletedRun(state = TestResultState.Passed) {
+		const requests: AmbiguousRunTestsRequest[] = [];
+		testService.runTests = async request => {
+			requests.push(request);
+			const result = createResultWithTests(request.tests.map(test => ({ extId: test.item.extId, label: test.item.label, state })));
+			result.markComplete();
+			return result;
+		};
+		return requests;
+	}
 
 	function createLiveTestResult(request?: ResolvedTestRunRequest): LiveTestResult {
 		const req = request ?? {
@@ -170,52 +236,824 @@ suite('Workbench - RunTestTool', () => {
 	setup(() => {
 		insertCounter = 0;
 
-		const mockTestService = upcastPartial<ITestService>({
-			collection: upcastPartial<IMainThreadTestCollection>({
-				rootItems: [],
-				rootIds: [],
-				expand: () => Promise.resolve(),
-				getNodeById: () => undefined,
-				getNodeByUrl: () => [],
-			}),
+		const extUri = new ExtUri(() => false);
+		uriIdentity = upcastPartial<IUriIdentityService>({
+			asCanonicalUri: (uri: URI) => uri,
+			extUri,
+		});
+		testService = upcastPartial<ITestService>({
+			collection: new MainThreadTestCollection(uriIdentity, async () => { }),
+			onDidProcessDiff: Event.None,
+			getTestControllers: () => [],
 			runTests: () => Promise.resolve(upcastPartial({})),
 			cancelTestRun: () => { },
 		});
 
-		const mockResultService = upcastPartial<ITestResultService>({
+		resultService = upcastPartial<ITestResultService>({
 			onResultsChanged: Event.None,
 		});
 
-		const mockProfileService = upcastPartial<ITestProfileService>({
+		profileService = upcastPartial<ITestProfileService>({
 			capabilitiesForTest: () => TestRunProfileBitset.Run | TestRunProfileBitset.Coverage,
 		});
 
-		const mockUriIdentity = upcastPartial<IUriIdentityService>({
-			asCanonicalUri: (uri: URI) => uri,
-			extUri: upcastPartial<IExtUri>({ isEqual: (a: URI, b: URI) => a.toString() === b.toString() }),
-		});
-
-		const mockWorkspaceContext = upcastPartial<IWorkspaceContextService>({
+		workspaceContext = upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => upcastPartial<IWorkspace>({ id: 'test', folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/workspace') })] }),
 		});
 
+		fileService = upcastPartial<IFileService>({
+			stat: async () => { throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND); },
+		});
 		tool = new RunTestTool(
-			mockTestService,
-			mockUriIdentity,
-			mockWorkspaceContext,
-			mockResultService,
-			mockProfileService,
+			testService,
+			uriIdentity,
+			workspaceContext,
+			resultService,
+			profileService,
+			fileService,
 		);
 	});
 
 	suite('invoke', () => {
-		test('returns error when no tests found', async () => {
-			const result = await tool.invoke(
-				upcastPartial<IToolInvocation>({ parameters: { files: ['/nonexistent/test.ts'] } }),
-				noopCountTokens, noopProgress, CancellationToken.None,
-			);
-			assert.ok(result.toolResultError);
-			assert.ok(result.content[0].kind === 'text' && result.content[0].value.includes('No tests found'));
+		test('reports unavailable workspace discovery instead of an empty passing run', async () => {
+			const requests = useCompletedRun();
+			const result = await invoke({});
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				noTests: resultText(result).includes('No tests are available to run through VS Code\'s test extensions'),
+				unavailable: resultText(result).includes('discovery is unavailable'),
+				noRun: resultText(result).includes('No tests were run'),
+				passing: resultText(result).includes('<summary'),
+				runCount: requests.length,
+			}, { error: true, noTests: true, unavailable: true, noRun: true, passing: false, runCount: 0 });
+		});
+
+		for (const lazy of [false, true]) {
+			test(`does not run an empty workspace controller (${lazy ? 'lazy' : 'already discovered'})`, async () => {
+				const extension = ds.add(new TestTestCollection());
+				if (lazy) {
+					extension.resolveHandler = () => { };
+				}
+				useCollection(extension);
+				const requests = useCompletedRun();
+				const result = await invoke({});
+				assert.deepStrictEqual({
+					error: !!result.toolResultError,
+					noTests: resultText(result).includes('No tests are available to run through VS Code\'s test extensions'),
+					noRun: resultText(result).includes('No tests were run'),
+					limitedDiscovery: resultText(result).includes('This does not establish that the workspace contains no tests'),
+					conditionalFallback: resultText(result).includes('configured test command if one is defined'),
+					passing: resultText(result).includes('<summary'),
+					runCount: requests.length,
+				}, { error: true, noTests: true, noRun: true, limitedDiscovery: true, conditionalFallback: true, passing: false, runCount: 0 });
+			});
+		}
+
+		test('discovers and runs workspace tests from a lazy controller', async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => {
+				extension.root.children.add(new TestTestItem(new TestId(['ctrlId', 'a']), 'test a', URI.file('/workspace/a.ts')));
+			};
+			useCollection(extension);
+			const requests = useCompletedRun();
+			const result = await invoke({});
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				requests: requests.map(request => request.tests.map(test => test.item.extId)),
+			}, { error: false, passed: true, requests: [['ctrlId']] });
+		});
+
+		test('reports pending workspace discovery rather than an empty passing run', () => runWithFakedTimers({}, async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => new Promise<void>(() => { });
+			const { diffs } = useCollection(extension);
+			const requests = useCompletedRun();
+			const start = Date.now();
+			const result = await invoke({});
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				elapsed: Date.now() - start,
+				pending: resultText(result).includes('discovery is pending'),
+				passing: resultText(result).includes('<summary'),
+				listeners: diffs.hasListeners(),
+				runCount: requests.length,
+			}, { error: true, elapsed: 5_000, pending: true, passing: false, listeners: false, runCount: 0 });
+		}));
+
+		for (const stalledFirst of [false, true]) {
+			test(`preserves ready workspace controller selection (${stalledFirst ? 'stalled' : 'healthy'} controller first)`, () => runWithFakedTimers({}, async () => {
+				const healthy = ds.add(new TestTestCollection('healthy'));
+				healthy.resolveHandler = () => {
+					healthy.root.children.add(new TestTestItem(new TestId(['healthy', 'a']), 'test a', URI.file('/workspace/a.ts')));
+				};
+				const stalled = ds.add(new TestTestCollection('stalled'));
+				stalled.resolveHandler = () => new Promise<void>(() => { });
+				const { diffs } = useCollection(stalledFirst ? stalled : healthy, [stalledFirst ? healthy : stalled]);
+				const requests = useCompletedRun();
+				const start = Date.now();
+				const result = await invoke({});
+				assert.deepStrictEqual({
+					elapsed: Date.now() - start,
+					requests: requests.map(request => request.tests.map(test => test.item.extId)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					pending: resultText(result).includes('discovery is pending for controller stalled'),
+					partial: !!result.toolResultError,
+					listeners: diffs.hasListeners(),
+				}, { elapsed: 5_000, requests: [['healthy']], passed: true, pending: true, partial: true, listeners: false });
+			}));
+		}
+
+		test('includes workspace discovery failure evidence without starting a run', async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => {
+				extension.root.set('error', 'Could not load the workspace test manifest');
+			};
+			useCollection(extension);
+			const requests = useCompletedRun();
+			const result = await invoke({});
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				evidence: resultText(result).includes('Could not load the workspace test manifest'),
+				passing: resultText(result).includes('<summary'),
+				runCount: requests.length,
+			}, { error: true, evidence: true, passing: false, runCount: 0 });
+		});
+
+		for (const exists of [false, true]) {
+			test(`reports ${exists ? 'existing' : 'missing'} file independently of controller registration`, async () => {
+				if (exists) {
+					fileService.stat = async uri => upcastPartial<IFileStatWithPartialMetadata>({ resource: uri });
+				}
+				const result = await invoke({ files: ['/workspace/a.ts'] });
+				assert.deepStrictEqual({ error: !!result.toolResultError, text: resultText(result) }, {
+					error: true,
+					text: [
+						'No VS Code tests matched the requested files. The request has not been validated.',
+						'Registered VS Code test controllers: 0.',
+						`/workspace/a.ts: path ${exists ? 'exists' : 'is missing'}.`,
+						'No discovered test items match this file; discovery: unknown.',
+						'VS Code test discovery is unavailable without a registered test controller. Use the repository\'s configured test command instead of repeatedly checking the same paths.',
+					].join('\n'),
+				});
+			});
+		}
+
+		test('counts registered controllers without published roots as unknown discovery', async () => {
+			testService.getTestControllers = () => [upcastPartial<IMainThreadTestController>({ id: 'ctrlId' })];
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				registered: resultText(result).includes('controllers: 1'),
+				unknown: resultText(result).includes('discovery: unknown'),
+				error: !!result.toolResultError,
+			}, { registered: true, unknown: true, error: true });
+		});
+
+		test('distinguishes provider permission errors from missing paths', async () => {
+			const error = createFileSystemProviderError(new Error('Permission denied by remote provider'), FileSystemProviderErrorCode.NoPermissions);
+			fileService.stat = async () => { throw error; };
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				checkError: resultText(result).includes(`path check error: ${error.message}`),
+				missing: resultText(result).includes('path is missing'),
+				error: !!result.toolResultError,
+			}, { checkError: true, missing: false, error: true });
+		});
+
+		test('bounds a stalled path check without claiming the file is missing', () => runWithFakedTimers({}, async () => {
+			fileService.stat = () => new Promise<IFileStatWithPartialMetadata>(() => { });
+			const start = Date.now();
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				elapsed: Date.now() - start,
+				checkError: resultText(result).includes('path check error'),
+				missing: resultText(result).includes('path is missing'),
+				pending: resultText(result).includes('discovery: pending'),
+			}, { elapsed: 5_000, checkError: true, missing: false, pending: true });
+		}));
+
+		for (const stalledFirst of [false, true]) {
+			test(`runs a known healthy file despite a stalled stat (${stalledFirst ? 'stalled' : 'healthy'} path first)`, () => runWithFakedTimers({}, async () => {
+				const { diffs } = useFile();
+				fileService.stat = uri => uri.path.endsWith('/stalled.ts')
+					? new Promise<IFileStatWithPartialMetadata>(() => { })
+					: Promise.resolve(upcastPartial<IFileStatWithPartialMetadata>({ resource: uri }));
+				const requests = useCompletedRun();
+				const files = ['/workspace/a.ts', '/workspace/stalled.ts'];
+				const start = Date.now();
+				const result = await invoke({ files: stalledFirst ? files.reverse() : files });
+				assert.deepStrictEqual({
+					elapsed: Date.now() - start,
+					requests: requests.map(request => request.tests.map(test => test.item.label)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					checkError: resultText(result).includes('/workspace/stalled.ts: path check error:'),
+					missing: resultText(result).includes('/workspace/stalled.ts: path is missing'),
+					partial: !!result.toolResultError,
+					listeners: diffs.hasListeners(),
+				}, { elapsed: 5_000, requests: [['test a']], passed: true, checkError: true, missing: false, partial: true, listeners: false });
+			}));
+		}
+
+		test('initiates lazy URI-less root discovery without expanding unrelated files', async () => {
+			const extension = ds.add(new TestTestCollection());
+			const resolved: (string | undefined)[] = [];
+			extension.resolveHandler = item => {
+				resolved.push(item?.id);
+				if (!item) {
+					extension.root.children.add(new TestTestItem(new TestId(['ctrlId', 'a']), 'test a', URI.file('/workspace/a.ts')));
+					const unrelated = new TestTestItem(new TestId(['ctrlId', 'b']), 'test b', URI.file('/workspace/b.ts'));
+					unrelated.canResolveChildren = true;
+					extension.root.children.add(unrelated);
+				}
+			};
+			useCollection(extension);
+			const requests = useCompletedRun();
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				resolved,
+				requests: requests.map(request => request.tests.map(test => test.item.extId)),
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				completed: resultText(result).includes('discovery: completed'),
+				error: !!result.toolResultError,
+			}, { resolved: [undefined], requests: [[new TestId(['ctrlId', 'a']).toString()]], passed: true, completed: true, error: false });
+		});
+
+		test('reports completed empty discovery after resolving a lazy controller', async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => { };
+			useCollection(extension);
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				completed: resultText(result).includes('No discovered test items match this file; discovery: completed.'),
+				error: !!result.toolResultError,
+			}, { completed: true, error: true });
+		});
+
+		test('reports controller discovery exceptions rather than completed empty discovery', async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => { };
+			const { collection } = useCollection(extension);
+			collection.expand = async () => { throw new Error('Discovery connection failed'); };
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				failed: resultText(result).includes('discovery: failed'),
+				evidence: resultText(result).includes('Discovery connection failed'),
+				configuredCommand: resultText(result).includes('repository\'s configured test command'),
+				error: !!result.toolResultError,
+			}, { failed: true, evidence: true, configuredCommand: true, error: true });
+		});
+
+		for (const failure of ['throw', 'reject']) {
+			test(`consumes a real resolveHandler ${failure} through collection diffs`, async () => {
+				const consoleError = sinon.stub(console, 'error');
+				try {
+					const message = 'Resolve handler could not import generated tests';
+					const extension = ds.add(new TestTestCollection());
+					extension.resolveHandler = () => {
+						if (failure === 'throw') {
+							throw new Error(message);
+						}
+						return Promise.reject(new Error(message));
+					};
+					const { collection } = useCollection(extension);
+					const requests = useCompletedRun();
+					const result = await invoke({ files: ['/workspace/a.ts'] });
+					assert.deepStrictEqual({
+						metadata: collection.getNodeById('ctrlId')?.item.error,
+						failed: resultText(result).includes('discovery: failed'),
+						evidence: resultText(result).includes(message),
+						configuredCommand: resultText(result).includes('repository\'s configured test command'),
+						error: !!result.toolResultError,
+						runCount: requests.length,
+					}, { metadata: message, failed: true, evidence: true, configuredCommand: true, error: true, runCount: 0 });
+				} finally {
+					consoleError.restore();
+				}
+			});
+		}
+
+		test('consumes provider root discovery errors from existing item metadata', async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => {
+				extension.root.set('error', new MarkdownString('Provider could not load the test manifest'));
+			};
+			useCollection(extension);
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				failed: resultText(result).includes('discovery: failed'),
+				evidence: resultText(result).includes('Provider could not load the test manifest'),
+				error: !!result.toolResultError,
+			}, { failed: true, evidence: true, error: true });
+		});
+
+		test('bounds pending root discovery to five seconds', () => runWithFakedTimers({}, async () => {
+			const extension = ds.add(new TestTestCollection());
+			extension.resolveHandler = () => new Promise<void>(() => { });
+			const { diffs } = useCollection(extension);
+			const requests = useCompletedRun();
+			const start = Date.now();
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				elapsed: Date.now() - start,
+				pending: resultText(result).includes('discovery: pending'),
+				configuredCommand: resultText(result).includes('repository\'s configured test command'),
+				completed: resultText(result).includes('discovery: completed'),
+				runCount: requests.length,
+				listeners: diffs.hasListeners(),
+			}, { elapsed: 5_000, pending: true, configuredCommand: true, completed: false, runCount: 0, listeners: false });
+		}));
+
+		async function useExternallyExpandingFile() {
+			const file = useFile();
+			const extId = file.item.toTestItem().extId;
+			await file.collection.expand(extId, 0);
+			file.collection.apply([{ op: TestDiffOpType.Update, item: { extId, expand: TestItemExpandState.BusyExpanding } }]);
+			return { ...file, extId };
+		}
+
+		test('bounds externally pending expansion despite an already-completed cached promise', () => runWithFakedTimers({}, async () => {
+			const { diffs } = await useExternallyExpandingFile();
+			const requests = useCompletedRun();
+			const start = Date.now();
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				elapsed: Date.now() - start,
+				pending: resultText(result).includes('discovery: pending'),
+				configuredCommand: resultText(result).includes('repository\'s configured test command'),
+				runCount: requests.length,
+				listeners: diffs.hasListeners(),
+			}, { elapsed: 5_000, pending: true, configuredCommand: true, runCount: 0, listeners: false });
+		}));
+
+		test('cancels externally pending expansion and releases its state listener', async () => {
+			const { diffs } = await useExternallyExpandingFile();
+			const subscribed = new DeferredPromise<void>();
+			testService.onDidProcessDiff = listener => {
+				const subscription = diffs.event(listener);
+				void subscribed.complete();
+				return subscription;
+			};
+			const token = ds.add(new CancellationTokenSource());
+			const requests = useCompletedRun();
+			const pending = invoke({ files: ['/workspace/a.ts'] }, token.token);
+			await subscribed.p;
+			token.cancel();
+			const result = await pending;
+			assert.deepStrictEqual({
+				cancelled: resultText(result).includes('cancelled'),
+				runCount: requests.length,
+				listeners: diffs.hasListeners(),
+			}, { cancelled: true, runCount: 0, listeners: false });
+		});
+
+		test('runs only after the actual externally pending expansion state becomes idle', async () => {
+			const { collection, diffs, extId } = await useExternallyExpandingFile();
+			const subscribed = new DeferredPromise<void>();
+			testService.onDidProcessDiff = listener => {
+				const subscription = diffs.event(listener);
+				void subscribed.complete();
+				return subscription;
+			};
+			const requests = useCompletedRun();
+			const pending = invoke({ files: ['/workspace/a.ts'] });
+			await subscribed.p;
+			const beforeCompletion = requests.length;
+			const diff: TestsDiff = [{ op: TestDiffOpType.Update, item: { extId, expand: TestItemExpandState.Expanded } }];
+			collection.apply(diff);
+			diffs.fire(diff);
+			const result = await pending;
+			assert.deepStrictEqual({
+				beforeCompletion,
+				runCount: requests.length,
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				listeners: diffs.hasListeners(),
+				error: !!result.toolResultError,
+			}, { beforeCompletion: 0, runCount: 1, passed: true, listeners: false, error: false });
+		});
+
+		test('bounds name-filter discovery to the same five-second deadline', () => runWithFakedTimers({}, async () => {
+			const { extension, item, collection } = useFile();
+			item.canResolveChildren = true;
+			extension.resolveHandler = () => new Promise<void>(() => { });
+			collection.apply(extension.collectDiff());
+			const requests = useCompletedRun();
+			const result = await invoke({ files: ['/workspace/a.ts'], testNames: ['nested test'] });
+			assert.deepStrictEqual({
+				fileMatched: resultText(result).includes('matching this file: 1'),
+				nameMatched: resultText(result).includes('matching the requested test names: 0'),
+				pending: resultText(result).includes('discovery: pending'),
+				runCount: requests.length,
+			}, { fileMatched: true, nameMatched: true, pending: true, runCount: 0 });
+		}));
+
+		test('cancels busy discovery and removes its diff listener', async () => {
+			const { item, diffs, flush } = useFile();
+			item.set('busy', true);
+			flush();
+			const subscribed = new DeferredPromise<void>();
+			testService.onDidProcessDiff = listener => {
+				const subscription = diffs.event(listener);
+				void subscribed.complete();
+				return subscription;
+			};
+			const token = ds.add(new CancellationTokenSource());
+			const requests = useCompletedRun();
+			const pending = invoke({ files: ['/workspace/a.ts'] }, token.token);
+			await subscribed.p;
+			token.cancel();
+			const result = await pending;
+			assert.deepStrictEqual({
+				cancelled: resultText(result).includes('cancelled'),
+				invalidPath: resultText(result).includes('missing'),
+				passing: resultText(result).includes('<summary'),
+				listeners: diffs.hasListeners(),
+				runCount: requests.length,
+			}, { cancelled: true, invalidPath: false, passing: false, listeners: false, runCount: 0 });
+		});
+
+		test('pre-cancelled requests do not check paths or start discovery', async () => {
+			let checked = false;
+			fileService.stat = async () => { checked = true; throw new Error('should not be called'); };
+			const result = await invoke({ files: ['/workspace/a.ts'] }, CancellationToken.Cancelled);
+			assert.deepStrictEqual({ checked, cancelled: resultText(result).includes('cancelled'), passing: resultText(result).includes('<summary') }, {
+				checked: false, cancelled: true, passing: false,
+			});
+		});
+
+		test('keeps file matching distinct from name-filter matching', async () => {
+			useFile();
+			const requests = useCompletedRun();
+			const result = await invoke({ files: ['/workspace/a.ts'], testNames: ['does not match'] });
+			assert.deepStrictEqual({
+				fileMatched: resultText(result).includes('matching this file: 1'),
+				nameMismatch: resultText(result).includes('matching the requested test names: 0'),
+				fileMismatch: resultText(result).includes('No discovered test items match this file'),
+				error: !!result.toolResultError,
+				runCount: requests.length,
+			}, { fileMatched: true, nameMismatch: true, fileMismatch: false, error: true, runCount: 0 });
+		});
+
+		for (const files of [undefined, ['/workspace/a.ts']]) {
+			test(`reports each unmatched name while running known matches (${files ? 'file' : 'workspace'})`, async () => {
+				useFile();
+				const requests = useCompletedRun();
+				const result = await invoke({ files, testNames: [' TEST A ', ' Missing Test ', 'test a'] });
+				assert.deepStrictEqual({
+					requests: requests.map(request => request.tests.map(test => test.item.label)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					missingName: resultText(result).includes('Requested test names with no discovered or executed match: missing test.'),
+					partial: !!result.toolResultError,
+				}, { requests: [['test a']], passed: true, missingName: true, partial: true });
+			});
+
+			test(`selected suites cover their discovered descendants (${files ? 'file' : 'workspace'})`, async () => {
+				const { item, flush } = useFile('/workspace/a.ts', 'suite a');
+				item.children.add(new TestTestItem(new TestId(['ctrlId', 'a', 'nested']), 'descendant test', URI.file('/workspace/a.ts')));
+				flush();
+				const requests = useCompletedRun();
+				const result = await invoke({ files, testNames: ['suite a', 'descendant'] });
+				assert.deepStrictEqual({
+					requests: requests.map(request => request.tests.map(test => test.item.label)),
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					missingNames: resultText(result).includes('Requested test names with no discovered or executed match:'),
+					partial: !!result.toolResultError,
+				}, { requests: [['suite a']], passed: true, missingNames: false, partial: false });
+			});
+		}
+
+		test('uses completed descendant evidence for a selected suite without expanding it unnecessarily', async () => {
+			useFile('/workspace/a.ts', 'suite a');
+			const requested: string[][] = [];
+			testService.runTests = async request => {
+				requested.push(request.tests.map(test => test.item.label));
+				const completed = createResultWithTests([{ extId: new TestId(['ctrlId', 'a', 'nested']).toString(), label: 'descendant test', state: TestResultState.Passed }]);
+				completed.markComplete();
+				return completed;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'], testNames: ['suite a', 'descendant'] });
+			assert.deepStrictEqual({
+				requested,
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				missingNames: resultText(result).includes('Requested test names with no discovered or executed match:'),
+				partial: !!result.toolResultError,
+			}, { requested: [['suite a']], passed: true, missingNames: false, partial: false });
+		});
+
+		test('runs matched files and reports missing and undiscovered files in mixed requests', async () => {
+			useFile();
+			fileService.stat = async uri => {
+				if (uri.path.endsWith('missing.ts')) {
+					throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+				}
+				return upcastPartial<IFileStatWithPartialMetadata>({ resource: uri });
+			};
+			const requests = useCompletedRun();
+			const result = await invoke({ files: ['/workspace/a.ts', '/workspace/missing.ts', '/workspace/undiscovered.ts'] });
+			assert.deepStrictEqual({
+				requests: requests.map(request => request.tests.map(test => test.item.label)),
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				missing: resultText(result).includes('/workspace/missing.ts: path is missing.'),
+				undiscovered: resultText(result).includes('/workspace/undiscovered.ts: path exists.'),
+				partial: result.toolResultError,
+			}, { requests: [['test a']], passed: true, missing: true, undiscovered: true, partial: 'Only the matched tests were run. The full request has not been validated.' });
+		});
+
+		test('runs matching nested test names and reports the other file as unvalidated', async () => {
+			const { extension, item, flush } = useFile('/workspace/a.ts', 'file a');
+			item.children.add(new TestTestItem(new TestId(['ctrlId', 'a', 'nested']), 'wanted nested test', URI.file('/workspace/a.ts')));
+			extension.root.children.add(new TestTestItem(new TestId(['ctrlId', 'b']), 'other test', URI.file('/workspace/b.ts')));
+			flush();
+			const requests = useCompletedRun();
+			const result = await invoke({ files: ['/workspace/a.ts', '/workspace/b.ts'], testNames: ['wanted'] });
+			assert.deepStrictEqual({
+				requests: requests.map(request => request.tests.map(test => test.item.label)),
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+				mismatch: resultText(result).includes('matching the requested test names: 0'),
+				partial: !!result.toolResultError,
+			}, { requests: [['wanted nested test']], passed: true, mismatch: true, partial: true });
+		});
+
+		test('reports provider errors relevant to the requested file, not another file', async () => {
+			const { extension, item, flush } = useFile();
+			item.set('error', 'Import failed: generated output is unavailable');
+			const other = new TestTestItem(new TestId(['ctrlId', 'b']), 'other test', URI.file('/workspace/b.ts'));
+			other.set('error', 'Unrelated provider error');
+			extension.root.children.add(other);
+			flush();
+			const requests = useCompletedRun(TestResultState.Skipped);
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				evidence: resultText(result).includes('Import failed: generated output is unavailable'),
+				unrelated: resultText(result).includes('Unrelated provider error'),
+				failedDiscovery: resultText(result).includes('discovery: failed'),
+				runCount: requests.length,
+				error: !!result.toolResultError,
+			}, { evidence: true, unrelated: false, failedDiscovery: true, runCount: 1, error: true });
+		});
+
+		test('matches absolute and relative paths using the real remote workspace scheme', async () => {
+			const remoteFolder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/workspace' });
+			const remoteFile = URI.joinPath(remoteFolder, 'a.ts');
+			workspaceContext.getWorkspace = () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: remoteFolder })] });
+			const extension = ds.add(new TestTestCollection());
+			extension.root.children.add(new TestTestItem(new TestId(['ctrlId', 'a']), 'remote test', remoteFile));
+			useCollection(extension);
+			const checked: string[] = [];
+			fileService.stat = async uri => {
+				checked.push(uri.toString());
+				return upcastPartial<IFileStatWithPartialMetadata>({ resource: uri });
+			};
+			const requests = useCompletedRun();
+			const result = await invoke({ files: ['/workspace/a.ts', 'a.ts'] });
+			assert.deepStrictEqual({
+				checked, requested: requests.map(request => request.tests.map(test => test.item.uri?.toString())),
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'), error: !!result.toolResultError,
+			}, { checked: [remoteFile.toString(), remoteFile.toString()], requested: [[remoteFile.toString()]], passed: true, error: false });
+		});
+
+		for (const files of [undefined, [], ['/workspace/a.ts']]) {
+			for (const state of [undefined, TestResultState.Unset, TestResultState.Queued, TestResultState.Skipped]) {
+				test(`does not validate ${files?.length ? 'explicit files' : files ? 'an empty file list' : 'the workspace'} when no tests execute (state ${state})`, async () => {
+					useFile();
+					const result = state === undefined ? createLiveTestResult() : createResultWithTests([{ extId: new TestId(['ctrlId', 'a']).toString(), label: 'a', state }]);
+					if (state === undefined) {
+						result.addTask({ id: 't', name: 'test task', ctrlId: 'ctrlId', running: true });
+					}
+					const output = 'Cannot import /workspace/generated/a.js\n';
+					result.appendOutput(VSBuffer.fromString(output), 't');
+					result.markComplete();
+					testService.runTests = async () => result;
+					const response = await invoke({ files });
+					assert.deepStrictEqual({
+						error: !!response.toolResultError,
+						noTests: resultText(response).includes('executed no tests'),
+						output: resultText(response).includes(output),
+						configuredCommand: resultText(response).includes('repository\'s configured test command'),
+						passingSummary: resultText(response).includes('<summary passed=0 failed=0 />'),
+					}, { error: true, noTests: true, output: true, configuredCommand: true, passingSummary: false });
+				});
+			}
+		}
+
+		test('reports no execution in progress instead of zero passing tests', () => runWithFakedTimers({}, async () => {
+			useFile();
+			const empty = createLiveTestResult();
+			empty.addTask({ id: 't', name: 'test task', ctrlId: 'ctrlId', running: true });
+			testService.runTests = async () => {
+				void timeout(10).then(() => empty.markComplete());
+				return empty;
+			};
+			const updates: IToolProgressStep[] = [];
+			const result = await tool.invoke(upcastPartial<IToolInvocation>({ parameters: {} }), noopCountTokens, {
+				report: update => updates.push(update),
+			}, CancellationToken.None);
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				lastProgress: updates.at(-1),
+				passing: resultText(result).includes('<summary'),
+			}, { error: true, lastProgress: { message: 'No tests were run.', progress: undefined }, passing: false });
+		}));
+
+		test('handles a completed empty result with no tasks after the capture grace window', () => runWithFakedTimers({}, async () => {
+			useFile();
+			const completed = createLiveTestResult();
+			completed.markComplete();
+			testService.runTests = async () => completed;
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({ error: !!result.toolResultError, noTests: resultText(result).includes('executed no tests') }, { error: true, noTests: true });
+		}));
+
+		test('handles out-of-band completion without a task as an unvalidated empty run', () => runWithFakedTimers({}, async () => {
+			useFile();
+			const results = ds.add(new Emitter<ResultChangeEvent>());
+			resultService.onResultsChanged = results.event;
+			const empty = createLiveTestResult();
+			testService.runTests = async () => {
+				results.fire({ started: empty });
+				empty.markComplete();
+				return empty;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				noTests: resultText(result).includes('executed no tests'),
+				configuredCommand: resultText(result).includes('repository\'s configured test command'),
+				listeners: results.hasListeners(),
+			}, { error: true, noTests: true, configuredCommand: true, listeners: false });
+		}));
+
+		for (const taskAfterStarted of [false, true]) {
+			test(`prefers delayed detached tasks over the completed initial empty result (task ${taskAfterStarted ? 'after' : 'before'} started event)`, () => runWithFakedTimers({}, async () => {
+				const { extension, item } = useFile();
+				const results = ds.add(new Emitter<ResultChangeEvent>());
+				resultService.onResultsChanged = results.event;
+				const initial = createLiveTestResult();
+				initial.markComplete();
+				const detached = createLiveTestResult();
+				const addTask = () => {
+					detached.addTask({ id: 't', name: 'detached task', ctrlId: 'ctrlId', running: true });
+					detached.addTestChainToRun('ctrlId', [extension.root.toTestItem(), item.toTestItem()]);
+					detached.updateState(item.toTestItem().extId, 't', TestResultState.Passed);
+				};
+				testService.runTests = async () => {
+					results.fire({ started: initial });
+					void (async () => {
+						await timeout(10);
+						if (!taskAfterStarted) {
+							addTask();
+						}
+						results.fire({ started: detached });
+						if (taskAfterStarted) {
+							await timeout(10);
+							addTask();
+						}
+						detached.markComplete();
+					})();
+					return initial;
+				};
+				const start = Date.now();
+				const result = await invoke({ files: ['/workspace/a.ts'] });
+				assert.deepStrictEqual({
+					elapsed: Date.now() - start,
+					passed: resultText(result).includes('<summary passed=1 failed=0 />'),
+					noTests: resultText(result).includes('executed no tests'),
+					error: !!result.toolResultError,
+					listeners: results.hasListeners(),
+				}, { elapsed: taskAfterStarted ? 20 : 10, passed: true, noTests: false, error: false, listeners: false });
+			}));
+		}
+
+		test('recommends the configured command when no live test run starts', () => runWithFakedTimers({}, async () => {
+			useFile();
+			testService.runTests = () => Promise.resolve(upcastPartial({}));
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				noRun: resultText(result).includes('No test run was started'),
+				configuredCommand: resultText(result).includes('repository\'s configured test command'),
+			}, { error: true, noRun: true, configuredCommand: true });
+		}));
+
+		test('includes provider errors published during an empty run', () => runWithFakedTimers({}, async () => {
+			const { item, flush } = useFile();
+			const completed = createLiveTestResult();
+			completed.markComplete();
+			testService.runTests = async () => {
+				item.set('error', 'Cannot import generated output for this test');
+				flush();
+				return completed;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				error: !!result.toolResultError,
+				evidence: resultText(result).includes('Cannot import generated output for this test'),
+				failedDiscovery: resultText(result).includes('discovery: failed'),
+			}, { error: true, evidence: true, failedDiscovery: true });
+		}));
+
+		test('preserves failed-test details for a normal completed run', async () => {
+			useFile();
+			const completed = createResultWithTests([{ extId: new TestId(['ctrlId', 'a']).toString(), label: 'a', state: TestResultState.Failed, messages: [{ type: TestMessageType.Error, message: 'Assertion failed' }] }]);
+			completed.markComplete();
+			testService.runTests = async () => completed;
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				failed: resultText(result).includes('<summary passed=0 failed=1 />'), details: resultText(result).includes('Assertion failed'), error: !!result.toolResultError,
+			}, { failed: true, details: true, error: false });
+		});
+
+		test('preserves coverage and profile selection for completed runs', async () => {
+			useFile();
+			const completed = createResultWithTests([{ extId: new TestId(['ctrlId', 'a']).toString(), label: 'a', state: TestResultState.Passed }]);
+			const coverage = createTestCoverage([{ uri: URI.file('/src/a.ts'), statement: { covered: 8, total: 10 } }]);
+			(completed.tasks[0].coverage as ReturnType<typeof observableValue<TestCoverage | undefined>>).set(coverage, undefined);
+			completed.markComplete();
+			let group: TestRunProfileBitset | undefined;
+			testService.runTests = async request => { group = request.group; return completed; };
+			const result = await invoke({ files: ['/workspace/a.ts'], mode: 'coverage' });
+			assert.deepStrictEqual({
+				group, passed: resultText(result).includes('<summary passed=1 failed=0 />'), coverage: resultText(result).includes('<coverageSummary>'), error: !!result.toolResultError,
+			}, { group: TestRunProfileBitset.Coverage, passed: true, coverage: true, error: false });
+		});
+
+		test('falls back to the run profile when coverage is unsupported', async () => {
+			useFile();
+			profileService.capabilitiesForTest = () => TestRunProfileBitset.Run;
+			const requests = useCompletedRun();
+			await invoke({ files: ['/workspace/a.ts'], mode: 'coverage' });
+			assert.deepStrictEqual(requests.map(request => request.group), [TestRunProfileBitset.Run]);
+		});
+
+		test('handles out-of-band runs which complete before progress monitoring attaches', async () => {
+			useFile();
+			const results = ds.add(new Emitter<ResultChangeEvent>());
+			resultService.onResultsChanged = results.event;
+			const completed = createResultWithTests([{ extId: new TestId(['ctrlId', 'a']).toString(), label: 'a', state: TestResultState.Passed }]);
+			testService.runTests = async () => {
+				results.fire({ started: completed });
+				completed.markComplete();
+				return completed;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				passed: resultText(result).includes('<summary passed=1 failed=0 />'), listeners: results.hasListeners(), error: !!result.toolResultError,
+			}, { passed: true, listeners: false, error: false });
+		});
+
+		test('cancels result capture without retaining listeners or a capture timeout', () => runWithFakedTimers({}, async () => {
+			useFile();
+			const results = ds.add(new Emitter<{ started: LiveTestResult }>());
+			resultService.onResultsChanged = results.event;
+			const token = ds.add(new CancellationTokenSource());
+			const started = createLiveTestResult();
+			const cancelled: string[] = [];
+			testService.cancelTestRun = id => { if (id) { cancelled.push(id); } };
+			testService.runTests = async () => {
+				results.fire({ started });
+				await timeout(10);
+				token.cancel();
+				return started;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'] }, token.token);
+			assert.deepStrictEqual({
+				cancelled, listeners: results.hasListeners(), message: resultText(result).includes('cancelled'), passing: resultText(result).includes('<summary'),
+			}, { cancelled: [started.id], listeners: false, message: true, passing: false });
+		}));
+
+		test('cancels a captured running result without a passing summary', () => runWithFakedTimers({}, async () => {
+			useFile();
+			const running = createLiveTestResult();
+			running.addTask({ id: 't', name: 'test task', ctrlId: 'ctrlId', running: true });
+			const token = ds.add(new CancellationTokenSource());
+			const cancelled: string[] = [];
+			testService.cancelTestRun = id => { if (id) { cancelled.push(id); } };
+			testService.runTests = async () => {
+				void timeout(10).then(() => token.cancel());
+				return running;
+			};
+			const result = await invoke({ files: ['/workspace/a.ts'] }, token.token);
+			assert.deepStrictEqual({
+				cancelled, message: resultText(result).includes('cancelled'), passing: resultText(result).includes('<summary'),
+			}, { cancelled: [running.id], message: true, passing: false });
+		}));
+
+		test('reports runner rejection and releases its result listener', async () => {
+			useFile();
+			const results = ds.add(new Emitter<ResultChangeEvent>());
+			resultService.onResultsChanged = results.event;
+			testService.runTests = async () => { throw new Error('Runner could not load /workspace/generated/a.js'); };
+			const result = await invoke({ files: ['/workspace/a.ts'] });
+			assert.deepStrictEqual({
+				error: !!result.toolResultError, evidence: resultText(result).includes('Runner could not load /workspace/generated/a.js'), listeners: results.hasListeners(),
+			}, { error: true, evidence: true, listeners: false });
+		});
+
+		test('describes discovered tests, configured commands, and avoiding repeated path checks', () => {
+			assert.deepStrictEqual({
+				imperative: RunTestTool.DEFINITION.modelDescription.startsWith('Run tests discovered by VS Code'),
+				fallback: RunTestTool.DEFINITION.modelDescription.includes('configured test command'),
+				retry: RunTestTool.DEFINITION.modelDescription.includes('do not repeatedly check the same paths'),
+			}, { imperative: true, fallback: true, retry: true });
 		});
 	});
 
@@ -227,7 +1065,7 @@ suite('Workbench - RunTestTool', () => {
 			]);
 			result.markComplete();
 
-			const summary = await buildTestRunSummary(result, 'run', undefined);
+			const summary = await buildTestRunSummary(result, TestRunMode.Run, undefined);
 			assert.ok(summary.includes('<summary passed=1 failed=1 />'));
 		});
 
@@ -239,7 +1077,7 @@ suite('Workbench - RunTestTool', () => {
 			]);
 			result.markComplete();
 
-			const summary = await buildTestRunSummary(result, 'run', undefined);
+			const summary = await buildTestRunSummary(result, TestRunMode.Run, undefined);
 			assert.ok(summary.includes('failed=2'));
 		});
 
@@ -250,7 +1088,7 @@ suite('Workbench - RunTestTool', () => {
 			const result = createResultWithCoverage(coverageData);
 			result.markComplete();
 
-			const summary = await buildTestRunSummary(result, 'coverage', undefined);
+			const summary = await buildTestRunSummary(result, TestRunMode.Coverage, undefined);
 			assert.ok(summary.includes('<coverageSummary>'));
 		});
 
@@ -259,7 +1097,7 @@ suite('Workbench - RunTestTool', () => {
 			result.addTask({ id: 't', name: 'n', running: true, ctrlId: 'ctrl' });
 			result.markComplete();
 
-			const summary = await buildTestRunSummary(result, 'run', undefined);
+			const summary = await buildTestRunSummary(result, TestRunMode.Run, undefined);
 			assert.ok(!summary.includes('<coverage'));
 		});
 	});

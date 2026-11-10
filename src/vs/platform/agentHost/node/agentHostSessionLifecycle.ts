@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { getSessionRelatedPullRequestUrls, isSessionStatusArchived, readSessionGitHubState, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
+import { getAllSessionRelatedPullRequestUrls, isSessionStatusArchived, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
@@ -29,8 +29,9 @@ export interface IAgentHostSessionLifecycleAccessor {
 	readonly getAutoArchivedAt: (session: URI) => Promise<number | undefined>;
 	readonly setAutoArchivedAt: (session: URI, timestamp: number) => Promise<void>;
 	readonly archiveSession: (session: URI) => void;
+	/** Whether deleting keeps the session's work: each of its worktrees is gone or has its branch synced. */
 	readonly canDeleteSession: (session: URI) => Promise<boolean>;
-	readonly cleanupWorktree: (session: URI, sessionId: string) => Promise<void>;
+	/** Deletes the session; its worktrees are removed later, and only while synced. */
 	readonly deleteSession: (session: URI, validate: () => Promise<boolean>, canCommit: () => boolean) => Promise<boolean>;
 }
 
@@ -185,11 +186,8 @@ export class AgentHostSessionLifecycle extends Disposable {
 						return false;
 					}
 					if (!await this._accessor.canDeleteSession(session)) {
-						await this._accessor.cleanupWorktree(session, sessionKey);
-						if (!await this._accessor.canDeleteSession(session)) {
-							this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
-							return false;
-						}
+						this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree with unsynced work: session=${sessionKey}`);
+						return false;
 					}
 					const finalDeleteAfterDays = this._settings.deleteAfterDays;
 					const finalCandidate = finalDeleteAfterDays > 0
@@ -215,7 +213,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 						&& isSessionStatusArchived(latestSummary.status)
 						&& !isSessionStatusActive(latestSummary.status)
 						&& samePullRequestUrls(
-							getSessionRelatedPullRequestUrls(readSessionGitHubState(latestSummary._meta)),
+							getAllSessionRelatedPullRequestUrls(latestSummary._meta),
 							candidate.pullRequestUrls,
 						);
 				});
@@ -247,7 +245,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 			|| isSessionStatusActive(summary.status)) {
 			return undefined;
 		}
-		const pullRequestUrls = getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta));
+		const pullRequestUrls = getAllSessionRelatedPullRequestUrls(summary._meta);
 		if (pullRequestUrls.length === 0) {
 			return undefined;
 		}
@@ -276,7 +274,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 			|| modifiedTime > archiveCutoff) {
 			return undefined;
 		}
-		return getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta));
+		return getAllSessionRelatedPullRequestUrls(summary._meta);
 	}
 }
 

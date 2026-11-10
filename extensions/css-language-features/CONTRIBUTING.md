@@ -2,13 +2,13 @@
 ## Setup
 
 - Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `npm i` at `/`, this will install
+- Run `pnpm install` at `/`, this will install
 	- Dependencies for `/extension/css-language-features/`
 	- Dependencies for `/extension/css-language-features/server/`
 	- devDependencies such as `gulp`
 
 - Open `/extensions/css-language-features/` as the workspace in VS Code
-- In `/extensions/css-language-features/` run `npm run compile`(or `npm run watch`) to build the client and server
+- In `/extensions/css-language-features/` run `pnpm run compile`(or `pnpm run watch`) to build the client and server
 - Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/css-language-features/.vscode/launch.json) debug target in the Debug View. This will:
 	- Launch a new VS Code instance with the `css-language-features` extension loaded
 - Open a `.css` file to activate the extension. The extension will start the CSS language server process.
@@ -32,12 +32,12 @@ However, within this extension, you can run a development version of `vscode-css
 - Clone [microsoft/vscode-css-languageservice](https://github.com/microsoft/vscode-css-languageservice)
 - Run `npm i` in `vscode-css-languageservice`
 - Run `npm link` in `vscode-css-languageservice`. This will compile and link `vscode-css-languageservice`
-- In `css-language-features/server/`, run `npm link vscode-css-languageservice`
+- In `css-language-features/server/`, run `pnpm link <path to your vscode-css-languageservice checkout>`. This adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-css-languageservice` to undo the link
 
 #### Testing the development version of `vscode-css-languageservice`
 
 - Open both `vscode-css-languageservice` and this extension in a single workspace with [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
 - Run `npm run watch` in `vscode-css-languageservice` to recompile the extension whenever it changes
-- Run `npm run watch` at `css-language-features/server/` to recompile this extension with the linked version of `vscode-css-languageservice`
+- Run `pnpm run watch` at `css-language-features/server/` to recompile this extension with the linked version of `vscode-css-languageservice`
 - Make some changes in `vscode-css-languageservice`
 - Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-css-languageservice`. You can interactively test the language features.

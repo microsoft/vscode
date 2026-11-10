@@ -140,6 +140,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 		super({
 			id: ToggleChatSpeechToTextAction.ID,
 			title: localize2('chat.speechToText.start', "Dictate (Speech to Text)"),
+			precondition: ChatContextKeys.transcriptProgressActive.negate(),
 			category: CHAT_CATEGORY,
 			icon: Codicon.micCompact,
 			f1: false,
@@ -177,7 +178,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -255,6 +256,7 @@ class HoldToSpeechToTextAction extends Action2 {
 		super({
 			id: HoldToSpeechToTextAction.ID,
 			title: localize2('chat.speechToText.hold', "Hold to Dictate (Speech to Text)"),
+			precondition: ChatContextKeys.transcriptProgressActive.negate(),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -267,7 +269,7 @@ class HoldToSpeechToTextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget || speechService.state !== ChatSpeechToTextState.Idle) {
+		if (!widget || widget.isTranscriptProgressActive || speechService.state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
 

@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import * as assert from 'assert';
 import { McpStdioStateHandler } from '../../node/mcpStdioStateHandler.js';
 import { isWindows } from '../../../../../base/common/platform.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
 // Must be comfortably larger than the time it takes to spawn the helper shell
 // script that signals the process tree, otherwise SIGKILL can race SIGTERM.
@@ -17,6 +18,7 @@ suite('McpStdioStateHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function run(code: string) {
+		const logService = store.add(new NullLogService());
 		const child = spawn('node', ['-e', code], {
 			stdio: 'pipe',
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
@@ -24,7 +26,7 @@ suite('McpStdioStateHandler', () => {
 
 		return {
 			child,
-			handler: store.add(new McpStdioStateHandler(child, GRACE_TIME)),
+			handler: store.add(new McpStdioStateHandler(child, message => logService.debug(message), GRACE_TIME)),
 			processId: new Promise<number>((resolve) => {
 				child.on('spawn', () => resolve(child.pid!));
 			}),

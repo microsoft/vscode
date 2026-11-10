@@ -5,13 +5,25 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
+import { TIP_CATALOG } from '../../../../browser/chatTipCatalog.js';
 import { IChatTip, IChatTipService } from '../../../../browser/chatTipService.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputTipPresenter } from '../../../../browser/widget/input/chatInputTipPresenter.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 
 suite('ChatInputTipPresenter', () => {
 
@@ -19,11 +31,18 @@ suite('ChatInputTipPresenter', () => {
 
 	const TIP: IChatTip = { id: 'tip.test', content: { value: 'A tip' } } as IChatTip;
 
-	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean }) {
+	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean; tip?: IChatTip; contextKeyService?: IContextKeyService; getTip?: () => IChatTip | undefined }) {
 		let welcomeTipCalls = 0;
+		let focusInputCalls = 0;
+		let tip = options?.tip ?? TIP;
+		const onDidChangeTip = store.add(new Emitter<void>());
 		const instantiationService = workbenchInstantiationService(undefined, store) as TestInstantiationService;
+		if (options?.contextKeyService) {
+			instantiationService.stub(IContextKeyService, options.contextKeyService);
+		}
 		instantiationService.stub(IChatTipService, {
-			getWelcomeTip: () => { welcomeTipCalls++; return TIP; },
+			getWelcomeTip: () => { welcomeTipCalls++; return options?.getTip ? options.getTip() : tip; },
+			onDidChangeTip: onDidChangeTip.event,
 			onDidDismissTip: () => toDisposable(() => { }),
 			onDidNavigateTip: () => toDisposable(() => { }),
 			onDidHideTip: () => toDisposable(() => { }),
@@ -37,7 +56,7 @@ suite('ChatInputTipPresenter', () => {
 
 		const presenter = instantiationService.createInstance(
 			ChatInputTipPresenter,
-			{ container, isEligible: options?.isEligible ?? (() => true), focusInput: () => { } },
+			{ container, isEligible: options?.isEligible ?? (() => true), focusInput: () => { focusInputCalls++; } },
 			noticeHost,
 		);
 		return {
@@ -47,7 +66,12 @@ suite('ChatInputTipPresenter', () => {
 			// The slot only docks to the input while it is showing something, so the
 			// stack knows whose corners to square without inspecting descendants.
 			docked: () => container.classList.contains('chat-input-stack-docked'),
-			welcomeTipCalls: () => welcomeTipCalls
+			welcomeTipCalls: () => welcomeTipCalls,
+			focusInputCalls: () => focusInputCalls,
+			setTip(value: IChatTip) {
+				tip = value;
+				onDidChangeTip.fire();
+			},
 		};
 	}
 
@@ -82,6 +106,112 @@ suite('ChatInputTipPresenter', () => {
 		store.add(presenter);
 
 		assert.strictEqual(welcomeTipCalls(), 1);
+	});
+
+	test('refreshes the background send tip when its setting changes without moving focus for unrelated changes', async () => {
+		const store = disposables.add(new DisposableStore());
+		const key = ChatConfiguration.SendInBackgroundTipEnabled;
+		const configuration = new TestConfigurationService({ [key]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const contextKeyService = store.add(new ContextKeyService(configuration));
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey('sessionIsCreated', false);
+		const definition = TIP_CATALOG.find(tip => tip.id === 'tip.sendInBackground');
+		assert.ok(definition?.when);
+		const when = definition.when;
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const fixture = createPresenter(store, noticeHost, {
+			contextKeyService,
+			getTip: () => contextKeyService.contextMatchesRules(when)
+				? { id: definition.id, content: new MarkdownString('[Customize the shortcut](https://example.com)') }
+				: undefined,
+		});
+		store.add(fixture.presenter);
+
+		async function updateConfiguration(setting: string, value: boolean): Promise<void> {
+			await configuration.setUserConfiguration(setting, value);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([setting]),
+			}));
+		}
+
+		const showing = [fixture.showing()];
+		fixture.container.querySelector('a')?.focus();
+		await updateConfiguration('editor.wordWrap', true);
+		const callsAfterUnrelatedChange = fixture.welcomeTipCalls();
+		const focusedAfterUnrelatedChange = fixture.presenter.current?.hasFocus();
+		await updateConfiguration(key, false);
+		showing.push(fixture.showing());
+		await updateConfiguration(key, true);
+		showing.push(fixture.showing());
+		await updateConfiguration(key, false);
+		showing.push(fixture.showing());
+
+		assert.deepStrictEqual({
+			showing,
+			callsAfterUnrelatedChange,
+			focusedAfterUnrelatedChange,
+			focusInputCalls: fixture.focusInputCalls(),
+		}, {
+			showing: [true, false, true, false],
+			callsAfterUnrelatedChange: 1,
+			focusedAfterUnrelatedChange: true,
+			focusInputCalls: 1,
+		});
+	});
+
+	test('replaces the rendered tip when a contextual provider changes', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const fixture = createPresenter(store, noticeHost);
+		store.add(fixture.presenter);
+
+		fixture.setTip({
+			id: 'connectorRecommendation.linear',
+			content: { value: 'A connector tip' },
+			icon: URI.parse('https://example.com/linear.png'),
+		} as IChatTip);
+
+		assert.deepStrictEqual({
+			text: fixture.container.textContent,
+			icon: fixture.container.querySelector<HTMLImageElement>('.chat-tip-icon')?.outerHTML,
+			welcomeTipCalls: fixture.welcomeTipCalls(),
+			focusable: noticeHost.hasFocusableNotice(),
+		}, {
+			text: 'A connector tip',
+			icon: '<img class="chat-tip-icon" src="https://example.com/linear.png" alt="" aria-hidden="true">',
+			welcomeTipCalls: 2,
+			focusable: true,
+		});
+	});
+
+	test('preserves focus when replacing a focused contextual tip', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const fixture = createPresenter(store, noticeHost, {
+			tip: { id: 'tip.enable', content: new MarkdownString('[Enable](https://example.com/enable)') },
+		});
+		store.add(fixture.presenter);
+		const enableLink = fixture.container.querySelector<HTMLAnchorElement>('a');
+		assert.ok(enableLink);
+		enableLink.focus();
+
+		fixture.setTip({
+			id: 'tip.enabled',
+			content: new MarkdownString('[Manage Shortcut](https://example.com/manage)'),
+		});
+
+		assert.deepStrictEqual({
+			text: fixture.container.textContent,
+			tipHasFocus: fixture.presenter.current?.hasFocus(),
+			focusInputCalls: fixture.focusInputCalls(),
+		}, {
+			text: 'Manage Shortcut',
+			tipHasFocus: true,
+			focusInputCalls: 0,
+		});
 	});
 
 	test('renders nothing and holds no space while the surface is ineligible', () => {

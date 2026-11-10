@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
 import { promises as fs } from 'fs';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
@@ -198,6 +198,120 @@ suite('platform/otel - outboundForwarder', () => {
 		const lines = content.split('\n').filter(l => l.length > 0);
 		strictEqual(lines.length, 3);
 		deepStrictEqual(lines.map(l => JSON.parse(l).name), ['a', 'b', 'c']);
+	});
+
+	test('FileForwarder creates missing nested parents and appends successive batches in order', async () => {
+		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
+		try {
+			const path = join(directory, 'nested', 'traces', 'spans.jsonl');
+			const options = { filePath: path, createParentDirectories: true };
+			const fwd = store.add(new FileForwarder(options, store.add(new CapturingLogger())));
+			fwd.forwardSpans(makeResult([makeSpan('a', '1111111111111111'), makeSpan('b', '2222222222222222')]));
+			fwd.forwardSpans(makeResult([makeSpan('c', '3333333333333333')]));
+			await fwd.flush();
+
+			const lines = (await fs.readFile(path, 'utf8')).split('\n').filter(l => l.length > 0);
+			deepStrictEqual(lines.map(line => JSON.parse(line).name), ['a', 'b', 'c']);
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('FileForwarder logs write failures, does not reject flush, and recovers after a blocking parent is removed', async () => {
+		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
+		try {
+			const blockingParent = join(directory, 'blocked-synthetic-customer-user');
+			const path = join(blockingParent, 'spans.jsonl');
+			await fs.writeFile(blockingParent, 'blocking file');
+			const logger = store.add(new CapturingLogger());
+			const options = { filePath: path, createParentDirectories: true };
+			const fwd = store.add(new FileForwarder(options, logger));
+
+			fwd.forwardSpans(makeResult([makeSpan('failed', '1111111111111111')]));
+			await fwd.flush();
+
+			const diagnostics = logger.messages.filter(message => message.level === 'Warning').map(message => message.msg);
+			deepStrictEqual({
+				count: diagnostics.length,
+				operation: diagnostics[0]?.match(/\bfile (\S+) failed\b/)?.[1],
+				hasCode: diagnostics.some(message => /(?:^|[ (])code=(?!unknown(?:[, )]|$))[^\s,()]+(?=[, )]|$)/.test(message)),
+				hasSyscall: diagnostics.some(message => /(?:^|[ (])syscall=/.test(message)),
+				exposesPath: diagnostics.some(message => message.includes(path)),
+				exposesSentinel: diagnostics.some(message => message.includes('synthetic-customer-user')),
+				exposesRawMessage: diagnostics.some(message => message.includes('not a directory')),
+			}, {
+				count: 1,
+				operation: 'mkdir',
+				hasCode: true,
+				hasSyscall: false,
+				exposesPath: false,
+				exposesSentinel: false,
+				exposesRawMessage: false,
+			});
+
+			await fs.unlink(blockingParent);
+			fwd.forwardSpans(makeResult([makeSpan('recovered', '2222222222222222')]));
+			await fwd.flush();
+
+			const lines = (await fs.readFile(path, 'utf8')).split('\n').filter(l => l.length > 0);
+			deepStrictEqual(lines.map(line => JSON.parse(line).name), ['recovered']);
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('FileForwarder default and false options leave missing parents untouched', async () => {
+		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
+		try {
+			for (const [name, options] of [
+				['default', { filePath: join(directory, 'default', 'spans.jsonl') }],
+				['false', { filePath: join(directory, 'false', 'spans.jsonl'), createParentDirectories: false }],
+			] as const) {
+				const logger = store.add(new CapturingLogger());
+				const fwd = store.add(new FileForwarder(options, logger));
+				fwd.forwardSpans(makeResult([makeSpan(name, '1111111111111111')]));
+				await fwd.flush();
+
+				const diagnostics = logger.messages.filter(message => message.level === 'Warning').map(message => message.msg);
+				deepStrictEqual({
+					count: diagnostics.length,
+					operation: diagnostics[0]?.match(/\bfile (\S+) failed\b/)?.[1],
+					hasCode: diagnostics.some(message => /(?:^|[ (])code=(?!unknown(?:[, )]|$))[^\s,()]+(?=[, )]|$)/.test(message)),
+					hasSyscall: diagnostics.some(message => /(?:^|[ (])syscall=/.test(message)),
+					exposesPath: diagnostics.some(message => message.includes(options.filePath)),
+					exposesSentinel: diagnostics.some(message => message.includes('vscode-otel-forwarder-')),
+					exposesRawMessage: diagnostics.some(message => message.includes('no such file')),
+				}, {
+					count: 1,
+					operation: 'append',
+					hasCode: true,
+					hasSyscall: false,
+					exposesPath: false,
+					exposesSentinel: false,
+					exposesRawMessage: false,
+				});
+				await rejects(fs.access(options.filePath), { code: 'ENOENT' });
+				await rejects(fs.access(join(directory, name)), { code: 'ENOENT' });
+			}
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('FileForwarder appends to an existing file without truncating it', async () => {
+		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-otel-forwarder-'));
+		try {
+			const path = join(directory, 'spans.jsonl');
+			await fs.writeFile(path, '{"name":"existing"}\n');
+			const fwd = store.add(new FileForwarder({ filePath: path }, store.add(new CapturingLogger())));
+			fwd.forwardSpans(makeResult([makeSpan('appended', '1111111111111111')]));
+			await fwd.flush();
+
+			const lines = (await fs.readFile(path, 'utf8')).split('\n').filter(l => l.length > 0);
+			deepStrictEqual(lines.map(line => JSON.parse(line).name), ['existing', 'appended']);
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('FileForwarder ignores empty result', async () => {

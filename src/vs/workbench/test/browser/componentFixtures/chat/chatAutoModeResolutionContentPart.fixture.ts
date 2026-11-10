@@ -66,6 +66,14 @@ function renderRoutingPart(context: ComponentFixtureContext, content: IChatAutoM
 
 const routing: IChatAutoModeResolutionPart = { kind: 'autoModeResolution' };
 const routed: IChatAutoModeResolutionPart = { kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } };
+const routedWithReason: IChatAutoModeResolutionPart = {
+	kind: 'autoModeResolution',
+	resolved: {
+		id: 'gpt-5.4-mini',
+		name: 'GPT-5.4 mini',
+		reason: 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.',
+	},
+};
 
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Routing: defineComponentFixture({
@@ -76,5 +84,10 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Routed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderRoutingPart(ctx, routed),
+	}),
+
+	RoutedWithReason: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderRoutingPart(ctx, routedWithReason),
 	}),
 });
