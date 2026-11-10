@@ -929,7 +929,7 @@ suite('IssueReporterOverlay', () => {
 			}));
 			const firstHovers = names.map(element => hovers.get(element));
 			overlay.setRecordingState(RecordingState.Idle);
-			const replacement = { oldHovers: names.filter(element => hovers.has(element)).length, currentHovers: hovers.size };
+			const replacement = { oldHovers: names.filter(element => hovers.has(element)).length, currentHovers: [...hovers.keys()].filter(target => files.contains(target)).length };
 			overlay.dispose();
 			assert.deepStrictEqual({ firstHovers, labels, replacement, afterDispose: hovers.size }, {
 				firstHovers: ['screenshot-1.png', name],
@@ -1219,14 +1219,51 @@ suite('IssueReporterOverlay', () => {
 		});
 	});
 
-	test('explains that a screenshot can be edited once one is attached', () => {
-		const { overlay, container } = createReporter();
-		const hint = container.querySelector<HTMLElement>('.wizard-screenshot-edit-hint')!;
-		const empty = hint.hidden;
-		overlay.restoreAttachments([attachedFile('file')]);
-		const withFile = hint.hidden;
-		overlay.restoreAttachments([capturedScreenshot('capture')]);
-		assert.deepStrictEqual({ empty, withFile, withScreenshot: hint.hidden, text: hint.textContent }, { empty: true, withFile: true, withScreenshot: false, text: 'Click a screenshot to edit it.' });
+	test('explains attachments behind a "?", and adds files rather than screenshots from the last card', () => {
+		const { overlay, container, files, hovers } = createReporter();
+		const help = container.querySelector<HTMLElement>('.wizard-attachments .wizard-help-icon')!;
+		const describedBy = (element: Element) => mainWindow.document.getElementById(element.getAttribute('aria-describedby')!)?.textContent;
+		const screenshotRequests: unknown[] = [];
+		store.add(overlay.onDidRequestScreenshot(request => screenshotRequests.push(request)));
+		let pickerOpens = 0;
+		store.add(addDisposableListener(container.querySelector<HTMLInputElement>('input[type=file]')!, 'click', event => {
+			event.preventDefault();
+			pickerOpens++;
+		}));
+		const addCard = files.querySelector<HTMLElement>('.wizard-screenshot-add')!;
+		addCard.click();
+		const explanation = 'Click a screenshot to edit it. Drop or paste up to 5 files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.';
+		assert.deepStrictEqual({
+			heading: help.parentElement?.textContent,
+			help: { role: help.getAttribute('role'), label: help.getAttribute('aria-label'), hover: hovers.get(help), description: describedBy(help) },
+			attachmentsDescription: describedBy(files),
+			addCard: { text: addCard.textContent, label: addCard.getAttribute('aria-label') },
+			pickerOpens,
+			screenshotRequests: screenshotRequests.length,
+			visibleHints: [...container.querySelectorAll<HTMLElement>('.wizard-attachments p.wizard-subtitle')].filter(hint => !hint.hidden).map(hint => hint.textContent),
+		}, {
+			heading: 'Attachments',
+			help: { role: 'button', label: 'Attachments Help', hover: explanation, description: explanation },
+			attachmentsDescription: explanation,
+			addCard: { text: 'Add Files...', label: 'Add Files' },
+			pickerOpens: 1,
+			screenshotRequests: 0,
+			visibleHints: [],
+		});
+	});
+
+	test('explains what to describe in the description\'s placeholder, and links to the guide for performance issues above it', () => {
+		const describe = (container: HTMLElement) => ({
+			placeholder: container.querySelector<HTMLTextAreaElement>('.wizard-description-input')!.placeholder,
+			guide: [...container.querySelectorAll<HTMLElement>('.wizard-description-guidance')].filter(guide => !guide.hidden).map(guide => guide.textContent),
+		});
+		assert.deepStrictEqual({
+			bug: describe(createReporter().container),
+			performance: describe(createReporter({ issueType: IssueType.PerformanceIssue }).container),
+		}, {
+			bug: { placeholder: 'Describe what happened, the steps to reproduce, what you expected, and what you observed instead.\nMarkdown formatting is supported.', guide: [] },
+			performance: { placeholder: 'Describe what is slow, when it happens, whether it\'s consistent or intermittent, and any patterns you\'ve noticed.\nMarkdown formatting is supported.', guide: ['See the performance issue reporting guide.'] },
+		});
 	});
 
 	suite('Layouts', () => {
@@ -1237,7 +1274,7 @@ suite('IssueReporterOverlay', () => {
 				order: [...parts].filter(part => !part.closest('[hidden]')).map(part => names.find(name => part.classList.contains(name))),
 				title: container.querySelector('.wizard-title-field label')?.textContent,
 				titlePlaceholder: container.querySelector<HTMLInputElement>('.wizard-title-field input')?.placeholder,
-				guidance: container.querySelector('.wizard-description-guidance')?.textContent,
+				guidance: container.querySelector<HTMLTextAreaElement>('.wizard-description-input')?.placeholder,
 			};
 		}
 

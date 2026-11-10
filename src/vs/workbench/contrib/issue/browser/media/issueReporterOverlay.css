@@ -421,6 +421,11 @@
 	outline: none;
 }
 
+.issue-reporter-wizard .wizard-description-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 1;
+}
+
 .issue-reporter-wizard .wizard-description-preview pre {
 	white-space: pre-wrap;
 }
@@ -735,6 +740,25 @@ label/control gap, so the buttons must not add their own margin. */
 	margin-top: 0;
 }
 
+/* A heading followed by a "?" that explains its section on hover. */
+.issue-reporter-wizard .wizard-field-label.wizard-field-label-with-help {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.issue-reporter-wizard .wizard-help-icon {
+	display: inline-flex;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+	cursor: default;
+}
+
+.issue-reporter-wizard .wizard-help-icon:hover {
+	color: var(--vscode-foreground);
+}
+
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input,
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper,
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper > .input,
@@ -855,13 +879,10 @@ extension field is hidden (no fixed-width placeholder needed). */
 	cursor: default;
 }
 
-/* Description guidance text */
+/* A guide that the description's placeholder cannot link to */
 .issue-reporter-wizard .wizard-description-guidance {
 	margin-top: 0;
 	margin-bottom: 4px;
-	font-style: italic;
-	min-height: 1.4em;
-	white-space: pre-line;
 }
 
 .issue-reporter-wizard .wizard-md-hint {
@@ -1240,9 +1261,6 @@ extension field is hidden (no fixed-width placeholder needed). */
 	text-decoration: underline;
 }
 
-.issue-reporter-wizard .wizard-description-guidance.wizard-description-guidance-with-link {
-	white-space: normal;
-}
 .issue-reporter-wizard .wizard-description-guidance-link {
 	color: var(--vscode-textLink-foreground, #3794ff);
 	text-decoration: underline;

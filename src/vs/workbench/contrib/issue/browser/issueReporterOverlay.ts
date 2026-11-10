@@ -12,6 +12,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -163,9 +164,8 @@ export class IssueReporterOverlay {
 	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
 
 	private screenshotContainer!: HTMLElement;
-	private screenshotEditHint!: HTMLElement;
-	private screenshotAddCard: HTMLElement | undefined;
-	private addFilesButton!: Button;
+	private addFilesCard: HTMLElement | undefined;
+	private fileInput!: HTMLInputElement;
 	private attachmentStatus!: HTMLElement;
 	private attachmentErrorDetails!: HTMLDetailsElement;
 	private attachmentErrorDetailText!: HTMLElement;
@@ -301,29 +301,29 @@ export class IssueReporterOverlay {
 	private createAttachmentsSection(parent: HTMLElement): void {
 		const page = append(parent, $('section.wizard-attachments'));
 
-		const heading = append(page, $('h3.wizard-field-label'));
-		heading.textContent = localize('attachmentsHeading', "Attachments");
+		const heading = append(page, $('h3.wizard-field-label.wizard-field-label-with-help'));
+		append(heading, $('span')).textContent = localize('attachmentsHeading', "Attachments");
+		// How to edit and add attachments is explained on demand, which keeps the form short.
+		const help = append(page, $('p.wizard-attachments-help'));
+		help.id = `issue-attachments-help-${generateUuid()}`;
+		help.hidden = true;
+		help.textContent = `${localize('screenshotEditHint', "Click a screenshot to edit it.")} ${localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS)}`;
+		this.renderHelpIcon(heading, localize('attachmentsHelp', "Attachments Help"), help);
 
 		// Screenshots lead the report, so they come before the ways to add more.
 		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
 		this.screenshotContainer.tabIndex = 0;
 		this.screenshotContainer.setAttribute('role', 'group');
 		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
-		this.screenshotEditHint = append(page, $('p.wizard-subtitle.wizard-screenshot-edit-hint'));
-		this.screenshotEditHint.textContent = localize('screenshotEditHint', "Click a screenshot to edit it.");
+		this.screenshotContainer.setAttribute('aria-describedby', help.id);
 
-		const importHint = append(page, $('p.wizard-subtitle.wizard-attachment-hint'));
-		importHint.textContent = localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS);
-		const fileInput = append(page, $<HTMLInputElement>('input'));
-		fileInput.type = 'file';
-		fileInput.multiple = true;
-		fileInput.hidden = true;
-		this.addFilesButton = this.disposables.add(new Button(page, { ...defaultButtonStyles, secondary: true }));
-		this.addFilesButton.label = localize('addFiles', "Add Files...");
-		this.disposables.add(this.addFilesButton.onDidClick(() => fileInput.click()));
-		this.disposables.add(addDisposableListener(fileInput, EventType.CHANGE, () => {
-			this.requestAddAttachments(Array.from(fileInput.files ?? []));
-			fileInput.value = '';
+		this.fileInput = append(page, $<HTMLInputElement>('input'));
+		this.fileInput.type = 'file';
+		this.fileInput.multiple = true;
+		this.fileInput.hidden = true;
+		this.disposables.add(addDisposableListener(this.fileInput, EventType.CHANGE, () => {
+			this.requestAddAttachments(Array.from(this.fileInput.files ?? []));
+			this.fileInput.value = '';
 		}));
 
 		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
@@ -372,6 +372,19 @@ export class IssueReporterOverlay {
 			}
 		}));
 		this.updateScreenshotThumbnails();
+	}
+
+	/**
+	 * Adds a "?" to a heading that shows `help` on hover, or on Enter or Space. Screen readers read `help` as its description.
+	 */
+	private renderHelpIcon(heading: HTMLElement, label: string, help: HTMLElement): void {
+		const icon = append(heading, $('span.wizard-help-icon'));
+		icon.appendChild(renderIcon(Codicon.question));
+		icon.tabIndex = 0;
+		icon.setAttribute('role', 'button');
+		icon.setAttribute('aria-label', label);
+		icon.setAttribute('aria-describedby', help.id);
+		this.disposables.add(this.hoverService.setupDelayedHover(icon, { content: help.textContent ?? '', style: HoverStyle.Pointer }, { setupKeyboardEvents: true }));
 	}
 
 	private captureStripCaptureBtn: Button | undefined;
@@ -816,7 +829,6 @@ export class IssueReporterOverlay {
 		this.appendRequiredMarker(descLabel);
 
 		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
-		this.updateDescriptionGuidance();
 
 		const tabs = append(descriptionGroup, $('div.wizard-description-tabs'));
 		tabs.setAttribute('role', 'tablist');
@@ -921,6 +933,8 @@ export class IssueReporterOverlay {
 
 	restoreDescriptionInput(): void {
 		this.input.attachDescriptionInput(this.descriptionContainer);
+		// Reporters share the description input, and each explains its own category in its placeholder.
+		this.updateDescriptionGuidance();
 		if (this.descriptionError) {
 			this.setFieldError(this.descriptionContainer, this.descriptionError, this.descriptionContainer.classList.contains('invalid-input'));
 		}
@@ -1288,7 +1302,10 @@ export class IssueReporterOverlay {
 		return /^https?:\/\/github\.com\//i.test(url);
 	}
 
-	/** Update the guidance text above the description based on selected category */
+	/**
+	 * Explains what to describe for the selected category in the description's placeholder. Only the guide of a
+	 * performance issue shows above the description, since a placeholder cannot link to it.
+	 */
 	private updateDescriptionGuidance(): void {
 		const markdownHint = localize('markdownSupported', "Markdown formatting is supported.");
 		const perfWikiUrl = 'https://github.com/microsoft/vscode/wiki/Performance-Issues';
@@ -1296,42 +1313,39 @@ export class IssueReporterOverlay {
 		// Reset before updating
 		this.descriptionGuidanceDisposables.clear();
 		this.descriptionGuidance.textContent = '';
-		this.descriptionGuidance.classList.remove('wizard-description-guidance-with-link');
 
-		const appendText = (text: string) => {
-			const targetDocument = getWindow(this.container).document;
-			this.descriptionGuidance.appendChild(targetDocument.createTextNode(text));
-		};
-
+		let guidance: string;
 		if (this.quickLayout) {
-			appendText(`${localize('quickGuidance', "Describe what you saw. A sentence or two is enough.")}\n${markdownHint}`);
-			return;
-		}
-
-		switch (this.selectedIssueType) {
-			case IssueType.Bug:
-				appendText(`${localize('bugGuidance', "Describe what happened, the steps to reproduce, what you expected, and what you observed instead.")}\n${markdownHint}`);
-				break;
-			case IssueType.FeatureRequest:
-				appendText(`${localize('featureGuidance', "Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.")}\n${markdownHint}`);
-				break;
-			case IssueType.PerformanceIssue: {
-				appendText(`${localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")} `);
-				const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
-				link.href = perfWikiUrl;
-				link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
-				this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
-					e.preventDefault();
-					this.openExternalLink?.(perfWikiUrl);
-				}));
-				this.descriptionGuidance.appendChild(link);
-				appendText(`\n${markdownHint}`);
-				this.descriptionGuidance.classList.add('wizard-description-guidance-with-link');
-				break;
+			guidance = localize('quickGuidance', "Describe what you saw. A sentence or two is enough.");
+		} else {
+			switch (this.selectedIssueType) {
+				case IssueType.Bug:
+					guidance = localize('bugGuidance', "Describe what happened, the steps to reproduce, what you expected, and what you observed instead.");
+					break;
+				case IssueType.FeatureRequest:
+					guidance = localize('featureGuidance', "Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.");
+					break;
+				case IssueType.PerformanceIssue:
+					guidance = localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.");
+					break;
+				default:
+					guidance = localize('defaultGuidanceWithoutCategory', "Describe your feedback in detail.");
+					break;
 			}
-			default:
-				appendText(`${localize('defaultGuidanceWithoutCategory', "Describe your feedback in detail.")}\n${markdownHint}`);
-				break;
+		}
+		this.descriptionInput.placeholder = `${guidance}\n${markdownHint}`;
+
+		const showGuide = !this.quickLayout && this.selectedIssueType === IssueType.PerformanceIssue;
+		this.descriptionGuidance.hidden = !showGuide;
+		if (showGuide) {
+			const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
+			link.href = perfWikiUrl;
+			link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
+			this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
+				e.preventDefault();
+				this.openExternalLink?.(perfWikiUrl);
+			}));
+			this.descriptionGuidance.appendChild(link);
 		}
 	}
 
@@ -2123,10 +2137,7 @@ export class IssueReporterOverlay {
 				this.captureStripRecordBtn.enabled = true;
 			}
 		}
-		this.screenshotAddCard?.classList.toggle('disabled', screenshotDisabled);
-		this.screenshotAddCard?.setAttribute('aria-disabled', String(screenshotDisabled));
-
-		this.addFilesButton.enabled = !this.uploading && this.getOccupiedAttachmentSlots() < MAX_ATTACHMENTS;
+		this.updateAddFilesCard();
 		this.updatePreviewButton();
 		this.updateAttachmentImportStatus();
 	}
@@ -2189,9 +2200,8 @@ export class IssueReporterOverlay {
 	private updateScreenshotThumbnails(): void {
 		this.screenshotDisposables.clear();
 		this.screenshotContainer.textContent = '';
-		this.screenshotAddCard = undefined;
+		this.addFilesCard = undefined;
 		this.attachmentCards.clear();
-		this.screenshotEditHint.hidden = !this.getAttachments().some(attachment => attachment.kind === 'screenshot');
 		let screenshotNumber = 0;
 		for (const attachment of this.getAttachments()) {
 			let card: HTMLElement;
@@ -2223,25 +2233,27 @@ export class IssueReporterOverlay {
 			this.renderAttachmentUploadState(attachment);
 		}
 
+		// Screenshots are captured with the floating capture bar or its shortcut, so the last card adds files.
 		if (this.getTotalAttachments() < MAX_ATTACHMENTS) {
-			const addDisabled = this.uploading || this.screenshotCapturePending || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS;
 			const addCard = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-screenshot-add'));
-			this.screenshotAddCard = addCard;
-			addCard.setAttribute('aria-disabled', String(addDisabled));
-			if (addDisabled) {
-				addCard.classList.add('disabled');
-				addCard.title = localize('maxAttachmentsReached', "Max attachments reached");
-			}
+			this.addFilesCard = addCard;
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
 			plus.setAttribute('aria-hidden', 'true');
-			append(addCard, $('span')).textContent = localize('screenshot', "Screenshot");
-			this.registerAttachmentAction(addCard, localize('captureScreenshot', "Capture Screenshot"), () => {
+			append(addCard, $('span')).textContent = localize('addFiles', "Add Files...");
+			this.updateAddFilesCard();
+			this.registerAttachmentAction(addCard, localize('addFilesLabel', "Add Files"), () => {
 				if (!addCard.classList.contains('disabled')) {
-					this.requestScreenshot();
+					this.fileInput.click();
 				}
 			}, this.screenshotDisposables);
 		}
+	}
+
+	private updateAddFilesCard(): void {
+		const disabled = this.uploading || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS;
+		this.addFilesCard?.classList.toggle('disabled', disabled);
+		this.addFilesCard?.setAttribute('aria-disabled', String(disabled));
 	}
 
 	private openAnnotationEditor(id: string): void {
