@@ -52,6 +52,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from '../../../../../workbench/services/sessions/browser/sessionsStorageService.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -87,8 +88,9 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsNavigationHost } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationHost.js';
 import { ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes, navigationHostOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -101,7 +103,8 @@ import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/co
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISessionsHeaderElements, renderSessionsHeader, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
+import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsList.css';
@@ -711,7 +714,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IQuickInputService, new TestQuickInputService());
-			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
+			const storageService = disposableStore.add(new InMemoryStorageService());
+			reg.defineInstance(IStorageService, storageService);
+			reg.defineInstance(ISessionsStorageService, storageService);
 			reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
 				override createPullRequestModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(prModels.get(number)!); }
 				override createPullRequestCIModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(ciModels.get(number)!); }
@@ -774,11 +779,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IFixtureAgentSessionsService, {
 				model: { observeSession: () => constObservable(undefined) },
 			});
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+			const sessionsService = new class extends mock<ISessionsService>() {
 				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable(visibleSessions);
 				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(undefined);
-			}());
+			}();
+			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(ISessionsNavigationHost, navigationHostOf(sessionsService));
 			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.define(ISessionHost, MainWindowSessionHost);
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {

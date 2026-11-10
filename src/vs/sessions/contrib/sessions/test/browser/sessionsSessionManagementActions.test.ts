@@ -39,7 +39,8 @@ import { SessionView } from '../../../../../workbench/contrib/sessions/browser/p
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -78,7 +79,7 @@ suite('Sessions - Session management actions', () => {
 					sessionsList: rule.when.evaluate(context(sessionsList)),
 					nestedSession: rule.when.evaluate(context({ ...sessionsList, [SessionsListFocusedChatItemContext.key]: true })),
 					input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
-					otherWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: false })),
+					editorWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: false })),
 					otherView: rule.when.evaluate(context({ ...sessionsList, [FocusedViewContext.key]: 'otherView' })),
 					noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
 				}, {
@@ -86,7 +87,7 @@ suite('Sessions - Session management actions', () => {
 					sessionsList: true,
 					nestedSession: true,
 					input: false,
-					otherWindow: false,
+					editorWindow: true,
 					otherView: false,
 					noListFocus: false,
 				});

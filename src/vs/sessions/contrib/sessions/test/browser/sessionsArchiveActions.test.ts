@@ -18,6 +18,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from '../../../../../workbench/services/sessions/browser/sessionsStorageService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -35,7 +36,8 @@ import { ISession } from '../../../../../workbench/services/sessions/common/sess
 import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
+import { getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 
 suite('Sessions - Bulk archive undo', () => {
@@ -66,6 +68,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const managementService = new class extends mock<ISessionsManagementService>() {
 			override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
@@ -326,6 +329,7 @@ suite('Sessions - Bulk archive undo', () => {
 
 					const harness = createListHarness(store, test.managementService.getSessions(), instantiationService => {
 						instantiationService.stub(IStorageService, test.storageService);
+						instantiationService.stub(ISessionsStorageService, test.storageService);
 						instantiationService.stub(IConfigurationService, new TestConfigurationService());
 						instantiationService.stub(ISessionsManagementService, test.managementService);
 						instantiationService.stub(ISessionGroupsService, test.groupsService);
@@ -450,6 +454,7 @@ suite('Sessions - Delete group undo', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const sessions = ['ship', 'fix', 'other'].map(id => createTestSession(id).session);
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;

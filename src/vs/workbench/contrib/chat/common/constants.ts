@@ -49,6 +49,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	AgentsViewEnabled = 'chat.agentsView.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
@@ -235,6 +236,15 @@ export const enum OpenInAgentsTitleBarHoverVariant {
  * Reads the graphic of the hover card that the title bar's Agents window button shows to users who are new to the Agents window,
  * or `undefined` for a simple tooltip, the setting's default {@link OpenInAgentsTitleBarHoverVariant.None}.
  */
+/**
+ * Whether a window surfaces every local agent host agent, as the Agents window does: also an editor window that shows
+ * the Sessions view ({@link ChatConfiguration.AgentsViewEnabled}), so that its list and chats are those of the Agents
+ * window. Read it once, as the window starts: the setting needs a reload.
+ */
+export function surfacesAllLocalAgentHostAgents(isSessionsWindow: boolean, configurationService: IConfigurationService): boolean {
+	return isSessionsWindow || configurationService.getValue<boolean>(ChatConfiguration.AgentsViewEnabled) === true;
+}
+
 export function getOpenInAgentsTitleBarHoverCardDesign(configurationService: IConfigurationService): AgentsWindowGraphicVariant.ManyWindowsToOne | AgentsWindowGraphicVariant.WindowComparison | undefined {
 	switch (configurationService.getValue<OpenInAgentsTitleBarHoverVariant>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
 		case OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne:

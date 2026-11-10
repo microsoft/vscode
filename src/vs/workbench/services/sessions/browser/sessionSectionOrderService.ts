@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from './sessionsStorageService.js';
 
 /**
  * Service that owns the manual ordering of the sessions list's top-level
@@ -115,7 +116,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	private _promoted = new Set<string>();
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.load();

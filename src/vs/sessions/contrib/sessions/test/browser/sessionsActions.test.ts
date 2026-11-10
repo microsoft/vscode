@@ -60,7 +60,8 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -81,6 +82,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { ISessionsNavigationHost } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationHost.js';
+import { SessionsServiceNavigationHost } from '../../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationHost.js';
 import { ITestSessionsService, ITestSessionWithChat, ITestShownChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
@@ -430,6 +433,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession, pane: constObservable(testGridPane(activeSession)) }); }
 		});
+		instantiationService.stub(ISessionsNavigationHost, instantiationService.createInstance(SessionsServiceNavigationHost));
 
 		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
 

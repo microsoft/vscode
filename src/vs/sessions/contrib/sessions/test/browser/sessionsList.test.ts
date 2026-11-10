@@ -101,7 +101,8 @@ import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/too
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
-import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
+import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 import { renderSessionsHeader, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
@@ -115,7 +116,7 @@ import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test
 import { getInboxWorkspaceFilter, getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
@@ -926,7 +927,7 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;
 				});
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
 					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -10750,7 +10751,7 @@ suite('Sessions - SessionsList', () => {
 			const multiFolderSession = withChanges(createMultiFolderSession([first, second], [undefined, [second]]));
 			const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
 					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -10811,7 +10812,7 @@ suite('Sessions - SessionsList', () => {
 				const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
-					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 						readonly activeSession = activeSession;
 						readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 						override readonly slotPanes = testGridPanes(this.gridShown);
@@ -12592,7 +12593,7 @@ suite('Sessions - SessionsList', () => {
 			const other = createTestSession('Other').session;
 			const inGrid = (session: ISession, sticky: boolean) => upcastPartial<ITestSessionWithChat>({ ...session, sticky: constObservable(sticky) });
 			const harness = createListHarness(disposables, [pinned, other], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(undefined);
 					readonly gridShown = constObservable([inGrid(pinned, true), inGrid(other, false)]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -12620,7 +12621,7 @@ suite('Sessions - SessionsList', () => {
 				const sticky = observableValue('sticky', true);
 				const gridSession = upcastPartial<ITestSessionWithChat>({ ...session, sticky });
 				const harness = createListHarness(disposables, [session], instantiationService => {
-					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 						readonly activeSession = constObservable(undefined);
 						readonly gridShown = constObservable([gridSession]);
 						override readonly slotPanes = testGridPanes(this.gridShown);
@@ -12686,7 +12687,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, first, second, side]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -12784,7 +12785,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, peer]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -12819,7 +12820,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, peer]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13140,7 +13141,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				const harness = createListHarness(disposables, [session, other], instantiationService => {
 					if (activePeer) {
-						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
 							readonly gridShown = constObservable([activeSession]);
 							override readonly slotPanes = testGridPanes(this.gridShown);
@@ -14633,7 +14634,7 @@ suite('Sessions - SessionsList', () => {
 						visibleChatTabs: session.chats,
 					}) : undefined;
 					const harness = createListHarness(disposables, [session], instantiationService => {
-						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
 							readonly gridShown = constObservable(activeSession ? [activeSession] : []);
 							override readonly slotPanes = testGridPanes(this.gridShown);

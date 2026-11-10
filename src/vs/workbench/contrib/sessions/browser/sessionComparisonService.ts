@@ -15,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from '../../../services/sessions/browser/sessionsStorageService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { withSessionComparisonMetadata } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { createSessionComparisonJudgePrompt } from '../../../../platform/agentHost/common/sessionComparisonPrompts.js';
@@ -64,7 +65,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
-		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IChatService private readonly chatService: IChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
