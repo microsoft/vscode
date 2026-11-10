@@ -587,12 +587,15 @@ jobs:
           key-prefix: pnpm-store-copilot-linux
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
-      - name: Install root dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
-      - name: Install copilot dependencies
+      - name: Build copilot dependencies
+        run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+
+      - name: Run copilot postinstall
         working-directory: extensions/copilot
-        run: pnpm install --frozen-lockfile
+        run: pnpm run postinstall
 
       - name: Ensure no duplicate cache keys
         working-directory: extensions/copilot
@@ -681,12 +684,15 @@ jobs:
           key-prefix: pnpm-store-copilot-linux
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
-      - name: Install root dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
-      - name: Install copilot dependencies
+      - name: Build copilot dependencies
+        run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+
+      - name: Run copilot postinstall
         working-directory: extensions/copilot
-        run: pnpm install --frozen-lockfile
+        run: pnpm run postinstall
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
@@ -776,12 +782,15 @@ jobs:
           key-prefix: pnpm-store-copilot-windows
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml, which save this store on main.
-      - name: Install root dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
-      - name: Install copilot dependencies
+      - name: Build copilot dependencies
+        run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+
+      - name: Run copilot postinstall
         working-directory: extensions/copilot
-        run: pnpm install --frozen-lockfile
+        run: pnpm run postinstall
 
       - name: Compile
         working-directory: extensions/copilot

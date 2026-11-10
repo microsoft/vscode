@@ -3,7 +3,6 @@
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
   "version": "0.75.0",
-  "packageManager": "pnpm@12.16.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
