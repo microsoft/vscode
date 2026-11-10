@@ -11,12 +11,12 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { TerminalBuiltinLinkType } from '../../browser/links.js';
 import { TerminalLocalLinkDetector } from '../../browser/terminalLocalLinkDetector.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { assertLinkHelper } from './linkTestUtils.js';
+import { assertLinkHelper, TestFileService } from './linkTestUtils.js';
 import type { Terminal } from '@xterm/xterm';
 import { timeout } from '../../../../../../base/common/async.js';
 import { strictEqual } from 'assert';
 import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
-import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -26,7 +26,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { isString } from '../../../../../../base/common/types.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
@@ -181,19 +180,6 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 	// The whole line is the path
 	{ urlFormat: '{0}' },
 ];
-
-class TestFileService extends FileService {
-	private _files: URI[] | '*' = '*';
-	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
-		if (this._files === '*' || this._files.some(e => e.toString() === resource.toString())) {
-			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStatWithPartialMetadata;
-		}
-		throw new Error('ENOENT');
-	}
-	setFiles(files: URI[] | '*'): void {
-		this._files = files;
-	}
-}
 
 suite('Workbench - TerminalLocalLinkDetector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

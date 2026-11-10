@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -25,7 +24,7 @@ import { IChatAttachmentResolveService } from '../../../chat/browser/attachments
 import { getAgentHostAttachmentRange, InlineChatUntitledSaveHandler } from '../../browser/inlineChatController.js';
 
 suite('InlineChatController', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let model: ITextModel;
 	let attachmentModel: ChatAttachmentModel;
 
@@ -37,12 +36,6 @@ suite('InlineChatController', () => {
 			new class extends mock<IChatAttachmentResolveService>() { },
 		));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses the cursor line for empty Agent Host attachment selections', () => {
 		const uri = URI.file('/test/target.ts');

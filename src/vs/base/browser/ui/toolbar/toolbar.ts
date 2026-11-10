@@ -55,6 +55,10 @@ export interface IToolBarOptions {
 	dropdownMenuClassName?: string;
 	dropdownMenuCloseAnimation?: IContextViewCloseAnimation;
 	renderDropdownAsChildElement?: boolean;
+	/**
+	 * Host dropdown menus as popovers inside the dropdown element, see {@link IContextMenuDelegate.hostAsPopover}.
+	 */
+	renderDropdownAsPopover?: boolean;
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
@@ -145,6 +149,7 @@ export class ToolBar extends Disposable {
 							closeAnimation: this.options.dropdownMenuCloseAnimation,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
+							menuAsPopover: !!this.options.renderDropdownAsPopover,
 							skipTelemetry: this.options.skipTelemetry,
 							isMenu: true,
 							hoverDelegate: this.options.hoverDelegate
@@ -177,6 +182,7 @@ export class ToolBar extends Disposable {
 							closeAnimation: this.options.dropdownMenuCloseAnimation,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
+							menuAsPopover: !!this.options.renderDropdownAsPopover,
 							skipTelemetry: this.options.skipTelemetry,
 							hoverDelegate: this.options.hoverDelegate
 						}
@@ -277,6 +283,11 @@ export class ToolBar extends Disposable {
 
 	getItemsLength(): number {
 		return this.actionBar.length();
+	}
+
+	/** Includes primary actions temporarily moved to the responsive overflow menu. */
+	hasPrimaryAction(id: string): boolean {
+		return this.originalPrimaryActions.some(action => action.id === id);
 	}
 
 	hasOverflow(): boolean {

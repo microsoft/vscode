@@ -46,11 +46,13 @@ suite('Webview shell messaging', () => {
 		const lastFocusedElements = new WeakMap<Document, HTMLElement>();
 		const body = upcastPartial<HTMLElement>({});
 		let activeElement: Element = body;
+		let selection: Selection | null = null;
 		let targetAtCommand: Element | undefined;
 		const calls: string[] = [];
 		const contentDocument = upcastPartial<Document>({
 			body,
 			get activeElement() { return activeElement; },
+			getSelection: () => selection,
 			execCommand: command => {
 				targetAtCommand = activeElement;
 				calls.push(command);
@@ -73,6 +75,12 @@ suite('Webview shell messaging', () => {
 		assert.ok(execute);
 		execute(undefined, 'paste');
 		assert.deepStrictEqual({ calls, correctTarget: targetAtCommand === textarea }, { calls: ['focus', 'paste'], correctTarget: true });
+
+		activeElement = body;
+		selection = upcastPartial<Selection>({ rangeCount: 1, isCollapsed: true });
+		calls.length = 0;
+		execute(undefined, 'copy');
+		assert.deepStrictEqual({ calls, correctTarget: targetAtCommand === textarea }, { calls: ['focus', 'copy'], correctTarget: true });
 
 		const input = upcastPartial<HTMLElement>({});
 		activeElement = input;
@@ -130,6 +138,57 @@ suite('Webview shell messaging', () => {
 			contentCapture: true,
 		});
 	});
+
+	for (const command of ['copy', 'cut', 'paste']) {
+		for (const activeRoot of ['body', 'documentElement'] as const) {
+			test(`preserves the document selection for ${command} with ${activeRoot} focused`, () => {
+				const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+				const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+				const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+				const commandHandler = html.match(/hostMessaging\.onMessage\('execCommand',[\s\S]*?\r?\n\t{3}\}\);/)?.[0];
+				assert.ok(commandHandler);
+				const lastFocusedElements = new WeakMap<Document, HTMLElement>();
+				const body = upcastPartial<HTMLElement>({});
+				const documentElement = upcastPartial<HTMLElement>({});
+				let activeElement: Element = activeRoot === 'body' ? body : documentElement;
+				let selectedText = 'Selected webview response';
+				const calls: { command: string; selectedText: string }[] = [];
+				const contentDocument = upcastPartial<Document>({
+					body,
+					documentElement,
+					get activeElement() { return activeElement; },
+					getSelection: () => upcastPartial<Selection>({
+						rangeCount: 1,
+						isCollapsed: !selectedText,
+					}),
+					execCommand: command => {
+						calls.push({ command, selectedText });
+						return true;
+					},
+				});
+				const textarea = upcastPartial<HTMLElement>({
+					isConnected: true,
+					ownerDocument: contentDocument,
+					focus: () => {
+						activeElement = textarea;
+						selectedText = '';
+					},
+				});
+				lastFocusedElements.set(contentDocument, textarea);
+				let execute: ((_event: undefined, command: string) => void) | undefined;
+				new Function('hostMessaging', 'getActiveFrame', 'assertIsDefined', 'lastFocusedElements', commandHandler)(
+					{ onMessage: (_channel: string, handler: typeof execute) => { execute = handler; } },
+					() => ({ contentDocument }),
+					<T>(value: T): T => value,
+					lastFocusedElements,
+				);
+				assert.ok(execute);
+				execute(undefined, command);
+
+				assert.deepStrictEqual(calls, [{ command, selectedText: 'Selected webview response' }]);
+			});
+		}
+	}
 
 	test('matches the preload script CSP hash', () => {
 		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;

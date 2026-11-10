@@ -28,8 +28,8 @@ export const IComputerUseSetupService = createDecorator<IComputerUseSetupService
 export interface IComputerUseSetupService extends IComputerUseSetupModel {
 	readonly _serviceBrand: undefined;
 
-	/** Opens the setup modal for setup `setupId`, or for the latest setup that waits; an open modal switches to it instead. */
-	open(setupId?: string): void;
+	/** Opens the setup modal for setup `setupId`, or brings the open modal to it, while that setup waits; does nothing otherwise. */
+	open(setupId: string): void;
 
 	/** Lets the setup modal hand Copilot Computer Use to System Settings by hand; desktop clients register it. */
 	registerHelperAppSupport(support: IComputerUseHelperAppSupport): IDisposable;
@@ -111,8 +111,13 @@ export class ComputerUseSetupService extends Disposable implements IComputerUseS
 		});
 	}
 
-	open(setupId?: string): void {
+	open(setupId: string): void {
 		if (!isComputerUseSetupPlatform()) {
+			return;
+		}
+		const state = this.status.get()?.setups.find(candidate => candidate.id === setupId)?.state;
+		if (state !== 'needsPermissions' && state !== 'working') {
+			this._logService.trace(`[ComputerUse] Not opening setup ${setupId}: it doesn't wait for the user`);
 			return;
 		}
 		const open = this._dialog.value;

@@ -114,6 +114,8 @@ export interface ILocalModelPickerHost {
 	readonly selectedModelId: string | undefined;
 	/** The chat's model configuration, for the thinking level of a direct model. */
 	readonly configurationAccess?: IModelConfigurationAccess;
+	/** Whether the chat's Auto model, which is not among `models`, is presented as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 	select(model: ILanguageModelChatMetadataAndIdentifier): void;
 	showDetails(familyId: string): void;
 }
@@ -136,6 +138,8 @@ export interface ILocalModelDetails {
 	readonly directModel?: ILocalModelDirectModelConfig;
 	/** Operations whose stop was sent and hasn't taken effect yet, shown as in progress. */
 	readonly pendingStops?: ReadonlySet<string>;
+	/** Whether the chat's Auto model is presented as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 }
 
 /** The on-device model content of one picker showing, listed in the picker's "On This Device" tab. */
@@ -375,7 +379,7 @@ interface ILocalModelRowState {
 }
 
 /** The short state (only while not ready) and notes of one family's row; a `selectable` row also says what using its model costs. */
-function getFamilyRowState(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1, selectable: boolean): ILocalModelRowState {
+function getFamilyRowState(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1, selectable: boolean, autoModelFusion = false): ILocalModelRowState {
 	const active = status.active?.familyId === family.familyId ? status.active : undefined;
 	const notes: string[] = [];
 	let state: string | undefined;
@@ -425,7 +429,9 @@ function getFamilyRowState(family: ILocalModelFamilyV1, readiness: LocalModelRea
 		}
 		case 'ready': {
 			if (active?.autoEligible === false) {
-				notes.push(localize('localModel.tooSlowForAuto', "Too slow for Auto"));
+				notes.push(autoModelFusion
+					? localize('localModel.tooSlowForFusion', "Too slow for Copilot Fusion")
+					: localize('localModel.tooSlowForAuto', "Too slow for Auto"));
 			} else if (selectable) {
 				notes.push(localize('localModel.noUsageLimit', "No usage limit"));
 			}
@@ -437,7 +443,9 @@ function getFamilyRowState(family: ILocalModelFamilyV1, readiness: LocalModelRea
 		notes.push(localize('localModel.memoryWarning.short', "Needs more GPU memory than this device has"));
 	}
 	if (!family.autoCapable) {
-		notes.push(localize('localModel.notAutoCapable', "Not available for Auto yet"));
+		notes.push(autoModelFusion
+			? localize('localModel.notFusionCapable', "Not available for Copilot Fusion yet")
+			: localize('localModel.notAutoCapable', "Not available for Auto yet"));
 	}
 	const update = family.install?.update;
 	if (update && readiness !== 'preparing') {
@@ -578,7 +586,7 @@ function isLocalModelNotDownloaded(family: ILocalModelFamilyV1): boolean {
  */
 function buildFamilyRow(family: ILocalModelFamilyV1, readiness: LocalModelReadiness, status: ILocalModelStatusV1, host: ILocalModelPickerHost | undefined): IActionListItem<IActionWidgetDropdownAction> {
 	const model = family.install ? host?.models.find(candidate => isDirectModelOf(candidate, family)) : undefined;
-	const row = getFamilyRowState(family, readiness, status, !!model);
+	const row = getFamilyRowState(family, readiness, status, !!model, host?.autoModelFusion);
 	const summary = getLocalModelConfigSummary(family, status, model, host?.configurationAccess);
 	const slot = getLocalModelDownloadSlot(family, readiness, status);
 	const showDetails = () => host?.showDetails(family.familyId);

@@ -9,7 +9,7 @@ import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isChatInSessionReadAggregate } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
@@ -81,10 +81,11 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	 * Carries a session rename down onto the default chat of a single-chat session, whose
 	 * own title metadata would otherwise keep a stale value and be restored over the rename.
 	 * Sessions with peer chats are skipped: their default chat is independently titled.
+	 * Tool (subagent) and hidden chats are not peers, as in {@link isChatInSessionReadAggregate}.
 	 */
 	private _retitleSoleDefaultChat(session: string, title: string): void {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state.chats.length > 1) {
+		if (!state || state.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)).length > 1) {
 			return;
 		}
 		const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(session);

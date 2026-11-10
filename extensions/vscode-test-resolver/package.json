@@ -22,6 +22,7 @@
   },
   "activationEvents": [
     "onResolveRemoteAuthority:test",
+    "onResolveRemoteAuthority:wsl",
     "onCommand:vscode-testresolver.newWindow",
     "onCommand:vscode-testresolver.currentWindow",
     "onCommand:vscode-testresolver.newWindowWithError",

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { appendEscapedMarkdownInlineCode, isPortableLinkTarget, isPortableMarkdownTarget } from '../../../../../base/common/htmlContent.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
 import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
@@ -14,6 +14,103 @@ import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '
  */
 export function getLinkTarget(element: Element): string {
 	return (element.getAttribute('data-href') || element.getAttribute('href') || '').trim();
+}
+
+const hiddenElementAttribute = 'data-chat-clipboard-hidden';
+
+/** Controls rendered alongside chat content; their markup says nothing about what the reader selected. */
+const controlSelector = '[role="toolbar"]';
+
+/**
+ * Clones a selected range of rendered chat content along with the elements it sits inside, up to
+ * `root`. `cloneContents` returns only what lies between the range boundaries, which drops both
+ * the heading or list item giving the text its shape and, for a partly selected link, the rest of
+ * its label. Elements the reader cannot see, such as a hidden file changes summary or the
+ * stylesheet a list embeds, are left out, just as they are from the selected text, and so are
+ * toolbars.
+ */
+export function cloneVisibleSelection(range: Range, root: Node): DocumentFragment {
+	const hiddenElements = findHiddenElements(range);
+	for (const element of hiddenElements) {
+		element.setAttribute(hiddenElementAttribute, '');
+	}
+
+	try {
+		const fragment = cloneWithAncestors(range, root);
+		// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+		for (const element of Array.from(fragment.querySelectorAll(`[${hiddenElementAttribute}], ${controlSelector}`))) {
+			element.remove();
+		}
+		return fragment;
+	} finally {
+		for (const element of hiddenElements) {
+			element.removeAttribute(hiddenElementAttribute);
+		}
+	}
+}
+
+/**
+ * Finds the outermost elements in `range` the reader cannot see: unrendered ones, and ones a
+ * collapsed section hides with `visibility: hidden` or `opacity: 0` while keeping them laid out.
+ */
+function findHiddenElements(range: Range): Element[] {
+	const scope = range.commonAncestorContainer;
+	const hiddenElements: Element[] = [];
+	const walker = scope.ownerDocument!.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT, {
+		acceptNode: node => {
+			if (!range.intersectsNode(node)) {
+				return NodeFilter.FILTER_REJECT;
+			}
+			const element = node as Element;
+			if (element.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })) {
+				return NodeFilter.FILTER_ACCEPT;
+			}
+			// A `display: contents` element has no box of its own, so it reads as hidden, but its
+			// descendants render. Only read the computed style on this rare branch.
+			if (getWindow(element).getComputedStyle(element).display === 'contents') {
+				return NodeFilter.FILTER_SKIP;
+			}
+			hiddenElements.push(element);
+			return NodeFilter.FILTER_REJECT;
+		}
+	});
+	while (walker.nextNode()) {
+		// The filter collects the hidden elements.
+	}
+	return hiddenElements;
+}
+
+function cloneWithAncestors(range: Range, root: Node): DocumentFragment {
+	let content: Node = range.cloneContents();
+
+	for (
+		let ancestor = range.commonAncestorContainer;
+		ancestor && ancestor !== root;
+		ancestor = ancestor.parentNode as Node
+	) {
+		if (!isHTMLElement(ancestor)) {
+			continue;
+		}
+
+		// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
+		// reference rather than a fragment of its label.
+		if (ancestor.tagName === 'A') {
+			content = ancestor.cloneNode(true);
+			continue;
+		}
+
+		const wrapper = ancestor.cloneNode(false);
+		wrapper.appendChild(content);
+		content = wrapper;
+	}
+
+	if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+		return content as DocumentFragment;
+	}
+
+	const fragment = range.commonAncestorContainer.ownerDocument!.createDocumentFragment();
+	fragment.appendChild(content);
+	return fragment;
 }
 
 /** Replaces an element with the text a reader saw, marked up as code. */

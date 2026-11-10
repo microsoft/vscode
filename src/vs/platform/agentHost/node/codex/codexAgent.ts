@@ -35,12 +35,11 @@ import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createCont
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, fixedChatOwnerRef, resolveSessionBackedStorage, type IAgentChatOwnerRef, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatHistoryChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexTurnEditsWaitMsEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -91,7 +90,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, JsonRpcResponseError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { decodeCodexChat, encodeCodexChat, type ICodexPersistedChat } from './codexChatBacking.js';
-import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexDevSdkRoot } from './codexSdk.js';
+import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexBinaryPath, resolveCodexDevSdkRoot } from './codexSdk.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -111,7 +110,7 @@ import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDi
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, codexServiceTierOverride, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -176,7 +175,7 @@ import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadRespo
 import type { TurnSettingsUpdateResponse } from './protocol/generated/v2/TurnSettingsUpdateResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.js';
-import { parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
+import { CODEX_COPILOT_MODEL_PROVIDER, parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
 export { parseCodexModelSelection, toCodexModelSelectionId } from '../../common/codexModelSelection.js';
 import { reportCodexProviderSwitch } from './codexProviderSwitchTelemetry.js';
 import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
@@ -289,7 +288,6 @@ const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
  * chat-only models carry `/chat/completions` (neither is usable by codex).
  */
 const CODEX_RESPONSES_ENDPOINT = '/responses';
-const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_CATALOG_TIMEOUT_MS = 15_000;
@@ -605,6 +603,12 @@ function filesystemPathComparisonKey(path: string): string | undefined {
 }
 
 const CodexPrewarmTtlMs = 60_000;
+
+/** How long a changeset read waits for the file snapshots of a running Codex turn. */
+function turnEditsWaitMs(): number {
+	const override = parseInt(process.env[AgentHostCodexTurnEditsWaitMsEnvVar] ?? '', 10);
+	return Number.isFinite(override) && override >= 0 ? override : 30_000;
+}
 
 /**
  * Per-session bookkeeping. The codex thread is owned by the shared
@@ -2327,8 +2331,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * not start the app-server.
 	 */
 	private _startModelRefreshWhenSdkIsLocal(): void {
-		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		if (this._isShuttingDown || this._store.isDisposed || !this._activated || !allowSignedOutWhenUsable || this._codexModels.length > 0) {
+		if (this._isShuttingDown || this._store.isDisposed || !this._activated || this._codexModels.length > 0) {
 			return;
 		}
 		queueMicrotask(async () => {
@@ -2655,8 +2658,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!triple) {
 			throw new Error(`Codex: no binary triple known for sdkTarget '${codexTarget}'`);
 		}
-		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
+		const binaryPath = await resolveCodexBinaryPath(root, codexTarget, triple);
 		try {
 			await fs.promises.access(binaryPath, fs.constants.X_OK);
 		} catch (err) {
@@ -3353,7 +3355,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (session) {
 			const tracker = this._turnDiffs.get(session);
-			const ready = await raceTimeout(tracker?.waitForTurnEdits(turnId).then(() => true) ?? Promise.resolve(true), 30_000);
+			const ready = await raceTimeout(tracker?.waitForTurnEdits(turnId).then(() => true) ?? Promise.resolve(true), turnEditsWaitMs());
 			if (!ready) {
 				// The snapshots are still stored once the native turn completes, and storing them refreshes the turn's changesets.
 				throw new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
@@ -4118,7 +4120,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._subagentsByThreadId.has(childThreadId)) {
 				continue;
 			}
-			const subSession = this._createSubagentSession(session, childThreadId);
+			const subSession = this._createSubagentSession(session, childThreadId, model);
 			const spawningChild = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
 			const hostTurnId = spawningChild?.hostTurnId ?? this._hostTurnId(session, params.turnId);
 			const owner = this._turnDiffOwner(session) ?? session;
@@ -4153,7 +4155,18 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * fresh map/turn state and approval registry so the child's events don't
 	 * collide with the parent's.
 	 */
-	private _createSubagentSession(parent: ICodexSession, childThreadId: string): ICodexSession {
+	private _createSubagentSession(parent: ICodexSession, childThreadId: string, childModelId?: string): ICodexSession {
+		let model = parent.model;
+		if (childModelId) {
+			// An explicit child model is a bare id from Codex. Carry the parent's effective provider, but do not inherit the parent model's config as the child's settings.
+			let modelProvider = CODEX_COPILOT_MODEL_PROVIDER;
+			if (parent.materializedModelProvider !== undefined) {
+				modelProvider = parent.materializedModelProvider;
+			} else if (parent.model) {
+				modelProvider = parseCodexModelSelection(parent.model).modelProvider;
+			}
+			model = { id: toCodexModelSelectionId(modelProvider, childModelId) };
+		}
 		const clientToolSet = new ActiveClientToolSet();
 		return {
 			sessionId: parent.sessionId,
@@ -4187,7 +4200,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedModelProvider: parent.materializedModelProvider,
 			hasNativeHistory: parent.hasNativeHistory,
 			firstTurnSent: true,
-			model: parent.model,
+			model,
 			agent: parent.agent,
 			customizationDirectory: undefined,
 			currentTurnId: undefined,
@@ -5527,6 +5540,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 					model: resolvedModel.modelId,
 					modelProvider: resolvedModel.modelProvider,
+					...codexServiceTierOverride(resolvedModel.modelProvider),
 					approvalPolicy,
 					permissions,
 					approvalsReviewer,
@@ -5911,6 +5925,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
+			const forkModelProvider = resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider;
 			const forkHookTrust = await this._buildSessionHookTrustState(forkConnection.client, forkCwd);
 			const connection = forkConnection;
 			// Without a cwd of its own, the fork runs in its source thread's.
@@ -5927,6 +5942,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						runtimeWorkspaceRoots,
 					} : {}),
 					...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+					...codexServiceTierOverride(forkModelProvider),
 					config: forkConfig,
 					approvalPolicy,
 					permissions,
@@ -6163,6 +6179,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 				model: resolvedModel.modelId,
 				modelProvider: resolvedModel.modelProvider,
+				...codexServiceTierOverride(resolvedModel.modelProvider),
 				approvalPolicy,
 				permissions: customizationLaunch.skillPermissionProfile ?? permissions,
 				approvalsReviewer,
@@ -7315,8 +7332,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			try {
+				const storedSizes = await database.object.getTerminalOutputSizes(commands.map(({ toolCall }) => toolCall.toolCallId));
 				for (const { toolCall, output, exitCode } of commands) {
-					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) !== undefined) {
+					if (storedSizes.has(toolCall.toolCallId)) {
 						let previewOutput = output;
 						if (!shouldRetainCodexCommandOutput(output)) {
 							const storedOutput = await database.object.readTerminalOutput(toolCall.toolCallId);
@@ -8735,6 +8753,8 @@ export class CodexAgent extends Disposable implements IAgent {
 					server: serverName,
 					tool,
 					arguments: (params ? params['arguments'] : undefined) as JsonValue,
+					// eslint-disable-next-line local/code-no-untyped-meta-access -- Forward opaque MCP request metadata without interpreting it.
+					_meta: params?.['_meta'] as JsonValue | undefined,
 				});
 			}
 			case 'resources/read': {

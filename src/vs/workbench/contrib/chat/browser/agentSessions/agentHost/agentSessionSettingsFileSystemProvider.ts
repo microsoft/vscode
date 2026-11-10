@@ -76,7 +76,7 @@ function parseSessionSettingsUri(uri: URI): ISessionSettingsContext | undefined 
 /**
  * Property filter: only session-mutable, non-read-only properties are
  * editable. Mirrors the sessions-window filter in
- * `vs/sessions/contrib/providers/agentHost/browser/agentSessionSettingsFileSystemProvider.ts`
+ * `vs/workbench/contrib/sessions/providers/agentHost/browser/agentSessionSettingsFileSystemProvider.ts`
  * - kept as a separate small local definition rather than a shared export
  * since it encodes session-config-specific business rules, not target-neutral
  * editor infrastructure.
@@ -195,7 +195,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 		if (this._getProvider(ctx) === undefined) {
 			return createFileSystemProviderError(localize('chatAgentSessionSettings.pending', "Session settings are not available yet."), FileSystemProviderErrorCode.Unavailable);
 		}
-		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization's policy."), FileSystemProviderErrorCode.NoPermissions);
+		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization."), FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	private _getProvider(ctx: ISessionSettingsContext): string | undefined {

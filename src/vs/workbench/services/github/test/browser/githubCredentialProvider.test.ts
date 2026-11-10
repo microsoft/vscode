@@ -48,6 +48,7 @@ suite('Workbench GitHub credential broker', () => {
 					endpoint: {
 						apiBaseUri: 'https://api.githubcopilot.com/agents',
 						feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
+						identityApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
 						integrationId: COPILOT_INTEGRATION_ID,
 					},
 				},

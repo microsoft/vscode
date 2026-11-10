@@ -23,7 +23,6 @@ import './manageTodoListTool';
 import './memoryTool';
 import './multiReplaceStringTool';
 import './newNotebookTool';
-import './newWorkspace/newWorkspaceTool';
 import './notebookSummaryTool';
 import './readFileTool';
 import './readProjectStructureTool';
@@ -37,4 +36,3 @@ import './sessionStoreSqlTool';
 import './toolSearchTool';
 import './viewImageTool';
 import './vscodeAPITool';
-

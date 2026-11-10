@@ -5,9 +5,9 @@
 
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isIChatSessionFileChange2 } from '../common/chatSessionsService.js';
 import { IModifiedFileEntry } from '../common/editing/chatEditingService.js';
 import { IAgentSession } from './agentSessions/agentSessionsModel.js';
+import { isIChatSessionFileChange2 } from '../../../common/chatSessionFileChange.js';
 
 export function editingEntriesContainResource(entries: readonly IModifiedFileEntry[], resourceUri: URI): boolean {
 	for (const entry of entries) {

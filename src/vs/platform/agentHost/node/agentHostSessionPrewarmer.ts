@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type IAgent, type IAgentChatContext } from '../common/agent.js';
+import type { AgentHostPrewarmSkipReason } from '../common/agentHostTelemetry.js';
 import { AgentHostPrewarmSessionsConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../common/agentHostWorkspaceTrust.js';
 import { AgentHostPrewarmSessionsSettingId } from '../common/agentService.js';
@@ -116,9 +117,12 @@ export class AgentHostSessionPrewarmer extends Disposable {
 
 	private async _prewarm(candidate: IAgentHostPrewarmCandidate, token: CancellationToken): Promise<void> {
 		const sessionKey = candidate.session.toString();
+		const noteSkipped = (reason: AgentHostPrewarmSkipReason) => candidate.provider.chats.noteWarmSkipped?.(candidate.defaultChat, this._host.getDefaultChatContext(candidate.session, candidate.defaultChat), reason);
+		noteSkipped('awaitingActiveClient');
 		if (!await this._whenActiveClientArrived(sessionKey, token)) {
 			return;
 		}
+		noteSkipped('customizationsPending');
 		await this._enablementService.initializeSession(sessionKey);
 		if (token.isCancellationRequested) {
 			return;
@@ -129,6 +133,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		}
 		if (candidate.workingDirectories?.some(folder => !this._isTrusted(folder))) {
 			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: one of its folders is not trusted`);
+			noteSkipped('untrustedFolder');
 			return;
 		}
 		// Copilot's runtime ships with the host and its client was already
@@ -136,6 +141,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		// SDK download.
 		this._experimentTrigger.report();
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostPrewarmSessionsConfigKey) !== true) {
+			noteSkipped('disabled');
 			return;
 		}
 		await candidate.provider.chats.warmChat!(candidate.defaultChat, this._host.getDefaultChatContext(candidate.session, candidate.defaultChat));

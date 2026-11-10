@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -14,9 +15,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { TaskSettingId } from '../../../../../workbench/contrib/tasks/common/tasks.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
 
@@ -143,10 +145,11 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	setup(() => {
 		tasks = new FakeSessionsTasksService();
 		mgmt = new FakeSessionsManagementService();
-		configurationService = new TestConfigurationService();
+		configurationService = new TestConfigurationService({ [TaskSettingId.AllowAutomaticTasks]: 'on' });
 	});
 
 	teardown(() => {
+		sinon.restore();
 		mgmt.sessionStartedEmitter.dispose();
 		mgmt.sessionsChangedEmitter.dispose();
 		store.clear();
@@ -271,6 +274,55 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	for (const providerId of ['test', LOCAL_AGENT_HOST_PROVIDER_ID]) {
+		for (const automaticTasks of ['off', undefined, 'invalid']) {
+			test(`skips automatic tasks for ${providerId} when allowAutomaticTasks is ${automaticTasks}`, async () => {
+				await configurationService.setUserConfiguration(TaskSettingId.AllowAutomaticTasks, automaticTasks);
+				await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
+				createDispatcher();
+				const { session } = makeSession({ providerId });
+				tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+
+				mgmt.sessionStartedEmitter.fire(session);
+				await settle();
+
+				assert.deepStrictEqual(tasks.ranTasks, []);
+			});
+		}
+	}
+
+	test('checks automatic task permission after task discovery', async () => {
+		createDispatcher();
+		const { session } = makeSession();
+		sinon.stub(tasks, 'getSessionTasksOnce').callsFake(async () => {
+			await configurationService.setUserConfiguration(TaskSettingId.AllowAutomaticTasks, 'off');
+			return [entry('setup', 'worktreeCreated')];
+		});
+
+		mgmt.sessionStartedEmitter.fire(session);
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('stops dispatching when automatic tasks are disabled between launches', async () => {
+		createDispatcher();
+		const { session } = makeSession();
+		tasks.setTasks(session.sessionId, [
+			entry('setup-a', 'worktreeCreated'),
+			entry('setup-b', 'worktreeCreated'),
+		]);
+		const runTask = sinon.stub(tasks, 'runTask').callsFake(async () => {
+			await configurationService.setUserConfiguration(TaskSettingId.AllowAutomaticTasks, 'off');
+			return undefined;
+		});
+
+		mgmt.sessionStartedEmitter.fire(session);
+		await settle();
+
+		assert.deepStrictEqual(runTask.getCalls().map(call => call.args[0].label), ['setup-a']);
 	});
 
 	test('runs agent host sessions when the setting is enabled', async () => {

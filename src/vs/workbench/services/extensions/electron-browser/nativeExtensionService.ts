@@ -530,7 +530,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 							await this._extensionManagementService.installFromGallery(galleryExtension);
 							await this._hostService.reload();
 						} else {
-							this._notificationService.error(nls.localize('resolverExtensionNotFound', "`{0}` not found on marketplace"));
+							this._notificationService.error(nls.localize('resolverExtensionNotFound', "`{0}` not found on marketplace", resolverExtensionId));
 						}
 
 					}

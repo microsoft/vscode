@@ -23,6 +23,7 @@ import { ICustomizationHarnessService } from '../../customizationHarnessService.
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
+import { getAgentFileSkillDetails, getEffectiveAgentFileSkillAvailability, resolveAgentFileSkillIdentifiers, resolveAgentFileSkills } from './promptSkillResolver.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -116,6 +117,10 @@ export class PromptHoverProvider implements HoverProvider {
 						case PromptHeaderAttributes.tools:
 						case ClaudeHeaderAttributes.disallowedTools:
 							return this.getToolHover(attribute, position, description, target, token);
+						case PromptHeaderAttributes.skills:
+							return target === Target.GitHubCopilot
+								? this.getSkillHover(attribute, position, description, target, token)
+								: this.createHover(description, attribute.range);
 						case PromptHeaderAttributes.agent:
 						case PromptHeaderAttributes.mode:
 							return this.getAgentHover(attribute, position, description);
@@ -161,6 +166,28 @@ export class PromptHoverProvider implements HoverProvider {
 					const description = await this.getToolHoverByName(toolName.value, toolName.range, target, token);
 					if (description) {
 						return description;
+					}
+				}
+			}
+		}
+		return this.createHover(baseMessage, node.range);
+	}
+
+	private async getSkillHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target, token: CancellationToken): Promise<Hover | undefined> {
+		if (node.value.type === 'sequence') {
+			for (const skillName of node.value.items) {
+				if (skillName.type === 'scalar' && skillName.range.containsPosition(position)) {
+					const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, token);
+					const matches = resolveAgentFileSkillIdentifiers(skillName.value, catalogue.skills);
+					if (matches.length > 0) {
+						const lines = [...getAgentFileSkillDetails(matches)];
+						const availability = getEffectiveAgentFileSkillAvailability(matches);
+						if (availability === 'disabled') {
+							lines.push(localize('promptHeader.githubCopilot.skillDisabled', 'This skill is recognized but disabled for the matching GitHub Copilot harness.'));
+						} else if (availability === 'unavailable') {
+							lines.push(localize('promptHeader.githubCopilot.skillUnavailable', 'This skill is recognized but currently unavailable for the matching GitHub Copilot harness.'));
+						}
+						return this.createHover(lines.join('\n\n') || skillName.value, skillName.range);
 					}
 				}
 			}

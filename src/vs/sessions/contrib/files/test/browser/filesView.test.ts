@@ -15,7 +15,7 @@ import { IExplorerService } from '../../../../../workbench/contrib/files/browser
 import { ExplorerView } from '../../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { SESSIONS_FILES_VIEW_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionsExplorerView } from '../../browser/filesView.js';
 
 suite('SessionsExplorerView folder reveal', () => {

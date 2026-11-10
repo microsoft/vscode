@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { clearNode, h, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, clearNode, h, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
@@ -42,7 +42,8 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
+import { AgentSessionChatToolbar, AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
+import { agentSessionNeedsInputForeground } from '../../../../common/agentsColors.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -196,7 +197,7 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 	}
 
 	if (session.status === AgentSessionStatus.NeedsInput) {
-		return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
+		return { ...Codicon.reportQuestion, color: themeColorFromId(agentSessionNeedsInputForeground) };
 	}
 
 	if (session.status === AgentSessionStatus.Failed) {
@@ -280,6 +281,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		const elements = h(
 			'div.agent-session-item@item',
 			[
+				h('span.agent-session-attention-indicator', { 'aria-hidden': 'true' }),
 				h('div.agent-session-icon-col', [
 					h('div.agent-session-icon@icon')
 				]),
@@ -788,6 +790,8 @@ interface IAgentSessionChatItemTemplate extends IAgentSessionApprovalTemplate {
 	readonly element: HTMLElement;
 	readonly statusIcon: AgentSessionStatusIcon;
 	readonly title: IconLabel;
+	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
 
@@ -801,6 +805,8 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		private readonly sessionRenderer: AgentSessionRenderer,
 		private readonly isLastVisibleChat: (session: ITreeNode<IAgentSession, FuzzyScore>) => boolean,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionChatItemTemplate {
@@ -811,9 +817,11 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		const elements = h(
 			'div.agent-session-chat-item@item',
 			[
+				h('span.agent-session-attention-indicator', { 'aria-hidden': 'true' }),
 				h('div.agent-session-chat-title-row', [
 					h('div.agent-session-chat-icon@icon', { 'aria-hidden': 'true' }),
 					h('div.agent-session-chat-title@title'),
+					h('div.agent-session-title-toolbar@titleToolbar'),
 				]),
 				h('div.agent-session-approval-row@approvalRow', [
 					h('span.agent-session-approval-label@approvalLabel'),
@@ -821,12 +829,22 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 				])
 			]
 		);
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(elements.item));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, elements.titleToolbar, AgentSessionChatToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
+		for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(addDisposableListener(elements.titleToolbar, type, event => event.stopPropagation()));
+		}
 		container.appendChild(elements.item);
 
 		return {
 			element: elements.item,
 			statusIcon: disposables.add(new AgentSessionStatusIcon(elements.icon, getAgentSessionStatusIcon, this.accessibilityService, 'agent-session-chat-icon')),
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
+			titleToolbar,
+			contextKeyService,
 			approvalRow: elements.approvalRow,
 			approvalLabel: elements.approvalLabel,
 			approvalButtonContainer: elements.approvalButtonContainer,
@@ -841,6 +859,10 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		}
 
 		template.elementDisposable.clear();
+		ChatContextKeys.agentSessionChildCanArchive.bindTo(template.contextKeyService).set(session.element.canArchive === true);
+		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		template.titleToolbar.context = session.element;
+		template.element.classList.toggle('archived', session.element.isArchived());
 		template.element.classList.toggle('last-chat', this.isLastVisibleChat(session));
 		template.element.classList.toggle('needs-input', session.element.statusKnown !== false && session.element.status === AgentSessionStatus.NeedsInput);
 		template.statusIcon.setStatus(session.element);
@@ -1201,11 +1223,6 @@ export interface IAgentSessionsFilter {
 	readonly onDidChange: Event<void>;
 
 	/**
-	 * Optional limit on the number of sessions to show.
-	 */
-	readonly limitResults?: () => number | undefined;
-
-	/**
 	 * Whether to show section headers to group sessions.
 	 * When undefined, sessions are shown as a flat list.
 	 */
@@ -1267,6 +1284,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
 		private readonly repositoryGroupLimit?: number,
+		private readonly archivesAvailable?: () => boolean,
 	) {
 		super();
 
@@ -1302,10 +1320,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
-			return element.sessions.length > 0;
+			return element.sessions.length > 0 || element.section === AgentSessionSection.Archived && this.hasLoadableArchiveSection;
 		}
 
-		return isAgentSession(element) && !!element.children?.length;
+		return isAgentSession(element) && this.getSessionChildren(element).length > 0;
+	}
+
+	get hasLoadableArchiveSection(): boolean {
+		const grouping = this.filter?.groupResults?.();
+		return grouping !== undefined && grouping !== AgentSessionsGrouping.Capped && this.archivesAvailable?.() === true;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1315,20 +1338,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			// Apply filter if configured
 			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
-			let filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
+			const filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
-			// Apply sorter unless we group into sections or we are to limit results
-			const limitResultsCount = this.filter?.limitResults?.();
-			if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
+			// Apply sorter unless we group into sections
+			if (!this.filter?.groupResults?.()) {
 				filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			}
-
-			// Apply limiter if configured (requires sorting)
-			if (typeof limitResultsCount === 'number') {
-				filteredSessions = filteredSessions.slice(0, limitResultsCount);
-				if (revealed && !filteredSessions.includes(revealed)) {
-					filteredSessions.push(revealed);
-				}
 			}
 
 			// Callback results count
@@ -1337,7 +1351,21 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			// Group sessions into sections if enabled
 			if (this.filter?.groupResults?.()) {
-				return this.groupSessionsIntoSections(filteredSessions);
+				const sections = this.groupSessionsIntoSections(filteredSessions);
+				if (this.hasLoadableArchiveSection) {
+					const existing = sections.find((section): section is IAgentSessionSection => isAgentSessionSection(section) && section.section === AgentSessionSection.Archived);
+					const section: IAgentSessionSection = {
+						section: AgentSessionSection.Archived,
+						label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+						sessions: existing?.sessions ?? [],
+					};
+					if (existing) {
+						sections[sections.indexOf(existing)] = section;
+					} else {
+						sections.push(section);
+					}
+				}
+				return sections;
 			}
 
 			// Otherwise return flat sorted list
@@ -1362,10 +1390,14 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		if (isAgentSession(element)) {
-			return element.children ?? [];
+			return this.getSessionChildren(element);
 		}
 
 		return [];
+	}
+
+	private getSessionChildren(session: IAgentSession): readonly IAgentSession[] {
+		return session.children?.filter(child => !child.isArchived() || !this.filter?.getExcludes().archived || session.isArchived()) ?? [];
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {

@@ -9,10 +9,11 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { getSessionChatResource, StateComponents, type ChatState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getSessionChatResource, StateComponents, type ChatConfigState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { readChatSandboxState, readSessionSandboxState, type ISessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
-import { getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, mergeChatConfigChain, splitChatConfigPatch } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, isChatConfigProperty, mergeChatConfigChain, splitChatConfigPatch } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
@@ -41,24 +42,63 @@ export function getAgentHostBackendChat(sessionResource: URI, state: SessionStat
 }
 
 /**
- * The backend chats whose own config values apply to `backendChat`: the chat
- * and, for a subagent, the chats that spawned it, as recorded in its session's
- * chat catalog.
+ * The backend chats whose config applies to `backendChat`: the chat and, for a
+ * subagent (which has no config of its own), the chats that spawned it, as
+ * recorded in its session's chat catalog.
  */
 export function getAgentHostChatConfigChain(state: SessionState, backendChat: string | undefined): readonly string[] {
 	return backendChat !== undefined ? getChatConfigChain(state.chats, backendChat) : [];
 }
 
 /**
- * A chat's effective config: its session's, with the own values of the chat
- * and, for a subagent, of the chats that spawned it applied for the properties
- * the session's schema lets a chat set. `readChat` supplies each chat's state.
+ * The agent provider backing `backendChat` when it differs from its session's
+ * (a chat on its session's agent reads `undefined`).
  */
-export function getAgentHostChatConfig(state: SessionState, backendChat: string | undefined, readChat: (chat: string) => ChatState | Error | undefined): SessionConfigState | undefined {
-	return state.config && getEffectiveChatConfig(state.config, mergeChatConfigChain(getAgentHostChatConfigChain(state, backendChat).map(chat => {
-		const chatState = readChat(chat);
+export function getAgentHostChatOwnAgent(state: SessionState, backendChat: string | undefined): string | undefined {
+	const provider = backendChat !== undefined ? state.chats?.find(chat => chat.resource.toString() === backendChat)?.provider : undefined;
+	return provider !== undefined && provider !== state.provider ? provider : undefined;
+}
+
+/**
+ * Whether the host publishes each chat's complete config values: only while its
+ * chats may use their own agents (root `multipleChatProviders.enabled`). Older
+ * hosts, and hosts with the setting off, publish the values a chat set itself, as
+ * an overlay on its session's. The host must also declare the key in its root
+ * schema: an older host keeps the value this client mirrors to it without
+ * supporting the feature.
+ */
+export function hostPublishesCompleteChatConfig(rootState: RootState | Error | undefined): boolean {
+	const config = !!rootState && !(rootState instanceof Error) ? rootState.config : undefined;
+	return !!config?.schema.properties[ChatProvidersConfigKey.Enabled] && config.values[ChatProvidersConfigKey.Enabled] === true;
+}
+
+/**
+ * A chat's effective config (see {@link getEffectiveChatConfig}), read as its
+ * host publishes it: complete values, or an overlay on its session's (see
+ * {@link hostPublishesCompleteChatConfig}).
+ */
+export function getAgentHostEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined, completeValues: boolean): SessionConfigState {
+	return getEffectiveChatConfig(session, chat, completeValues);
+}
+
+/**
+ * A chat's effective config (see {@link getAgentHostEffectiveChatConfig}), from
+ * the config of the chat or, for a subagent, of the chat that spawned it.
+ * `readChat` supplies each chat's state.
+ *
+ * A chat whose agent differs from its session's has its own schema in its
+ * state and never uses the session's config: until its state is known it has
+ * none.
+ */
+export function getAgentHostChatConfig(state: SessionState, backendChat: string | undefined, readChat: (chat: string) => ChatState | Error | undefined, completeValues: boolean): SessionConfigState | undefined {
+	const chat = mergeChatConfigChain(getAgentHostChatConfigChain(state, backendChat).map(member => {
+		const chatState = readChat(member);
 		return chatState && !(chatState instanceof Error) ? chatState.config : undefined;
-	})));
+	}));
+	if (getAgentHostChatOwnAgent(state, backendChat) !== undefined && !chat?.schema) {
+		return undefined;
+	}
+	return state.config && getAgentHostEffectiveChatConfig(state.config, chat, completeValues);
 }
 
 /**
@@ -71,9 +111,22 @@ export function readAgentHostChatSandboxState(state: SessionState, backendChat: 
 }
 
 /**
+ * Whether the host behind `rootState` applies a session config write to its session's default chat, replacing the
+ * value the default chat set itself: only while its chats may use their own agents. Otherwise, as on older hosts, the
+ * default chat's own value overrides the session's, so a client writes the default chat itself.
+ */
+export function hostAppliesSessionConfigToDefaultChat(rootState: RootState | Error | undefined): boolean {
+	return hostPublishesCompleteChatConfig(rootState);
+}
+
+/**
  * Sends a config change for a chat: the properties the session's schema lets a
  * chat set go to the chat (for a subagent, to its nearest spawning chat that is
  * not one, as the host does), everything else to its session, in that order.
+ * The session's config is its default chat's: on a host that applies session
+ * writes to its default chat (see {@link hostAppliesSessionConfigToDefaultChat}),
+ * a property the session may set too is written to the session for that chat;
+ * an older host gets it on the default chat, as before.
  *
  * A patch with both kinds becomes two actions, which the host applies or
  * rejects independently; each is reconciled on its own echo. That is safe
@@ -81,9 +134,26 @@ export function readAgentHostChatSandboxState(state: SessionState, backendChat: 
  * dependency between them (validation of either reads only the effective
  * values already applied), and pickers send one property at a time.
  */
-export function dispatchAgentHostConfigChange(connection: Pick<IAgentConnection, 'dispatch'>, backendSession: URI, backendChat: string | undefined, state: SessionState | undefined, partial: Record<string, unknown>): void {
+export function dispatchAgentHostConfigChange(connection: Pick<IAgentConnection, 'dispatch' | 'rootState'>, backendSession: URI, backendChat: string | undefined, state: SessionState | undefined, partial: Record<string, unknown>, chatConfig?: SessionConfigState): void {
 	const target = backendChat !== undefined ? getChatConfigWriteTarget(state?.chats, backendChat) : undefined;
+	if (state && getAgentHostChatOwnAgent(state, backendChat) !== undefined) {
+		// A chat on another agent than its session's sets only its agent's chat-settable properties; nothing reaches the session.
+		const own = Object.fromEntries(Object.entries(partial).filter(([key]) => isChatConfigProperty(chatConfig?.schema, key)));
+		if (target !== undefined && Object.keys(own).length > 0) {
+			connection.dispatch(target, { type: ActionType.ChatConfigChanged, config: own });
+		}
+		return;
+	}
 	const { chat, session } = target !== undefined ? splitChatConfigPatch(state?.config?.schema, partial) : { chat: {}, session: partial };
+	if (target !== undefined && target === state?.defaultChat && hostAppliesSessionConfigToDefaultChat(connection.rootState.value)) {
+		// What the session may set too goes to the session, which the host applies to its default chat.
+		for (const key of Object.keys(chat)) {
+			if (state.config?.schema.properties[key]?.sessionMutable) {
+				session[key] = chat[key];
+				delete chat[key];
+			}
+		}
+	}
 	if (target !== undefined && Object.keys(chat).length > 0) {
 		connection.dispatch(target, { type: ActionType.ChatConfigChanged, config: chat });
 	}
@@ -104,7 +174,9 @@ export function getAgentHostSessionConfig(
 		return provisionalService.getResolvedConfig(sessionResource);
 	}
 	const chat = getAgentHostBackendChat(sessionResource, snapshot);
-	return getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) ?? provisionalService.getResolvedConfig(sessionResource);
+	const config = getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, hostPublishesCompleteChatConfig(resolution.connection.rootState?.value));
+	// Never the session's (or its provisional) config for a chat on another agent.
+	return getAgentHostChatOwnAgent(snapshot, chat) !== undefined ? config : config ?? provisionalService.getResolvedConfig(sessionResource);
 }
 
 /**
@@ -137,7 +209,9 @@ export async function applyAgentHostSessionConfigChange(
 	const subscribed = backendSession ? agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value : undefined;
 	const state = subscribed && !(subscribed instanceof Error) ? subscribed : undefined;
 	const backendChat = state && getAgentHostBackendChat(sessionResource, state);
-	const currentConfig = (state && getAgentHostChatConfig(state, backendChat, chat => agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value)) ?? provisionalService.getResolvedConfig(sessionResource);
+	const chatOnOwnAgent = !!state && getAgentHostChatOwnAgent(state, backendChat) !== undefined;
+	const chatConfig = state && getAgentHostChatConfig(state, backendChat, chat => agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, hostPublishesCompleteChatConfig(agentHostService.rootState?.value));
+	const currentConfig = chatOnOwnAgent ? chatConfig : chatConfig ?? provisionalService.getResolvedConfig(sessionResource);
 	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, currentConfig?.schema);
 	const partial = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, normalizeSessionConfigValue(key, value, policyRestricted)]));
 
@@ -152,7 +226,7 @@ export async function applyAgentHostSessionConfigChange(
 	if (!backendSession) {
 		return false;
 	}
-	dispatchAgentHostConfigChange(agentHostService, backendSession, backendChat, state, partial);
+	dispatchAgentHostConfigChange(agentHostService, backendSession, backendChat, state, partial, currentConfig);
 	const nextConfig = { ...(state ? currentConfig?.values : undefined), ...partial };
 	void provisionalService.refreshResolvedConfig(sessionResource, provider, workingDirectory, nextConfig);
 	return true;

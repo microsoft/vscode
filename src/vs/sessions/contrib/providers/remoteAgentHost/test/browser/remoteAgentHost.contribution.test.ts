@@ -43,8 +43,8 @@ import { CloudSandboxAgentHostService } from '../../../../../../workbench/contri
 import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
-import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
-import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
+import { MissionControlAgentHostContribution } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
+import { IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthenticationState {
@@ -602,6 +602,7 @@ interface IRemoteAgentRegistrationHarness {
 		readonly agents: DisposableMap<string, DisposableStore>;
 		readonly store: DisposableStore;
 	}>;
+	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_chatSessionsService: {
 		registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): never;
 	};
@@ -648,6 +649,7 @@ suite('Remote agent host provider ownership', () => {
 			override readonly hosts = observableValue(this, [
 				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
 			]);
+			override readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 		}();
 		owner._profileService = new class extends mock<IUserDataProfileService>() {
 			override readonly currentProfile = new class extends mock<IUserDataProfile>() {
@@ -739,11 +741,11 @@ suite('Remote agent host provider ownership', () => {
 
 suite('Remote Agent Host chat session contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() { }();
 
-	test('advertises target-only delegation', () => {
-		const address = 'test-host';
+	function registerAgent(address: string, provider: string): IChatSessionsExtensionPoint | undefined {
 		const agent: AgentInfo = {
-			provider: 'copilot',
+			provider,
 			displayName: 'Copilot',
 			description: 'test',
 			models: [],
@@ -753,6 +755,9 @@ suite('Remote Agent Host chat session contribution', () => {
 		const agents = store.add(new DisposableMap<string, DisposableStore>());
 		const harness = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAgentRegistrationHarness;
 		harness._connections = new Map([[address, { agents, store: connectionStore }]]);
+		harness._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
 
 		let registeredContribution: IChatSessionsExtensionPoint | undefined;
 		harness._chatSessionsService = {
@@ -766,6 +771,11 @@ suite('Remote Agent Host chat session contribution', () => {
 			() => harness._registerAgent(address, connection, agent, 'Test Host'),
 			/Stop after registering the chat session contribution/
 		);
+		return registeredContribution;
+	}
+
+	test('advertises target-only delegation', () => {
+		const registeredContribution = registerAgent('test-host', 'copilot');
 		assert.deepStrictEqual(registeredContribution && {
 			type: registeredContribution.type,
 			displayName: registeredContribution.displayName,
@@ -777,5 +787,14 @@ suite('Remote Agent Host chat session contribution', () => {
 			canDelegate: true,
 			supportsDelegation: false,
 		});
+	});
+
+	test('uses the Copilot input placeholder only for sandbox Copilot sessions', () => {
+		assert.deepStrictEqual([
+			registerAgent('cloudsandbox:test-host', 'copilot')?.inputPlaceholder,
+			registerAgent('cloudsandbox:test-host', 'other-agent')?.inputPlaceholder,
+			registerAgent('test-host', 'copilot')?.inputPlaceholder,
+			registerAgent('test-host', 'other-agent')?.inputPlaceholder,
+		], ['Chat with Copilot Cloud', undefined, undefined, undefined]);
 	});
 });

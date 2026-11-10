@@ -1567,6 +1567,28 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(contents.value.byteLength, length);
 	}
 
+	test('readFile - length past the end (large) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return readLargeFileWithLengthPastTheEnd();
+	});
+
+	test('readFile - length past the end (large) - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return readLargeFileWithLengthPastTheEnd();
+	});
+
+	async function readLargeFileWithLengthPastTheEnd() {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+		const { size } = await service.stat(resource);
+
+		// Reads fewer bytes than requested, but more than half of them
+		const contents = await service.readFile(resource, { position: size - 3000, length: 4000 });
+
+		assert.strictEqual(contents.value.byteLength, 3000);
+	}
+
 	test('readFile - FILE_IS_DIRECTORY', async () => {
 		const resource = URI.file(join(testDir, 'deep'));
 

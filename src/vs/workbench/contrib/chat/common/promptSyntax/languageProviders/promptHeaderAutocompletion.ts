@@ -16,7 +16,7 @@ import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { IMapValue, ISequenceValue, IValue, IHeaderAttribute, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDefinition, getTarget, getValidAttributeNames, githubCopilotGithubProperties, GithubPromptHeaderAttributes, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, knownClaudeTools, knownGithubCopilotToolNamespaces, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
+import { getAttributeDefinition, getTarget, getValidAttributeNames, githubCopilotGithubProperties, GithubPromptHeaderAttributes, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, knownClaudeTools, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
 import { getAgentHookMetadata, getCanonicalAgentHookName, getValidAgentHookNames } from '../hookTypes.js';
@@ -26,6 +26,7 @@ import { ICustomizationHarnessService } from '../../customizationHarnessService.
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 import { getEffectiveAgentFileToolAvailability, resolveAgentFileTools, type IAgentFileTool } from './promptToolResolver.js';
+import { getAgentFileSkillDetails, getEffectiveAgentFileSkillAvailability, resolveAgentFileSkills, type IAgentFileSkill } from './promptSkillResolver.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -257,11 +258,6 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 								const description = [matches.find(tool => tool.description)?.description, availabilityLabel].filter(Boolean).join(' — ');
 								suggestions.set(name, { name, ...(description ? { description } : {}) });
 							}
-							for (const namespace of knownGithubCopilotToolNamespaces) {
-								if (!suggestions.has(namespace.name)) {
-									suggestions.set(namespace.name, namespace);
-								}
-							}
 							return [...suggestions.values()];
 						} else if (this.environmentService.isSessionsWindow) {
 							// for GitHub Copilot targets and the Sessions Window, we only suggest the known set of tools that are supported by GitHub Copilot, instead of all tools that the user has defined, because many tools won't work in these contexts and it would be frustrating for users to select a tool that doesn't work
@@ -274,6 +270,27 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					};
 					return this.provideArrayCompletions(model, position, value, getValues);
 				}
+			}
+			if (attribute.key === PromptHeaderAttributes.skills && target === Target.GitHubCopilot && attribute.value.type === 'sequence') {
+				return this.provideArrayCompletions(model, position, attribute.value, async () => {
+					const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, token);
+					const skillsByName = new Map<string, IAgentFileSkill[]>();
+					for (const skill of catalogue.skills) {
+						const matches = skillsByName.get(skill.name) ?? [];
+						matches.push(skill);
+						skillsByName.set(skill.name, matches);
+					}
+					return [...skillsByName].map(([name, matches]) => {
+						const availability = getEffectiveAgentFileSkillAvailability(matches);
+						const availabilityLabel = availability === 'disabled'
+							? localize('promptHeaderAutocompletion.skillDisabled', "Disabled")
+							: availability === 'unavailable'
+								? localize('promptHeaderAutocompletion.skillUnavailable', "Unavailable")
+								: undefined;
+						const description = [...getAgentFileSkillDetails(matches), availabilityLabel].filter(Boolean).join(' — ');
+						return { name, ...(description ? { description } : {}) };
+					});
+				});
 			}
 		}
 		if (attribute.key === PromptHeaderAttributes.agents) {

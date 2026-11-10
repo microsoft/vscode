@@ -14,7 +14,7 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar } from '../../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexTurnEditsWaitMsEnvVar } from '../../../common/agentService.js';
 import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../../common/changesetUri.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import { ContentEncoding } from '../../../common/state/protocol/common/commands.js';
@@ -85,8 +85,10 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		pausedScenario?: string;
 		cwdSubfolder?: string;
 		extraScenarios?: NonNullable<Parameters<typeof startRealServer>[0]['mockScenarios']>;
+		/** Shortens how long changeset reads wait for a running turn's snapshots, for tests that outlast the wait. */
+		turnEditsWaitMs?: number;
 	} = {}): Promise<void> {
-		const { tool = 'native', pausedScenario, extraScenarios = [] } = settings;
+		const { tool = 'native', pausedScenario, extraScenarios = [], turnEditsWaitMs } = settings;
 		if (pausedScenario) {
 			releaseResponse = new DeferredPromise<void>();
 		}
@@ -108,7 +110,10 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		}));
 		options = {
 			homeDir: home, userDataDir: join(root, 'data'), codexSdkRoot: CODEX_SDK_ROOT, mockLlm: true,
-			env: { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.plugins=false', '-c', 'features.unified_exec=true', '-c', 'features.multi_agent=true', '-c', `model_catalog_json=${JSON.stringify(modelCatalog)}`]) },
+			env: {
+				[AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.plugins=false', '-c', 'features.unified_exec=true', '-c', 'features.multi_agent=true', '-c', `model_catalog_json=${JSON.stringify(modelCatalog)}`]),
+				...(turnEditsWaitMs === undefined ? {} : { [AgentHostCodexTurnEditsWaitMsEnvVar]: String(turnEditsWaitMs) }),
+			},
 			mockScenarios: [...Object.entries(scenarios).map(([id, patches]) => ({
 				id,
 				definition: {
@@ -259,6 +264,9 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		}).catch(() => undefined);
 		return actual;
 	}
+
+	// The turns that outlast the snapshot wait stay paused until the test releases them, so a short wait keeps the scenario and saves the default 30s wait.
+	const shortTurnEditsWaitMs = 1_000;
 
 	/** Holds a turn changeset read open until Codex stops waiting for the turn's snapshots, as the workbench does while a request runs. */
 	async function observeUntilSnapshotWaitEnds(turnId: string): Promise<void> {
@@ -547,7 +555,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		this.timeout(180_000);
 		await start({ 'edit.txt': 'before\n' }, {
 			'codex-diff-long-turn': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
-		}, { pausedScenario: 'codex-diff-long-turn' });
+		}, { pausedScenario: 'codex-diff-long-turn', turnEditsWaitMs: shortTurnEditsWaitMs });
 		const turn = await beginPausedTurn('codex-diff-long-turn');
 		await observeUntilSnapshotWaitEnds(turn);
 		releaseResponse!.complete();
@@ -560,6 +568,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		this.timeout(180_000);
 		const releaseSecond = new DeferredPromise<void>();
 		await start({ 'edit.txt': 'a\n' }, {}, {
+			turnEditsWaitMs: shortTurnEditsWaitMs,
 			extraScenarios: [{
 				id: 'codex-diff-steer-long-first', definition: {
 					type: 'multi-turn', turns: [

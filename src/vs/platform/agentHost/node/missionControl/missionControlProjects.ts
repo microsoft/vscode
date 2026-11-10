@@ -9,6 +9,7 @@ import { lstat, mkdir, readFile, realpath, rename, rmdir, stat, unlink, writeFil
 import { Sequencer, ThrottledDelayer } from '../../../../base/common/async.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { untildify } from '../../../../base/common/labels.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, isAbsolute, join, relative, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -45,6 +46,7 @@ export interface IMissionControlProject {
 interface IMissionControlProjectsOptions {
 	readonly getRoots: () => readonly string[];
 	readonly getProjectRoots?: () => readonly string[];
+	readonly getCloneRoot?: () => string | undefined;
 	readonly runGit?: typeof runGit;
 	readonly processEnvironment?: NodeJS.ProcessEnv;
 }
@@ -306,7 +308,16 @@ export class MissionControlProjects extends Disposable {
 		if (segments.length !== 2 || segments.some(segment => !/^[\w.-]+$/.test(segment) || segment === '.' || segment === '..')) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Repository URL must identify an owner and repository');
 		}
-		const root = await realpath(typeof params.targetRoot === 'string' ? params.targetRoot : this._environment.userHome.fsPath);
+		const cloneRoot = this._options.getCloneRoot?.();
+		const targetRoot = typeof params.targetRoot === 'string' ? params.targetRoot : untildify(cloneRoot || this._environment.userHome.fsPath, this._environment.userHome.fsPath);
+		if (!isAbsolute(targetRoot) || /[\0\r\n]/.test(targetRoot)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Clone root must be an absolute local directory');
+		}
+		if (params.targetRoot === undefined && cloneRoot) {
+			checkAuthorization?.();
+			await mkdir(targetRoot, { recursive: true });
+		}
+		const root = await realpath(targetRoot);
 		if (params.targetRoot !== undefined && !await this._isGranted(root)) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'targetRoot is outside the host workspace grants');
 		}

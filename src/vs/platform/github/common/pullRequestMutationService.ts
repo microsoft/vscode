@@ -297,7 +297,12 @@ export class PullRequestMutationService extends Disposable implements PullReques
 						throw error;
 					}
 					this._resources.invalidatePullRequest(preparation.ref, ['core']);
-					await state.subscription.refresh('core', undefined, { authoritative: true });
+					try {
+						await state.subscription.refresh('core', undefined, { authoritative: true });
+					} catch {
+						// A failed read cannot show that the merge was not applied.
+						throw error;
+					}
 					const reconciled = state.resource.snapshot.get().core.value;
 					if (reconciled?.state === 'merged') {
 						return { outcome: 'reconciled', message: 'Pull request was merged' };
@@ -347,7 +352,12 @@ export class PullRequestMutationService extends Disposable implements PullReques
 						throw error;
 					}
 					this._resources.invalidatePullRequest(preparation.ref, ['mergeability']);
-					await state.subscription.refresh('mergeability', undefined, { authoritative: true });
+					try {
+						await state.subscription.refresh('mergeability', undefined, { authoritative: true });
+					} catch {
+						// A failed read cannot show that the pull request was not enqueued.
+						throw error;
+					}
 					const entryId = state.resource.snapshot.get().mergeability.value?.mergeQueueEntryId;
 					if (entryId) {
 						return { outcome: 'reconciled', mergeQueueEntryId: entryId };

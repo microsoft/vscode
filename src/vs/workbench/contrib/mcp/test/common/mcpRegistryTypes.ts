@@ -180,6 +180,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 	}]);
 	delegates = observableValue<readonly IMcpHostDelegate[]>(this, [{
 		priority: 0,
+		resolvePolicyVariables: async () => ({}),
 		canStart: () => true,
 		substituteVariables(serverDefinition, launch) {
 			return Promise.resolve(launch);

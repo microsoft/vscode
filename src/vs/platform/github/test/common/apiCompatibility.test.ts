@@ -11,6 +11,7 @@ import { CoreClient } from '../../common/core/coreClient.js';
 import { PullRequestsClient } from '../../common/core/pullRequestsClient.js';
 import { ReviewsClient } from '../../common/core/reviewsClient.js';
 import { SearchClient } from '../../common/core/searchClient.js';
+import { GistsClient } from '../../common/gists/gistsClient.js';
 import { parseActivationContext } from '../../common/missionControl/missionControlClient.js';
 import { createTestPullRequestResponse, FixtureApiRequestProvider } from './githubClientTestUtils.js';
 
@@ -26,6 +27,40 @@ suite('GitHub API compatibility', () => {
 		check_run_url: 'https://api.github.com/repos/owner/repo/check-runs/1',
 		started_at: date, completed_at: null, labels: ['ubuntu-latest'],
 	};
+
+	suite('Gist profile responses', () => {
+		const file = { content: '{"settings":{}}', truncated: false, encoding: 'utf-8' };
+		const gist = { id: 'gist-id', html_url: 'https://gist.github.com/gist-id', files: { 'profile.code-profile': file } };
+
+		test('accepts only the fields needed for profile import and export', async () => {
+			const client = new GistsClient(new FixtureApiRequestProvider(gist));
+			assert.deepStrictEqual(await client.get(gist.id, new AbortController().signal), gist);
+		});
+
+		test('strips unused gist and file metadata', async () => {
+			const response = {
+				...gist,
+				node_id: 'G_1', url: 'https://api.github.com/gists/gist-id',
+				git_pull_url: 'https://gist.github.com/gist-id.git', git_push_url: 'https://gist.github.com/gist-id.git',
+				forks_url: 'https://api.github.com/gists/gist-id/forks', commits_url: 'https://api.github.com/gists/gist-id/commits',
+				comments_url: 'https://api.github.com/gists/gist-id/comments', public: false, description: null,
+				truncated: false, created_at: date, updated_at: date, comments: 0, comments_enabled: true,
+				owner: { id: 1, login: 'owner', avatar_url: 'https://github.com/avatar', html_url: 'https://github.com/owner' },
+				history: [{ version: 'revision' }],
+				files: {
+					'profile.code-profile': {
+						...file,
+						filename: 'profile.code-profile', type: 'application/json', language: 'JSON',
+						raw_url: 'https://gist.githubusercontent.com/owner/gist-id/raw/profile.code-profile',
+						size: file.content.length, extra: 'unused',
+					},
+				},
+			};
+			const client = new GistsClient(new FixtureApiRequestProvider(response));
+			assert.deepStrictEqual(await client.get(gist.id, new AbortController().signal), gist);
+		});
+
+	});
 
 	for (const merged of [false, true]) {
 		for (const [title, message] of [[null, null], [null, 'Custom message'], ['Custom title', null], ['', '']]) {

@@ -116,9 +116,12 @@ class AgentPluginPolicyEnablementModel implements IEnablementModel {
 		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
 	}
 
+	canSetEnabled(key: string, state: ContributionEnablementState): boolean {
+		return !this.policyEnablement?.get().has(key) && (this.base.canSetEnabled?.(key, state) ?? true);
+	}
+
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
-		const policy = this.policyEnablement?.get();
-		if (policy?.has(key)) {
+		if (!this.canSetEnabled(key, state)) {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
@@ -144,9 +147,13 @@ export class AgentPluginCollisionEnablementModel extends CollisionEnablementMode
 		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
 	}
 
-	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+	override canSetEnabled(key: string, state: ContributionEnablementState): boolean {
 		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
-		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+		return super.canSetEnabled(key, state) && !group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true);
+	}
+
+	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		if (!this.canSetEnabled(key, state)) {
 			return;
 		}
 		super.setEnabled(key, state, tx);

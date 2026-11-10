@@ -44,6 +44,9 @@ export function getChatsInUse(chats: readonly ChatSummary[], options: IChatsInUs
 		let ownerResource = chat.resource;
 		const visited = new Set<string>();
 		while (owner && (owner.origin?.kind === ChatOriginKind.Tool || owner.origin?.kind === ChatOriginKind.SideChat) && !visited.has(owner.resource)) {
+			if (ownerResource === options.excludedChat || isSessionChatArchived(owner)) {
+				break;
+			}
 			visited.add(owner.resource);
 			ownerResource = owner.origin.chat;
 			owner = byResource.get(ownerResource);
