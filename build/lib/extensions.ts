@@ -516,17 +516,15 @@ export function isPackagedTypeScriptFile(relativePath: string): boolean {
 
 /**
  * Returns the production dependencies of `extensions/package.json` (shared by the built-in
- * extensions) with their destination in the build: `extensions/node_modules/...`. They are a
- * member of the pnpm workspace, so a dependency can be hoisted to the root `node_modules`; such a
- * folder keeps its path relative to that `node_modules`. `folder` holds the files of the package
- * (in pnpm's virtual store with the isolated linker).
+ * extensions) with their destination in the build: their folder in the layout of `extensions`
+ * (`extensions/node_modules/...`, see `layoutRoots` in `build/npm/dirs.ts`). `folder` holds the
+ * files of the package (in pnpm's virtual store with the isolated linker).
  */
 function getSharedExtensionDependencyFolders(): { folder: string; destination: string }[] {
 	const extensionsNodeModules = path.join(root, 'extensions', 'node_modules');
-	const rootNodeModules = path.join(root, 'node_modules');
 	const result = new Map<string, string>();
 	for (const { folder, source } of getProductionDependencies('extensions/')) {
-		const relative = folder.startsWith(extensionsNodeModules + path.sep) ? path.relative(extensionsNodeModules, folder) : path.relative(rootNodeModules, folder);
+		const relative = path.relative(extensionsNodeModules, folder);
 		if (relative.startsWith('..')) {
 			throw new Error(`Unexpected location of a shared extension dependency: ${folder}`);
 		}

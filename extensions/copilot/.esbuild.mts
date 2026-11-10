@@ -174,9 +174,12 @@ const nodeExtHostBuildOptions = {
 	external: [
 		...baseNodeBuildOptions.external,
 		'vscode',
-		// `debug` tries to load `supports-color`, an optional peer that isn't installed: don't bundle
-		// whichever version happens to be reachable. Without it, `debug` uses its basic colors.
-		'supports-color'
+		// `debug` tries to load `supports-color`, and `ws` `bufferutil` and `utf-8-validate`: optional
+		// peers that aren't installed. Don't bundle whichever version happens to be reachable. Without
+		// them, `debug` uses its basic colors and `ws` its JavaScript implementations.
+		'supports-color',
+		'bufferutil',
+		'utf-8-validate'
 	]
 } satisfies esbuild.BuildOptions;
 
