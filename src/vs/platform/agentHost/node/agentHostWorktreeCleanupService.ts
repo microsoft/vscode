@@ -6,6 +6,7 @@
 import * as fs from 'fs/promises';
 import { Limiter, RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { isEqual, isEqualOrParent, joinPath, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -18,6 +19,7 @@ import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AGENT_BRANCH_PREFIX, getWorktreesRoot, isAgentWorktreeBranch, isWorktreeUnderRepository } from '../common/worktreePaths.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
+import { parseSessionWorkingDirectories, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 import { DetachedWorktreeRemovalGuard, IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
 
@@ -190,18 +192,22 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force = false): Promise<void> {
+		return this._cleanupManagedWorktree(repository, worktree, branch, force);
+	}
+
+	private async _cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force: boolean, ownerSession?: URI): Promise<void> {
 		const removal = await this._worktree.runExclusive(worktree.toString(), async () => {
 			const owner = this._managedRemovalOwner(worktree);
 			const pending = await this._database.readPendingWorktreeRemoval('detached', owner)
 				?? (await this._database.listPendingWorktreeRemovals()).find(removal =>
 					isEqual(URI.parse(removal.repositoryRoot), repository) && isEqual(URI.parse(removal.worktreePath), worktree) && removal.branch === branch);
 			const currentBranch = await this._assertManagedWorktree(repository, worktree, branch, false, force, pending);
-			if (!force && await this._isManagedWorktreeInUse(worktree)) {
+			if (!force && !ownerSession && await this._isManagedWorktreeInUse(worktree)) {
 				throw new Error('A session, chat, or detached worktree record is still using this worktree.');
 			}
 			// Explicit ownerless cleanup uses the durable detached-removal queue, not a fabricated session owner.
 			if (!force || !pending || !isEqual(URI.parse(pending.repositoryRoot), repository) || pending.branch !== currentBranch) {
-				await this._database.upsertPendingWorktreeRemoval(this._request('detached', owner, undefined, { repositoryRoot: repository, worktree, branchName: currentBranch }, 'commit', false));
+				await this._database.upsertPendingWorktreeRemoval(this._request('detached', owner, ownerSession, { repositoryRoot: repository, worktree, branchName: currentBranch }, 'commit', false));
 				this._removalStatuses.delete(`detached:${owner}`);
 				return this._database.readPendingWorktreeRemoval('detached', owner);
 			}
@@ -346,6 +352,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			for (const worktree of parseSessionAdditionalWorktrees(values?.get(ADDITIONAL_WORKTREES_METADATA_KEY))) {
 				await this.setDetachedWorktreeArchived(worktree.handle, true, false, session);
 			}
+			await this._requestUnrecordedSessionWorktrees(session, force);
 		}
 		const removals = (await this._database.listPendingWorktreeRemovals()).filter(removal =>
 			!removal.ownerDeleted && (removal.ownerSession === session.toString() || (removal.kind === 'session' && removal.owner === session.toString())));
@@ -376,6 +383,39 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			}
 		}
 		return { state: 'unknown' };
+	}
+
+	private async _requestUnrecordedSessionWorktrees(session: URI, force: boolean): Promise<void> {
+		const values = (await this._database.readSessionStateValues([session.toString()], [SESSION_WORKING_DIRECTORIES_KEY])).get(session.toString())?.values;
+		const removals = await this._database.listPendingWorktreeRemovals();
+		for (const directory of parseSessionWorkingDirectories(values?.get(SESSION_WORKING_DIRECTORIES_KEY)) ?? []) {
+			const folder = URI.parse(directory);
+			if (folder.scheme !== Schemas.file || removals.some(removal => removal.ownerSession === session.toString() && isEqualOrParent(folder, URI.parse(removal.worktreePath)))) {
+				continue;
+			}
+			const checkout = await this._gitService.getRepositoryRoot(folder, { refreshIfNone: true });
+			if (!checkout) {
+				continue;
+			}
+			const entries = await this._gitService.getWorktrees(checkout);
+			const repository = entries[0]?.path;
+			const entry = entries.slice(1).find(entry => isEqual(entry.path, checkout));
+			if (!repository || !entry?.branchName || !isAgentWorktreeBranch(entry.branchName, checkout, repository) || !await this._isManagedWorktree(repository, checkout)) {
+				continue;
+			}
+			const branchName = entry.branchName;
+			await this._worktree.runExclusive(AgentSession.id(session), async () => {
+				const recorded = await this._worktree.readSessionWorktreeForRemoval(session);
+				if (recorded && !isEqual(recorded.worktree, checkout)) {
+					throw new Error('This session has an additional worktree without a recovery record. Its cleanup cannot be scheduled.');
+				}
+				if (!recorded) {
+					await this._worktree.recordAdoptedWorktreeMetadata(session, { repositoryRoot: repository, worktreePath: checkout, branchName, baseBranch: undefined });
+				}
+			});
+			// Branch isolation has no allocation record; only explicit cleanup may adopt its registered worktree.
+			await this._cleanupManagedWorktree(repository, checkout, branchName, force, session);
+		}
 	}
 
 	private _removalKey(removal: IWorktreeRemovalRequest): string {
