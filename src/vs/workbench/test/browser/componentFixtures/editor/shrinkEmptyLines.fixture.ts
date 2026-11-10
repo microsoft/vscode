@@ -11,7 +11,8 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import '../../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 import { ShrinkEmptyLinesController } from '../../../../../editor/contrib/shrinkEmptyLines/browser/shrinkEmptyLines.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../fixtureUtils.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 
 const SAMPLE_CODE = [
 	'class Counter',
@@ -91,6 +92,13 @@ async function renderInlineCompletion(context: ComponentFixtureContext, accepted
 		colorTheme: theme,
 		additionalServices: registerWorkbenchServices,
 	});
+	let inlineSuggestionSignalPlayed = false;
+	const accessibilitySignalService = instantiationService.get(IAccessibilitySignalService);
+	instantiationService.stub(IAccessibilitySignalService, accessibilitySignalService, 'playSignal', async (signal: AccessibilitySignal) => {
+		if (signal === AccessibilitySignal.inlineSuggestion) {
+			inlineSuggestionSignalPlayed = true;
+		}
+	});
 	const model = disposableStore.add(createTextModel(
 		instantiationService,
 		'function sum() {\n    const total = 42;\n\n    return total;\n}',
@@ -136,6 +144,7 @@ async function renderInlineCompletion(context: ComponentFixtureContext, accepted
 	}
 	await completionModel.triggerExplicitly();
 	if (accepted) {
+		await waitForFixtureCondition(() => inlineSuggestionSignalPlayed, 'Inline suggestion accessibility signal was not played');
 		await completionModel.accept();
 	}
 	editor.render(true);
