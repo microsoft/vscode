@@ -592,6 +592,7 @@ export class NewChatWidget extends Disposable {
 				: undefined),
 			inputVisible: this.options.inputVisible,
 			hostVisible: this.options.hostVisible,
+			hideChatWidgetWhileHidden: this.options.hideChatWidgetWhileHidden,
 			canSendRequest,
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
