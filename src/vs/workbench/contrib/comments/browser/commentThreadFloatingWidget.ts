@@ -504,8 +504,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._sizeModel.resetGrowth();
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
 		const bounds = this._getHorizontalBounds();
-		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths(), this._commentThreadWidget.isEditing);
-		let width = this._setWidth(getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN), widthRange);
+		const contentWidths = this._measureContentWidths();
+		const widthRange = this._sizeModel.getWidthRange(contentWidths);
+		const preferredWidth = getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN);
+		let width = this._setWidth(this._sizeModel.getDefaultWidth(contentWidths, preferredWidth, this._commentThreadWidget.isEditing), widthRange);
 		let height = this._sizeModel.getHeight(this._measureContentHeights(), undefined);
 
 		const scrollTop = this.editor.getScrollTop();
@@ -543,7 +545,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			return;
 		}
 		let heights = this._measureContentHeights();
-		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths(), this._commentThreadWidget.isEditing);
+		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths());
 		const previousWidth = this._resizable.size.width;
 		if (this._setWidth(layout.width, widthRange) !== previousWidth) {
 			heights = this._measureContentHeights();
@@ -738,7 +740,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._sizeModel.growEditorSize(this._measureEditorSize());
 		const { width, height } = this._resizable.size;
 		const top = this._getDocumentTop(this._layout, height);
-		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths(), this._commentThreadWidget.isEditing);
+		const widthRange = this._sizeModel.getWidthRange(this._measureContentWidths());
 		this._resizeSession = { layout: this._layout, top, left: this._renderedLeft, width, height, widthRange, north: false, west: false, vertical: false };
 		// The allowed height changes with the width, so the sizes are limited while handling each resize instead.
 		this._resizable.minSize = new dom.Dimension(0, 0);

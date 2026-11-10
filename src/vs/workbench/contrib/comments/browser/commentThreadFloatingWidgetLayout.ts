@@ -376,14 +376,21 @@ export class FloatingWidgetSizeModel {
 	}
 
 	/**
-	 * The widths the widget can have: wide enough to show its title actions, reply and additional actions, and,
-	 * unless a reply or comment is being edited, no wider than its content can fill.
+	 * The widths the widget can have: wide enough to show its title actions, reply and additional actions, and no
+	 * wider than the editor.
 	 */
-	getWidthRange(content: IFloatingWidgetContentWidths, isEditing: boolean): ISizeRange {
+	getWidthRange(content: IFloatingWidgetContentWidths): ISizeRange {
 		const editorWidth = this._editorSize.width;
-		const min = Math.min(Math.max(MIN_WIDTH, content.minimum), editorWidth);
-		const max = isEditing ? editorWidth : clamp(content.natural, min, editorWidth);
-		return { min, max };
+		return { min: Math.min(Math.max(MIN_WIDTH, content.minimum), editorWidth), max: editorWidth };
+	}
+
+	/**
+	 * The width that the widget is shown at: the preferred width, but, unless a reply or comment is being written, no
+	 * wider than its content can fill. The user can still make the widget wider.
+	 */
+	getDefaultWidth(content: IFloatingWidgetContentWidths, preferredWidth: number, isEditing: boolean): number {
+		const range = this.getWidthRange(content);
+		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, content.natural), range.min, range.max);
 	}
 
 	/**
