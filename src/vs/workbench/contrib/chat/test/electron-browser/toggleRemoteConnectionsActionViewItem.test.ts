@@ -288,9 +288,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 	test('connection explanations are available through managed hovers and accessible descriptions', () => {
 		const { openMenu } = fixture();
 		assert.deepStrictEqual(openMenu().filter(action => action.checked !== undefined).map(action => ({ id: action.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })), [
-			{ id: 'remoteConnections.off', description: 'Don\'t let other devices connect to agents on this computer.', hoverMatches: true },
+			{ id: 'remoteConnections.off', description: 'Don\'t allow connections from other devices through this app.', hoverMatches: true },
 			{ id: 'remoteConnections.githubEnvironment', description: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', hoverMatches: true },
-			{ id: 'remoteConnections.devTunnel', description: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full editor access, use Remote Tunnels.', hoverMatches: true },
+			{ id: 'remoteConnections.devTunnel', description: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', hoverMatches: true },
 		]);
 	});
 
@@ -725,6 +725,29 @@ suite('RemoteConnectionsActionViewItem', () => {
 			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'unavailable', gitHubEnvironments: 'unavailable' },
 		]);
 	});
+
+	for (const method of ['devTunnel', 'off'] as const) {
+		test(`logs the resulting method when the toolbar replaces the view item while ${method === 'off' ? 'disabling' : 'enabling'} sharing`, async () => {
+			const { openMenu, viewItem, executeCommand, remoteTunnel, selectMethodEvents } = fixture();
+			const connected: TunnelStatus = { type: 'connected', info: { tunnelName: 'tunnel', isAttached: false }, serviceInstallFailed: false };
+			await timeout(0);
+			if (method === 'off') {
+				remoteTunnel.fireStatus(connected);
+			}
+			executeCommand.callsFake(async () => {
+				viewItem.dispose();
+				if (method === 'off') {
+					await remoteTunnel.stopTunnel();
+				} else {
+					remoteTunnel.fireStatus(connected);
+				}
+			});
+			await openMenu().find(action => action.id === `remoteConnections.${method}`)!.run();
+			assert.deepStrictEqual(selectMethodEvents(), [
+				{ source: 'titleBar', method, previousMethod: method === 'off' ? 'devTunnel' : 'off', activeMethod: method, result: 'applied', gitHubEnvironments: 'enabled' },
+			]);
+		});
+	}
 
 	test('clicking the single button opens the picker without changing sharing', async () => {
 		const { primary, openMenu, run, update } = fixture();

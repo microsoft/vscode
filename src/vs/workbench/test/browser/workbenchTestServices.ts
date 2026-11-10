@@ -682,6 +682,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	hasFocus(_part: Parts): boolean { return false; }
 	isFloatingPanelsEnabled(): boolean { return false; }
 	isModernUICompact(): boolean { return false; }
+	getPanelSpacing(): number { return this.isModernUICompact() ? 0 : 4; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }

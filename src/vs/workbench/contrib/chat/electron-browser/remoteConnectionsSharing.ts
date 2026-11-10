@@ -75,11 +75,11 @@ type RemoteConnectionsSelectMethodClassification = {
 };
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Don't let other devices connect to agents on this computer.");
+	return localize('remoteConnections.off.detail', "Don't allow connections from other devices through this app.");
 }
 
 export function getDevTunnelsDetail(): string {
-	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full editor access, use Remote Tunnels.");
+	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.");
 }
 
 export function getGitHubEnvironmentsDetail(availability: GitHubEnvironmentsAvailability): string {
@@ -263,17 +263,36 @@ export class RemoteConnectionsSharing extends Disposable {
 			this._notificationService.error(error);
 			errorMessage = toErrorMessage(error);
 		}
+		let activeMethod: RemoteConnectionsMethod;
+		try {
+			activeMethod = await this._readActiveMethod();
+		} catch {
+			activeMethod = this.activeMethod;
+		}
 		// Logged in every arm of the This Computer experiment, so sharing changes can be compared across them.
 		this._telemetryService.publicLog2<RemoteConnectionsSelectMethodEvent, RemoteConnectionsSelectMethodClassification>('remoteConnections.selectMethod', {
 			source: this._source,
 			method,
 			previousMethod,
-			activeMethod: this.activeMethod,
+			activeMethod,
 			result,
 			gitHubEnvironments,
 		});
 		return errorMessage ?? (result === 'failed' || result === 'disabled' || result === 'unavailable'
 			? localize('remoteConnections.setupFailed', "Couldn't start sharing. Check your settings and try again.") : undefined);
+	}
+
+	/** Reads sharing services directly because applying a choice can replace the toolbar's state source. */
+	private async _readActiveMethod(): Promise<RemoteConnectionsMethod> {
+		if (this.usesGitHubEnvironment) {
+			return this._missionControlSharingService.state.get() === 'disabled' ? 'off' : 'githubEnvironment';
+		}
+		const [mode, status] = await Promise.all([
+			this._remoteTunnelService.getMode(),
+			this._remoteTunnelService.getTunnelStatus(),
+		]);
+		const state = getRemoteTunnelAccessState(mode, status);
+		return state.isSharing || state.isConnecting ? 'devTunnel' : 'off';
 	}
 
 	private async _applyMethod(method: RemoteConnectionsMethod, name?: string): Promise<RemoteConnectionsSelectionResult> {

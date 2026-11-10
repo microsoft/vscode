@@ -275,10 +275,15 @@ export const compileNativeExtensionsBuildTask = task.define('compile-native-exte
 task.task(compileNativeExtensionsBuildTask);
 
 /**
- * Compiles the built-in copilot extension for the build.
- * Used by non-CI local builds where copilot is not downloaded as a VSIX.
+ * Compiles the built-in Copilot extension for the build, with the files of its VSIX (see
+ * {@link ext.packageCopilotExtensionStream}). The platform Compile jobs run it on its own (see
+ * `build/azure-pipelines/copilot/builtin-steps.yml`), and the local builds with the other built-in
+ * extensions.
  */
-export const compileCopilotExtensionBuildTask = task.define('compile-copilot-extension-build', () => ext.packageCopilotExtensionStream().pipe(gulp.dest('.build')));
+export const compileCopilotExtensionBuildTask = task.define('compile-copilot-extension-build', task.series(
+	util.rimraf('.build/extensions/copilot'),
+	task.define('bundle-copilot-extension-build', () => ext.packageCopilotExtensionStream().pipe(gulp.dest('.build')))
+));
 task.task(compileCopilotExtensionBuildTask);
 
 /**
