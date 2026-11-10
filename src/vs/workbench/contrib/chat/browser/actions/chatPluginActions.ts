@@ -13,12 +13,13 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -47,6 +48,11 @@ export class ManagePluginsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		// The Agents window has no Extensions view, so show the plugins in Chat Customizations instead.
+		if (IsSessionsWindowContext.getValue(accessor.get(IContextKeyService))) {
+			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Plugins);
+			return;
+		}
 		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
 	}
 }
