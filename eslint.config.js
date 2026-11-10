@@ -2502,13 +2502,6 @@ export default [
 		files: [
 			'src/vs/workbench/contrib/chat/**/*.ts'
 		],
-		ignores: [
-			// Existing violations; remove entries as they are fixed (https://github.com/microsoft/vscode/issues/346756)
-			'src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.ts',
-			'src/vs/workbench/contrib/chat/browser/chatTipCatalog.ts',
-			'src/vs/workbench/contrib/chat/test/browser/chatTipService.test.ts',
-			'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatToolAuthenticationSubPart.test.ts'
-		],
 		rules: {
 			'local/code-no-restricted-path-imports': [
 				'error',

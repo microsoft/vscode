@@ -19,7 +19,7 @@ export const SessionActivityBarSizeContext = new RawContextKey<string>('sessionA
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 export const NewSessionComposerFocusContext = new RawContextKey<boolean>('newSessionComposerFocus', false, localize('newSessionComposerFocus', "Whether focus is within the new-session composer or its pickers"));
 export const ChatInputSupportsBackgroundContext = new RawContextKey<boolean>('sessionsChatInputSupportsBackground', false, localize('sessionsChatInputSupportsBackground', "Whether the chat input supports sending in the background"));
-export const ChatInputCanScheduleContext = new RawContextKey<boolean>('sessionsChatInputCanSchedule', false, localize('sessionsChatInputCanSchedule', "Whether the chat input supports sending later"));
+export { ChatInputCanScheduleContext } from '../../../common/contextkeys.js';
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionProviderIdContext = new RawContextKey<string>('sessionProviderId', '', localize('sessionProviderId', "The provider ID of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionTypeContext = new RawContextKey<string>('sessionType', '', localize('sessionType', "The session type of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -35,7 +35,7 @@ export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('se
 
 //#region < --- Session View --- >
 
-export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
+export { SessionIsCreatedContext } from '../../../common/contextkeys.js';
 export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));
 export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMaximized', false, localize('sessionIsMaximized', "Whether the session view is currently maximized in the sessions part's grid"));
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));

@@ -783,6 +783,8 @@ export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow'
 export const AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.agentsLauncher';
 /** Attaches a screenshot of the window of another app to chat. Desktop only; its keybinding can be made system-wide. */
 export const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
+export const SEND_IN_BACKGROUND_COMMAND_ID = 'sessions.sendInBackground';
+export const SESSIONS_SEND_LATER_ENABLED_SETTING = 'sessions.sendLater.enabled';
 export { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
