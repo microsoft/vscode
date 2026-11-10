@@ -202,11 +202,12 @@ suite('SharedChatInputComposer', () => {
 		}
 	}
 
-	for (const moveFocus of [false, true]) {
-		test(`restores actual editor focus after rejection without stealing it from another control (${moveFocus})`, async () => {
+	for (const [moveFocus, disableMovesFocus] of [[false, false], [true, false], [false, true], [true, true]]) {
+		test(`restores actual editor focus after rejection without stealing it from another control (moved: ${moveFocus}, toolbar: ${disableMovesFocus})`, async () => {
 			const root = dom.append(dom.getActiveWindow().document.body, dom.$('div'));
 			store.add(toDisposable(() => root.remove()));
 			const editor = dom.append(root, dom.$<HTMLTextAreaElement>('textarea'));
+			const sendControl = dom.append(root, dom.$('button'));
 			const otherControl = dom.append(root, dom.$('button'));
 			const { composer, widget, state } = createComposer({
 				sendResult: false,
@@ -219,7 +220,12 @@ suite('SharedChatInputComposer', () => {
 			widget.domNode = root;
 			Object.assign(widget.input!, {
 				hasFocus: () => dom.getWindow(editor).document.activeElement === editor,
-				setInputEnabled: (enabled: boolean) => { editor.disabled = !enabled; },
+				setInputEnabled: (enabled: boolean) => {
+					editor.disabled = !enabled;
+					if (!enabled && disableMovesFocus) {
+						sendControl.focus();
+					}
+				},
 				focus: () => editor.focus(),
 			});
 			editor.focus();

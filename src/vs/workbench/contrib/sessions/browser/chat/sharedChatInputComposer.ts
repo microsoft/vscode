@@ -1055,8 +1055,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		const hadFocus = widget.input.hasFocus();
+		const targetWindow = dom.getWindow(widget.domNode);
 		this._sending.set(true, undefined);
 		widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+		const disabledInputFocus = targetWindow.document.activeElement;
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;
@@ -1126,8 +1128,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			if (isInputAlive()) {
 				widget.input.setInputEnabled(true);
 				if (!sent && hadFocus && this.options.inputVisible?.get() !== false && this.options.hostVisible?.get() !== false) {
-					const targetWindow = dom.getWindow(widget.domNode);
-					if (targetWindow.document.activeElement === targetWindow.document.body || widget.input.hasFocus()) {
+					const activeElement = targetWindow.document.activeElement;
+					if (activeElement === targetWindow.document.body || activeElement === disabledInputFocus || widget.input.hasFocus()) {
 						widget.input.focus();
 					}
 				}
