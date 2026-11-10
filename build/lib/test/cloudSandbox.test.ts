@@ -643,7 +643,7 @@ suite('Cloud Sandbox install setup', () => {
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
 		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), `
-			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], standaloneRoots = [], dirs = [''];
+			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], dirs = [''];
 		`);
 		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
 			name: 'sandbox-install-test', version: '1.0.0', type: 'module',

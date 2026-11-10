@@ -167,11 +167,22 @@
 
 .remotes-widget .remotes-name,
 .remotes-widget .remotes-empty-description,
-.remotes-widget .remotes-connection-state {
+.remotes-widget .remotes-connection-text {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.remotes-widget .remotes-connection-state {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.remotes-widget .remotes-connection-icon {
+	flex-shrink: 0;
 }
 
 .remotes-widget .remotes-name-content {
@@ -281,6 +292,7 @@
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
+.remotes-widget .remotes-connection-icon[hidden],
 .remotes-widget .remotes-connection-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {

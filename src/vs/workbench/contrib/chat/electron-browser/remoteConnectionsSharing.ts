@@ -67,17 +67,17 @@ type RemoteConnectionsSelectMethodClassification = {
 };
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Only accessible from this machine.");
+	return localize('remoteConnections.off.detail', "Don't allow connections from other devices through this app.");
 }
 
 export function getDevTunnelsDetail(): string {
-	return localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents.");
+	return localize('remoteConnections.devTunnel.detail', "Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.");
 }
 
 export function getGitHubEnvironmentsDetail(availability: GitHubEnvironmentsAvailability): string {
 	return availability === 'policyDisabled'
 		? localize('remoteConnections.githubEnvironment.policyDisabled', "Disabled by your organization. Contact your administrator to enable GitHub Environments.")
-		: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.");
+		: localize('remoteConnections.githubEnvironment.detail', "Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.");
 }
 
 export interface IRemoteConnectionsStateSource {
@@ -249,15 +249,37 @@ export class RemoteConnectionsSharing extends Disposable {
 			result = 'failed';
 			this._notificationService.error(error);
 		}
+		let activeMethod: RemoteConnectionsMethod;
+		try {
+			activeMethod = await this._readActiveMethod();
+		} catch {
+			activeMethod = this.activeMethod;
+		}
 		// Logged in every arm of the This Computer experiment, so sharing changes can be compared across them.
 		this._telemetryService.publicLog2<RemoteConnectionsSelectMethodEvent, RemoteConnectionsSelectMethodClassification>('remoteConnections.selectMethod', {
 			source: this._source,
 			method,
 			previousMethod,
-			activeMethod: this.activeMethod,
+			activeMethod,
 			result,
 			gitHubEnvironments,
 		});
+	}
+
+	/**
+	 * Reads the {@link activeMethod} from the sharing services: a toolbar can replace its view item, and with it
+	 * the state source, while a selection is applied, which leaves the state source with the state before the change.
+	 */
+	private async _readActiveMethod(): Promise<RemoteConnectionsMethod> {
+		if (this.usesGitHubEnvironment) {
+			return this._missionControlSharingService.state.get() === 'disabled' ? 'off' : 'githubEnvironment';
+		}
+		const [mode, status] = await Promise.all([
+			this._remoteTunnelService.getMode(),
+			this._remoteTunnelService.getTunnelStatus(),
+		]);
+		const state = getRemoteTunnelAccessState(mode, status);
+		return state.isSharing || state.isConnecting ? 'devTunnel' : 'off';
 	}
 
 	private async _applyMethod(method: RemoteConnectionsMethod): Promise<RemoteConnectionsSelectionResult> {

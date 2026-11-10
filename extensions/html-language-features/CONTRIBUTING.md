@@ -30,7 +30,7 @@ However, within this extension, you can run a development version of `vscode-htm
 - Clone [microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice)
 - Run `npm i` in `vscode-html-languageservice`
 - Run `npm link` in `vscode-html-languageservice`. This will compile and link `vscode-html-languageservice`
-- In `html-language-features/server/`, run `pnpm link <path to your vscode-html-languageservice checkout>`. This adds a `link:` override to `extensions/pnpm-workspace.yaml` and updates `extensions/pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-html-languageservice` to undo the link
+- In `html-language-features/server/`, run `pnpm link <path to your vscode-html-languageservice checkout>`. This adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-html-languageservice` to undo the link
 
 #### Testing the development version of `vscode-html-languageservice`
 

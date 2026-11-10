@@ -267,7 +267,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
+    - template: ../../copilot/product-test-steps.yml@self
       parameters:
         OS: linux
 

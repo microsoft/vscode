@@ -10,7 +10,7 @@ import type { GitHubIssue } from '../../platform/github/common/githubQueryServic
 /** Computes the shared issue glyph and state color used by chat/session pills. */
 export function computeIssueIcon(state: GitHubIssue['state'], stateReason: GitHubIssue['stateReason']): ThemeIcon {
 	if (state === 'open') {
-		return { ...Codicon.issueOpened, color: themeColorFromId('charts.green') };
+		return { ...Codicon.issues, color: themeColorFromId('charts.green') };
 	}
 	if (stateReason === 'not_planned' || stateReason === 'duplicate') {
 		return { ...Codicon.issueClosed, color: themeColorFromId('descriptionForeground') };
