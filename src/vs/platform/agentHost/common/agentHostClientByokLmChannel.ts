@@ -43,6 +43,49 @@ export function createAgentHostClientByokLmConnection(channel: IChannel): IByokL
 }
 
 /**
+ * A snapshot stream of the renderer's BYOK models: emits the current models
+ * when a subscriber attaches, then re-emits whenever the handler reports a
+ * change. Enumeration is renderer-local, so the node side only ever receives.
+ *
+ * A {@link Throttler} serializes overlapping publishes and coalesces bursts,
+ * so a slow enumeration can't fire a stale snapshot after a newer one.
+ */
+export function createAgentHostByokLmModelSnapshotEvent(handler: IAgentHostByokLmHandler, logService: ILogService): Event<IByokLmModelInfo[]> {
+	const store = new DisposableStore();
+	const throttler = store.add(new Throttler());
+	/** The snapshot last sent, so a change that leaves the BYOK models as they were sends nothing. */
+	let published: IByokLmModelInfo[] | undefined;
+	const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+		onDidAddFirstListener: () => {
+			if (handler.onDidChangeModels) {
+				store.add(handler.onDidChangeModels(() => void publish()));
+			}
+			void publish();
+		},
+		onDidRemoveLastListener: () => store.dispose(),
+	}));
+	const publish = () => {
+		if (store.isDisposed) {
+			return; // avoid a floating rejection from a disposed throttler
+		}
+		throttler.queue(async () => {
+			try {
+				const models = await handler.listModels(CancellationToken.None);
+				if (!store.isDisposed && !equals(models, published)) {
+					published = models;
+					emitter.fire(models);
+				}
+			} catch (err) {
+				// Leave the snapshot unpublished (the connection stays non-serving);
+				// surface the error so renderer-side failures are diagnosable.
+				logService.warn('AgentHostClientByokLmChannel: failed to enumerate BYOK models from the renderer', err);
+			}
+		});
+	};
+	return emitter.event;
+}
+
+/**
  * Server-side channel for in-process reverse BYOK LM RPCs from the local agent
  * host. Thin adapter — forwards `chat` calls to the renderer's
  * {@link IAgentHostByokLmHandler} (backed by `ILanguageModelsService`) and
@@ -58,52 +101,9 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 
 	listen<T>(_ctx: unknown, event: string): Event<T> {
 		if (event === 'models') {
-			return this._modelsSnapshotEvent() as Event<T>;
+			return createAgentHostByokLmModelSnapshotEvent(this._handler, this._logService) as Event<T>;
 		}
 		throw new Error(`No event '${event}' on AgentHostClientByokLmChannel`);
-	}
-
-	/**
-	 * A snapshot stream of the renderer's BYOK models: emits the current models
-	 * when a subscriber attaches, then re-emits whenever the handler reports a
-	 * change. Enumeration is renderer-local, so the node side only ever receives.
-	 *
-	 * A {@link Throttler} serializes overlapping publishes and coalesces bursts,
-	 * so a slow enumeration can't fire a stale snapshot after a newer one.
-	 */
-	private _modelsSnapshotEvent(): Event<IByokLmModelInfo[]> {
-		const store = new DisposableStore();
-		const throttler = store.add(new Throttler());
-		/** The snapshot last sent, so a change that leaves the BYOK models as they were sends nothing. */
-		let published: IByokLmModelInfo[] | undefined;
-		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
-			onDidAddFirstListener: () => {
-				if (this._handler.onDidChangeModels) {
-					store.add(this._handler.onDidChangeModels(() => void publish()));
-				}
-				void publish();
-			},
-			onDidRemoveLastListener: () => store.dispose(),
-		}));
-		const publish = () => {
-			if (store.isDisposed) {
-				return; // avoid a floating rejection from a disposed throttler
-			}
-			throttler.queue(async () => {
-				try {
-					const models = await this._handler.listModels(CancellationToken.None);
-					if (!store.isDisposed && !equals(models, published)) {
-						published = models;
-						emitter.fire(models);
-					}
-				} catch (err) {
-					// Leave the snapshot unpublished (the connection stays non-serving);
-					// surface the error so renderer-side failures are diagnosable.
-					this._logService.warn('AgentHostClientByokLmChannel: failed to enumerate BYOK models from the renderer', err);
-				}
-			});
-		};
-		return emitter.event;
 	}
 
 	async call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {

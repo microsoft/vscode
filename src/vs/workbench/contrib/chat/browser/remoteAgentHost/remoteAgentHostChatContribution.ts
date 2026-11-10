@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { IAgentHostByokLmHandler } from '../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -185,6 +186,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IAgentHostAdvertisedAuthenticationResolver private readonly _initialAuthentication: IAgentHostAdvertisedAuthenticationResolver,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
+		@IAgentHostByokLmHandler private readonly _byokLmHandler: IAgentHostByokLmHandler,
 	) {
 		super();
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
@@ -310,6 +312,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = this._instantiationService.createInstance(ConnectionState, address, name, connection);
 		this._connections.set(address, connState);
 		const store = connState.store;
+		if (connection.registerByokLmHandler) {
+			store.add(connection.registerByokLmHandler(this._byokLmHandler));
+		}
 		if (connection.registerMcpAuthenticationHandler) {
 			// Remote chat URIs encode the host in their scheme, not their authority.
 			store.add(connection.registerMcpAuthenticationHandler(request =>

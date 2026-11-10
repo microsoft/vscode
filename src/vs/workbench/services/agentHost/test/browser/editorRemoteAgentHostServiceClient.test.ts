@@ -16,6 +16,7 @@ import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/com
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import type { IAgentHostByokLmHandler } from '../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -411,6 +412,31 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		] as const;
 		const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
 		const scopeId = 'remote-runtime-scope';
+
+		suite('BYOK language model registration', () => {
+			test('forwards the handler to the protocol client and tears down via its disposable', () => {
+				let registered: IAgentHostByokLmHandler | undefined;
+				let disposed = false;
+				const service = createService({
+					registerByokLmHandler: handler => {
+						registered = handler;
+						return { dispose: () => { disposed = true; registered = undefined; } };
+					},
+				}, 'wsl+test');
+				const handler = upcastPartial<IAgentHostByokLmHandler>({ _serviceBrand: undefined });
+				const registration = service.registerByokLmHandler(handler);
+				assert.strictEqual(registered, handler);
+				registration.dispose();
+				assert.strictEqual(disposed, true);
+			});
+
+			test('ignores the registration gracefully without a remote connection', () => {
+				const service = createService({});
+				const handler = upcastPartial<IAgentHostByokLmHandler>({ _serviceBrand: undefined });
+				const registration = service.registerByokLmHandler(handler);
+				registration.dispose();
+			});
+		});
 
 		function createService(protocolClient: Partial<AgentHostProtocolClient>, remoteAuthority?: string): EditorRemoteAgentHostServiceClient {
 			const remoteAgentService = remoteAuthority

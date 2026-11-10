@@ -55,7 +55,10 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostByokLmBridge, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../../common/agentHostByokLmProtocol.js';
+import type { IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { ByokLmBridgeRegistry, type IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -598,6 +601,11 @@ suite('ProtocolServerHandler', () => {
 	let agentHostTelemetryService: AgentHostTelemetryService;
 	let clientConnections: AgentHostClientConnectionService;
 	let devContainerService: MockDevContainerService;
+	let protocolServerConfig: {
+		hostLaunchKind: AgentHostLaunchKind;
+		defaultDirectory: string;
+		byokLmBridgeRegistry?: IByokLmBridgeRegistry;
+	};
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -649,10 +657,15 @@ suite('ProtocolServerHandler', () => {
 		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
 		disposables.add(agentService);
+		protocolServerConfig = {
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			defaultDirectory: URI.file('/home/testuser').toString(),
+		};
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
 			stateManager,
 			server,
+			protocolServerConfig,
 			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString(), loadEstimator: { hasHighLoad: () => false } },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
@@ -813,6 +826,51 @@ suite('ProtocolServerHandler', () => {
 				'vscode.copilotExtensions': true,
 			},
 		});
+	});
+
+	test('advertises and routes the renderer BYOK Language Model bridge', async () => {
+		const registry = protocolServerConfig.byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		const transport = connectClient('byok-client');
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		assert.strictEqual(supportsAgentHostByokLmBridge(initialize.result as InitializeResult), true);
+
+		const model: IByokLmModelInfo = { vendor: 'ai4dev', id: 'Qwen/Qwen3.8-Flash-Next', name: 'Qwen 3.8' };
+		transport.simulateMessage(request(2, RegisterClientByokLmModelsExtensionMethod, { models: [model] }));
+		await handler.whenIdle();
+		assert.deepStrictEqual(registry.getModels(), [model]);
+		const servingConnection = registry.getServingConnection();
+		assert.ok(servingConnection);
+
+		const updatedModel = { ...model, name: 'Qwen 3.8 Updated' };
+		transport.simulateMessage(request(3, RegisterClientByokLmModelsExtensionMethod, { models: [updatedModel] }));
+		await handler.whenIdle();
+		assert.deepStrictEqual(registry.getModels(), [updatedModel]);
+		assert.strictEqual(registry.getServingConnection(), servingConnection);
+
+		const chatRequest: IByokLmChatRequest = {
+			vendor: model.vendor,
+			modelId: model.id,
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+		};
+		const expectedResult = { output: [{ type: 'message', content: [{ type: 'text', text: 'Hello from AI4Dev' }] }] };
+		const chat = registry.getServingConnection()!.chat(chatRequest);
+		const reverseRequest = findRequest(transport.sent, RequestAgentHostByokLmChatExtensionMethod);
+		assert.ok(reverseRequest);
+		assert.deepStrictEqual(reverseRequest.params, chatRequest);
+		transport.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: expectedResult });
+		assert.deepStrictEqual(await chat, expectedResult);
+
+		transport.simulateMessage(request(4, UnregisterClientByokLmModelsExtensionMethod, {}));
+		await handler.whenIdle();
+		assert.strictEqual(registry.getServingConnection(), undefined);
+
+		transport.simulateMessage(request(5, RegisterClientByokLmModelsExtensionMethod, { models: [model] }));
+		await handler.whenIdle();
+		assert.deepStrictEqual(registry.getModels(), [model]);
+		transport.simulateClose();
+		await handler.whenIdle();
+		assert.strictEqual(registry.getServingConnection(), undefined);
 	});
 
 	test('mixed pending messages survive snapshots, live actions and reconnect replay', async () => {

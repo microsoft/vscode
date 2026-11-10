@@ -27,6 +27,8 @@ import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHo
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../../common/agentHostByokLmProtocol.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
@@ -527,6 +529,90 @@ suite('AgentHostProtocolClient', () => {
 			disposed: 1,
 			rejected: { id: 62, result: undefined, error: 'This client is not serving artifact integrations' },
 		});
+	});
+
+	test('serves renderer BYOK models and chat only when the host advertises the bridge', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, false, true));
+		const changed = disposables.add(new Emitter<void>());
+		let models: IByokLmModelInfo[] = [{ vendor: 'ai4dev', id: 'Qwen/Qwen3.8-Flash-Next', name: 'Qwen 3.8' }];
+		const requests: IByokLmChatRequest[] = [];
+		const result = { output: [{ type: 'message' as const, content: [{ type: 'text' as const, text: 'Hello from AI4Dev' }] }] };
+		const handler: IAgentHostByokLmHandler = {
+			_serviceBrand: undefined,
+			onDidChangeModels: changed.event,
+			listModels: async () => models,
+			chat: async request => {
+				requests.push(request);
+				return result;
+			},
+		};
+		// The bridge asks the host to accept the handler, so those calls are requests:
+		// assert their purpose and payload and let the request id stay the transport's.
+		const servedBridge = () => {
+			const message = transport.sentMessages.at(-1) as { readonly jsonrpc?: string; readonly method?: string; readonly params?: unknown };
+			return { jsonrpc: message.jsonrpc, method: message.method, params: message.params };
+		};
+		const registration = disposables.add(client.registerByokLmHandler(handler));
+		await timeout(0);
+		assert.deepStrictEqual(servedBridge(), {
+			jsonrpc: '2.0',
+			method: RegisterClientByokLmModelsExtensionMethod,
+			params: { models },
+		});
+
+		models = [{ ...models[0], name: 'Qwen 3.8 Updated' }];
+		changed.fire();
+		await timeout(0);
+		assert.deepStrictEqual(servedBridge(), {
+			jsonrpc: '2.0',
+			method: RegisterClientByokLmModelsExtensionMethod,
+			params: { models },
+		});
+
+		const request: IByokLmChatRequest = {
+			vendor: models[0].vendor,
+			modelId: models[0].id,
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+		};
+		transport.fireExtensionRequest(71, RequestAgentHostByokLmChatExtensionMethod, { ...request });
+		await timeout(0);
+		assert.deepStrictEqual({ requests, response: transport.sentMessages.at(-1) }, {
+			requests: [request],
+			response: { jsonrpc: '2.0', id: 71, result },
+		});
+
+		registration.dispose();
+		assert.deepStrictEqual(servedBridge(), {
+			jsonrpc: '2.0',
+			method: UnregisterClientByokLmModelsExtensionMethod,
+			params: {},
+		});
+
+		const { client: unsupportedClient, transport: unsupportedTransport } = createClient();
+		await connectClient(unsupportedClient, unsupportedTransport);
+		let enumerations = 0;
+		let chats = 0;
+		disposables.add(unsupportedClient.registerByokLmHandler({
+			...handler,
+			listModels: async () => {
+				enumerations++;
+				return models;
+			},
+			chat: async bridgeRequest => {
+				chats++;
+				return handler.chat(bridgeRequest, CancellationToken.None);
+			},
+		}));
+		await timeout(0);
+		assert.strictEqual(enumerations, 0);
+		assert.strictEqual(unsupportedTransport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === RegisterClientByokLmModelsExtensionMethod), false);
+		// A host that never advertised the bridge must not be served over the command
+		// path either: the reverse request is answered with an error, not a chat result.
+		unsupportedTransport.fireExtensionRequest(72, RequestAgentHostByokLmChatExtensionMethod, { ...request });
+		await timeout(0);
+		assert.strictEqual(chats, 0);
+		assert.strictEqual(unsupportedTransport.sentMessages.some(message => hasKey(message, { id: true, error: true }) && message.id === 72 && typeof message.error === 'object' && message.error !== null && hasKey(message.error, { message: true }) && message.error.message === 'This client is not serving BYOK Language Models'), true);
 	});
 
 	suite('client certificates', () => {

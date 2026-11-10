@@ -14,6 +14,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostByokLmHandler } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -238,6 +239,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			// Chat session URIs have no authority; retain that identity for remembered MCP grants.
 			store.add(this._agentHostService.registerMcpAuthenticationHandler(request =>
 				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
+		}
+		if (!this._isSessionsWindow && this._agentHostService.registerByokLmHandler) {
+			// Remote (WSL/SSH) editor windows offer BYOK models only once the handler is
+			// on the service; Sessions windows register it through their own provider.
+			store.add(this._agentHostService.registerByokLmHandler(this._instantiationService.invokeFunction(accessor => accessor.get(IAgentHostByokLmHandler))));
 		}
 		store.add(this._agentHostService.onDidNotification(notification => {
 			if (notification.type !== NotificationType.AuthRequired) {

@@ -51,6 +51,9 @@ import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
 import { AgentHostChatStateFileCapabilityMetaKey, AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { RequestAgentHostByokLmChatExtensionMethod, RegisterClientByokLmModelsExtensionMethod, registerClientByokLmModelsParamsValidator, UnregisterClientByokLmModelsExtensionMethod, unregisterClientByokLmModelsParamsValidator, byokLmChatRequestValidator, byokLmChatResultValidator } from '../common/agentHostByokLmProtocol.js';
+import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../common/agentHostByokLm.js';
+import type { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
 import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
@@ -645,6 +648,8 @@ export interface IProtocolServerConfig {
 	 * methods such as `vscode/removeSessionArtifact` are always available.
 	 */
 	readonly allowExtensionMethods?: boolean;
+	/** Registry for renderer-served BYOK Language Models on direct connections. */
+	readonly byokLmBridgeRegistry?: IByokLmBridgeRegistry;
 	/** Restricts experimental relay clients to explicitly granted local roots. */
 	readonly relayRoots?: readonly string[];
 	readonly relayRootMeta?: Record<string, unknown>;
@@ -1152,6 +1157,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							&& transport.relayClientId === undefined
 							&& !transport.relayPassive,
 							!!this._agentService.deleteAutomation,
+							!!this._config.byokLmBridgeRegistry
+							&& this._config.allowExtensionMethods !== false
+							&& !this._config.relayRoots
+							&& !this._config.relayRootMeta
+							&& transport.relayClientId === undefined
+							&& !transport.relayPassive,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(servesClientProxy ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
@@ -2666,6 +2677,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _reverseRequestId = 0;
 	private readonly _pendingReverseRequests = new Map<number, { client: IConnectedClient; resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+	private readonly _byokLmBridgeRegistrations = new WeakMap<IConnectedClient, { readonly store: DisposableStore; readonly modelsEmitter: Emitter<IByokLmModelInfo[]> }>();
 	private readonly _inflightRequests = new Set<Promise<unknown>>();
 
 	/**
@@ -3848,7 +3860,55 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private _handleByokLmBridgeExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		const registry = this._config.byokLmBridgeRegistry;
+		if (!registry
+			|| this._config.allowExtensionMethods === false
+			|| this._config.relayRoots
+			|| this._config.relayRootMeta
+			|| client.transport.relayClientId !== undefined
+			|| client.transport.relayPassive) {
+			return undefined;
+		}
+
+		if (method === RegisterClientByokLmModelsExtensionMethod) {
+			const validated = registerClientByokLmModelsParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			let registration = this._byokLmBridgeRegistrations.get(client);
+			if (!registration) {
+				const store = new DisposableStore();
+				const modelsEmitter = store.add(new Emitter<IByokLmModelInfo[]>());
+				const connection: IByokLmBridgeConnection = {
+					chat: async request => {
+						const result = await this._sendReverseRequestToConnection<unknown>(client, RequestAgentHostByokLmChatExtensionMethod, byokLmChatRequestValidator.validateOrThrow(request));
+						return byokLmChatResultValidator.validateOrThrow(result);
+					},
+					onDidChangeModels: modelsEmitter.event,
+				};
+				store.add(registry.register(client.clientId, connection));
+				registration = { store, modelsEmitter };
+				this._byokLmBridgeRegistrations.set(client, registration);
+				client.disposables.add(store);
+			}
+			registration.modelsEmitter.fire(validated.content.models);
+			return Promise.resolve();
+		}
+
+		const validated = unregisterClientByokLmModelsParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		this._byokLmBridgeRegistrations.get(client)?.store.dispose();
+		this._byokLmBridgeRegistrations.delete(client);
+		return Promise.resolve();
+	}
+
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === RegisterClientByokLmModelsExtensionMethod || method === UnregisterClientByokLmModelsExtensionMethod) {
+			return this._handleByokLmBridgeExtensionRequest(client, method, params);
+		}
 		if ((method === ListManagedWorktreesExtensionMethod || method === CleanupManagedWorktreeExtensionMethod)
 			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
 			if (method === ListManagedWorktreesExtensionMethod && this._agentService.listManagedWorktrees) {
