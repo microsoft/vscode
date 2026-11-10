@@ -61,7 +61,9 @@ See [LAYERS.md](LAYERS.md) for the enforced import graph.
 
 The [Windows installer](../../../build/win32/code.iss) installs a named Agents Start-menu shortcut targeting the existing executable with `--agents`. Its AppUserModelID must match the [Agents window identity](../platform/windows/electron-main/windowsAppDetails.ts); ordinary editor windows retain the product identity.
 
-The installed OS entry remains discoverable when AI is disabled. [Launch handling](../platform/windows/electron-main/agentsWindow.ts) blocks opening Agents with a native explanation and does not change `chat.disableAIFeatures`.
+The installed OS entry remains discoverable when AI is disabled. [Launch handling](../platform/windows/electron-main/agentsWindow.ts) checks the effective `chat.disableAIFeatures` value with policy taking precedence over the Agents workspace and user settings.
+
+A blocked launch shows a native explanation without changing settings or the [previous editor session's restoration state](../platform/windows/electron-main/windowsStateHandler.ts).
 
 [Auxiliary windows](../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.ts) inherit their opener's shell identity. The [Windows package](../../../build/gulpfile.vscode.ts) publishes `agents.ico` beside the executable so shortcut and taskbar relaunch icons do not depend on a versioned resource directory.
 

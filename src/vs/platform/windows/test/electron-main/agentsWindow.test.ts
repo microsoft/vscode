@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { MessageBoxOptions } from 'electron';
 import sinon from 'sinon';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,6 +14,7 @@ import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDialogMainService } from '../../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentsWindowOpenSource } from '../../../window/common/window.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
@@ -25,20 +27,39 @@ suite('Agents window AI opt-out', () => {
 
 	teardown(() => sinon.restore());
 
+	async function checkLaunch(options: {
+		disabled?: boolean;
+		workspaceDisabled?: boolean;
+		policyDisabled?: boolean;
+		content?: string;
+		readError?: Error;
+	}) {
+		const configurationService = new TestConfigurationService({ [ChatAIDisabledSettingId]: options.disabled });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const update = sinon.spy(configurationService, 'updateValue');
+		sinon.stub(configurationService, 'inspect').returns({ value: options.disabled, policyValue: options.policyDisabled });
+		const dialogs: MessageBoxOptions[] = [];
+		const dialogService = upcastPartial<IDialogMainService>({
+			showMessageBox: async options => {
+				dialogs.push(options);
+				return { response: 0, checkboxChecked: false };
+			},
+		});
+		const readFile = sinon.stub();
+		if (options.readError) {
+			readFile.rejects(options.readError);
+		} else {
+			readFile.resolves(upcastPartial<IFileContent>({
+				value: VSBuffer.fromString(options.content ?? JSON.stringify({ folders: [], settings: { [ChatAIDisabledSettingId]: options.workspaceDisabled } })),
+			}));
+		}
+		const enabled = await checkAgentsWindowEnabled(configurationService, dialogService, store.add(new NullLogService()), upcastPartial<IFileService>({ readFile }), URI.file('/agents.code-workspace'));
+		return { enabled, disabled: configurationService.getValue(ChatAIDisabledSettingId), updates: update.callCount, dialogs };
+	}
+
 	for (const disabled of [true, false, undefined]) {
 		test(`preserves the AI-disabled setting (${disabled}) and only explains blocked launches`, async () => {
-			const configurationService = new TestConfigurationService({ [ChatAIDisabledSettingId]: disabled });
-			store.add(configurationService.onDidChangeConfigurationEmitter);
-			const update = sinon.spy(configurationService, 'updateValue');
-			const dialogs: MessageBoxOptions[] = [];
-			const dialogService = upcastPartial<IDialogMainService>({
-				showMessageBox: async options => {
-					dialogs.push(options);
-					return { response: 0, checkboxChecked: false };
-				},
-			});
-			const enabled = await checkAgentsWindowEnabled(configurationService, dialogService, store.add(new NullLogService()));
-			assert.deepStrictEqual({ enabled, disabled: configurationService.getValue(ChatAIDisabledSettingId), updates: update.callCount, dialogs }, {
+			assert.deepStrictEqual(await checkLaunch({ disabled }), {
 				enabled: disabled !== true,
 				disabled,
 				updates: 0,
@@ -54,6 +75,38 @@ suite('Agents window AI opt-out', () => {
 			});
 		});
 	}
+
+	for (const { disabled, workspaceDisabled, policyDisabled, enabled } of [
+		{ disabled: true, workspaceDisabled: false, policyDisabled: undefined, enabled: true },
+		{ disabled: false, workspaceDisabled: true, policyDisabled: undefined, enabled: false },
+		{ disabled: true, workspaceDisabled: false, policyDisabled: true, enabled: false },
+		{ disabled: false, workspaceDisabled: true, policyDisabled: false, enabled: true },
+	]) {
+		test(`honors user=${disabled}, workspace=${workspaceDisabled}, policy=${policyDisabled}`, async () => {
+			const result = await checkLaunch({ disabled, workspaceDisabled, policyDisabled });
+			assert.deepStrictEqual({ enabled: result.enabled, userDisabled: result.disabled, updates: result.updates, dialogCount: result.dialogs.length }, {
+				enabled, userDisabled: disabled, updates: 0, dialogCount: enabled ? 0 : 1,
+			});
+		});
+	}
+
+	test('reads workspace overrides from commented JSON with trailing commas', async () => {
+		assert.deepStrictEqual(await checkLaunch({
+			disabled: true,
+			content: '{ // Agents workspace\n"settings": { "chat.disableAIFeatures": false, }, "folders": [], }',
+		}), { enabled: true, disabled: true, updates: 0, dialogs: [] });
+	});
+
+	test('uses the user setting when the Agents workspace has not been created', async () => {
+		const result = await checkLaunch({ disabled: true, readError: new FileOperationError('Missing workspace', FileOperationResult.FILE_NOT_FOUND) });
+		assert.deepStrictEqual({ enabled: result.enabled, userDisabled: result.disabled, updates: result.updates, dialogCount: result.dialogs.length }, {
+			enabled: false, userDisabled: true, updates: 0, dialogCount: 1,
+		});
+	});
+
+	test('does not silently ignore workspace read failures', async () => {
+		await assert.rejects(checkLaunch({ disabled: true, readError: new FileOperationError('Access denied', FileOperationResult.FILE_PERMISSION_DENIED) }), /Access denied/);
+	});
 });
 
 suite('Agents window reveal intent', () => {

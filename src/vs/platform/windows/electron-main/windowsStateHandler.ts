@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
+import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
@@ -87,6 +88,7 @@ export class WindowsStateHandler extends Disposable {
 	private shuttingDown = false;
 
 	constructor(
+		onDidBlurWindow: Event<void>,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -98,7 +100,7 @@ export class WindowsStateHandler extends Disposable {
 		this._state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
 		this.exactRestore = this.takeExactRestore();
 
-		this.registerListeners();
+		this.registerListeners(onDidBlurWindow);
 	}
 
 	private takeExactRestore(): IExactRestoreState | undefined {
@@ -125,16 +127,16 @@ export class WindowsStateHandler extends Disposable {
 		this.nextExactRestore = exactRestore;
 	}
 
-	private registerListeners(): void {
+	private registerListeners(onDidBlurWindow: Event<void>): void {
 
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		electron.app.on('browser-window-blur', () => {
+		this._register(onDidBlurWindow(() => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
-		});
+		}));
 
 		// Handle various lifecycle events around windows
 		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window)));
@@ -201,6 +203,9 @@ export class WindowsStateHandler extends Disposable {
 	}
 
 	private saveWindowsState(): void {
+		if (this.windowsMainService.getWindowCount() === 0 && !this.lastClosedState) {
+			return; // A refused startup must not overwrite the previous session.
+		}
 
 		// TODO@electron workaround for Electron not being able to restore
 		// multiple (native) fullscreen windows on the same display at once

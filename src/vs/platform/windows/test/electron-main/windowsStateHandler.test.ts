@@ -5,11 +5,18 @@
 
 import assert from 'assert';
 import { tmpdir } from 'os';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ILifecycleMainService } from '../../../lifecycle/electron-main/lifecycleMainService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
+import { ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, WindowsStateHandler } from '../../electron-main/windowsStateHandler.js';
+import { IWindowsCountChangedEvent, IWindowsMainService } from '../../electron-main/windows.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
@@ -206,4 +213,65 @@ suite('Windows State Storing', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('Windows state after a refused startup', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createHarness() {
+		const stateService = new InMemoryTestStateMainService();
+		const previous = getWindowsStateStoreData({
+			lastActiveWindow: { folderUri: URI.file('/previous-editor'), uiState: { width: 900, height: 600, mode: WindowMode.Normal } },
+			openedWindows: [{ folderUri: URI.file('/another-editor'), uiState: { width: 800, height: 600, mode: WindowMode.Maximized } }],
+		});
+		stateService.setItem('windowsState', previous);
+		const windows: ICodeWindow[] = [];
+		const onBeforeShutdown = store.add(new Emitter<void>());
+		const onBeforeCloseWindow = store.add(new Emitter<ICodeWindow>());
+		const onDidChangeWindowsCount = store.add(new Emitter<IWindowsCountChangedEvent>());
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		store.add(new WindowsStateHandler(
+			Event.None,
+			upcastPartial<IWindowsMainService>({
+				getWindows: () => windows,
+				getWindowCount: () => windows.length,
+				getLastActiveWindow: () => windows.at(-1),
+				onDidChangeWindowsCount: onDidChangeWindowsCount.event,
+				onDidDestroyWindow: Event.None,
+			}),
+			stateService,
+			upcastPartial<ILifecycleMainService>({
+				onBeforeShutdown: onBeforeShutdown.event,
+				onBeforeCloseWindow: onBeforeCloseWindow.event,
+				onWillShutdown: Event.None,
+				quitRequested: false,
+			}),
+			store.add(new NullLogService()),
+			configurationService
+		));
+		return { stateService, previous, windows, onBeforeShutdown, onBeforeCloseWindow };
+	}
+
+	test('preserves the saved editor session when startup exits without opening a window', () => {
+		const { stateService, previous, onBeforeShutdown } = createHarness();
+		onBeforeShutdown.fire();
+		assert.deepStrictEqual(stateService.getItem('windowsState'), previous);
+	});
+
+	test('still saves the last closed window when a normal session exits', () => {
+		const { stateService, windows, onBeforeShutdown, onBeforeCloseWindow } = createHarness();
+		const folderUri = URI.file('/new-editor');
+		const uiState = { width: 1000, height: 700, mode: WindowMode.Normal };
+		const window = upcastPartial<ICodeWindow>({
+			id: 1,
+			openedWorkspace: { id: 'new-editor', uri: folderUri },
+			serializeWindowState: () => uiState,
+		});
+		windows.push(window);
+		onBeforeCloseWindow.fire(window);
+		windows.pop();
+		onBeforeShutdown.fire();
+		assert.deepStrictEqual(stateService.getItem('windowsState'), getWindowsStateStoreData({ lastActiveWindow: { folderUri, uiState }, openedWindows: [] }));
+	});
 });

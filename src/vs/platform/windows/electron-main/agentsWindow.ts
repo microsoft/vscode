@@ -9,8 +9,10 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ConfigurationModelParser } from '../../configuration/common/configurationModels.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IOpenAgentsWindowOptions } from '../../native/common/native.js';
 import { AgentsWindowOpenSource } from '../../window/common/window.js';
@@ -18,8 +20,26 @@ import { ICodeWindow } from '../../window/electron-main/window.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IOpenConfiguration, OpenContext } from './windows.js';
 
-export async function checkAgentsWindowEnabled(configurationService: IConfigurationService, dialogMainService: IDialogMainService, logService: ILogService, parentWindow?: BrowserWindow): Promise<boolean> {
-	if (configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true) {
+export async function checkAgentsWindowEnabled(configurationService: IConfigurationService, dialogMainService: IDialogMainService, logService: ILogService, fileService: IFileService, workspaceResource: URI, parentWindow?: BrowserWindow): Promise<boolean> {
+	let disabled = configurationService.inspect<boolean>(ChatAIDisabledSettingId).policyValue;
+	if (disabled === undefined) {
+		disabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+		try {
+			const content = await fileService.readFile(workspaceResource);
+			const parser = new ConfigurationModelParser(workspaceResource.toString(), logService);
+			parser.parse(content.value.toString());
+			const settings = parser.configurationModel.getValue<{ [ChatAIDisabledSettingId]?: boolean }>('settings');
+			if (typeof settings?.[ChatAIDisabledSettingId] === 'boolean') {
+				disabled = settings[ChatAIDisabledSettingId];
+			}
+		} catch (error) {
+			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+				logService.error('Failed to read Agents workspace configuration.', error);
+				throw error;
+			}
+		}
+	}
+	if (disabled !== true) {
 		return true;
 	}
 

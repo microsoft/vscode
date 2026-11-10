@@ -240,7 +240,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	) {
 		super();
 
-		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
+		this.windowsStateHandler = this._register(new WindowsStateHandler(Event.fromNodeEventEmitter(app, 'browser-window-blur'), this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 		this.registerListeners();
 	}
@@ -296,7 +296,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
-		if (!await checkAgentsWindowEnabled(this.configurationService, this.dialogMainService, this.logService, this.getLastActiveWindow()?.win ?? undefined)) {
+		if (!await checkAgentsWindowEnabled(this.configurationService, this.dialogMainService, this.logService, this.fileService, this.environmentMainService.agentSessionsWorkspace, this.getLastActiveWindow()?.win ?? undefined)) {
 			return [];
 		}
 
