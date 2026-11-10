@@ -73,11 +73,12 @@ suite('SessionsSideChatProviderContribution', () => {
 		const activeSession = observableValue<ITestSessionWithChat | undefined>(store, session);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>(store, undefined);
 		const gridSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'grid', resource: URI.parse('test:///grid'), chats: constObservable([]), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///grid/chat') })) });
+		const windowSessions = observableValue<readonly ITestSessionWithChat[]>(store, options.inChatWindow ? [session] : []);
 		const mainWindowSession = options.inChatWindow ? observableValue<ITestSessionWithChat | undefined>(store, gridSession) : activeSession;
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, {
 			mainWindowActiveSession: mainWindowSession,
 			gridShown: options.inChatWindow ? derived(reader => [mainWindowSession.read(reader)]) : constObservable([session]),
-			windowSessions: constObservable(options.inChatWindow ? [session] : []),
+			windowSessions,
 		}));
 
 		let registered: SessionsSideChatProviderContribution | undefined;
@@ -151,7 +152,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, openReferences, requests, contextInheritance, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
+		return { provider: () => registered, callOrder, openReferences, requests, contextInheritance, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession, windowSessions };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
@@ -258,6 +259,21 @@ suite('SessionsSideChatProviderContribution', () => {
 		await request;
 
 		assert.deepStrictEqual(harness.requests.map(request => request.background ?? false), [true]);
+	});
+
+	test('a side chat is sent in the background without opening or splitting when its source chat window closes while it is created', async () => {
+		const creation = new DeferredPromise<void>();
+		const harness = setup({ inChatWindow: true, onCreateSideChat: () => creation.p });
+		const request = harness.provider()!.askInSideChat(sourceChat.resource, 'question');
+
+		harness.windowSessions.set([], undefined);
+		await creation.complete();
+		await request;
+
+		assert.deepStrictEqual({ callOrder: harness.callOrder, requests: harness.requests }, {
+			callOrder: ['create:turn-1:', `send:${sideChat.resource.toString()}:question`],
+			requests: [{ query: 'question', attachedContext: undefined, background: true }],
+		});
 	});
 
 	test('does not split or follow a side chat when navigation supersedes its pending open', async () => {
