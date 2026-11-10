@@ -1332,6 +1332,80 @@ suite('ModelCard', () => {
 		});
 	});
 
+	test('a choice that fails to save after switching models and back is taken back, so it can be chosen again', async () => {
+		const failure = new Error('Cannot save effort');
+		const firstSave = new DeferredPromise<void>();
+		const values: IStringDictionary<unknown> = {};
+		const writes: IStringDictionary<unknown>[] = [];
+		const standard = createModel();
+		const fast = { ...standard, identifier: 'copilot/test-model-fast' };
+		const result = createCard({}, {
+			speedVariants: { standard, fast },
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				setModelConfiguration: async (_modelId, next) => {
+					writes.push(next);
+					if (writes.length === 1) {
+						await firstSave.p;
+					}
+					Object.assign(values, next);
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const effortOption = (label: string) => Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === label)!;
+		const reported: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error));
+		let whileSaving: string[];
+		let afterFailure: string[];
+		try {
+			effortOption('High').click();
+			result.update({ model: fast });
+			result.update({ model: standard });
+			whileSaving = selectedOptions(result.card);
+			await firstSave.error(failure);
+			await timeout(0);
+			afterFailure = selectedOptions(result.card);
+			effortOption('High').click();
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({ whileSaving, afterFailure, reported, writes, selected: selectedOptions(result.card) }, {
+			whileSaving: ['High', '264K', 'Standard'],
+			afterFailure: ['Medium', '264K', 'Standard'],
+			reported: [failure],
+			writes: [{ effort: 'high' }, { effort: 'high' }],
+			selected: ['High', '264K', 'Standard'],
+		});
+	});
+
+	for (const [change, rebuilds] of [['the same settings', false], ['other choices', true]] as const) {
+		test(`an update to ${change} during selection motion ${rebuilds ? 'rebuilds the controls right away' : 'waits for it to settle'}`, async () => {
+			const result = await createAnimatedCard();
+			const group = element(result.card.element, '[role="radiogroup"]');
+			const systemReduced = getWindow(group).matchMedia('(prefers-reduced-motion: reduce)').matches;
+			group.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			const animations = element(group, '.monaco-radio-selection').getAnimations();
+			animations.forEach(animation => animation.pause());
+			result.update({
+				model: createModel(rebuilds ? {
+					configurationSchema: { properties: { effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'high' } } },
+				} : {}),
+			});
+			const rebuilt = element(result.card.element, '[role="radiogroup"]') !== group;
+			animations.forEach(animation => animation.finish());
+			await timeout(0);
+
+			assert.deepStrictEqual({ rebuilt, selected: selectedOptions(result.card) }, {
+				rebuilt: rebuilds || systemReduced,
+				selected: rebuilds ? ['Low'] : ['Low', '264K'],
+			});
+		});
+	}
+
 	test('turning on reduced motion releases a refresh waiting for selection motion', async () => {
 		const result = await createAnimatedCard();
 		const group = element(result.card.element, '[role="radiogroup"]');

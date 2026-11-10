@@ -10,6 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/ho
 import { renderLabelWithIcons } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IRadioOptionItem, Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
 import { Action } from '../../../../../../../base/common/actions.js';
+import { equals } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
@@ -159,6 +160,15 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
+/** Whether effort and context controls rendered for one set of options still fit another: the same settings, with the same choices. */
+function configurationControlsMatch(a: IModelCardOptions, b: IModelCardOptions): boolean {
+	return [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].every(group => {
+		const before = getModelConfigProperty(a.model, a.configurationAccess, group, a.useModelConfigurationSchema);
+		const after = getModelConfigProperty(b.model, b.configurationAccess, group, b.useModelConfigurationSchema);
+		return before?.key === after?.key && equals(before?.schema.enum, after?.schema.enum);
+	});
+}
+
 /**
  * Model information and configuration, shared by the picker's details page and fixtures.
  * Configuration changes are written through and preserve keyboard focus.
@@ -210,6 +220,7 @@ export class ModelCard extends DisposableStore {
 		const alternativeChanged = !routingAlternativesEqual(options.routingAlternatives, this._options.routingAlternatives);
 		const choicesChanged = !modelChoicesEqual(options.modelChoices, this._options.modelChoices) || options.name !== this._options.name || options.description !== this._options.description;
 		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || options.organizationDefaultModel !== this._options.organizationDefaultModel || options.externalHeader !== this._options.externalHeader || disclosureChanged || alternativeChanged || choicesChanged;
+		const controlsMatch = configurationControlsMatch(this._options, options);
 		if (options.model.identifier !== this._options.model.identifier) {
 			this._configurationChangeVersion++;
 		}
@@ -217,8 +228,9 @@ export class ModelCard extends DisposableStore {
 		if (disclosureChanged) {
 			this._pricingDisclosureListener.value = options.pricingDisclosure?.onDidChange(() => this._updatePricingDisclosure());
 		}
-		if (changed) {
-			this._renderPreservingFocus();
+		if (changed || !controlsMatch) {
+			// Controls for other settings or choices could save a value the new model doesn't offer, so they don't wait for their motion.
+			this._renderPreservingFocus(undefined, !controlsMatch);
 		}
 	}
 
@@ -252,8 +264,10 @@ export class ModelCard extends DisposableStore {
 				}
 			}
 		}
+		let saved = false;
 		try {
 			await this._saveValues(options, values);
+			saved = true;
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
 				if (options.selectModelOnConfigurationChange !== false) {
 					options.onSelect?.(options.model);
@@ -262,7 +276,9 @@ export class ModelCard extends DisposableStore {
 			}
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
 		} finally {
-			if (!this.isDisposed && version === this._configurationChangeVersion) {
+			// A failed choice is taken back wherever the card still shows its model, even after a newer selection.
+			const showsEdit = this._options.model.identifier === options.model.identifier && this._options.configurationAccess === options.configurationAccess;
+			if (!this.isDisposed && (version === this._configurationChangeVersion || (!saved && showsEdit))) {
 				this._renderPreservingFocus(focusedGroup);
 			}
 		}
@@ -281,11 +297,11 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
-	private _renderPreservingFocus(fallbackGroup?: string): void {
-		if (this._renderPending) {
+	private _renderPreservingFocus(fallbackGroup?: string, immediate = false): void {
+		if (!immediate && this._renderPending) {
 			return;
 		}
-		if ([...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
+		if (!immediate && [...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
 			this._renderPending = true;
 			this._renderAfterSelectionAnimation(fallbackGroup).catch(onUnexpectedError);
 			return;
