@@ -219,6 +219,10 @@ variables:
       value: 1es-ubuntu-22.04-x64
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  # The day of the workspace images of the CI test jobs (see build/azure-pipelines/common/workspaceImage.ts):
+  # the first CI build of a day builds a new one. The same in every job of a run, unlike the clock.
+  - name: VSCODE_WORKSPACE_IMAGE_DAY
+    value: $[format('{0:yyyyMMdd}', pipeline.startTime)]
   - name: VSCODE_PUBLISH_COUNTER_PREFIX
     value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
@@ -676,10 +680,16 @@ extends:
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              # The test jobs start from its workspace image when the cache has one, without waiting for it
+              - template: build/azure-pipelines/linux/product-build-linux-workspace-image.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: UnitElectron
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -688,6 +698,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Unit
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
@@ -697,6 +708,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -708,6 +720,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -716,6 +729,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: AgentHostE2E
                   VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -724,6 +738,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Smoke
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -732,6 +747,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Copilot
                   VSCODE_JOB_DISPLAY_NAME: Copilot Tests
                   VSCODE_TEST_IDS:

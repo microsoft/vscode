@@ -8,6 +8,10 @@ parameters:
   - name: os
     type: string
     default: ''
+  # Condition of the steps, for example to skip them when the job starts from a workspace image
+  - name: condition
+    type: string
+    default: succeeded()
 
 # Restores the pnpm store of the job's platform from the pipeline cache before the dependencies are
 # installed. The first step points pnpm at the cached folder for the later steps of the job
@@ -27,6 +31,8 @@ steps:
   - script: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts ${{ parameters.keyArgs }}
     displayName: Prepare pnpm store cache key
     continueOnError: true
+    ${{ if ne(parameters.condition, 'succeeded()') }}:
+      condition: ${{ parameters.condition }}
 
   - task: Cache@2
     inputs:
@@ -34,6 +40,8 @@ steps:
       restoreKeys: '"pnpm_store" | .build/pnpmstorebase'
       path: $(PNPM_CONFIG_STORE_DIR)
       cacheHitVar: PNPM_STORE_RESTORED
+    ${{ if ne(parameters.condition, 'succeeded()') }}:
+      condition: ${{ parameters.condition }}
     # AcesShared agents download the default 64 KB dedup chunks of large entries at ~7 MB/s, with
     # request timeouts, against ~40 MB/s for the 1 MB chunks of pipeline artifacts. These agent
     # knobs make the post-job step save new entries with 1 MB chunks, and restores follow the

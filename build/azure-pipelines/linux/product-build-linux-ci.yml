@@ -12,6 +12,10 @@ parameters:
   - name: VSCODE_RUN_CHECKS
     type: boolean
     default: false
+  # See product-build-linux-setup.yml
+  - name: VSCODE_WORKSPACE_IMAGE
+    type: string
+    default: none
 
 jobs:
   - job: Linux${{ parameters.VSCODE_JOB_NAME }}
@@ -64,3 +68,4 @@ jobs:
           VSCODE_BUILD_PRODUCT_ASSETS: false
           VSCODE_BUILD_INTEGRATION_TESTS: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
           VSCODE_COMPILE_TEST_SUITES: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          VSCODE_WORKSPACE_IMAGE: ${{ parameters.VSCODE_WORKSPACE_IMAGE }}
