@@ -27,7 +27,7 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	const primary = URI.file('/work/project');
 	const alternate = URI.file('/work/project-alt');
-	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
+	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
 
 	function createFixture() {
 		const entries: IStatusbarEntry[] = [];
@@ -76,7 +76,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate', command: undefined, kind: 'prominent', tooltip: `The folder 'project' is at the location 'Alternate'. Files, search, terminals and extensions use this location, but open editors stay where they are.` });
+			{ visible: true, text: '$(git-branch) Alternate · feature/x', ariaLabel: 'Folder Location, Alternate · feature/x', command: undefined, kind: 'prominent', tooltip: `The folder 'project' is at the location 'Alternate · feature/x'. Files, search, terminals and extensions use this location, but open editors stay where they are.` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);

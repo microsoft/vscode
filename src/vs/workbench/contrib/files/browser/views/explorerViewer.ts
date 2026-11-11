@@ -11,7 +11,7 @@ import { IProgressService, ProgressLocation, } from '../../../../../platform/pro
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -916,7 +916,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			this.renderStat(stat, stat.isRoot ? getExplorerRootLabel(stat.name, this.contextService.getWorkspaceFolder(stat.resource)?.primaryUri, this.folderLocationService.currentLocation?.label) : stat.name, undefined, node.filterData, templateData);
+			const location = stat.isRoot ? this.folderLocationService.currentLocation : undefined;
+			this.renderStat(stat, stat.isRoot ? getExplorerRootLabel(stat.name, this.contextService.getWorkspaceFolder(stat.resource)?.primaryUri, location && getFolderLocationText(location)) : stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box

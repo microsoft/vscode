@@ -32,7 +32,7 @@ import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -73,7 +73,8 @@ export class WindowTitle extends Disposable {
 
 	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
 	get folderLocation(): string {
-		return this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation?.label ?? '' : '';
+		const location = this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation : undefined;
+		return location ? getFolderLocationText(location) : '';
 	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
