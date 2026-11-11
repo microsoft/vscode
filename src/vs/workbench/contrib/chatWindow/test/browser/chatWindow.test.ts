@@ -350,11 +350,34 @@ suite('Chat window', () => {
 	test('the editors it restores in its main part keep the mode it opens in, such as only its chat, while an editor the user opens after shows its main part', async () => {
 		const { window, state, main } = createWindow();
 		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
-		await window.restoreMainPartEditors(async () => main.group.open(editor()));
+		const restoredEditor = editor();
+		await window.restoreMainPartEditors([restoredEditor], async () => main.group.open(restoredEditor));
 		const restored = window.layoutMode.get();
 		main.group.open(editor());
 
 		assert.deepStrictEqual({ restored, afterUserOpen: window.layoutMode.get() }, { restored: ChatWindowLayoutMode.ChatOnly, afterUserOpen: ChatWindowLayoutMode.SideBySide });
+	});
+
+	test('an editor the user opens while the window still restores its editors shows its main part, and a restore that fails stops treating its editors as restored', async () => {
+		const { window, state, main } = createWindow();
+		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+		const restoredEditor = editor();
+		let release!: () => void;
+		const restoring = window.restoreMainPartEditors([restoredEditor], async () => {
+			main.group.open(restoredEditor);
+			await new Promise<void>(resolve => release = resolve);
+		});
+		const afterRestoredOpen = window.layoutMode.get();
+		main.group.open(editor());
+		const afterUserOpen = window.layoutMode.get();
+		release();
+		await restoring;
+
+		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+		await assert.rejects(window.restoreMainPartEditors([restoredEditor], async () => { throw new Error('failed'); }));
+		main.group.open(restoredEditor);
+
+		assert.deepStrictEqual({ afterRestoredOpen, afterUserOpen, afterFailedRestore: window.layoutMode.get() }, { afterRestoredOpen: ChatWindowLayoutMode.ChatOnly, afterUserOpen: ChatWindowLayoutMode.SideBySide, afterFailedRestore: ChatWindowLayoutMode.SideBySide });
 	});
 
 	test('an editor of its main part dropped beside the chat splits the chat part and empties the main part, which changes no mode: never Editor Only', () => {

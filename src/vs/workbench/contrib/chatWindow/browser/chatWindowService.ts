@@ -407,8 +407,8 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 		const isChatIn = (groups: readonly IEditorGroup[]) => groups.some(group => this.chatInputs.some(input => group.contains(input)));
 		this._register(trackMainPartEditors(mainPart, {
-			onDidOpenEditor: () => {
-				if (!this._restoringMainPartEditors) {
+			onDidOpenEditor: editor => {
+				if (!editor || !this._restoringEditors.has(editor)) {
 					this._showMainPart();
 				}
 			},
@@ -583,17 +583,18 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._showMainPart();
 	}
 
-	/** Opens the editors the window restores in its main part, which do not show it as an editor the user opens does. */
-	async restoreMainPartEditors(restore: () => Promise<void>): Promise<void> {
-		this._restoringMainPartEditors = true;
+	async restoreMainPartEditors(editors: readonly EditorInput[], restore: () => Promise<void>): Promise<void> {
+		for (const editor of editors) {
+			this._restoringEditors.add(editor);
+		}
 		try {
 			await restore();
 		} finally {
-			this._restoringMainPartEditors = false;
+			this._restoringEditors.clear();
 		}
 	}
 
-	private _restoringMainPartEditors = false;
+	private readonly _restoringEditors = new Set<EditorInput>();
 
 	/** Shows the main part beside the chat, as the window shows it once an editor opens in it. */
 	private _showMainPart(): void {
@@ -1266,7 +1267,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (anchor) {
 			chatWindow.anchor = anchor;
 		}
-		await chatWindow.restoreMainPartEditors(async () => {
+		const restoredEditors = [options?.editors, ...(options?.createdParts ?? [])].flatMap(restored => restored?.editors ?? []);
+		await chatWindow.restoreMainPartEditors(restoredEditors, async () => {
 			await this._openEditors(options?.editors, mainPart);
 			await this._openCreatedParts(options?.createdParts, mainPart, grid);
 		});

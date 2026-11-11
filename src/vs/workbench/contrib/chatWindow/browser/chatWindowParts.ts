@@ -16,7 +16,7 @@ import { ChatWindowLayoutMode } from '../common/chatWindowLayout.js';
  * Follows the editors of a chat window's main part: `onDidOpenEditor` when an editor opens in it, and
  * `onDidCloseLastEditor` once its last editor closed, but not when that editor moved, or while the window closes.
  */
-export function trackMainPartEditors(part: Pick<IEditorPart, 'groups' | 'onDidAddGroup' | 'onDidRemoveGroup'>, handlers: { onDidOpenEditor(): void; onDidCloseLastEditor(): void; isClosing(): boolean }): IDisposable {
+export function trackMainPartEditors(part: Pick<IEditorPart, 'groups' | 'onDidAddGroup' | 'onDidRemoveGroup'>, handlers: { onDidOpenEditor(editor: EditorInput | undefined): void; onDidCloseLastEditor(): void; isClosing(): boolean }): IDisposable {
 	const store = new DisposableStore();
 	const groups = store.add(new DisposableStore());
 	const isEmpty = () => part.groups.every(group => group.isEmpty);
@@ -25,7 +25,7 @@ export function trackMainPartEditors(part: Pick<IEditorPart, 'groups' | 'onDidAd
 		for (const group of part.groups) {
 			groups.add(group.onDidModelChange(e => {
 				if (e.kind === GroupModelChangeKind.EDITOR_OPEN && !handlers.isClosing()) {
-					handlers.onDidOpenEditor();
+					handlers.onDidOpenEditor(e.editor);
 				}
 			}));
 			groups.add(group.onDidCloseEditor(e => {
