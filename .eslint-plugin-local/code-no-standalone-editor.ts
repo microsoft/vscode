@@ -28,6 +28,11 @@ export default new class NoNlsInStandaloneEditorRule implements eslint.Rule.Rule
 
 		return createImportRuleListener((node, path) => {
 
+			// the patterns below start with `vs/editor`, which isn't in the file name, so they only match when the import contains `editor`
+			if (!path.includes('editor')) {
+				return;
+			}
+
 			// resolve relative paths
 			if (path[0] === '.') {
 				path = join(context.filename, path);
