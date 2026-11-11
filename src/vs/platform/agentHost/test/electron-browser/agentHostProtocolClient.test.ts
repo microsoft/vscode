@@ -22,7 +22,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
-import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient, RetryableAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
@@ -6294,8 +6294,43 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				requests: transports[0].sentMessages.filter(message => hasKey(message, { method: true, id: true })).map(message => message.method),
-			}, { state: AgentHostClientState.Incompatible, requests: ['initialize'] });
+			}, { state: AgentHostClientState.Closed, requests: ['initialize'] });
 		});
+
+		test('retries a transient trusted-key lookup without sending unencrypted credentials', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let lookups = 0;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+				resolveInitialAuthentication: async () => ({ resource: advertisedAgent.protectedResources[0].resource, token: 'must-not-leak' }),
+				sealAuthenticationToken: async () => {
+					if (++lookups === 1) {
+						throw new RetryableAuthenticationError(new Error('key lookup offline'));
+					}
+					return 'copilot-sealed.v1.key.ciphertext';
+				},
+			});
+			const metadata = { 'copilot.authChallenge': { challenge: 'a'.repeat(32), required: true } };
+			const connecting = assert.rejects(client.connect(), /key lookup offline/);
+			await initializeAdvertised(transports[0], {
+				'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }],
+			}, metadata);
+			await connecting;
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequest(replacement, 'reconnect');
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			const authenticate = await waitForRequest(replacement, 'authenticate');
+			replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+			await waitForConnectedWithin(client);
+			assert.deepStrictEqual({
+				lookups, state: client.connectionState,
+				initialAuthentication: findRequest(transports[0], 'authenticate'),
+				token: (authenticate.params as { token: string }).token,
+			}, {
+				lookups: 2, state: AgentHostClientState.Connected,
+				initialAuthentication: undefined, token: 'copilot-sealed.v1.key.ciphertext',
+			});
+			client.dispose();
+		}));
 
 		test('reconnect encrypts cached credentials again with the replacement host key and challenge', async function () {
 			this.timeout(20_000);
@@ -7499,6 +7534,203 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
+		for (const suspendBeforeDrop of [false, true]) {
+			test(`OS sleep pauses retries until Wi-Fi recovers (suspend before drop: ${suspendBeforeDrop})`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				let preparations = 0;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 20, maxAttempts: 3, maxElapsedTimeMs: 100,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, async () => {
+					if (++preparations === 1) {
+						throw new Error('Wi-Fi is not ready');
+					}
+				}, undefined, { onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				if (suspendBeforeDrop) {
+					suspend.fire();
+				}
+				transports[0].fireClose();
+				if (!suspendBeforeDrop) {
+					suspend.fire();
+				}
+				await clock.tickAsync(600_000);
+				const whileAsleep = { preparations, transports: transports.length, state: client.connectionState };
+				resume.fire();
+				await clock.tickAsync(30);
+				const replacement = transports[1];
+				replacement.connectDeferred.complete();
+				await flushMicrotasks();
+				const reconnect = findRequest(replacement, 'reconnect')!;
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				assert.deepStrictEqual({ whileAsleep, preparations, state: client.connectionState }, {
+					whileAsleep: { preparations: 0, transports: 1, state: AgentHostClientState.Reconnecting },
+					preparations: 2, state: AgentHostClientState.Connected,
+				});
+				client.dispose();
+			});
+		}
+
+		for (const stage of ['preparation', 'transport', 'protocol', 'authentication'] as const) {
+			test(`a successful last reconnect attempt finishing ${stage} during sleep continues after wake`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				const preparation = new DeferredPromise<void>();
+				let restoring = false;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 1, maxElapsedTimeMs: 60_000,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false },
+					stage === 'preparation' ? () => preparation.p : undefined, {
+					resolveInitialAuthentication: async () => restoring && stage === 'authentication'
+						? { resource: 'https://api.example.com', token: 'fresh-credential' } : undefined,
+				}, { onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				restoring = true;
+				transports[0].fireClose();
+				client.reconnectNow();
+				if (stage === 'preparation') {
+					suspend.fire();
+					await preparation.complete();
+				} else {
+					const replacement = transports[1];
+					if (stage === 'transport') {
+						suspend.fire();
+						replacement.connectDeferred.complete();
+					} else {
+						replacement.connectDeferred.complete();
+						await flushMicrotasks();
+						const reconnect = findRequest(replacement, 'reconnect')!;
+						if (stage === 'protocol') {
+							suspend.fire();
+							replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+						} else {
+							replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+							await flushMicrotasks();
+							const authentication = findRequest(replacement, 'authenticate')!;
+							suspend.fire();
+							replacement.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: { authenticated: true } });
+						}
+					}
+				}
+				await clock.tickAsync(600_000);
+				const whileAsleep = { state: client.connectionState, transports: transports.length };
+				resume.fire();
+				await clock.tickAsync(0);
+				const replacement = transports[1];
+				if (stage === 'preparation') {
+					replacement.connectDeferred.complete();
+					await flushMicrotasks();
+				}
+				if (stage === 'preparation' || stage === 'transport') {
+					const reconnect = findRequest(replacement, 'reconnect')!;
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					await flushMicrotasks();
+				}
+				await clock.tickAsync(100);
+				assert.deepStrictEqual({ whileAsleep, state: client.connectionState, transports: transports.length }, {
+					whileAsleep: { state: AgentHostClientState.Reconnecting, transports: stage === 'preparation' ? 1 : 2 },
+					state: AgentHostClientState.Connected, transports: 2,
+				});
+				client.dispose();
+			});
+		}
+
+		for (const failure of ['authentication', 'protocol'] as const) {
+			test(`preserves a terminal ${failure} rejection received during sleep`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				let restoring = false;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => restoring && failure === 'authentication'
+						? { resource: 'https://api.example.com', token: 'rejected-credential' } : undefined,
+				}, { onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				restoring = true;
+				transports[0].fireClose();
+				client.reconnectNow();
+				const replacement = transports[1];
+				replacement.connectDeferred.complete();
+				await flushMicrotasks();
+				const reconnect = findRequest(replacement, 'reconnect')!;
+				replacement.fireMessage(failure === 'protocol'
+					? { jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'host restarted' } }
+					: { jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				const request = findRequest(replacement, failure === 'protocol' ? 'initialize' : 'authenticate')!;
+				suspend.fire();
+				replacement.fireMessage({
+					jsonrpc: '2.0', id: request.id, error: {
+						code: failure === 'protocol' ? AhpErrorCodes.UnsupportedProtocolVersion : JsonRpcErrorCodes.InvalidParams,
+						message: `${failure} rejected`,
+					},
+				});
+				await clock.tickAsync(600_000);
+				const stateBeforeWake = client.connectionState;
+				resume.fire();
+				await clock.tickAsync(1000);
+				assert.deepStrictEqual({ stateBeforeWake, stateAfterWake: client.connectionState, transports: transports.length }, {
+					stateBeforeWake: failure === 'protocol' ? AgentHostClientState.Incompatible : AgentHostClientState.Closed,
+					stateAfterWake: failure === 'protocol' ? AgentHostClientState.Incompatible : AgentHostClientState.Closed,
+					transports: 2,
+				});
+				client.dispose();
+			});
+		}
+
+		for (const teardown of ['transport loss', 'disposal'] as const) {
+			test(`a reconnect response held for wake does not survive ${teardown}`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 2, maxElapsedTimeMs: 60_000,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+					{ onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				transports[0].fireClose();
+				client.reconnectNow();
+				transports[1].connectDeferred.complete();
+				await flushMicrotasks();
+				const reconnect = findRequest(transports[1], 'reconnect')!;
+				suspend.fire();
+				transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await clock.tickAsync(0);
+				if (teardown === 'disposal') {
+					client.dispose();
+				} else {
+					transports[1].fireClose();
+				}
+				await clock.tickAsync(600_000);
+				const whileAsleep = { state: client.connectionState, transports: transports.length };
+				resume.fire();
+				await clock.tickAsync(10);
+				if (teardown === 'transport loss') {
+					transports[2].connectDeferred.complete();
+					await flushMicrotasks();
+					const retry = findRequest(transports[2], 'reconnect')!;
+					transports[2].fireMessage({ jsonrpc: '2.0', id: retry.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					await waitForConnectedWithin(client, 100);
+				}
+				assert.deepStrictEqual({ whileAsleep, state: client.connectionState, transports: transports.length }, {
+					whileAsleep: { state: teardown === 'disposal' ? AgentHostClientState.Closed : AgentHostClientState.Reconnecting, transports: 2 },
+					state: teardown === 'disposal' ? AgentHostClientState.Closed : AgentHostClientState.Connected,
+					transports: teardown === 'disposal' ? 2 : 3,
+				});
+				client.dispose();
+			});
+		}
+
 		test('recovery begun during OS sleep gets its bounded budget on resume', async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			disposables.add(toDisposable(() => clock.restore()));
@@ -7523,6 +7755,139 @@ suite('AgentHostProtocolClient', () => {
 			});
 			client.dispose();
 		});
+
+		test('a real protocol mismatch during recovery retains the transport for upgrading the server', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { client, transports } = createFactoryClient();
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequest(replacement, 'reconnect');
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'host restarted' } });
+			const initialize = await waitForRequest(replacement, 'initialize');
+			const mismatch = {
+				code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'version mismatch',
+				data: { supportedVersions: ['2.0.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+			};
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				error: mismatch,
+			});
+			await flushMicrotasks();
+			const upgrade = client.triggerVscodeUpgrade('_vscodeUpgrade');
+			const request = await waitForRequest(replacement, '_vscodeUpgrade');
+			replacement.fireMessage({ jsonrpc: '2.0', id: request.id, result: { ok: true, upgradeStarted: true } });
+			const result = await raceTimeout(upgrade, 100);
+			assert.deepStrictEqual({ result, state: client.connectionState, transports: transports.length, errorData: client.connectionError?.data }, {
+				result: { ok: true, upgradeStarted: true }, state: AgentHostClientState.Incompatible, transports: 2,
+				errorData: mismatch.data,
+			});
+			client.dispose();
+		}));
+
+		test('a credential fetch interrupted by sleep cannot stop recovery before wake', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			disposables.add(toDisposable(() => clock.restore()));
+			const suspend = disposables.add(new Emitter<void>());
+			const resume = disposables.add(new Emitter<void>());
+			const pending = new DeferredPromise<void>();
+			const resolving = new DeferredPromise<void>();
+			let resolutions = 0;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+				resolveInitialAuthentication: async () => {
+					if (++resolutions === 1) {
+						return undefined;
+					}
+					if (resolutions === 2) {
+						resolving.complete();
+						await pending.p;
+					}
+					return { resource: 'https://api.example.com', token: 'fresh-credential' };
+				},
+			}, { onDidSuspend: suspend.event, onDidResume: resume.event });
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			client.reconnectNow();
+			transports[1].connectDeferred.complete();
+			await flushMicrotasks();
+			const first = findRequest(transports[1], 'reconnect')!;
+			transports[1].fireMessage({ jsonrpc: '2.0', id: first.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await resolving.p;
+			suspend.fire();
+			await pending.error(new Error('identity request interrupted'));
+			await clock.tickAsync(600_000);
+			const whileAsleep = { resolutions, transports: transports.length, state: client.connectionState };
+			resume.fire();
+			await clock.tickAsync(2000);
+			const replacement = transports[2];
+			replacement.connectDeferred.complete();
+			await flushMicrotasks();
+			const reconnect = findRequest(replacement, 'reconnect')!;
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await flushMicrotasks();
+			const authenticate = findRequest(replacement, 'authenticate')!;
+			replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+			await flushMicrotasks();
+			assert.deepStrictEqual({ whileAsleep, state: client.connectionState }, {
+				whileAsleep: { resolutions: 2, transports: 2, state: AgentHostClientState.Reconnecting },
+				state: AgentHostClientState.Connected,
+			});
+			client.dispose();
+		});
+
+		for (const pendingRequest of ['reconnect', 'initialize', 'authenticate'] as const) {
+			test(`rearms the watchdog after sleep during an unanswered ${pendingRequest}`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				let resolvingAuthentication = false;
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 60_000,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => resolvingAuthentication ? { resource: 'https://api.example.com', token: 'fresh-credential' } : undefined,
+				}, { onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				transports[0].fireClose();
+				client.reconnectNow();
+				transports[1].connectDeferred.complete();
+				await flushMicrotasks();
+				const reconnect = findRequest(transports[1], 'reconnect')!;
+				if (pendingRequest === 'initialize') {
+					transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'host restarted' } });
+				} else if (pendingRequest === 'authenticate') {
+					resolvingAuthentication = true;
+					transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				}
+				await flushMicrotasks();
+				assert.ok(findRequest(transports[1], pendingRequest));
+				suspend.fire();
+				await clock.tickAsync(600_000);
+				const whileAsleep = { state: client.connectionState, transports: transports.length };
+				resume.fire();
+				await clock.tickAsync(25_010);
+				assert.deepStrictEqual({ whileAsleep, afterWake: { state: client.connectionState, transports: transports.length } }, {
+					whileAsleep: { state: AgentHostClientState.Reconnecting, transports: 2 },
+					afterWake: { state: AgentHostClientState.Reconnecting, transports: 3 },
+				});
+				resolvingAuthentication = false;
+				const replacement = transports[2];
+				replacement.connectDeferred.complete();
+				await flushMicrotasks();
+				const retry = findRequest(replacement, 'reconnect')!;
+				replacement.fireMessage({ jsonrpc: '2.0', id: retry.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				const authenticate = findRequest(replacement, 'authenticate');
+				if (authenticate) {
+					replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+					await flushMicrotasks();
+				}
+				await waitForConnectedWithin(client, 100);
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				client.dispose();
+			});
+		}
 
 		test('failed attempts and immediate retries do not restart the recovery deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const policy: IRemoteAgentHostReconnectPolicy = {
@@ -7747,7 +8112,52 @@ suite('AgentHostProtocolClient', () => {
 				client.dispose();
 				assert.deepStrictEqual({ afterFailure, final }, code === JsonRpcErrorCodes.InternalError
 					? { afterFailure: AgentHostClientState.Reconnecting, final: AgentHostClientState.Connected }
-					: { afterFailure: AgentHostClientState.Incompatible, final: AgentHostClientState.Incompatible });
+					: { afterFailure: AgentHostClientState.Closed, final: AgentHostClientState.Closed });
+			}));
+		}
+
+		for (const duringRecovery of [false, true]) {
+			test(`retries credential acquisition without reporting protocol incompatibility (recovery: ${duringRecovery})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let resolutions = 0;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => {
+						if (++resolutions === (duringRecovery ? 2 : 1)) {
+							throw new Error('identity-token request failed');
+						}
+						return duringRecovery && resolutions === 1 ? undefined : { resource: 'https://api.example.com', token: 'fresh-credential' };
+					},
+				});
+				const states: AgentHostClientState[] = [];
+				disposables.add(client.onDidChangeConnectionState(state => states.push(state)));
+				if (duringRecovery) {
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+				} else {
+					const connecting = assert.rejects(client.connect(), /identity-token request failed/);
+					transports[0].connectDeferred.complete();
+					const initialize = await waitForRequest(transports[0], 'initialize');
+					transports[0].fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] } });
+					await connecting;
+				}
+				const firstRetry = await waitForTransport(transports, 1);
+				firstRetry.connectDeferred.complete();
+				const firstReconnect = await waitForRequest(firstRetry, 'reconnect');
+				firstRetry.fireMessage({ jsonrpc: '2.0', id: firstReconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const replacement = duringRecovery ? await waitForTransport(transports, 2) : firstRetry;
+				if (duringRecovery) {
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequest(replacement, 'reconnect');
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				}
+				const authenticate = await waitForRequest(replacement, 'authenticate');
+				replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ states, resolutions }, {
+					states: duringRecovery ? [AgentHostClientState.Connected, AgentHostClientState.Reconnecting, AgentHostClientState.Connected]
+						: [AgentHostClientState.Reconnecting, AgentHostClientState.Connected],
+					resolutions: duringRecovery ? 3 : 2,
+				});
+				client.dispose();
 			}));
 		}
 
