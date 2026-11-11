@@ -686,7 +686,14 @@ export class ChatWindowGrid extends Disposable {
 			this._update();
 		} else {
 			// The parts keep their shares of the window as it is resized, and the terminals their height (see `_contentOf`)
-			this._grid.value?.layout(width, height);
+			const grid = this._grid.value;
+			grid?.layout(width, height);
+			// Squeezed where the window had too little room, such as as a part showed in a short one: they take the height the
+			// user gave them back as it grows, as far as the others leave room
+			const given = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
+			if (given !== undefined && grid?.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < given) {
+				this._resizeTerminals(grid, given);
+			}
 		}
 	}
 
