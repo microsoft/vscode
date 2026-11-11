@@ -29,7 +29,9 @@ export interface ISessionScope {
  * has not reported their repository yet. `scopeRepositories` are the repositories the scope folders are
  * known to be checkouts of, such as the main checkout of an open worktree. `scopeGitHubRepositories`, as lowercase
  * `owner/repo`, are the GitHub repositories of their `origin`: a session working in one of them on GitHub, on any branch,
- * such as a Copilot Cloud session, is in the scope too. With a `reader`, the result follows the sessions' workspaces.
+ * such as a Copilot Cloud session, is in the scope too. A workspace-less quick chat, by its own `isQuickChat` flag, is in
+ * every scope: a session whose workspace is not known yet is not, as it may still hydrate into another folder. With a
+ * `reader`, the result follows the sessions' workspaces and quick-chat flags.
  */
 export function getSessionsInScopeFolders(sessions: readonly ISession[], scopeFolders: readonly URI[], reader?: IReader, scopeRepositories: readonly URI[] = [], scopeGitHubRepositories: readonly string[] = []): ISessionScope {
 	const extUri = extUriBiasedIgnorePathCase;
@@ -44,6 +46,10 @@ export function getSessionsInScopeFolders(sessions: readonly ISession[], scopeFo
 	}
 	const included = new Set<ISession>();
 	for (const session of sessions) {
+		if (session.isQuickChat?.read(reader)) {
+			included.add(session);
+			continue;
+		}
 		for (const folder of session.workspace.read(reader)?.folders ?? []) {
 			if (isInScope(folder.workingDirectory) || isInScope(folder.root) || isInScope(folder.gitRepository?.workTreeUri)) {
 				included.add(session);
