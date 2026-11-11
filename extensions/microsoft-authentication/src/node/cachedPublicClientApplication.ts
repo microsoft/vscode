@@ -113,6 +113,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	}
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
+		if (request.forceRefresh) {
+			request = this.getForceRefreshRequest(request);
+		}
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
 		let result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
@@ -127,13 +130,11 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			);
 			if (fiveMinutesBefore < new Date()) {
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
-				const newRequest = this.isBrokerAvailable
-					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
-					? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
-					: { ...request, forceRefresh: true };
+				const newRequest = this.getForceRefreshRequest(request);
 				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
 			}
+
 			const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
 			if (newIdTokenExpirationInSecs) {
 				const fiveMinutesBefore = new Date(
@@ -172,6 +173,13 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
+	}
+
+	private getForceRefreshRequest(request: SilentFlowRequest): SilentFlowRequest {
+		// The native broker requires claims instead of MSAL's forceRefresh option.
+		return this.isBrokerAvailable
+			? { ...request, forceRefresh: undefined, claims: request.claims ?? '{ "id_token": {}}' }
+			: { ...request, forceRefresh: true };
 	}
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
