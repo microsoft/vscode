@@ -15,6 +15,7 @@ import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
@@ -71,10 +72,11 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { confirmUndoAllEdits } from '../../chatEditing/chatEditing.js';
-import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { ChatInputPills, IChatInputOwnPillContext, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { ChatResourcesControl, IChatResource } from '../../chatResources/chatResourcesControl.js';
 import { ChatResourcesEnabledSettingId } from '../../chatResources/chatResources.js';
+import { ChatResourceContributionEntries, chatResourceContributions, IChatResourceSessionIds } from '../../chatResources/chatResourceContributions.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -263,6 +265,16 @@ function parseUri(value: string | undefined): URI | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * The file a recorded artifact names, in this window's URI space as its connection maps it (a `vscode-remote` file in a
+ * remote window), so that the chat reads and renders the agent host's file. Agents record files with the `file` and the
+ * `resource` type; resources that are no files, such as settings, have none.
+ */
+function getRecordedFileResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
+	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
+	return uri && uri.scheme === Schemas.file ? resolution.connection.resourceUris.fromAgentHost(uri) : undefined;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -558,9 +570,6 @@ export class AgentHostSessionInputPills extends Disposable {
 	private readonly _commitHoverCache = this._register(new ChatPillHoverCache());
 	private readonly _gitHubReferenceResolver: AgentHostGitHubReferenceResolver;
 	private readonly _gitHubResourceDetailsResolver: GitHubResourceDetailsResolver;
-
-	/** The session's changed files, so that a changed file shown in the chat shows its changes. */
-	private _changes: IObservable<readonly IEditSessionEntryDiff[]> = constObservable([]);
 	/** Runs the file operations on each working set channel one after another, so a Keep staged with Git waits for one in progress. */
 	private readonly _fileOperations = new SequencerByKey<string>();
 
@@ -580,7 +589,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -764,7 +773,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
 		});
-		const changes = this._changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
+		const changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const files = changesetFiles.read(reader)?.files;
 			if (!currentResolution || !files) {
@@ -783,8 +792,8 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const checkpointReview = derived(this, reader => {
 			const resource = sessionResource.read(reader);
-			this._chatEditingService.editingSessionsObs.read(reader);
-			const session = resource ? this._chatEditingService.getEditingSession(resource) : undefined;
+			chatEditingService.editingSessionsObs.read(reader);
+			const session = resource ? chatEditingService.getEditingSession(resource) : undefined;
 			return session instanceof AgentHostSnapshotController ? session.checkpointReview : undefined;
 		});
 		const checkpointSource = derived(this, reader => {
@@ -958,77 +967,57 @@ export class AgentHostSessionInputPills extends Disposable {
 			const target = resource ? parseGitHubReferenceTarget(resource, 'issue') : undefined;
 			return target ? this._gitHubReferenceResolver.getIssue(target).read(reader) : undefined;
 		})));
-		const allArtifactSections = derived(this, reader => {
+		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
+		// Extensions add resources to every chat whose resource exists; a subagent chat lists none.
+		const contributionSessionIds = derived<IChatResourceSessionIds | undefined>(this, reader => {
+			const session = sessionResource.read(reader);
+			const currentResolution = resolution.read(reader);
+			return session && !subagentChat.read(reader)
+				? { chatSessionId: basename(session), agentSessionId: currentResolution ? AgentSession.id(currentResolution.backendSession) : undefined }
+				: undefined;
+		});
+		const contributedResources = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
+			? instantiationService.createInstance(ChatResourceContributionEntries, chatResourceContributions, contributionSessionIds, (resource: URI) => this._openResource(resource))
+			: undefined);
+		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const recorded = !subagentChat.read(reader) && currentResolution
 				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
-			return mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader));
+			return [...mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader)), ...contributedResources.read(reader)?.sections.read(reader) ?? []];
 		});
-		const allReferenceSections = derived(this, reader => {
+		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
 				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
-		// Artifacts and references with a resource are chat resources, whether the agent host or a chat
-		// tool recorded them: the agent or the user can give them a pill of their own or show them in the chat.
+		// The files among artifacts and references, whether the agent host or a chat tool recorded them or an extension
+		// contributed them, can open in the chat once pinned.
 		const recordedResources = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
+			const currentResolution = resolution.read(reader);
 			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
-			return [...allArtifactSections.read(reader), ...allReferenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
+			return [...artifactSections.read(reader), ...referenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
-				const resource = entry.resource;
-				if (!resource) {
-					return [];
-				}
-				const originalResource = entry.resource ? this._getOriginalResource(entry.resource, reader) : undefined;
+				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
+				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
 				// The agent's label describes the resource for people; lists show files by their name.
-				return [{ id: entry.id, label: artifact?.label ?? entry.label, icon: entry.icon, resource, ...(originalResource ? { originalResource } : {}), defaultMode: artifact?.mode ?? 'none' }];
+				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource }] : [];
 			}));
 		});
-		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
 		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
 		const chatResourcesSession = derived(this, reader => subagentChat.read(reader) ? undefined : sessionResource.read(reader));
-		const chatResourcesControl = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
-			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources)
-			: undefined);
-		// Resources with a pill of their own are not listed again; the others offer to pin them.
-		const withPinActions = (sections: readonly IChatPillSection[], reader: IReader): readonly IChatPillSection[] => {
-			const chatResources = chatResourcesControl.read(reader);
-			if (!chatResources) {
-				return sections;
-			}
-			const recordedById = new Map(recordedResources.read(reader).map(resource => [resource.id, resource]));
-			return sections.map(section => ({
-				...section,
-				entries: section.entries.flatMap(entry => {
-					const resource = recordedById.get(entry.id);
-					if (!resource) {
-						return [entry];
-					}
-					return chatResources.getMode(resource, reader) === 'none'
-						? [{ ...entry, toolbarActions: [...entry.toolbarActions ?? [], chatResources.getPinAction(resource)] }]
-						: [];
-				}),
-			})).filter(section => section.entries.length > 0);
+		// The pill sources know which entries are pinned, and are created with the decoration of their pinned pills below.
+		const pillSources = observableValue<StandardChatInputPillSources | undefined>(this, undefined);
+		const isPinned = (id: string, reader: IReader) => {
+			const current = pillSources.read(reader);
+			return !!current && (current.getPinned(SessionChatPillKind.Artifacts, reader).has(id) || current.getPinned(SessionChatPillKind.References, reader).has(id));
 		};
-		const artifactSections = derived(this, reader => {
-			const sections = withPinActions(allArtifactSections.read(reader), reader);
-			const chatResources = chatResourcesControl.read(reader);
-			const listedContributions = !chatResources ? [] : chatResources.listedContributions.read(reader).map(resource => ({
-				id: resource.id,
-				label: resource.label,
-				icon: resource.icon,
-				toolbarActions: [chatResources.getPinAction(resource)],
-				open: () => this._openResource(resource.resource),
-			}));
-			return listedContributions.length
-				? [...sections, { title: localize('agentHostSessionPills.contributedResources', "Extensions"), entries: listedContributions }]
-				: sections;
-		});
-		const referenceSections = derived(this, reader => withPinActions(allReferenceSections.read(reader), reader));
-		const isNotChatResource = (entry: IChatPillEntry) => !chatResourcesControl.get() || !recordedResources.get().some(resource => resource.id === entry.id);
+		const chatResourcesControl = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
+			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources, isPinned)
+			: undefined);
+		const presentOwnPill = (entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader) => chatResourcesControl.read(reader)?.presentOwnPill(entry, context, reader) ?? entry;
 		const browserSections = derived(this, reader => {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
@@ -1109,9 +1098,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
-			// Chat resources get modes instead of the generic pin: a pinned chat resource is one with a pill of its own.
-			artifacts: { sections: artifactSections, isPinnable: isNotChatResource },
-			references: { sections: referenceSections, isPinnable: isNotChatResource },
+			artifacts: { sections: artifactSections, presentOwnPill },
+			references: { sections: referenceSections, presentOwnPill },
 			customizations: sessionCustomizations,
 			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
@@ -1132,14 +1120,14 @@ export class AgentHostSessionInputPills extends Disposable {
 					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
 				}
 				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
-				const visibleSources = changesPillHidden.read(reader)
+				return changesPillHidden.read(reader)
 					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
 					: offeredSources;
-				return [...chatResourcesControl.read(reader)?.pillSources.read(reader) ?? [], ...visibleSources];
 			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));
+		pillSources.set(sources, undefined);
 		inputPills.element.classList.add('agent-host-session-input-pills');
 
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
@@ -1665,20 +1653,6 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			openChatFileChanges(this._editorService, label, diffs);
 		}
-	}
-
-	/**
-	 * The version of a file before this chat changed it, if the chat changed an existing file: from the agent host's changeset,
-	 * or from the chat's editing session. Files the chat created have none: a diff would only show their content as added.
-	 */
-	private _getOriginalResource(resource: URI, reader: IReader): URI | undefined {
-		const change = this._changes.read(reader).find(diff => isEqual(diff.modifiedURI, resource));
-		if (change) {
-			return change.isCreated || change.isDeleted ? undefined : change.originalURI;
-		}
-		const sessionResource = this._widget.viewModel?.sessionResource;
-		const editingSession = sessionResource ? this._chatEditingService.getEditingSession(sessionResource) : undefined;
-		return editingSession?.entries.read(reader).find(entry => isEqual(entry.modifiedURI, resource))?.originalURI;
 	}
 
 	private _openExternal(resource: URI): void {

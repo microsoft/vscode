@@ -389,7 +389,7 @@ suite('Artifact Integration Groups', () => {
 		const [one, two, three] = ['1', '2', '3'].map(id => f.member(snapshot(id, { groupLabel: 'Experiments' })));
 		const reference = f.member(snapshot('ref'));
 		const item = (member: IArtifactIntegrationGroupMember, kind = SessionChatPillKind.Artifacts, isArtifact = true): IArtifactIntegrationPillItem =>
-			({ entry: member.entry, presentation: member.presentation, kind, isArtifact, visible: true });
+		({ entry: member.entry, presentation: member.presentation, kind, isArtifact, visible: true });
 		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [item(one), item(reference, SessionChatPillKind.References, false), item(two), item(three)]);
 		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
 		const pills = derived(reader => sources.sources.read(reader).filter(source => source.isVisible?.read(reader) ?? true).flatMap(source => source.pills.read(reader)));
@@ -415,7 +415,7 @@ suite('Artifact Integration Groups', () => {
 	test('pill sources group artifacts by group ID across integrations, and apart from other group IDs', () => {
 		const f = fixture();
 		const withGroupId = (value: ArtifactSnapshot, groupId: string): ArtifactSnapshot =>
-			({ ...value, contributions: value.contributions.map(contribution => ({ ...contribution, view: { ...contribution.view, groupId } })) });
+		({ ...value, contributions: value.contributions.map(contribution => ({ ...contribution, view: { ...contribution.view, groupId } })) });
 		const item = (value: ArtifactSnapshot): IArtifactIntegrationPillItem => {
 			const member = f.member(value);
 			return { entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true };
@@ -440,7 +440,7 @@ suite('Artifact Integration Groups', () => {
 			return f.member({ ...base, contributions: base.contributions.map(contribution => ({ ...contribution, resourceKey })) });
 		};
 		const item = (member: IArtifactIntegrationGroupMember, isArtifact: boolean): IArtifactIntegrationPillItem =>
-			({ entry: member.entry, presentation: member.presentation, kind: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References, isArtifact, visible: true });
+		({ entry: member.entry, presentation: member.presentation, kind: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References, isArtifact, visible: true });
 		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [
 			item(bound('draft', 'experiment/draft'), true),
 			item(bound('scorecard1', 'step'), false),
@@ -468,7 +468,7 @@ suite('Artifact Integration Groups', () => {
 			return f.member({ ...base, contributions: base.contributions.map(contribution => ({ ...contribution, resourceKey })) });
 		};
 		const item = (member: IArtifactIntegrationGroupMember): IArtifactIntegrationPillItem =>
-			({ entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true });
+		({ entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true });
 		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [item(bound('a', 'step')), item(bound('b', 'step')), item(bound('c', 'other'))]);
 		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
 		const pills = derived(reader => sources.sources.read(reader).filter(source => source.isVisible?.read(reader) ?? true).flatMap(source => source.pills.read(reader)));

@@ -316,7 +316,7 @@ pub struct AgentHostArgs {
 		]
 	)]
 	pub github_environment: bool,
-	/// Grant access to a project directory. Repeat for multiple projects. Defaults to the current directory.
+	/// Restrict access to a project directory. Repeat for multiple projects. Defaults to all local filesystems.
 	#[clap(long, requires = "github_environment", conflicts_with = "tunnel")]
 	pub github_environment_root: Vec<PathBuf>,
 	/// Sets the machine name for the tunnel or GitHub environment.

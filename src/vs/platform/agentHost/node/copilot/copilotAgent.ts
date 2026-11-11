@@ -26,6 +26,7 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { parseFrontMatter, parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
+import { setCopilotRepositoryPluginEnabled } from './copilotRepositoryPluginSettings.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { Promises as FsPromises } from '../../../../base/node/pfs.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
@@ -56,18 +57,20 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
-import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
+import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, COPILOT_RESERVED_AGENT_NAMES, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
-import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId } from '../../common/modelRouter.js';
+import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, type IModelRouter } from '../../common/modelRouter.js';
+import { installedModelRouterAgentPlan, resolveModelRouterAgentPlan, type IInstalledModelRouterAgent } from '../../common/modelRouterAgents.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
 import { DecisionsGate } from '../../common/decisionsGate.js';
 import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
+import { CopilotModelRouterAgents } from './copilotModelRouterAgents.js';
 import { CopilotModelRouterCatalog, findModelRouter, firstModelRouterError, UserModelRouterSource } from './copilotModelRouterCatalog.js';
 import { createCopilotModelRouterTools } from './copilotModelRouterTools.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
@@ -1235,7 +1238,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _scopedModelCatalogs = new WeakMap<IAgentHostCredentialSource, IScopedCopilotModelCatalog>();
 	/** The user's model routers, while the setting is on. */
 	private readonly _modelRouterCatalog = this._register(new MutableDisposable<CopilotModelRouterCatalog>());
+	private readonly _modelRouterCatalogListener = this._register(new MutableDisposable());
 	private _modelRouter: CopilotModelRouter | undefined;
+	/** Which model router agents each chat has. Routing never reads this; launches do. */
+	private readonly _modelRouterAgents = new CopilotModelRouterAgents();
 	/** One decisions gate per client and account, so a restarted client or a new account starts fresh. */
 	private readonly _decisionsGates = new WeakMap<CopilotClient, LRUCache<string, DecisionsGate>>();
 	private readonly _scopedModelClients = this._register(new DisposableMap<IAgentHostCredentialSource, ScopedCopilotClient>());
@@ -3454,12 +3460,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return context;
 	}
 
-	async setPluginEnabled(plugin: string, enabled: boolean): Promise<void> {
+	async setPluginEnabled(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		if (scope === 'repository' && !this._findPluginOperationSession(session, chat)) {
+			throw new Error(localize('copilot.pluginEnablementChatRequired', "Repository plugin enablement requires an active chat in the target session."));
+		}
 		await this._retryAfterClosedConnection('setPluginEnabled', async client => {
 			const installed = (await client.rpc.plugins.list()).plugins.find(candidate =>
 				candidate.directSourceId === plugin || (candidate.marketplace && `${candidate.name}@${candidate.marketplace}` === plugin));
 			if (!installed) {
 				throw new Error(localize('copilot.pluginEnablementNotInstalled', "Plugin '{0}' is not installed.", plugin));
+			}
+			if (scope === 'repository') {
+				const workingDirectory = this._findPluginOperationSession(session, chat)?.workingDirectory;
+				if (!workingDirectory || workingDirectory.scheme !== Schemas.file) {
+					throw new Error(localize('copilot.pluginEnablementLocalRepositoryRequired', "Repository plugin enablement requires a filesystem working directory."));
+				}
+				if (!installed.marketplace) {
+					throw new Error(localize('copilot.pluginEnablementMarketplaceRequired', "Repository enablement is not available for directly installed plugins."));
+				}
+				const repository = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
+				if (!repository) {
+					throw new Error(localize('copilot.pluginEnablementRepositoryRequired', "The working directory is not in a Git repository."));
+				}
+				await setCopilotRepositoryPluginEnabled(this._fileService, repository, `${installed.name}@${installed.marketplace}`, enabled);
+				return;
 			}
 			if (enabled) {
 				await client.rpc.plugins.enable({ names: [plugin] });
@@ -4137,10 +4161,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (enabled) {
 			const source = this._instantiationService.createInstance(UserModelRouterSource, this._modelRouterFolders(), this._environmentService.userHome);
 			const catalog = this._instantiationService.createInstance(CopilotModelRouterCatalog, [source]);
-			catalog.onDidChange(() => this._publishModels());
+			this._modelRouterCatalogListener.value = catalog.onDidChange(() => this._publishModels());
 			this._modelRouterCatalog.value = catalog;
 			this._modelRouter ??= this._instantiationService.createInstance(CopilotModelRouter);
 		} else {
+			this._modelRouterCatalogListener.clear();
 			this._modelRouterCatalog.clear();
 			this._publishModels();
 		}
@@ -4169,7 +4194,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return {
 				provider: this.id,
 				id: modelRouterModelId(file.name),
-				name: file.name,
+				name: file.router?.displayName ?? file.name,
 				supportsVision: true,
 				_meta: {
 					...createModelRouterModelMeta(file.router?.description ?? localize('modelRouter.rowInvalid', "This router has errors, so chats using it keep their current model. Ask /model-router to fix it."), file.uri),
@@ -4195,6 +4220,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async resolveTurnModel(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution> {
+		const chatKey = chat.toString();
+		// Before any await: a later turn must never see this turn's agents, nor this turn an earlier one's.
+		this._modelRouterAgents.enterTurn(chatKey, request.turnId);
 		const catalog = this._modelRouterCatalog.value;
 		if (!catalog || !this._modelRouter) {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
@@ -4205,15 +4233,70 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const snapshot = await catalog.whenSettled(token);
 		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
-		return this._modelRouter.resolve({
-			chat: chat.toString(),
+		const file = findModelRouter(snapshot, chat, request.selection.id);
+		const resolution = await this._modelRouter.resolve({
+			chat: chatKey,
 			modelId: request.selection.id,
-			file: findModelRouter(snapshot, chat, request.selection.id),
+			file,
 			text: request.text,
 			models,
 			previousTurns: request.previousTurns,
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
+		return this._withModelRouterAgents(chatKey, request, file?.router, models, resolution);
+	}
+
+	/**
+	 * Offers the agents of the playbook a turn was routed to as the chat's agents. They are
+	 * taken only for a chat that has not started work yet; the routing result itself is unchanged.
+	 */
+	private _withModelRouterAgents(chatKey: string, { turnId, previousTurns }: IAgentTurnModelRequest, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], resolution: IAgentTurnModelResolution): IAgentTurnModelResolution {
+		const playbook = resolution.routed?.playbook;
+		const plan = router && playbook ? resolveModelRouterAgentPlan(router, playbook, models, COPILOT_RESERVED_AGENT_NAMES) : undefined;
+		const taken = this._modelRouterAgents.setCandidate(chatKey, turnId, plan);
+		if (!plan) {
+			return resolution;
+		}
+		const kept = resolution.routed?.kept === true;
+		if (taken) {
+			// A chat that stays on its playbook was told about its agents when the playbook was chosen.
+			if (kept) {
+				return resolution;
+			}
+			const agents = plan.agents.map(agent => agent.modelName ? `${agent.name} (${agent.modelName})` : agent.name);
+			const leftOut = (plan.leftOut ?? []).map(role => role.reason === 'name'
+				? localize('modelRouter.leftOut.name', "{0} (an agent with that name is built in)", role.name)
+				: localize('modelRouter.leftOut.models', "{0} (none of its models are available)", role.name));
+			this._logService.info(`[ModelRouter] ${chatKey}: playbook ${plan.playbook}; agents=${agents.join(', ') || 'none'}; left out=${plan.leftOut?.map(role => `${role.name}:${role.reason}`).join(', ') || 'none'}`);
+			return {
+				...resolution,
+				notices: [
+					...resolution.notices,
+					...(agents.length ? [localize('modelRouter.agents', "The {0} playbook brings these agents to this chat: {1}.", plan.playbook, agents.join(', '))] : []),
+					...(leftOut.length ? [localize('modelRouter.agentsLeftOut', "These agents of the {0} playbook were left out of this chat: {1}.", plan.playbook, leftOut.join(', '))] : []),
+				],
+			};
+		}
+		if (this._modelRouterAgents.isFresh(chatKey)) {
+			return resolution;
+		}
+		// The chat has started work, and a chat's agents are decided once. A playbook chosen now
+		// may ask for agents the chat does not have. So may the playbook the chat is on, when the
+		// chat has no plan at all: after a host restart, which forgets every chat's plan.
+		const committed = this._modelRouterAgents.planFor(chatKey);
+		if (kept && committed) {
+			return resolution;
+		}
+		const missing = plan.agents.filter(agent => !committed?.agents.some(other => structuralEquals(agent, other))).map(agent => agent.name);
+		if (!missing.length) {
+			return resolution;
+		}
+		const notice = localize('modelRouter.agentsUnavailable', "These agents of the {0} playbook are not available in this chat: {1}. A chat's agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.", plan.playbook, missing.join(', '));
+		// The chat is told once: a turn that showed the notice is part of its history. A notice
+		// that was never shown, because its turn was cancelled or its model change failed, is
+		// not in the history, so it is given again.
+		const shown = previousTurns.some(turn => turn.responseParts.some(part => part.kind === ResponsePartKind.SystemNotification && part.content === notice));
+		return shown ? resolution : { ...resolution, notices: [...resolution.notices, notice] };
 	}
 
 	/** A custom agent's name when its file names a model, which the runtime runs it on instead of a router's pick. */
@@ -6533,6 +6616,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runs (which re-records the same scope for an idempotent duplicate) so
 		// the check reflects what existed walking in, not what this call added.
 		const preexisting = this._chatOwners.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
+		// A chat created new can still take a model router's agents; a fork or an import arrives with history.
+		if (!preexisting && !options.fork && !options.importConversation) {
+			this._modelRouterAgents.markFresh(chatKey);
+		}
 		this._rememberChatScope(chat, context.owner, context.resource);
 		try {
 			const resolved = this._resolveExplicitChatContext(chat, context);
@@ -6585,6 +6672,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// operation that follows it fails (e.g. `_resumeSession` records one
 		// unconditionally before resuming) — drop any such ghost entry.
 		this._chatBackings.delete(chatKey);
+		this._modelRouterAgents.forget(chatKey);
 		this._pendingModelSelections.delete(chatKey);
 		this._persistedChatHistory.delete(chatKey);
 		this._credentialSources.delete(chatKey);
@@ -8314,7 +8402,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
-			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined);
+			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
+			// A session that has not started work, launched before the chat's agents were known or with another turn's.
+			?? (!entry.isEphemeral && !entry.hasStartedRootWork && entry.modelRouterAgents !== this._modelRouterAgents.planFor(context.chatKey) ? 'modelRouterAgentsChanged' : undefined);
 	}
 
 	private async _refreshSessionConfiguration(
@@ -8707,6 +8797,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
+		// A turn that was not routed, or another turn than the one routed, sends without that routing's agents.
+		this._modelRouterAgents.enterTurn(chat.toString(), turnId);
 		const context = this._resolveSendChatContext(chat, operationContext);
 		const sendContext = operationContext && !URI.isUri(operationContext) ? operationContext : undefined;
 		const stageRecorder = sendContext?.sendStageRecorder;
@@ -9526,6 +9618,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._canvasHandoffs.delete(chat);
 			this._invalidateCanvasContinuity(chat, true);
 			this._chatBackings.delete(chatKey);
+			this._modelRouterAgents.forget(chatKey);
 			this._pendingModelSelections.delete(chatKey);
 			this._persistedChatHistory.delete(chatKey);
 			this._readOnlyChatInputErrors.delete(chatKey);
@@ -9797,6 +9890,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * like a turn, so Stop releases it even while it waits on a plugin sync.
 	 */
 	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		this._modelRouterAgents.enterTurn(chat.toString(), turnId);
 		const initial = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChatTurn(initial, 'prepareTurn', turnId, async token => {
 			const beforePin = this._resolveSendChatContext(chat, operationContext);
@@ -10498,9 +10592,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
 		const { owner, chatChannelUri } = identity;
+		// The session keeps exactly the plan object it is launched with: a later check compares by identity.
+		const chatKey = chatChannelUri.toString();
+		const modelRouterAgents = launchPlan.isEphemeral ? undefined : this._modelRouterAgents.planFor(chatKey);
+		// What this launch really installs of that plan. A role can be left out at launch, for
+		// example when its custom agent is missing, and the chat keeps only the ones it got.
+		let installedRouterAgents: readonly IInstalledModelRouterAgent[] | undefined;
 		const workspace = launchPlan.workingDirectory && toCopilotWorkspace(launchPlan.workingDirectory);
 		launchPlan = {
 			...launchPlan,
+			modelRouterAgents,
+			onModelRouterAgentsInstalled: installed => { installedRouterAgents = installed; },
 			workspace,
 			virtualWorkspaceClientId: () => this._activeClients.get(owner.get())?.clientIdForChat(chatChannelUri.toString()),
 			virtualSessionFs: workspace?.kind === 'virtual' ? this._instantiationService.createInstance(
@@ -10541,6 +10643,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				pathMapper: createCopilotSessionPathMapper(workspace, resourceJoinPath(this._copilotHomeService.home, 'session-state', launchPlan.sessionId)),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
+				// The first session of a chat to start work fixes the chat's agents to the ones it really got.
+				onRootWorkStarted: () => this._modelRouterAgents.commit(chatKey, modelRouterAgents && installedRouterAgents ? installedModelRouterAgentPlan(modelRouterAgents, installedRouterAgents) : modelRouterAgents),
 				builtinPluginDirectories: this._builtinPluginDirectories,
 				activeClientToolSet: launchPlan.activeClientToolSet,
 				currentActiveClientToolSet: () => {

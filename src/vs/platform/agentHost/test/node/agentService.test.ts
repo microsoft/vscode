@@ -51,7 +51,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostChatResourcesConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
@@ -2588,27 +2588,6 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('artifact tools offer a display mode while chat resources are enabled', async () => {
-			class ArtifactAgent extends MockAgent {
-				serverToolHost: IAgentServerToolHost | undefined;
-				setServerToolHost(host: IAgentServerToolHost): void {
-					this.serverToolHost = host;
-				}
-			}
-			const svc = disposables.add(createTestAgentService(
-				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-			));
-			const agent = disposables.add(new ArtifactAgent('copilot'));
-			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
-			const offersMode = () => JSON.stringify(agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference)?.inputSchema).includes('"mode"');
-			getConfigurationService(svc).updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
-			const disabled = offersMode();
-			getConfigurationService(svc).updateRootConfig({ [AgentHostChatResourcesConfigKey]: true });
-
-			assert.deepStrictEqual({ disabled, enabled: offersMode() }, { disabled: false, enabled: true });
-		});
-
 		for (const removeArtifacts of [false, true]) {
 			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} persist centrally and list after restart without local database reads`, async () => {
 				class ArtifactAgent extends MockAgent {
@@ -3854,7 +3833,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.installPlugin = async (request, operationSession) => { calls.push(['install', request, operationSession?.toString()]); };
 			provider.uninstallPlugin = async (request, operationSession) => { calls.push(['uninstall', request, operationSession?.toString()]); };
-			provider.setPluginEnabled = async (plugin, enabled) => { calls.push(['enablement', plugin, enabled]); };
+			provider.setPluginEnabled = async (plugin, enabled, scope, operationSession, operationChat) => { calls.push(['enablement', plugin, enabled, scope, operationSession?.toString(), operationChat?.toString()]); };
 			provider.listPluginInstallations = async (operationSession, operationChat) => {
 				calls.push(['inventory', operationSession?.toString(), operationChat?.toString()]);
 				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
@@ -3864,8 +3843,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
-			await managementService.setPluginEnabled(provider.id, 'direct-source', true);
-			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false);
+			await managementService.setPluginEnabled(provider.id, 'direct-source', true, 'global');
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false, 'global', session, chat);
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', true, 'repository', session, chat);
 			const inventory = await managementService.listPluginInstallations(provider.id, session, chat);
 
 			assert.deepStrictEqual({ inventory, calls }, {
@@ -3873,13 +3853,14 @@ suite('AgentService (node dispatcher)', () => {
 				calls: [
 					['install', { source: 'spark@copilot-plugins' }, session.toString()],
 					['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
-					['enablement', 'direct-source', true],
-					['enablement', 'spark@copilot-plugins', false],
+					['enablement', 'direct-source', true, 'global', undefined, undefined],
+					['enablement', 'spark@copilot-plugins', false, 'global', session.toString(), chat.toString()],
+					['enablement', 'spark@copilot-plugins', true, 'repository', session.toString(), chat.toString()],
 					['inventory', session.toString(), chat.toString()],
 				],
 			});
 			provider.setPluginEnabled = async () => { throw new Error('managed policy refused'); };
-			await assert.rejects(managementService.setPluginEnabled(provider.id, 'direct-source', true), /managed policy refused/);
+			await assert.rejects(managementService.setPluginEnabled(provider.id, 'direct-source', true, 'global'), /managed policy refused/);
 		});
 
 		test('manages plugin marketplaces through the owning provider', async () => {
@@ -35560,6 +35541,72 @@ suite('AgentService (node dispatcher)', () => {
 				stateAfterResolve: true,
 			});
 		});
+
+		for (const { target, archived } of [
+			{ target: 'default', archived: false },
+			{ target: 'peer', archived: false },
+			{ target: 'default', archived: true },
+			{ target: 'peer', archived: true },
+		]) {
+			test(`get_session_context repeatedly reads a cold ${archived ? 'archived' : 'unarchived'} ${target} chat without opening it`, async () => {
+				let failPeerHistoryRead = false;
+				class ContextAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+					override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+						const targetName = parseChatUri(chat)?.chatId === 'peer-context' ? 'peer' : 'default';
+						if (targetName === 'peer' && failPeerHistoryRead) {
+							throw new Error('Peer history unavailable');
+						}
+						return [{
+							id: 'completed-turn', state: TurnState.Complete,
+							message: { text: 'Original task', origin: { kind: MessageKind.User } },
+							responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: `Completed ${targetName} answer` }],
+							usage: undefined,
+						}];
+					}
+				}
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new ContextAgent('copilot'));
+				registerTestAgentProvider(localService, agent);
+				const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const caller = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const peer = buildChatUri(session, 'peer-context');
+				await seedNormalizedPeers(localService, session, [{ chat: peer, order: 0, providerData: 'peer-context' }]);
+				const stateManager = getStateManager(localService);
+				if (archived) {
+					await localService.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'archive-client', 1);
+					await waitForCondition(stateManager.onDidRemoveSession, () => !stateManager.getSessionState(session.toString()), 'archived session was not released');
+				} else {
+					stateManager.deleteSession(session.toString());
+				}
+				const args = {
+					session: buildOpenSessionLinkUri(session.toString(), target === 'peer' ? 'peer-context' : undefined),
+				};
+				const read = async (input: typeof args & { responseTurnId?: string; responseOffset?: number }) =>
+					JSON.parse(await agent.serverToolHost!.executeTool(buildDefaultChatUri(caller), SessionServerToolName.GetSessionContext, input));
+				const first = await read(args);
+				const second = await read(args);
+				const page = await read({ ...args, responseTurnId: 'completed-turn', responseOffset: 10 });
+				const transcript = [
+					{ turn: 1, state: 'complete', user: 'Original task', assistant: `Completed ${target} answer` },
+				];
+				assert.deepStrictEqual({ first: first.transcript, second: second.transcript, response: page.assistant }, {
+					first: transcript, second: transcript, response: `${target} answer`,
+				});
+				if (archived) {
+					await waitForCondition(stateManager.onDidRemoveSession, () => !stateManager.getSessionState(session.toString()), 'transcript read kept the archived session resident');
+					if (target === 'peer') {
+						failPeerHistoryRead = true;
+						await assert.rejects(read(args), /Peer history unavailable/);
+						await waitForCondition(stateManager.onDidRemoveSession, () => !stateManager.getSessionState(session.toString()), 'failed transcript read kept the archived session resident');
+					}
+				}
+			});
+		}
 
 		test('get_session_context resolves a restored peer chat before reading its transcript', async () => {
 			let materializeCalls = 0;

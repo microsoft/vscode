@@ -9,6 +9,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ChatCustomizationsLocationContext } from '../../common/customizationsLocation.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -1631,6 +1632,7 @@ export function registerChatActions() {
 		when: ContextKeyExpr.and(
 			ChatContextKeys.enabled,
 			ContextKeyExpr.equals('view', ChatViewId),
+			ChatCustomizationsLocationContext.isEqualTo('chatToolbar'),
 		),
 		order: 6
 	});

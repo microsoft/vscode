@@ -20,7 +20,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
@@ -71,7 +71,7 @@ suite('SessionsListModelService', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		attention = observableValue('inboxAttention', new Map<string, IInboxSessionAttention>());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
@@ -145,6 +145,78 @@ suite('SessionsListModelService', () => {
 	});
 
 	// -- Inbox --
+
+	test('historical unread completions only bypass the cutoff when modified today locally', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+		const cases = [
+			{ id: 'yesterday-unread', updatedAt: new Date(2025, 11, 31, 23, 59, 59, 999), isRead: false, historical: true },
+			{ id: 'midnight-unread', updatedAt: new Date(2026, 0, 1), isRead: false, historical: true },
+			{ id: 'today-unread', updatedAt: new Date(2026, 0, 1, 11), isRead: false, historical: true },
+			{ id: 'today-read', updatedAt: new Date(2026, 0, 1, 11), isRead: true, historical: true },
+			{ id: 'last-month-unread', updatedAt: new Date(2025, 11, 1, 11), isRead: false, historical: true },
+			{ id: 'last-year-unread', updatedAt: new Date(2025, 0, 1, 11), isRead: false, historical: true },
+			{ id: 'after-cutoff-yesterday', updatedAt: new Date(2025, 11, 31, 23), isRead: false, historical: false },
+		];
+		sessions.push(...cases.map(({ id, updatedAt, isRead }) => ({
+			...createSession(id, SessionStatus.Completed, { updatedAt }),
+			isRead: constObservable(isRead),
+			lastTurnEnd: constObservable(new Date(2025, 11, 31)),
+		})));
+		attention.set(new Map(cases.map(({ id, historical }) => [id, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: historical,
+		}])), undefined);
+		assert.deepStrictEqual(sessions.map(session => [session.sessionId, service.getInboxState(session)?.kind]), [
+			['yesterday-unread', 'done'],
+			['midnight-unread', undefined],
+			['today-unread', undefined],
+			['today-read', 'done'],
+			['last-month-unread', 'done'],
+			['last-year-unread', 'done'],
+			['after-cutoff-yesterday', undefined],
+		]);
+	}));
+
+	test('historical unread completions react to modification and read changes across reload', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+		const isRead = observableValue('historicalRead', false);
+		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
+		const session = { ...createSession('historical'), isRead, updatedAt };
+		sessions.push(session);
+		attention.set(new Map([[session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}]]), undefined);
+		const states: (string | undefined)[] = [];
+		const observer = disposables.add(autorun(reader => states.push(service.getInboxState(session, reader)?.kind)));
+		updatedAt.set(new Date(2026, 0, 1, 11), undefined);
+		isRead.set(true, undefined);
+		isRead.set(false, undefined);
+		observer.dispose();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ states, restored: service.getInboxState(session)?.kind }, {
+			states: ['done', undefined, 'done', undefined], restored: undefined,
+		});
+	}));
+
+	test('explicit triage of historical unread completions survives reload', () => {
+		sessions.push(...['dismissed', 'held', 'timed', 'untilActivity'].map(id => ({
+			...createSession(id), isRead: constObservable(false),
+		})));
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		const undoDismiss = service.setInboxState([sessions[0]], 'done');
+		const dismissed = service.getInboxState(sessions[0])?.kind;
+		undoDismiss();
+		const undone = service.getInboxState(sessions[0])?.kind;
+		service.setInboxState([sessions[0]], 'done');
+		service.setInboxState([sessions[1]], 'hold');
+		service.setInboxState([sessions[2]], Date.now() + 60_000);
+		service.setInboxState([sessions[3]], 'untilActivity');
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ dismissed, undone, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			dismissed: 'done', undone: undefined, restored: ['done', 'hold', 'snoozed', 'untilActivity'],
+		});
+	});
 
 	test('historical completions start Done while Return to Inbox persists and remains undoable', () => {
 		const session = createSession('historical');
@@ -424,8 +496,32 @@ suite('SessionsListModelService', () => {
 			hidden: { listed: ['regular'], stored: undefined },
 			events: [
 				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
-				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{
+					changes: [
+						{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing },
+						{ sessionId: 'other-automation', kind: SessionListModelChangeKind.AutomationListing },
+					]
+				},
 			],
+		});
+	});
+
+	test('fires a listing change when hiding an automation run shown only by the list filter', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const before = service.isSessionListed(automation, undefined, true);
+
+		service.hideAutomationSessions([automation]);
+
+		assert.deepStrictEqual({
+			before,
+			after: service.isSessionListed(automation, undefined, true),
+			events,
+		}, {
+			before: true,
+			after: false,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
 		});
 	});
 
@@ -532,6 +628,61 @@ suite('SessionsListModelService', () => {
 			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
 			afterExplicitShow: { listed: true, stored: undefined },
 			afterDeletion: undefined,
+		});
+	});
+
+	test('show automation runs overrides listing policies without changing explicit choices', () => {
+		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
+		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });
+		const policy = createSession('policy', SessionStatus.Completed, { isAutomation: true });
+		const replied = createSession('replied', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		sessions = [hidden, shown, policy, replied, regular];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setMode = (mode: AutomationSessionsListMode) => {
+			configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+				affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+				change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		const listed = (showAutomationRuns: boolean) => sessions
+			.filter(session => service.isSessionListed(session, undefined, showAutomationRuns))
+			.map(session => session.sessionId);
+		service.hideAutomationSessions([hidden]);
+		service.showAutomationSessions([shown]);
+		service.showRepliedAutomationSession(replied);
+
+		setMode(AutomationSessionsListMode.Never);
+		const never = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.AfterReply);
+		const afterReply = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.Always);
+		const always = { off: listed(false), on: listed(true) };
+		const stored = {
+			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
+		};
+
+		assert.deepStrictEqual({ never, afterReply, always, stored }, {
+			never: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			afterReply: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			always: {
+				off: ['shown', 'policy', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			stored: {
+				shown: JSON.stringify(['shown', 'replied']),
+				hidden: JSON.stringify(['hidden']),
+			},
 		});
 	});
 
@@ -942,7 +1093,7 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
@@ -957,7 +1108,7 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
@@ -971,7 +1122,7 @@ suite('SessionsListModelService', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessionsListControl.sortOverrides', 'not-valid-json{', StorageScope.PROFILE, StorageTarget.USER);
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, {
@@ -998,7 +1149,7 @@ suite('SessionsListModelService', () => {
 		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
 		const createService = () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storageService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
@@ -1026,7 +1177,7 @@ suite('SessionsListModelService', () => {
 			const readMarks: string[] = [];
 			const unreadMarks: string[] = [];
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storage);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, {
@@ -1086,7 +1237,7 @@ suite('SessionsListModelService', () => {
 			const unreadMarks: string[] = [];
 			const makeService = () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
-				instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+				instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 				instantiationService.stub(IStorageService, storage);
 				instantiationService.stub(IConfigurationService, new TestConfigurationService());
 				instantiationService.stub(ISessionsManagementService, {

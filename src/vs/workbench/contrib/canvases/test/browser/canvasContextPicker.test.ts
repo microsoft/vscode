@@ -25,21 +25,20 @@ import { isChatViewCanvasContextPickerWidget, registerCanvasContextPicker } from
 suite('CanvasContextPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('appears after Sessions and runs Canvas menu actions without attaching context', async () => {
+	test('appears after Sessions and runs Canvas menu actions under their group titles without attaching context', async () => {
 		const runs: string[] = [];
 		let disposedMenus = 0;
 		const contextKeyService = new MockContextKeyService();
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async id => { runs.push(id); return undefined; },
 		});
-		const actions = [
-			new MenuItemAction({ id: 'registered', title: 'Registered Canvas' }, undefined, undefined, undefined, undefined, contextKeyService, commandService),
-			new MenuItemAction({ id: 'dismissed', title: 'Dismissed Canvas' }, undefined, undefined, undefined, undefined, contextKeyService, commandService),
-		];
 		const menuService = upcastPartial<IMenuService>({
 			createMenu: () => upcastPartial<IMenu>({
 				onDidChange: Event.None,
-				getActions: () => [['navigation', actions]],
+				getActions: () => [
+					['1_running', [new MenuItemAction({ id: 'dismissed', title: 'Dismissed Canvas' }, undefined, { groupTitle: 'Running' }, undefined, undefined, contextKeyService, commandService)]],
+					['2_available', [new MenuItemAction({ id: 'registered', title: 'Registered Canvas' }, undefined, { groupTitle: 'Available' }, undefined, undefined, contextKeyService, commandService)]],
+				],
 				dispose: () => disposedMenus++,
 			}),
 		});
@@ -64,9 +63,12 @@ suite('CanvasContextPicker', () => {
 		}
 		const pickerStore = new DisposableStore();
 		const picksObservable = pickerPicks(constObservable(''), CancellationToken.None);
+		let rows: string[] = [];
 		let picks: IChatContextPickerPickItem[] = [];
 		pickerStore.add(autorun(reader => {
-			picks = picksObservable.read(reader).picks.filter(isChatContextPickerPickItem);
+			const allPicks = picksObservable.read(reader).picks;
+			rows = allPicks.map(pick => isChatContextPickerPickItem(pick) ? pick.label : `-- ${pick.label}`);
+			picks = allPicks.filter(isChatContextPickerPickItem);
 		}));
 		const results = [];
 		for (const pick of picks) {
@@ -79,7 +81,7 @@ suite('CanvasContextPicker', () => {
 			label: canvas.label,
 			ordinal: canvas.ordinal,
 			enabled,
-			picks: picks.map(pick => pick.label),
+			rows,
 			results,
 			runs,
 			disposedMenus,
@@ -87,9 +89,9 @@ suite('CanvasContextPicker', () => {
 			label: 'Canvas...',
 			ordinal: -401,
 			enabled: true,
-			picks: ['Registered Canvas', 'Dismissed Canvas'],
+			rows: ['-- Running', 'Dismissed Canvas', '-- Available', 'Registered Canvas'],
 			results: ['noop', 'noop'],
-			runs: ['registered', 'dismissed'],
+			runs: ['dismissed', 'registered'],
 			disposedMenus: 2,
 		});
 	});

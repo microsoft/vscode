@@ -14,7 +14,7 @@ import { getTestSessionResource } from '../../../../../workbench/contrib/session
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
-import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 
 //#region Data

@@ -59,7 +59,8 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { CustomizationOrganizationPolicyNotice } from './customizationOrganizationPolicy.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -2282,6 +2283,9 @@ export class McpListWidget extends Disposable {
 		}));
 		this.discoveryMessage = DOM.append(this.sectionTitleHeader, $('p.section-title-description.mcp-discovery-message', { role: 'status' }));
 		this.discoveryMessage.style.display = 'none';
+		const organizationPolicyNotice = this._register(this.instantiationService.createInstance(CustomizationOrganizationPolicyNotice));
+		this.sectionTitleHeader.appendChild(organizationPolicyNotice.element);
+		organizationPolicyNotice.setSection(AICustomizationManagementSection.McpServers);
 
 		// Re-layout when the header height changes so the list's allotted
 		// height stays in sync with the actual on-screen header size. Only

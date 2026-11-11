@@ -258,6 +258,15 @@ export interface IHarnessDescriptor {
 	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
+/** Organization control over a single customization. */
+export interface ICustomizationOrganizationControl {
+	/**
+	 * Enabled state the organization requires. Undefined when the organization
+	 * supplies the customization without locking its enablement.
+	 */
+	readonly requiredEnabled?: boolean;
+}
+
 /**
  * Identifies who supplied a built-in or account customization.
  * `label` is optional for `harness`, which defaults to the active harness name.
@@ -293,6 +302,8 @@ export interface ICustomizationItem {
 	readonly enabled?: boolean;
 	/** Host-published reason for a disabled customization. */
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** Set when the user's organization manages this customization. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/**

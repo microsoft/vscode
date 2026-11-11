@@ -46,6 +46,7 @@ suite('SessionEnvironmentPicker', () => {
 	function provider(id: string, environment: string, options: Partial<ISessionsProvider> = {}): ISessionsProvider {
 		return upcastPartial<ISessionsProvider>({
 			id, environment: { id: environment, label: environment }, label: id, icon: Codicon.remote,
+			sessionTypes: [{ id: 'test', label: 'Test', icon: Codicon.remote, authRequirement: SessionTypeAuthRequirement.GitHub }],
 			resolveWorkspace: () => workspace,
 			getSessionTypes: () => [],
 			...options,
@@ -94,6 +95,16 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
+	test('preserves the checked workspace provider across provider registration order', () => {
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud, local], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, LOCAL_AGENT_HOST_PROVIDER_ID, false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local], folder, 'cloud', false, undefined, true)?.id,
+		], ['cloud', 'cloud', 'cloud', 'local', 'local']);
+	});
+
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {
 		const localProvider = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local');
 		const cloudProvider = provider('cloud', 'cloud');
@@ -106,6 +117,15 @@ suite('SessionEnvironmentPicker', () => {
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, cloudProvider], folder)?.id,
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, supportedCloud], folder)?.id,
 		], [LOCAL_AGENT_HOST_PROVIDER_ID, undefined, 'cloud']);
+	});
+
+	test('hides Cloud creation without disabling its workspace browse contributions', () => {
+		const cloudProvider = provider('cloud', 'cloud', { sessionTypes: [] });
+		assert.deepStrictEqual({
+			environments: getSessionCreationEnvironments([cloudProvider]),
+			workspace: cloudProvider.resolveWorkspace(folder),
+			workspaceSelection: cloudProvider.supportsWorkspaceSelection !== false,
+		}, { environments: [], workspace, workspaceSelection: true });
 	});
 
 	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {

@@ -210,6 +210,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
+		// Keep recency order and groups when filtering instead of re-sorting by label match.
+		picker.sortByLabel = false;
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);

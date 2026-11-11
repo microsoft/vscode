@@ -40,6 +40,18 @@ export interface IChatViewRequestSubmission {
 	readonly completion: Promise<IChatViewRequestOutcome>;
 }
 
+export interface IChatViewBackgroundReplica extends IDisposable {
+	updateBackground(): void;
+	layout(): void;
+}
+
+/** Entry-owned background presentation, omitted when a composition does not support backgrounds. */
+export interface IChatViewBackground {
+	readonly onDidChange: Event<void>;
+	hasBackground(): boolean;
+	createReplica(chatElement: HTMLElement, container: HTMLElement): IChatViewBackgroundReplica | undefined;
+}
+
 /**
  * Options passed to a chat view when it is created.
  */
@@ -47,6 +59,7 @@ export interface IChatViewOptions {
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
 	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
+	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */

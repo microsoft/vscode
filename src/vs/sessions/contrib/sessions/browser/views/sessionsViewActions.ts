@@ -29,10 +29,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { canStartNewSessionLike, getNewSessionSources, getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { canStartNewSessionLike, getNewSessionSources, getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -60,7 +60,8 @@ import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sess
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsListNotificationFocused } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
+import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
+import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 
 AccessibleViewRegistry.register({
 	name: 'sessions-list-notification',
@@ -477,7 +478,6 @@ MenuRegistry.appendMenuItem(Menus.SessionSectionContext, {
 //  Sort / Group Actions
 
 const InboxModeContext = SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox);
-const InboxModeEnabledContext = ContextKeyExpr.equals(`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`, true);
 
 registerAction2(class InboxModeAction extends Action2 {
 	constructor() {
@@ -486,9 +486,9 @@ registerAction2(class InboxModeAction extends Action2 {
 			title: localize2('inboxMode', "Inbox Mode"),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, InboxModeEnabledContext),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled),
 			toggled: InboxModeContext,
-			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeEnabledContext) }],
+			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ChatContextKeys.enabled }],
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -1231,10 +1231,14 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		return;
 	}
 	const undo = modelService.setInboxState(targets, action);
-	const message = action === 'done' ? localize('inboxDismissed', "{0} dismissed from inbox", targets.length)
+	const message = action === 'done' ? localize('inboxCleared', "{0} cleared from inbox", targets.length)
 		: action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
 			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
 				: localize('inboxSnoozed', "{0} snoozed", targets.length);
+	if (targets.length === 1 && action !== 'done') {
+		status(message);
+		return;
+	}
 	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
 		message,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
@@ -1243,18 +1247,19 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 	});
 }
 
-registerAction2(class DismissInboxSessionAction extends Action2 {
+registerAction2(class ClearInboxSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.inboxDone',
-			title: localize2('inboxDismiss', "Dismiss from Inbox"),
-			icon: Codicon.close,
+			title: localize2('inboxClear', "Clear from Inbox"),
+			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
 			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 				id,
 				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
 				order: id === Menus.SessionItemToolbar ? 4 : 2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemInboxStateContext.notEqualsTo('done')),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(),
+					id === Menus.SessionItemToolbar ? SessionItemInboxStateContext.isEqualTo('') : SessionItemInboxStateContext.notEqualsTo('done')),
 			})),
 			keybinding: {
 				primary: KeyCode.Delete,
@@ -1274,7 +1279,7 @@ registerAction2(class ResumeInboxSessionAction extends Action2 {
 		super({
 			id: 'sessionsViewPane.inboxResume',
 			title: localize2('inboxResume', "Return to Inbox"),
-			icon: Codicon.discard,
+			icon: Codicon.inbox,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
 			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 				id,
@@ -1317,7 +1322,7 @@ registerAction2(class SnoozeInboxSessionAction extends Action2 {
 			{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },
 			{ label: localize('snoozeActivity', "Until New Activity"), value: 'untilActivity' as const },
 			{ label: localize('snoozeDate', "Pick a Date and Time..."), value: 'custom' as const },
-		], { placeHolder: localize('snoozePlaceholder', "When should these sessions return?") });
+		], { placeHolder: localize('snoozeReturnPlaceholder', "When should these sessions leave On hold? They will return to Inbox, Working, or Ready to merge based on their activity.") });
 		if (!picked) {
 			return;
 		}
@@ -1344,6 +1349,36 @@ registerAction2(class SnoozeInboxSessionAction extends Action2 {
 			action = picked.value;
 		}
 		triageSessions(modelService, viewsService, sessions, action);
+	}
+});
+
+registerAction2(class MergeInboxPullRequestAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.inboxMergePullRequest',
+			title: localize2('inboxMergePullRequest', "Merge Pull Request"),
+			icon: Codicon.gitMerge,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionItemCanMergePullRequestContext, SessionItemIsMultiSelectionContext.negate()),
+			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
+				id,
+				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemCanMergePullRequestContext),
+			})),
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessions = getSessionActionTargets(accessor, context);
+		const session = sessions.length === 1 ? sessions[0] : undefined;
+		const attention = accessor.get(ISessionAttentionService).sessionAttention.get();
+		const model = accessor.get(ISessionsListModelService);
+		const merge = session && !session.isArchived.get()
+			&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyToMerge
+			? getInboxPullRequestMergeOperation(session) : undefined;
+		if (!merge) {
+			throw new Error(localize('inboxMergeUnavailable', "This pull request is no longer available to merge."));
+		}
+		await merge.changeset.invokeOperation(merge.operation.id);
 	}
 });
 
@@ -1476,8 +1511,8 @@ for (const id of [Menus.SessionItemToolbar, SessionItemContextMenuId]) {
 	MenuRegistry.appendMenuItem(id, {
 		command: {
 			id: ARCHIVE_SESSION_COMMAND_ID,
-			title: localize2('inboxMarkSessionDone', "Mark Session as Done"),
-			icon: Codicon.check,
+			title: localize2('inboxArchiveSession', "Archive Session"),
+			icon: Codicon.archive,
 		},
 		group: id === Menus.SessionItemToolbar ? 'navigation' : '4_manage',
 		order: id === Menus.SessionItemToolbar ? 3 : 2.5,
