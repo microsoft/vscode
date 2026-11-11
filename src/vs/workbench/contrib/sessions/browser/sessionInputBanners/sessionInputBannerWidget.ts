@@ -81,7 +81,9 @@ export class SessionInputBannerWidget extends Disposable {
 
 	private readonly _buttons: Array<{ readonly button: IButton; readonly primary: boolean }> = [];
 	private readonly _showWorkingAnimation = this._register(new MutableDisposable());
+	private readonly _workingBorderAnimations = this._register(new MutableDisposable());
 	private readonly _content = this._register(new MutableDisposable<DisposableStore>());
+	private _animationWindow: Window | undefined;
 
 	private _runningPrimaryAction = false;
 	private _disposed = false;
@@ -100,11 +102,6 @@ export class SessionInputBannerWidget extends Disposable {
 		super();
 
 		this.domNode = dom.$('.session-input-banner');
-		this._register(pauseCSSAnimationsWhenHidden(this.domNode, {
-			pausedClass: 'session-input-banner-anim-paused',
-			subtree: true,
-			animationNames: new Set(['session-input-banner-working-border-spin']),
-		}));
 		this.domNode.setAttribute('role', 'status');
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -116,6 +113,24 @@ export class SessionInputBannerWidget extends Disposable {
 			}
 		}, true));
 		this.setBanners(Array.isArray(banner) ? banner : [banner]);
+	}
+
+	/** Refreshes visibility tracking after mounting or moving the banner to another window. */
+	updateAnimationWindow(): void {
+		if (this._disposed || !this.domNode.isConnected) {
+			return;
+		}
+		const targetWindow = dom.getWindow(this.domNode);
+		if (this._animationWindow === targetWindow) {
+			return;
+		}
+		this._workingBorderAnimations.clear();
+		this._animationWindow = targetWindow;
+		this._workingBorderAnimations.value = pauseCSSAnimationsWhenHidden(this.domNode, {
+			pausedClass: 'session-input-banner-anim-paused',
+			subtree: true,
+			animationNames: new Set(['session-input-banner-working-border-spin']),
+		});
 	}
 
 	setBanners(banners: readonly ISessionInputBanner[]): void {
@@ -393,7 +408,10 @@ export class SessionInputBannerWidget extends Disposable {
 
 	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {
 		this.domNode.setAttribute('aria-busy', 'true');
-		this._showWorkingAnimation.value = disposableTimeout(() => this.domNode.classList.add('working'), SHOW_WORKING_DELAY_MS);
+		this._showWorkingAnimation.value = disposableTimeout(() => {
+			this.updateAnimationWindow();
+			this.domNode.classList.add('working');
+		}, SHOW_WORKING_DELAY_MS);
 		try {
 			return await waitUntilReady();
 		} finally {
@@ -404,6 +422,7 @@ export class SessionInputBannerWidget extends Disposable {
 	}
 
 	setWorking(working: boolean): void {
+		this.updateAnimationWindow();
 		this._working = working;
 		this.domNode.classList.toggle('working', working);
 		this.domNode.setAttribute('aria-busy', String(working));

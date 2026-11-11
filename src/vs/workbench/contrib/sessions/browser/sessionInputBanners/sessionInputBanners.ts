@@ -24,6 +24,7 @@ import { SessionInputBannerWidget } from './sessionInputBannerWidget.js';
 export class SessionInputBanners extends Disposable {
 	readonly domNode = dom.$('.session-input-banners.empty');
 	private readonly model: SessionInputBannerModel;
+	private readonly widget: SessionInputBannerWidget;
 
 	constructor(
 		@ISessionHost sessionHost: ISessionHost,
@@ -40,13 +41,17 @@ export class SessionInputBanners extends Disposable {
 		super();
 		this.model = this._register(new SessionInputBannerModel(undefined, sessionHost, sessionsProvidersService, configurationService,
 			gitHubService, feedbackService, commandService, storageService, logService, chatWidgetService));
-		const widget = this._register(instantiationService.createInstance(SessionInputBannerWidget, []));
-		this.domNode.appendChild(widget.domNode);
+		this.widget = this._register(instantiationService.createInstance(SessionInputBannerWidget, []));
+		this.domNode.appendChild(this.widget.domNode);
 		this._register(autorun(reader => {
 			const banners = this.model.banners.read(reader);
 			this.domNode.classList.toggle('empty', banners.length === 0);
-			widget.setBanners(banners);
+			this.widget.setBanners(banners);
 		}));
+	}
+
+	updateAnimationWindow(): void {
+		this.widget.updateAnimationWindow();
 	}
 
 	setActive(active: boolean): void {
