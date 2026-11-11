@@ -916,8 +916,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			const location = stat.isRoot ? this.folderLocationService.currentLocation : undefined;
-			this.renderStat(stat, stat.isRoot ? getExplorerRootLabel(stat.name, this.contextService.getWorkspaceFolder(stat.resource)?.primaryUri, location && getFolderLocationText(location)) : stat.name, undefined, node.filterData, templateData);
+			this.renderStat(stat, stat.isRoot ? this.getRootLabel(stat) : stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
@@ -1126,7 +1125,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	// IAccessibilityProvider
 
 	getAriaLabel(element: ExplorerItem): string {
-		return element.name;
+		return element.isRoot ? this.getRootLabel(element) : element.name;
+	}
+
+	private getRootLabel(stat: ExplorerItem): string {
+		const location = this.folderLocationService.currentLocation;
+		return getExplorerRootLabel(stat.name, this.contextService.getWorkspaceFolder(stat.resource)?.primaryUri, location && getFolderLocationText(location));
 	}
 
 	getAriaLevel(element: ExplorerItem): number {
