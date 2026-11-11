@@ -7,7 +7,11 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DidEnterWorkspaceEvent } from '../../browser/abstractWorkspaceEditingService.js';
-import { UNKNOWN_EMPTY_WINDOW_WORKSPACE } from '../../../../../platform/workspace/common/workspace.js';
+import { BrowserWorkspaceEditingService } from '../../browser/workspaceEditingService.js';
+import { UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IResolvedFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 
 suite('WorkspaceEditingService', () => {
 
@@ -82,5 +86,36 @@ suite('WorkspaceEditingService', () => {
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	suite('setFolderLocation', () => {
+
+		test('the last invocation wins regardless of resolution order', async () => {
+			const primary = URI.file('/work/project');
+			const first = URI.file('/work/first');
+			const second = URI.file('/work/second');
+			const resolutions = new Map<string, DeferredPromise<IResolvedFolderLocation>>([[first.toString(), new DeferredPromise()], [second.toString(), new DeferredPromise()]]);
+			const switched: (URI | undefined)[] = [];
+			const trusted: URI[] = [];
+
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ extUri },
+				{ isWorkspaceTrusted: () => true, setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
+				undefined, undefined, undefined,
+				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setCurrentLocation: () => { } }
+			));
+
+			const p1 = service.setFolderLocation(primary, first);
+			const p2 = service.setFolderLocation(primary, second);
+			resolutions.get(second.toString())!.complete({ uri: second, label: 'Second', providerId: 'test', builtIn: true });
+			await p2;
+			resolutions.get(first.toString())!.complete({ uri: first, label: 'First', providerId: 'test', builtIn: true });
+			await p1;
+
+			assert.deepStrictEqual({ switched: switched.map(u => u?.toString()), trusted: trusted.map(u => u.toString()) }, { switched: [second.toString()], trusted: [second.toString()] });
+		});
+	});
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 });

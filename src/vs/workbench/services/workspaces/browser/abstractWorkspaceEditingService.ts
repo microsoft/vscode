@@ -127,10 +127,15 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 
+	private folderLocationRequest = 0;
+
 	async setFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 		}
+
+		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
+		const request = ++this.folderLocationRequest;
 
 		let resolved: IResolvedFolderLocation | undefined;
 		if (location && !this.uriIdentityService.extUri.isEqual(location, primary)) {
@@ -143,10 +148,18 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 				throw new Error(localize('folderLocationUnknown', "'{0}' is not an alternate location of '{1}'.", location.toString(), primary.toString()));
 			}
 
+			if (request !== this.folderLocationRequest) {
+				return; // superseded by a newer invocation
+			}
+
 			// A built-in provider vouches for its locations: they inherit the trust of the primary location
 			if (resolved.builtIn && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 				await this.workspaceTrustManagementService.setUrisTrust([location], true);
 			}
+		}
+
+		if (request !== this.folderLocationRequest) {
+			return; // superseded by a newer invocation
 		}
 
 		await this.contextService.setFolderLocation(primary, location);
