@@ -156,7 +156,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	/**
 	 * The introduction is ready only while the entry is rendered and visible, because
 	 * the onboarding engine marks a scenario as seen before it resolves its target.
-	 * Observation ends as soon as the introduction is ready, and never starts once it was shown.
+	 * Readiness tracks the visibility of the entry until the introduction is actually shown
+	 * (a queued introduction must not stay ready after the entry hides), and observation never starts once it was shown.
 	 */
 	private observeIntroductionTarget(): void {
 		const store = new DisposableStore();
@@ -165,10 +166,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 				this.introductionObservation.clear();
 				return;
 			}
-			if (resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID)) {
-				this.introductionReady.set(true, undefined);
-				this.introductionObservation.clear();
-			}
+			this.introductionReady.set(!!resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID), undefined);
 		}));
 		const observer = store.add(new DisposableResizeObserver('FolderLocation.introductionTarget', () => scheduler.schedule()));
 		// eslint-disable-next-line eslint-js/no-restricted-syntax -- the status bar names each item element after its entry id
