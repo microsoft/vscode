@@ -446,7 +446,8 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const animFrameRequestedWith = new Map<number /* window ID */, Window['requestAnimationFrame']>();
 	/**
-	 * The token of the pending request. Only its callback runs the queue, so a superseded request that fires late does nothing.
+	 * The token of the pending queue. Every request made for it carries this token: the first callback that fires runs the
+	 * queue, and callbacks of other requests for it, which can fire later or in the same frame, do nothing.
 	 */
 	const animFrameRequestToken = new Map<number /* window ID */, number>();
 	let lastAnimFrameRequestToken = 0;
@@ -469,24 +470,8 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner.delete(vscodeWindowId);
 	}));
 
-	const requestFrame = (targetWindow: Window, targetWindowId: number) => {
-		animFrameRequested.set(targetWindowId, true);
-		animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
-		const token = ++lastAnimFrameRequestToken;
-		animFrameRequestToken.set(targetWindowId, token);
-		targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindow, targetWindowId, token));
-	};
-
-	const animationFrameRunner = (targetWindow: Window, targetWindowId: number, token: number) => {
-		if (!animFrameRequested.has(targetWindowId)) {
-			return;
-		}
-		if (animFrameRequestToken.get(targetWindowId) !== token) {
-			// A superseded request does not run the queue. If the current request went through a requestAnimationFrame
-			// that is no longer installed, it may never fire, so request a frame through the installed one.
-			if (animFrameRequested.get(targetWindowId) && animFrameRequestedWith.get(targetWindowId) !== targetWindow.requestAnimationFrame) {
-				requestFrame(targetWindow, targetWindowId);
-			}
+	const animationFrameRunner = (targetWindowId: number, token: number) => {
+		if (!animFrameRequested.get(targetWindowId) || animFrameRequestToken.get(targetWindowId) !== token) {
 			return;
 		}
 		animFrameRequested.set(targetWindowId, false);
@@ -517,10 +502,17 @@ class AnimationFrameQueueItem implements IDisposable {
 		}
 		nextQueue.push(item);
 
-		// Also request again when requestAnimationFrame was replaced since the pending request: its callback may never run.
-		if (!animFrameRequested.get(targetWindowId) || animFrameRequestedWith.get(targetWindowId) !== targetWindow.requestAnimationFrame) {
-			requestFrame(targetWindow, targetWindowId);
+		// Request again, for the same queue, when requestAnimationFrame was replaced since the pending request: that request's
+		// callback may never run.
+		if (!animFrameRequested.get(targetWindowId)) {
+			animFrameRequested.set(targetWindowId, true);
+			animFrameRequestToken.set(targetWindowId, ++lastAnimFrameRequestToken);
+		} else if (animFrameRequestedWith.get(targetWindowId) === targetWindow.requestAnimationFrame) {
+			return item;
 		}
+		const token = animFrameRequestToken.get(targetWindowId)!;
+		animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
+		targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId, token));
 
 		return item;
 	};
