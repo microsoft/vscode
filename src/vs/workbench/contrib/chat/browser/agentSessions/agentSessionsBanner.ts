@@ -34,16 +34,19 @@ type AgentsBannerClickedClassification = {
 export interface IAgentsBannerResult {
 	readonly element: HTMLElement;
 	readonly disposables: DisposableStore;
-	/** Whether the banner is shown, see {@link canShowAgentsBanner}. */
+	/** Whether the banner is shown, that is, whether {@link isAgentsWindowAvailable} holds. */
 	readonly visible: IObservable<boolean>;
 }
 
 /**
  * Returns whether the desktop Agents window is available and agent mode and AI features are enabled.
- * Matches `OPEN_AGENTS_WINDOW_PRECONDITION`: the banner is not hidden when the chat extension is
- * merely disabled, because new profiles keep it disabled until chat setup completes.
+ * The banner is shown while this holds, and its button either offers GitHub sign-in or opens the
+ * Agents window (see {@link createAgentsBanner}).
+ *
+ * Matches `OPEN_AGENTS_WINDOW_PRECONDITION`: chat that is merely disabled does not count as
+ * unavailable, because new profiles keep the chat extension disabled until chat setup completes.
  */
-export function canShowAgentsBanner(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
+export function isAgentsWindowAvailable(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
 	const sentiment = chatEntitlementService.sentiment;
 	if (sentiment.hidden || sentiment.disabledInWorkspace || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 		return false;
@@ -102,7 +105,7 @@ export function createAgentsBanner(
 	const element = $(`.${options.cssClass}`, {}, ...(options.graphic ? [options.graphic.element] : []), button);
 	const visible = observableValue<boolean>('agentsBannerVisible', false);
 	const updateVisibility = () => {
-		const isVisible = canShowAgentsBanner(chatEntitlementService, configurationService);
+		const isVisible = isAgentsWindowAvailable(chatEntitlementService, configurationService);
 		setVisibility(isVisible, element);
 		button.disabled = !isVisible;
 		visible.set(isVisible, undefined);

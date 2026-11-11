@@ -21,7 +21,7 @@ import { AgentsWindowOpenSource, IOpenedMainWindow, isAgentsWindowOpenSource } f
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
+import { createAgentsBanner, isAgentsWindowAvailable } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
 import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
@@ -94,7 +94,7 @@ suite('AgentsBanner', () => {
 				}
 			},
 			visibility: () => ({
-				canShow: canShowAgentsBanner(chatEntitlementService, configurationService),
+				agentsWindowAvailable: isAgentsWindowAvailable(chatEntitlementService, configurationService),
 				display: banner.element.style.display,
 				ariaHidden: banner.element.getAttribute('aria-hidden'),
 				disabled: button.disabled,
@@ -119,7 +119,7 @@ suite('AgentsBanner', () => {
 				...banner.visibility(),
 				commands: banner.state().commands.length,
 			}, {
-				canShow: enabled,
+				agentsWindowAvailable: enabled,
 				display: enabled ? '' : 'none',
 				ariaHidden: enabled ? null : 'true',
 				disabled: !enabled,
@@ -137,8 +137,8 @@ suite('AgentsBanner', () => {
 			banner.button.click();
 		}
 
-		const visible = { canShow: true, display: '', ariaHidden: null, disabled: false };
-		const hidden = { canShow: false, display: 'none', ariaHidden: 'true', disabled: true };
+		const visible = { agentsWindowAvailable: true, display: '', ariaHidden: null, disabled: false };
+		const hidden = { agentsWindowAvailable: false, display: 'none', ariaHidden: 'true', disabled: true };
 		assert.deepStrictEqual({
 			states,
 			sameButton: banner.button === banner.banner.element.querySelector('button'),
