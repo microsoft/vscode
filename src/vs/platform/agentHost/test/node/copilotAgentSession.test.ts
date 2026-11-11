@@ -4770,6 +4770,29 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('reports a dormant extension and lists its declared canvases without waiting for it to start', async () => {
+		const { session } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:lazy', name: 'Lazy extension', source: 'user', status: 'dormant' });
+				mock.canvases.push({
+					canvasId: 'lazy',
+					extensionId: 'user:lazy',
+					displayName: 'Lazy',
+					description: 'Declared before the extension starts.',
+				});
+			},
+		});
+
+		assert.deepStrictEqual({
+			extensions: (await session.listExtensions()).map(extension => [extension.id, extension.status]),
+			canvases: (await session.listCanvases())?.map(canvas => [canvas.canvasId, canvas.extensionSource]),
+		}, {
+			extensions: [['user:lazy', 'dormant']],
+			canvases: [['lazy', 'user']],
+		});
+		session.dispose();
+	});
+
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
