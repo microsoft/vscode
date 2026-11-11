@@ -5762,28 +5762,27 @@ suite('CopilotAgent', () => {
 				copilotClient: client, gitHubEndpointService: endpoints, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
 			});
 			afterTest(() => disposeAgent(agent));
-			const connection = disposables.add(new CancellationTokenSource());
 			const accounts = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
 			const resource = endpoints.getCopilotResource();
-			await authenticationService.authenticate({ resource: resource.resource, token: 'cached-github', scopes: resource.scopes_supported }, [agent], undefined, connection.token);
+			await authenticationService.authenticate({ resource: resource.resource, token: 'cached-github', scopes: resource.scopes_supported }, [agent]);
 			await waitForState(agent.models, models => models.length > 0);
 			const backgroundMicrosoftAccepted = await agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'background-microsoft',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }),
-			}, connection.token);
+			});
 			await assert.rejects(agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'premature-selection',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'select', discoveryId: 'not-offered', selectionId: 'not-offered' }) },
-			}, connection.token));
+			}));
 			assert.deepStrictEqual(accounts.state.get(), { kind: 'legacy' });
 			await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }),
-			}, [agent], undefined, connection.token);
+			}, [agent]);
 			await agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-			}, connection.token);
+			});
 			const pending = accounts.state.get();
 			const backgroundAccepted = await agent.authenticate(resource.resource, 'background-github');
 			await authenticationService.replay(agent);
@@ -5798,21 +5797,21 @@ suite('CopilotAgent', () => {
 				{ ...direct, expiresIn: -1 },
 				{ ...direct, _meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'useLegacy', context: pending }) } },
 			]) {
-				await assert.rejects(agent.handleAuthenticationToken(rejected, connection.token));
+				await assert.rejects(agent.handleAuthenticationToken(rejected));
 			}
 			const afterRejected = accounts.state.get();
-			await agent.handleAuthenticationToken({ resource: copilotEntraDiscoveryResource, token: '' }, connection.token);
+			await agent.handleAuthenticationToken({ resource: copilotEntraDiscoveryResource, token: '' });
 			const afterRevocation = accounts.state.get();
 			const revokedBackgroundAccepted = await agent.authenticate(resource.resource, 'another-background');
-			await assert.rejects(agent.handleAuthenticationToken(direct, connection.token));
+			await assert.rejects(agent.handleAuthenticationToken(direct));
 			const result = await authenticationService.authenticate({
 				...direct, _meta: { ...direct._meta, ...copilotAccountOperationMeta({ kind: 'useLegacy', context: afterRevocation }) },
-			}, [agent], undefined, connection.token);
+			}, [agent]);
 			await waitForState(agent.models, models => models.length > 0);
 			await assert.rejects(agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'late-microsoft',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'discover', context: pending }) },
-			}, connection.token));
+			}));
 			assert.deepStrictEqual({
 				pending, backgroundMicrosoftAccepted, backgroundAccepted, afterRejected, afterRevocation, revokedBackgroundAccepted,
 				result, current: accounts.state.get(), token: agent['_githubCredentials'].token,
@@ -5826,7 +5825,7 @@ suite('CopilotAgent', () => {
 		});
 	}
 
-	test('a direct choice cancelled while credentials apply stays Microsoft even if another provider accepts', async () => {
+	test('a direct choice waits for credential application before publishing the legacy context', async () => {
 		const api = new TestCopilotApiService();
 		const started = new DeferredPromise<void>();
 		const sku = new DeferredPromise<string | undefined>();
@@ -5836,16 +5835,15 @@ suite('CopilotAgent', () => {
 			rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
 		});
 		afterTest(() => disposeAgent(agent));
-		const connection = disposables.add(new CancellationTokenSource());
 		const resource = GITHUB_COPILOT_PROTECTED_RESOURCE;
 		await authenticationService.authenticate({
 			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
-		}, [agent], undefined, connection.token);
+		}, [agent]);
 		await agent.handleAuthenticationToken({
 			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 			_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-		}, connection.token);
+		});
 		const accounts = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
 		const otherProvider = upcastPartial<IAgent>({
 			id: 'other-provider', getProtectedResources: () => [resource], authenticate: async () => true,
@@ -5853,12 +5851,12 @@ suite('CopilotAgent', () => {
 		const applying = authenticationService.authenticate({
 			resource: resource.resource, scopes: resource.scopes_supported, token: 'cancelled-github',
 			_meta: { ...authenticationAccountMeta({ providerId: 'github', accountId: 'chosen' }), ...copilotAccountOperationMeta({ kind: 'useLegacy', context: accounts.state.get() }) },
-		}, [agent, otherProvider], undefined, connection.token);
+		}, [agent, otherProvider]);
 		await started.p;
-		connection.cancel();
+		assert.deepStrictEqual(accounts.state.get(), { kind: 'signedOut' });
 		sku.complete(undefined);
 		assert.deepStrictEqual({ result: await applying, applied: agent['_githubCredentials'].token, context: accounts.state.get() }, {
-			result: { authenticated: true }, applied: undefined, context: { kind: 'signedOut' },
+			result: { authenticated: true }, applied: 'cancelled-github', context: { kind: 'legacy' },
 		});
 	});
 
@@ -8179,15 +8177,14 @@ suite('CopilotAgent', () => {
 		test('Microsoft shared-context rollout leaves explicitly scoped conversation credentials unchanged', async () => {
 			const { agent, options, launches, authenticationService } = setup(undefined, [], [], { [CopilotCliConfigKey.M365Enabled]: true });
 			afterTest(() => disposeAgent(agent));
-			const connection = disposables.add(new CancellationTokenSource());
 			await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
-			}, [agent], undefined, connection.token);
+			}, [agent]);
 			await agent.handleAuthenticationToken({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-			}, connection.token);
+			});
 			const session = AgentSession.uri('copilotcli', 'microsoft-scoped-credentials');
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());

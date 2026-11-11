@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -355,7 +354,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource]);
 	});
 
-	test('reuses the pinned credential for repeated required requests but withholds an expired credential without interaction', async () => {
+	test('resends a pinned credential once and accepts a later silent replacement without interaction', async () => {
 		const f = fixture();
 		f.defaults.currentDefaultAccount = null;
 		const scopes = [`${copilotEntraM365Audience}/.default`];
@@ -366,18 +365,17 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const tokens: string[] = [];
 		const options = {
 			logPrefix: '[test]', preferredAccountId: selected.account.id, authTokenCache: new AgentHostAuthTokenCache(),
-			challengeReason: AuthRequiredReason.Required,
 			authenticate: async (request: IAgentHostAuthenticateRequest) => { tokens.push(request.token); },
 		};
 		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, options));
 		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, options));
-		const afterRequired = { tokens: [...tokens], interactiveCount: f.authentication.created.length };
-		const expiredOptions = { ...options, challengeReason: AuthRequiredReason.Expired };
-		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, expiredOptions));
-		assert.deepStrictEqual({ afterRequired, tokens, interactiveAccounts: f.authentication.created.map(([, , options]) => options?.account) }, {
-			afterRequired: { tokens: ['valid-m365-token', 'valid-m365-token'], interactiveCount: 0 },
-			tokens: ['valid-m365-token', 'valid-m365-token'],
+		const afterRepeated = { tokens: [...tokens], interactiveCount: f.authentication.created.length };
+		f.authentication.sessions = [selected, { ...m365Session, accessToken: 'renewed-m365-token' }];
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, options));
+		assert.deepStrictEqual({ afterRepeated, tokens, interactiveAccounts: f.authentication.created.map(([, , options]) => options?.account) }, {
+			afterRepeated: { tokens: ['valid-m365-token'], interactiveCount: 0 },
+			tokens: ['valid-m365-token', 'renewed-m365-token'],
 			interactiveAccounts: [],
 		});
 	});

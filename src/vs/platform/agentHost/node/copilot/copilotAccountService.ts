@@ -5,7 +5,7 @@
 
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable, type IReader } from '../../../../base/common/observable.js';
@@ -43,10 +43,10 @@ export interface ICopilotAccountService {
 	readonly authentication: CopilotEntraAuthentication | undefined;
 	readonly state: IObservable<CopilotAccountContext>;
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
-	beginMicrosoftSelection(params: AuthenticateParams, connection: CancellationToken): void;
-	authenticate(client: Promise<CopilotClient> | undefined, params: AuthenticateParams, connection: CancellationToken): Promise<void>;
-	selectLegacy(connection: CancellationToken): Promise<void>;
-	acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean;
+	beginMicrosoftSelection(params: AuthenticateParams): void;
+	authenticate(client: Promise<CopilotClient> | undefined, params: AuthenticateParams): Promise<void>;
+	selectLegacy(): Promise<void>;
+	acceptCredential(params: AuthenticateParams): boolean;
 	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }>;
 	getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>): Promise<CopilotSession>;
 	isAuthenticationSession(sessionId: string): boolean;
@@ -103,25 +103,25 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		return [...resources.values()];
 	}
 
-	beginMicrosoftSelection(params: AuthenticateParams, connection: CancellationToken): void {
+	beginMicrosoftSelection(params: AuthenticateParams): void {
 		if (!this.authentication) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft account setup is unavailable.');
 		}
-		this.authentication.authorizeDiscovery(params, connection);
+		this.authentication.authorizeDiscovery(params);
 		if (this.state.get().kind === 'legacy') {
 			this._state.set({ kind: 'signedOut' }, undefined);
 		}
 	}
 
-	async authenticate(client: Promise<CopilotClient> | undefined, params: AuthenticateParams, connection: CancellationToken): Promise<void> {
+	async authenticate(client: Promise<CopilotClient> | undefined, params: AuthenticateParams): Promise<void> {
 		void client?.catch(error => this._logService.error('[Copilot] Microsoft setup runtime startup failed', error));
 		const operation = readCopilotAccountOperation(params);
-		if (!this.authentication || !operation || operation.kind === 'useLegacy' || connection.isCancellationRequested) {
+		if (!this.authentication || !operation || operation.kind === 'useLegacy') {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft account setup is unavailable.');
 		}
 		if (operation.kind === 'discover') {
-			const accountId = this.authentication.authorizeDiscovery(params, connection);
-			await this.discoverForIdentity(client, accountId, params, connection);
+			const accountId = this.authentication.authorizeDiscovery(params);
+			await this.discoverForIdentity(client, accountId, params);
 			return;
 		}
 		const attempt = this._attempt;
@@ -131,7 +131,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		await this.select(attempt, operation.selectionId, params);
 	}
 
-	private async discoverForIdentity(client: Promise<CopilotClient> | undefined, accountId: string, params: AuthenticateParams, connection: CancellationToken): Promise<void> {
+	private async discoverForIdentity(client: Promise<CopilotClient> | undefined, accountId: string, params: AuthenticateParams): Promise<void> {
 		const state = this.state.get();
 		if (state.kind === 'ready' || state.kind === 'choiceRequired') {
 			return;
@@ -145,9 +145,6 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		if (this._attempt) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft account discovery is already in progress.');
 		}
-		if (connection.isCancellationRequested) {
-			throw new CancellationError();
-		}
 		this.authentication?.validateSelection(params, copilotEntraDiscoveryMetadata);
 		if (state.kind !== 'incomplete' || !this.hasPreparedCredential(accountId)) {
 			this._state.set({ kind: 'incomplete', entraAccountId: accountId }, undefined);
@@ -159,19 +156,19 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		await this.discover(client, accountId);
 	}
 
-	async selectLegacy(connection: CancellationToken): Promise<void> {
-		if (!this.authentication || connection.isCancellationRequested) {
+	async selectLegacy(): Promise<void> {
+		if (!this.authentication) {
 			throw new CancellationError();
 		}
 		if (this.state.get().kind === 'legacy') {
 			return;
 		}
-		const revoked = this.authentication.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, connection);
+		const revoked = this.authentication.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
 		const released = this.reset();
 		const context = this.state.get();
 		await revoked;
 		await released;
-		if (connection.isCancellationRequested || this.state.get() !== context) {
+		if (this.state.get() !== context) {
 			throw new CancellationError();
 		}
 		this._state.set({ kind: 'legacy' }, undefined);
@@ -185,16 +182,13 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		});
 	}
 
-	acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean {
+	acceptCredential(params: AuthenticateParams): boolean {
 		const state = this.state.get();
 		const choices = state.kind === 'choiceRequired' ? state.choices : state.kind === 'ready' || state.kind === 'activating' ? [state.choice] : [];
 		const resources = state.kind === 'incomplete' ? (['github', 'm365'] as const).map(resourceForService) : choices.map(resourceForChoice);
 		const resource = resources.find(resource => resource.resource === params.resource);
 		if (!resource || params.target || !params.token || !this.authentication) {
 			return false;
-		}
-		if (connection.isCancellationRequested) {
-			throw new CancellationError();
 		}
 		this.authentication.validateSelection(params, resource);
 		return true;

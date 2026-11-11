@@ -8,7 +8,6 @@ import { once } from 'events';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CopilotClient, CopilotRequestHandler, RuntimeConnection } from '@github/copilot-sdk';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { join } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,7 +23,6 @@ import { authenticationAccountMeta } from '../../../common/meta/agentAuthenticat
 import { copilotAccountOperationMeta, readCopilotAccountOperation } from '../../../common/meta/copilotAccountOperation.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
-import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
 import { CopilotAccountService } from '../../../node/copilot/copilotAccountService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { toCopilotAccountModelCatalog } from '../../../node/copilot/copilotAccountModelCatalog.js';
@@ -87,19 +85,10 @@ suite('Copilot account context native SDK', () => {
 				COPILOT_LOKI_BASE_URL: origin, COPILOT_DEBUG_GITHUB_API_URL: origin, COPILOT_API_URL: origin,
 				HTTP_PROXY: origin, HTTPS_PROXY: origin, ALL_PROXY: origin, NO_PROXY: '127.0.0.1,localhost',
 			});
-			const connection = store.add(new CancellationTokenSource());
-			const connections = store.add(new AgentHostClientConnectionService());
 			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
-			store.add(connections.registerSource({
-				hasSeenClient: () => true, isClientConnected: () => true,
-				isLocalClient: () => true, usesLegacyChatUris: () => false,
-				getConnectedClientTransportCounts: () => new Map([['fixture', 1]]),
-				requestWorkspaceTrust: async () => false, requestMcpAuthentication: async () => false,
-			}));
 			const instantiation = store.add(new InstantiationService(new ServiceCollection(
 				[ILogService, new NullLogService()],
 				[IAgentHostAuthenticationService, authentication],
-				[IAgentHostClientConnectionService, connections],
 				[ICopilotHomeService, upcastPartial<ICopilotHomeService>({ home: URI.file(home) })],
 				[IAgentConfigurationService, upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true })],
 			), true));
@@ -115,25 +104,29 @@ suite('Copilot account context native SDK', () => {
 				override readonly id = 'copilotcli';
 				override getProtectedResources() { return accountService.getProtectedResources(); }
 				override async authenticate() { return false; }
+				override validateAuthentication(params: AuthenticateParams) {
+					accountService.authentication!.validateAuthentication(params, accountService.getProtectedResources().find(resource => resource.resource === params.resource));
+				}
 				override async handleAuthenticationToken(params: AuthenticateParams) {
 					if (readCopilotAccountOperation(params)) {
-						await accountService.authenticate(Promise.resolve(runtime), params, connection.token);
+						await accountService.authenticate(Promise.resolve(runtime), params);
 						return true;
 					}
-					return accountService.acceptCredential(params, connection.token) || await accountService.authentication!.authenticate(params, connection.token);
+					return accountService.acceptCredential(params) || await accountService.authentication!.authenticate(params, accountService.getProtectedResources().find(resource => resource.resource === params.resource));
 				}
 			}();
 			const discovery: AuthenticateParams = {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
 				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
 			};
-			await authentication.authenticate(discovery, [provider], undefined, connection.token);
+			await authentication.authenticate({ ...discovery, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }) }, [provider]);
+			await authentication.authenticate(discovery, [provider]);
 			assert.deepStrictEqual({ kind: accounts.state.get().kind, requests }, { kind: 'incomplete', requests: [] });
 			assert.deepStrictEqual(await authentication.authenticate({
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
-			}, [provider], undefined, connection.token), { authenticated: true });
-			assert.deepStrictEqual(await authentication.authenticate(discovery, [provider], undefined, connection.token), { authenticated: true });
+			}, [provider]), { authenticated: true });
+			assert.deepStrictEqual(await authentication.authenticate(discovery, [provider]), { authenticated: true });
 			const context = accounts.requireReady();
 			const setup = await accounts.getSession(context);
 			const catalog = toCopilotAccountModelCatalog(await setup.rpc.model.list());

@@ -147,7 +147,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		}
 		this.clearAuthority();
 		// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it.
-		this.requireCredential(discoveryResource, AuthRequiredReason.Expired);
+		this.requireCredential(copilotEntraDiscoveryMetadata, AuthRequiredReason.Expired);
 		this._onDidRevoke.fire();
 	}
 
