@@ -41,7 +41,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, CLEAR_INBOX_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../common/sessionConfig.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -65,7 +65,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
@@ -133,10 +133,9 @@ import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomizati
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
+import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
-import { ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
-import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensionSuggestions.js';
+import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
@@ -2068,15 +2067,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.isQuickChatContext.set(isQuickChat);
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
-			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
-			let completedStateIcon = element.completedStateIcon
-				? element.completedStateIcon.read(reader)
-				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
-				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
-				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
-			}
+			const completedStateIcon = getSessionCompletedStateIcon(element, reader, () => agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService));
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -2771,7 +2762,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	});
 	private readonly customizationsIcon = derived(this, reader => this.customizationMigrationsAvailable.read(reader)
 		? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
-		: this.customizationExtensionSuggestionsAvailable.read(reader)
+		: this.customizationsBadge.read(reader) !== undefined
 			? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
 			: undefined);
 
@@ -2800,8 +2791,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		} = { onDidActivateNewSession: Event.None },
 		/** The New Session dropdown's entries for starting a session in each environment a section spans. */
 		private readonly getNewSessionEnvironmentActions?: (section: ISessionSection) => readonly IAction[],
-		/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations entry. */
-		private readonly customizationExtensionSuggestionsAvailable: IObservable<boolean> = constObservable(false),
+		/** Describes why the Customizations entry shows a badge, if it does. */
+		private readonly customizationsBadge: IObservable<string | undefined> = constObservable(undefined),
 		private readonly getGroupDepth: (section: ISessionSection) => number = () => 0,
 		private readonly getAppearance: (sectionId: string) => ISessionGroupAppearance | undefined = () => undefined,
 		/** Whether the Sessions list shows the session; the Automations entry ignores such runs. */
@@ -2978,9 +2969,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				template.container,
 				() => hover.getManagedContent(this.customizationMigrationsAvailable.get()
 					? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
-					: this.customizationExtensionSuggestionsAvailable.get()
-						? getExtensionSuggestionsBadgeDescription()
-						: undefined),
+					: this.customizationsBadge.get()),
 				hover.getHoverOptions('sessionsHeader'),
 			));
 			template.elementDisposables.add(autorun(reader => {
@@ -3508,7 +3497,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
-	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
+	/** Describes why the Customizations entry shows a badge, if it does. */
+	readonly customizationsBadge?: IObservable<string | undefined>;
 	readonly newSessionKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
@@ -3622,11 +3612,13 @@ class SessionsAccessibilityProvider {
 					const countLabel = count === 1
 						? localize('customizationCountAria', "1 customization")
 						: localize('customizationsCountAria', "{0} customizations", count);
-					return this.options?.customizationMigrationsAvailable?.read(reader)
-						? localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel)
-						: this.options?.customizationExtensionSuggestionsAvailable?.read(reader)
-							? localize('customizationsExtensionSuggestionsAria', "{0}, {1}, {2}", element.label, countLabel, getExtensionSuggestionsBadgeDescription())
-							: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
+					if (this.options?.customizationMigrationsAvailable?.read(reader)) {
+						return localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel);
+					}
+					const badge = this.options?.customizationsBadge?.read(reader);
+					return badge !== undefined
+						? localize('customizationsBadgeAria', "{0}, {1}, {2}", element.label, countLabel, badge)
+						: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
 				});
 			}
 			const pinnedCanvas = element.pinnedCanvas;
@@ -3857,7 +3849,7 @@ interface ISessionDropDestination {
 }
 
 /** What a valid session drop changes: the placement of at least one session, or only the manual order. */
-type SessionDropEffect = 'move' | 'reorder';
+type SessionDropEffect = 'move' | 'reorder' | 'triage';
 
 /**
  * Callbacks the sessions list provides to its drag-and-drop controller. The
@@ -4218,8 +4210,8 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		// A reorder shown as an insertion line needs no header; anything else marks where the sessions land.
 		const showsInsertionLine = destination.feedback !== undefined && destination.feedback.position !== ListDragOverEffectPosition.Over;
 		return {
-			reaction: toDropReaction(destination.feedback),
-			header: effect === 'move' || !showsInsertionLine ? getPlacementHeader(destination.placement) : undefined,
+			reaction: toDropReaction(effect === 'triage' ? { position: ListDragOverEffectPosition.Over } : destination.feedback),
+			header: effect !== 'reorder' || !showsInsertionLine ? getPlacementHeader(destination.placement) : undefined,
 			run: () => this.delegate.moveSessions(sessions, destination),
 		};
 	}
@@ -4416,8 +4408,8 @@ interface ISessionsListControlBaseOptions {
 	readonly showCustomizations?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
-	/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations navigation entry. */
-	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
+	/** Describes why the Customizations navigation entry shows a badge, if it does. */
+	readonly customizationsBadge?: IObservable<string | undefined>;
 	readonly navigationContainer?: HTMLElement;
 	readonly onDidChangeNavigationHeight?: () => void;
 	/** Canvases pinned to the sidebar, listed as navigation rows below the navigation shortcuts. */
@@ -5031,7 +5023,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
-		const customizationExtensionSuggestionsAvailable = this.options.customizationExtensionSuggestionsAvailable ?? constObservable(false);
+		const customizationsBadge = this.options.customizationsBadge ?? constObservable(undefined);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -5059,10 +5051,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} : undefined,
 			},
 			section => this.getNewSessionEnvironmentActions(section),
-			customizationExtensionSuggestionsAvailable,
+			customizationsBadge,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
-			(session, reader) => this._sessionsListModelService.isSessionListed(session, reader),
+			(session, reader) => this.isSessionListed(session, reader),
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
 		);
@@ -5113,7 +5105,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						widgetAriaLabel: localize('sessionsNavigation', "Sessions Navigation"),
 						customizationsCount,
 						customizationMigrationsAvailable,
-						customizationExtensionSuggestionsAvailable,
+						customizationsBadge,
 						newSessionKeybindingAriaLabel,
 					}),
 					keyboardNavigationLabelProvider: {
@@ -5682,6 +5674,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
 				session.application.read(reader);
+				session.workspace.read(reader);
+				session.isQuickChat?.read(reader);
 			}
 			if (initialized && this.visible) {
 				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
@@ -5706,6 +5700,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
+		const grouping = this.options.grouping();
+		const inbox = grouping === SessionsGrouping.Inbox;
 		const nextNestedSessionResources = new Set(
 			this.sessions
 				.filter(session => getSessionListChats(session).length > 0)
@@ -5714,13 +5710,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
-		let filtered = this.sessions.filter(session => this._sessionsListModelService.isSessionListed(session));
+		let filtered = this.sessions.filter(session => this.isSessionListed(session));
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session));
+		filtered = filtered.filter(session => this.filters.matches(session, inbox));
 		// The default only changes what the list shows for archived content that the other filters keep.
 		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
@@ -5732,20 +5728,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && this._sessionsListModelService.isSessionListed(s));
+				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && this.isSessionListed(s));
 				if (match) {
 					filtered = [...filtered, match];
 				}
 			}
+		}
+		if (inbox) {
+			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 			return !comparison || !isComparisonLaunchPending(comparison);
 		});
 
-		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
-		const inbox = grouping === SessionsGrouping.Inbox;
 		this.updateInboxDemand();
 		this.inboxObserver.clear();
 		if (inbox && this.visible) {
@@ -5854,7 +5851,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!comparison) {
 					continue;
 				}
-				const comparisonSessions = getComparisonSessions(comparison, this._sessionsManagementService);
+				const comparisonSessions = inbox && this.filters.hasInboxScope
+					? sortedMembersByGroupId.get(group.id)!
+					: getComparisonSessions(comparison, this._sessionsManagementService);
+				if (inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) {
+					continue;
+				}
 				const environmentId = grouping === SessionsGrouping.Environment
 					? comparisonSessions[0]?.environment
 					?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
@@ -6289,34 +6291,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 								...rendered, children: [{
 									element: {
 										placeholder: true as const, sectionId: id,
-										label: hasCleared ? localize('inboxEmptyHistory', "No new activity. See Cleared below.") : localize('inboxEmpty', "Your inbox is clear"),
+										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : hasCleared ? localize('inboxEmptyHistory', "No new activity. See Cleared below.") : localize('inboxEmpty', "Your inbox is clear"),
 										hover: hasCleared ? localize('inboxHistoryHelp', "Cleared includes completed turns from before Inbox mode was enabled. These sessions are not archived or necessarily finished. Choose Return to Inbox on a session to bring it back.") : undefined,
 									},
 								}]
 							};
 						}
-					} else if (id === SessionInboxSection.OnHold) {
-						const workspaces = new Map<string, { sessions: ISession[]; children: IObjectTreeElement<SessionListItem>[] }>();
-						for (const child of rendered.children ?? []) {
-							const sessions = isSessionItem(child.element) ? [child.element] : isSessionGroupItem(child.element) ? child.element.sessions : [];
-							if (sessions.length === 0) {
-								continue;
-							}
-							const label = sessionWorkspaceLabel(sessions[0]);
-							let workspace = workspaces.get(label);
-							if (!workspace) {
-								workspace = { sessions: [], children: [] };
-								workspaces.set(label, workspace);
-							}
-							workspace.sessions.push(...sessions);
-							workspace.children.push(child);
-						}
-						rendered = {
-							...rendered, children: [...workspaces].sort(([a], [b]) => a.localeCompare(b)).map(([label, workspace]) => {
-								const section: ISessionSection = { id: `${SessionInboxSection.OnHold}:workspace:${label}`, label, sessions: workspace.sessions };
-								return { ...renderSection(section), children: workspace.children };
-							})
-						};
 					}
 					children.push(rendered);
 				}
@@ -6803,6 +6783,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
+		if (this.isInboxLayout() && !this.filters.matchesInboxScope(session)) {
+			throw new Error(localize('sessionsList.outsideInboxScope', "This session is outside the current Inbox scope. Reset the scope to reveal it."));
+		}
 		this.customViewService.hideCustomView();
 		this.closeFind();
 		const target = { session, archiveAction };
@@ -7066,7 +7049,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * section keeps a fixed order (archived sessions and comparison groups).
 	 */
 	private getReorderScope(session: ISession): string | undefined {
-		if (session.isArchived.get() || !this._sessionsListModelService.isSessionListed(session)) {
+		if (session.isArchived.get() || !this.isSessionListed(session)) {
 			return undefined;
 		}
 		if (this.isSessionPinned(session)) {
@@ -7080,9 +7063,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/** Whether the session may move into the destination, regardless of its position. */
-	private canMoveSession(session: ISession, destination: ISessionDropDestination): boolean {
+	private canMoveSession(session: ISession, destination: ISessionDropDestination, attention?: IInboxSessionAttention): boolean {
 		if (this.options.grouping() === SessionsGrouping.Inbox) {
-			return false;
+			const { placement } = destination;
+			if (this.isActiveComparisonSession(session) || placement.kind === 'group') {
+				return false;
+			}
+			return placement.kind === 'archived' || placement.kind === 'pinned'
+				|| placement.sectionId === SessionInboxSection.OnHold || placement.sectionId === SessionInboxSection.Done
+				|| placement.sectionId === getSessionInboxSection(session, undefined, undefined, attention);
 		}
 		const { placement } = destination;
 		const state = getPlacementState(placement);
@@ -7104,6 +7093,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether moving the session into the placement changes any of its list state. */
 	private changesPlacement(session: ISession, placement: SessionListPlacement): boolean {
+		if (this.options.grouping() === SessionsGrouping.Inbox) {
+			return !isSamePlacement(this.getSessionPlacement(session), placement);
+		}
 		const state = getPlacementState(placement);
 		return session.isArchived.get() !== state.archived
 			|| (state.pinned !== undefined && this.isSessionPinned(session) !== state.pinned)
@@ -7256,10 +7248,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getSessionDropEffect(sessions: readonly ISession[], destination: ISessionDropDestination): SessionDropEffect | undefined {
-		if (!sessions.every(session => this.canMoveSession(session, destination))) {
+		const attention = this.isInboxLayout()
+			? sessions.some(session => session.isArchived.get()) && destination.placement.kind === 'section'
+				? this.sessionAttentionService.getSessionAttentionAfterUnarchive(sessions)
+				: this.sessionAttentionService.sessionAttention.get()
+			: undefined;
+		if (!sessions.every(session => this.canMoveSession(session, destination, attention?.get(session.sessionId)))) {
 			return undefined;
 		}
 		const moves = sessions.some(session => this.changesPlacement(session, destination.placement));
+		if (this.options.grouping() === SessionsGrouping.Inbox) {
+			return moves ? 'triage' : undefined;
+		}
 		if (!moves && (!destination.anchor || this.getReorderScope(destination.anchor.session) === undefined)) {
 			return undefined;
 		}
@@ -7320,6 +7320,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * group changes its placement needs, then position them next to the anchor.
 	 */
 	private async moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): Promise<void> {
+		const inbox = this.isInboxLayout();
 		// Capture the display order before state changes move the rows.
 		const ordered = this.sortInDisplayOrder(sessions);
 		const state = getPlacementState(destination.placement);
@@ -7343,6 +7344,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		} else if (state.pinned === false) {
 			this._sessionsListModelService.unpinSessions(ordered.filter(session => this.isSessionPinned(session)));
+		}
+		if (inbox) {
+			if (destination.placement.kind === 'section') {
+				const command = destination.placement.sectionId === SessionInboxSection.OnHold ? HOLD_INBOX_SESSION_COMMAND_ID
+					: destination.placement.sectionId === SessionInboxSection.Done ? CLEAR_INBOX_SESSION_COMMAND_ID
+						: RESUME_INBOX_SESSION_COMMAND_ID;
+				await this.commandService.executeCommand(command, ordered);
+			}
+			return;
 		}
 		if (state.groupId === null) {
 			for (const session of ordered) {
@@ -8394,7 +8404,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
 			[SessionItemIsAutomationContext.key, isAutomationSession(element)],
-			[SessionItemIsInSessionsListContext.key, this._sessionsListModelService.isSessionListed(element)],
+			[SessionItemIsInSessionsListContext.key, this.isSessionListed(element)],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],
@@ -8585,7 +8595,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				const sessions = getSessions().filter(session => this._sessionsListModelService.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
+				const sessions = getSessions().filter(session => this.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});
@@ -8826,9 +8836,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this._sessionsListModelService.isSessionPinned(session);
 	}
 
-	/** Whether the list includes the session before filters apply. Automation sessions are only included once shown here. */
+	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader);
+		return this._sessionsListModelService.isSessionListed(session, reader, this.filters.isShowAutomationRuns(reader));
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {

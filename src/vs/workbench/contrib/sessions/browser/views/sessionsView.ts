@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -66,6 +66,7 @@ import { CustomizationsNavigationState } from '../customizationsNavigationState.
 import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { SessionsInboxScope } from './sessionsInboxScope.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -320,6 +321,7 @@ export class SessionsView extends ViewPane {
 		const filterChipsContainer = isPhoneLayout(this.layoutService)
 			? DOM.append(sessionsContent, $('.mobile-session-filter-chips-slot'))
 			: undefined;
+		const inboxScopeContainer = DOM.append(sessionsContent, $('.agent-sessions-inbox-scope-container'));
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -338,7 +340,7 @@ export class SessionsView extends ViewPane {
 			showCustomizations: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
-			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
+			customizationsBadge: this.customizationsNavigationState.badge,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			pinnedCanvases: this.pinnedCanvasService,
@@ -370,6 +372,35 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
+		const scopeChanged = observableSignalFromEvent(this, Event.any(
+			this.sessionsManagementService.onDidChangeSessions,
+			this.sessionsProvidersService.onDidChangeProviders,
+			sessionsControl.onDidUpdate,
+			this.scopedContextKeyService.onDidChangeContext,
+		));
+		const scopeSessions = derived(this, reader => {
+			scopeChanged.read(reader);
+			return this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session, reader));
+		});
+		const scopeEnvironments = derived(this, reader => {
+			scopeChanged.read(reader);
+			return this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+		});
+		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions, scopeEnvironments));
+		this._register(autorun(reader => {
+			scopeChanged.read(reader);
+			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
+			inboxScope.setVisible(this.grouping === SessionsGrouping.Inbox && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled));
+		}));
+		let scopeHeight = -1;
+		const scopeResizeObserver = this._register(new DOM.DisposableResizeObserver('SessionsView.inboxScope', entries => {
+			const height = entries[0]?.contentRect.height ?? 0;
+			if (height !== scopeHeight) {
+				scopeHeight = height;
+				this.layoutSidebarSplitView();
+			}
+		}, DOM.getWindow(inboxScope.element)));
+		this._register(scopeResizeObserver.observe(inboxScope.element));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
 		const createNoticeHost = (container: HTMLElement): ISessionsListNoticeHost => ({
@@ -420,6 +451,7 @@ export class SessionsView extends ViewPane {
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 
 		this.registerSessionFilters(sessionsControl);
+		this.registerAutomationFilter(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
 
@@ -677,12 +709,38 @@ export class SessionsView extends ViewPane {
 
 	private readonly archivedFilterRegistration = this._register(new DisposableStore());
 
+	private registerAutomationFilter(sessionsControl: SessionsList): void {
+		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showAutomationRuns', sessionsControl.filters.isShowAutomationRuns());
+		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isShowAutomationRuns() });
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterAutomationRuns',
+					title: localize('showAutomationRuns', "Show Automation Runs"),
+					toggled: ContextKeyExpr.equals(contextKey.key, true),
+					menu: [{
+						id: Menus.SessionsViewFilter,
+						group: '3_visibility',
+						order: 0.5,
+					}],
+				});
+			}
+			override run() {
+				const show = !sessionsControl.filters.isShowAutomationRuns();
+				sessionsControl.filters.setShowAutomationRuns(show);
+				contextKeyInstance.set(show);
+			}
+		}));
+	}
+
 	private registerSessionFilters(sessionsControl: SessionsList): void {
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
 			this.sessionsManagementService.onDidChangeSessionTypes,
 			this.sessionsProvidersService.onDidChangeProviders,
 			sessionsControl.filters.onDidChange,
+			sessionsControl.onDidUpdate,
 		));
 		const menuState = derivedOpts<{
 			readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[];
@@ -704,9 +762,12 @@ export class SessionsView extends ViewPane {
 					environmentLabels.set(environment.id, environment.label);
 				}
 			}
-			const includedEnvironments = [...environmentLabels].filter(([id]) => !sessionsControl.filters.isExcluded({ kind: 'environment', id }));
+			const isEnvironmentIncluded = (id: string) => this.grouping === SessionsGrouping.Inbox
+				? !sessionsControl.filters.inboxScope.environment || sessionsControl.filters.inboxScope.environment.id === id
+				: !sessionsControl.filters.isExcluded({ kind: 'environment', id });
+			const includedEnvironments = [...environmentLabels].filter(([id]) => isEnvironmentIncluded(id));
 			const scopedOptions = options
-				.filter(option => option.filter.kind !== 'application' || !sessionsControl.filters.isExcluded({ kind: 'environment', id: option.filter.environment }))
+				.filter(option => option.filter.kind !== 'application' || isEnvironmentIncluded(option.filter.environment))
 				.map(option => ({ ...option, checked: !sessionsControl.filters.isExcluded(option.filter) }));
 			return {
 				options: scopedOptions,
@@ -720,6 +781,7 @@ export class SessionsView extends ViewPane {
 			reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 				submenu: Menus.SessionsViewEnvironment,
 				title: localize('environment', "Environment"),
+				when: SessionsViewGroupingContext.notEqualsTo(SessionsGrouping.Inbox),
 				group: '2_filters',
 				order: 0,
 			}));

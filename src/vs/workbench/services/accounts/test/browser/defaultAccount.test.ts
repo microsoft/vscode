@@ -1652,12 +1652,14 @@ suite('DefaultAccountProvider', () => {
 			const provider = await createProvider(requestService, {}, {}, undefined, { getSessions: async () => [selected] }, configuration);
 			outcomes.push({
 				settings: provider.resolveGitHubUrl('settings/copilot'),
+				tokenStamp: provider.copilotTokenInfo?.st,
 				requests: requestService.requests.map(request => ({ url: request.url?.split('?')[0], token: request.headers?.Authorization })),
 			});
 		}
 
 		assert.deepStrictEqual(outcomes, cases.map(({ base, api }) => ({
 			settings: `${base}settings/copilot`,
+			tokenStamp: 'proxima',
 			requests: paths.map(path => ({ url: `${api}${path}`, token: 'Bearer b-token' })),
 		})));
 	});
@@ -1979,7 +1981,7 @@ suite('DefaultAccountProvider', () => {
 	async function enterpriseResponse(request: IRequestOptions): Promise<IRequestContext> {
 		switch (request.callSite) {
 			case 'defaultAccount.entitlements': return jsonResponse({ chat_enabled: true });
-			case 'defaultAccount.tokenEntitlements': return jsonResponse({ token: 'mcp=1;sn=test:signature' });
+			case 'defaultAccount.tokenEntitlements': return jsonResponse({ token: 'mcp=1;sn=test;st=proxima:signature' });
 			case 'defaultAccount.managedSettings': return jsonResponse({ model: new URL(request.url!).hostname });
 			case 'defaultAccount.mcpRegistryProvider': return jsonResponse({ mcp_registries: [{ url: 'https://registry.example.test', registry_access: 'registry_only' }] });
 			default: throw new Error(`Unexpected request: ${request.callSite}`);

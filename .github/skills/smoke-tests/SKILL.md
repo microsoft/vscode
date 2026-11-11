@@ -132,7 +132,7 @@ gh run download <run-id>
 The artifact name depends on which pipeline produced it:
 
 - **Product build** (`product-build-<os>.yml`): `logs-<os>-<arch>-<attempt>` — no suite segment, e.g. `logs-macos-arm64-1`.
-- **Suite-split CI build** (`product-build-<os>-ci.yml`): `logs-<os>-<arch>-<suite>-<attempt>` — the `<suite>` segment is `lower(VSCODE_TEST_SUITE)` (e.g. `electron`), so e.g. `logs-macos-arm64-electron-1` (same shape as GitHub).
+- **Suite-split CI build** (`product-build-<os>-ci.yml`): `logs-<os>-<arch>-<suite>-<attempt>` — the `<suite>` segment is `lower(VSCODE_TEST_SUITE)` (e.g. `electron`), so e.g. `logs-macos-arm64-electron-1` (same shape as GitHub). Only published when the job fails (or, on Windows, is cancelled).
 
 `<os>` is `linux` / `macos` / `windows`, `<arch>` is `x64` / `arm64`, and `<attempt>` is `$(System.JobAttempt)`. Download with the Azure CLI:
 

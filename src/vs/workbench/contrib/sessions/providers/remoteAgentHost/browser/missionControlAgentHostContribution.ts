@@ -68,6 +68,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}));
 		this._register(autorun(reader => {
 			this._inventory.hosts.read(reader);
+			this._inventory.discoveredOnlineHostIds.read(reader);
 			this._inventory.ownEnvironmentId.read(reader);
 			this._reconcile();
 			this._requestAutoConnections();
@@ -118,9 +119,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			return;
 		}
 		const ownEnvironmentId = this._inventory.ownEnvironmentId.get();
+		const discoveredOnlineHostIds = this._inventory.discoveredOnlineHostIds.get();
 		for (const host of this._inventory.hosts.get()) {
 			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
-			if (host.id === ownEnvironmentId || host.status !== 'online' || !provider
+			if (host.id === ownEnvironmentId || host.status !== 'online' || !discoveredOnlineHostIds.has(host.id) || !provider
 				|| !this.isWebPlatform && !this._storageService.getBoolean(this._previouslyConnectedKey(host.id, account), StorageScope.PROFILE, false)
 				|| this._storageService.getBoolean(this._autoConnectSuppressionKey(host.id, account), StorageScope.PROFILE, false)
 				|| !RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {

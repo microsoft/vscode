@@ -25,7 +25,7 @@ import { dirname, isEqualOrParent } from '../../../../../base/common/resources.j
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import type { AgentExtensionMode, IAgentExtensionInfo, IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
+import { isAgentExtensionEnabledAndSettled, type AgentExtensionMode, type IAgentExtensionInfo, type IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -996,7 +996,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			}
 		}
 		for (const extension of inventory?.extensions ?? []) {
-			if (extension.status !== 'running') {
+			if (!isAgentExtensionEnabledAndSettled(extension.status)) {
 				continue;
 			}
 			const key = this.getCanvasCacheKey(context, extension.id, extension.source);

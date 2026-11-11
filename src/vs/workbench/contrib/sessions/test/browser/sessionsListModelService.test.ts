@@ -496,8 +496,32 @@ suite('SessionsListModelService', () => {
 			hidden: { listed: ['regular'], stored: undefined },
 			events: [
 				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
-				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{
+					changes: [
+						{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing },
+						{ sessionId: 'other-automation', kind: SessionListModelChangeKind.AutomationListing },
+					]
+				},
 			],
+		});
+	});
+
+	test('fires a listing change when hiding an automation run shown only by the list filter', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const before = service.isSessionListed(automation, undefined, true);
+
+		service.hideAutomationSessions([automation]);
+
+		assert.deepStrictEqual({
+			before,
+			after: service.isSessionListed(automation, undefined, true),
+			events,
+		}, {
+			before: true,
+			after: false,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
 		});
 	});
 
@@ -604,6 +628,61 @@ suite('SessionsListModelService', () => {
 			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
 			afterExplicitShow: { listed: true, stored: undefined },
 			afterDeletion: undefined,
+		});
+	});
+
+	test('show automation runs overrides listing policies without changing explicit choices', () => {
+		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
+		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });
+		const policy = createSession('policy', SessionStatus.Completed, { isAutomation: true });
+		const replied = createSession('replied', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		sessions = [hidden, shown, policy, replied, regular];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setMode = (mode: AutomationSessionsListMode) => {
+			configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+				affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+				change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		const listed = (showAutomationRuns: boolean) => sessions
+			.filter(session => service.isSessionListed(session, undefined, showAutomationRuns))
+			.map(session => session.sessionId);
+		service.hideAutomationSessions([hidden]);
+		service.showAutomationSessions([shown]);
+		service.showRepliedAutomationSession(replied);
+
+		setMode(AutomationSessionsListMode.Never);
+		const never = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.AfterReply);
+		const afterReply = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.Always);
+		const always = { off: listed(false), on: listed(true) };
+		const stored = {
+			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
+		};
+
+		assert.deepStrictEqual({ never, afterReply, always, stored }, {
+			never: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			afterReply: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			always: {
+				off: ['shown', 'policy', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			stored: {
+				shown: JSON.stringify(['shown', 'replied']),
+				hidden: JSON.stringify(['hidden']),
+			},
 		});
 	});
 

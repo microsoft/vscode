@@ -131,7 +131,8 @@
 	margin-bottom: 0;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header,
+.sessions-chat:not(.phone-layout *) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;
 	margin: var(--vscode-spacing-size120) 0 0;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
@@ -149,17 +150,20 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options,
+.sessions-chat:not(.phone-layout *) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
 	max-width: calc(100% - 2 * (var(--vscode-spacing-size100) + var(--vscode-strokeThickness)));
 	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
 }
 
-.monaco-workbench.agent-sessions-workbench .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+.monaco-workbench.agent-sessions-workbench .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options,
+.monaco-workbench .sessions-chat .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: color-mix(in srgb, var(--vscode-agentsChatInput-background) 75%, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
-.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options,
+.monaco-workbench:is(.hc-black, .hc-light) .sessions-chat .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: var(--vscode-agentsChatInput-background);
 }
 
@@ -443,7 +447,8 @@
 	display: none;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container {
 	overflow: hidden;
 }
 
@@ -510,15 +515,20 @@
 
 /* Expanded picker controls never shrink or ellipsize. */
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item:not(.compact-picker),
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item:not(.compact-picker),
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker),
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .action-label {
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker),
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .action-label,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .action-label {
 	flex-shrink: 0;
 	min-width: 30px;
 	overflow: visible;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator,
-.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator {
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator,
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator,
+.sessions-chat:not(.phone-layout *) .experimental-new-session-composer .new-chat-repo-config-container .monaco-action-bar .action-item.repository-config-separator {
 	min-width: 0;
 }
 
@@ -530,7 +540,9 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .sessions-chat-dropdown-label,
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .chat-session-option-label {
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .sessions-chat-dropdown-label,
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .chat-session-option-label,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .chat-session-option-label {
 	flex-shrink: 0;
 	overflow: visible;
 	text-overflow: clip;
@@ -547,7 +559,9 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item,
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot {
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item,
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot {
 	box-sizing: border-box;
 	width: var(--chat-input-control-height);
 	height: var(--chat-input-control-height);
@@ -556,7 +570,9 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item .action-label,
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label {
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item .action-label,
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label {
 	box-sizing: border-box;
 	width: var(--chat-input-control-height);
 	height: var(--chat-input-control-height);
@@ -565,13 +581,15 @@
 	padding: 0;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label > .codicon {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label > .codicon,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label > .codicon {
 	width: var(--vscode-codiconFontSize-compact);
 	height: var(--vscode-codiconFontSize-compact);
 	line-height: var(--vscode-codiconFontSize-compact);
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-checkbox-chip .monaco-checkbox {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-checkbox-chip .monaco-checkbox,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-checkbox-chip .monaco-checkbox {
 	width: 12px;
 	height: 12px;
 	margin-right: 0;
@@ -617,7 +635,9 @@
 /* Over a chat background, use the same opaque secondary-control surface as the
  * in-session toolbar rather than relying on the transparent session view. */
 .monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator),
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator),
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label {
 	background-color: var(--vscode-chat-list-background, var(--session-view-background));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
@@ -625,7 +645,8 @@
 	color: var(--vscode-button-secondaryForeground);
 }
 
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar {
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	background-color: var(--vscode-chat-list-background, var(--session-view-background));
@@ -635,7 +656,8 @@
 	color: var(--vscode-button-secondaryForeground);
 }
 
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .action-label:not(.separator) {
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .action-label:not(.separator),
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .action-label:not(.separator) {
 	background-color: transparent;
 	background-image: none;
 	border: none;
@@ -646,25 +668,33 @@
 }
 
 .monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover .monaco-action-bar,
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover .monaco-action-bar,
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 .monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover,
 .monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label:not(.disabled):hover,
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label[aria-expanded='true'] {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label:not(.disabled):hover,
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label[aria-expanded='true'],
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot:not(.new-chat-session-options *) .action-label[aria-expanded='true'] {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 .monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger:hover,
-.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger:hover,
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'],
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .sessions-chat .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 /* Outranks the shared action-bar hover in workbench style.css, which would
  * otherwise swap the opaque surface for a translucent one. The tint goes on the
  * background-image layer so it composites over that surface. */
-.monaco-workbench.agent-sessions-workbench .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover {
+.monaco-workbench.agent-sessions-workbench .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover,
+.monaco-workbench .sessions-chat .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
 }
@@ -682,12 +712,14 @@
 }
 
 /* Icon status actions use the compact control box; text actions remain intrinsic. */
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
 	width: 22px;
 	min-width: 22px;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
 	box-sizing: border-box;
 	display: flex;
 	align-items: center;
@@ -698,7 +730,8 @@
 	padding: 0;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon,
+.sessions-chat:not(.phone-layout *) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
