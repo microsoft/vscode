@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -111,6 +112,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		contextKeyService = new MockContextKeyService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ start: () => { }, switchToSession: async () => { } }));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ setChatViewHostDelegate: () => { delegates++; return toDisposable(() => delegates--); } }));
 		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
 			getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [],

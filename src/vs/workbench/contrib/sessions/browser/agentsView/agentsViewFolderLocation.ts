@@ -5,10 +5,12 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, isAbsolutePath, joinPath } from '../../../../../base/common/resources.js';
+import { isAbsolute } from '../../../../../base/common/path.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../base/common/resources.js';
 import Severity from '../../../../../base/common/severity.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -20,20 +22,22 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { readFolderGitRepository } from './workspaceFolderRepositories.js';
 
 /** The id of the provider of the alternate locations that the Agents view knows: the linked checkouts of a folder. */
 export const AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID = 'agentsView.linkedCheckouts';
 
 /**
- * The alternate locations of a local folder that is a git repository: its linked worktrees. A location is one when its
- * `.git` file names the folder's repository (`gitdir: <folder>/.git/worktrees/<name>`).
+ * The alternate locations of a local folder that is a git repository: its linked checkouts (worktrees). A folder is one
+ * only with both links of git's own bookkeeping: its `.git` file names `<primary>/.git/worktrees/<name>`, and that entry's
+ * `gitdir` file names the folder's `.git` back. Its locations inherit the primary's trust, so a folder that only points
+ * into the primary's worktrees is not one. A folder or link that is not there resolves to nothing; failing to read one
+ * throws.
  */
 export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocationProvider {
 
@@ -44,27 +48,17 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 		@ILabelService private readonly _labelService: ILabelService,
 	) { }
 
-	async provideLocations(primary: URI, _token: CancellationToken): Promise<IFolderLocation[]> {
+	async provideLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
 		if (primary.scheme !== Schemas.file) {
 			return [];
 		}
-		let entries: readonly URI[];
-		try {
-			const worktrees = await this._fileService.resolve(joinPath(primary, '.git', 'worktrees'));
-			entries = worktrees.children?.filter(child => child.isDirectory).map(child => child.resource) ?? [];
-		} catch {
-			return [];
-		}
+		const entries = await this._readOrUndefined(() => this._fileService.resolve(joinPath(primary, '.git', 'worktrees')));
 		const locations: IFolderLocation[] = [];
-		for (const entry of entries) {
-			try {
-				// `gitdir` names the worktree's `.git` file
-				const gitFile = (await this._fileService.readFile(joinPath(entry, 'gitdir'))).value.toString().trim();
-				if (gitFile && isAbsolutePath(URI.file(gitFile))) {
-					locations.push(this._toLocation(dirname(URI.file(gitFile))));
-				}
-			} catch {
-				// A worktree whose metadata cannot be read is not offered
+		for (const entry of entries?.children ?? []) {
+			const gitFile = entry.isDirectory ? await this._readLink(joinPath(entry.resource, 'gitdir'), entry.resource) : undefined;
+			const location = gitFile && basename(gitFile) === '.git' ? await this.resolveLocation(primary, dirname(gitFile), token) : undefined;
+			if (location) {
+				locations.push(location);
 			}
 		}
 		return locations;
@@ -74,20 +68,52 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 		if (primary.scheme !== Schemas.file || location.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqual(primary, location)) {
 			return undefined;
 		}
-		let repository: URI | undefined;
-		try {
-			repository = await readFolderGitRepository(this._fileService, location);
-		} catch {
+		const worktreesDir = joinPath(await this._real(primary), '.git', 'worktrees');
+		const locationGitFile = joinPath(await this._real(location), '.git');
+
+		// The folder's `.git` file names an entry of the primary's worktrees
+		const entry = await this._readLink(locationGitFile, dirname(locationGitFile), /^gitdir:\s*(?<path>.+?)\s*$/m);
+		if (!entry || !extUriBiasedIgnorePathCase.isEqual(dirname(await this._real(entry)), worktreesDir)) {
 			return undefined;
 		}
-		return repository && !extUriBiasedIgnorePathCase.isEqual(repository, location) && extUriBiasedIgnorePathCase.isEqual(repository, primary)
-			? this._toLocation(location)
-			: undefined;
+		// ...whose `gitdir` file names the folder's `.git` back
+		const backlink = await this._readLink(joinPath(entry, 'gitdir'), entry);
+		if (!backlink || !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), locationGitFile)) {
+			return undefined;
+		}
+		return { uri: location, label: basename(location), description: this._labelService.getUriLabel(location, { noPrefix: true }), icon: Codicon.folder };
 	}
 
-	private _toLocation(uri: URI): IFolderLocation {
-		return { uri, label: basename(uri), description: this._labelService.getUriLabel(uri, { noPrefix: true }), icon: Codicon.folder };
+	/** The path a link file names, absolute and normalized: its content, or the `pattern`'s `path` group of it, relative to `base`. */
+	private async _readLink(file: URI, base: URI, pattern?: RegExp): Promise<URI | undefined> {
+		const content = await this._readOrUndefined(async () => (await this._fileService.readFile(file)).value.toString());
+		const path = content && (pattern ? pattern.exec(content)?.groups?.path : content.trim());
+		if (!path) {
+			return undefined;
+		}
+		return normalizePath(isAbsolute(path) ? URI.file(path) : joinPath(base, path));
 	}
+
+	/** `resource` with its symbolic links resolved, or itself where it is not there. */
+	private async _real(resource: URI): Promise<URI> {
+		return normalizePath(await this._readOrUndefined(() => this._fileService.realpath(resource)) ?? resource);
+	}
+
+	/** The result of `read`, or `undefined` where what it reads is not there; any other failure throws. */
+	private async _readOrUndefined<T>(read: () => Promise<T>): Promise<T | undefined> {
+		try {
+			return await read();
+		} catch (error) {
+			if (isFileNotFound(error)) {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+}
+
+function isFileNotFound(error: unknown): boolean {
+	return error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND;
 }
 
 export type AgentsViewFolderLocationDirection = 'toAlternate' | 'toPrimary';
@@ -114,10 +140,13 @@ export const IAgentsViewFolderLocationService = createDecorator<IAgentsViewFolde
 export interface IAgentsViewFolderLocationService {
 	readonly _serviceBrand: undefined;
 
+	/** Starts offering the folder's locations while AI features are enabled, and marking terminals the folder moved away from. */
+	start(): void;
+
 	/**
 	 * Moves the window's folder to the location `session` works in, when that is the folder's primary location or one
 	 * of its alternate locations. Does nothing for a session working elsewhere, in a remote, web or multi-root window,
-	 * or with AI features disabled. A later call supersedes an earlier one that has not switched yet.
+	 * or with AI features disabled. A later call supersedes an earlier one that has not switched yet, also one that keeps the folder where it is.
 	 */
 	switchToSession(session: ISession): Promise<void>;
 }
@@ -128,7 +157,13 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 
 	declare readonly _serviceBrand: undefined;
 
+	private _started = false;
 	private _request = 0;
+	/** How many moves it asked the workspace for that have not completed yet. */
+	private _pendingMoves = 0;
+	private readonly _provider: AgentsViewFolderLocationProvider;
+	/** Its provider, registered while AI features are enabled. */
+	private readonly _providerRegistration = this._register(new MutableDisposable());
 	/** The locations the folder has been at in this window, whose terminals started there are marked once it moves. */
 	private readonly _visitedLocations: URI[] = [];
 
@@ -147,15 +182,20 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(this._folderLocationService.registerProvider(instantiationService.createInstance(AgentsViewFolderLocationProvider), { builtIn: true }));
+		this._provider = instantiationService.createInstance(AgentsViewFolderLocationProvider);
+	}
 
-		// With AI features disabled, the folder returns from a location that a session moved it to
+	start(): void {
+		if (this._started) {
+			return;
+		}
+		this._started = true;
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([ChatContextKeys.enabled.key]))) {
-				this._returnIfChatDisabled();
+				this._updateForChatEnablement();
 			}
 		}));
-		this._returnIfChatDisabled();
+		this._updateForChatEnablement();
 
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._markTerminals()));
 		this._register(this._terminalService.onDidCreateInstance(instance => this._markTerminal(instance)));
@@ -165,65 +205,110 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	async switchToSession(session: ISession): Promise<void> {
 		const request = ++this._request;
 		const folder = this._supportedFolder();
-		const workingDirectory = getSessionPresentationWorkspace(session, undefined)?.folders[0]?.workingDirectory;
-		if (!folder || !workingDirectory || workingDirectory.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, folder.uri)) {
+		if (!folder) {
 			return;
 		}
 		const primary = folder.primaryUri ?? folder.uri;
+		const current = folder.primaryUri ? folder.uri : undefined;
+		const sessionFolder = getSessionPresentationWorkspace(session, undefined)?.folders[0];
+		const workingDirectory = sessionFolder?.workingDirectory;
+
+		// Every decision goes to the workspace, also one that keeps the folder where it is: its latest request is the one
+		// that applies, so an earlier move still under way does not apply after it
+		if (!workingDirectory || workingDirectory.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, folder.uri)) {
+			return this._move(request, primary, current, undefined);
+		}
 		if (extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, primary)) {
-			await this._switch(request, primary, undefined, 'toPrimary');
-			return;
+			return this._move(request, primary, undefined, 'toPrimary');
 		}
 
-		if (!await this._exists(workingDirectory)) {
-			const repository = getSessionPresentationWorkspace(session, undefined)?.folders[0]?.gitRepository?.uri;
-			if (repository && extUriBiasedIgnorePathCase.isEqual(repository, primary)) {
-				this._notificationService.info(localize('agentsViewFolderLocation.missing', "The folder {0} of this session no longer exists.", this._labelService.getUriLabel(workingDirectory, { noPrefix: true })));
-				this._log('toAlternate', 'missing');
+		let location: IFolderLocation | undefined;
+		try {
+			if (!await this._exists(workingDirectory)) {
+				if (request === this._request && sessionFolder?.gitRepository && extUriBiasedIgnorePathCase.isEqual(sessionFolder.gitRepository.uri, primary)) {
+					this._notificationService.info(localize('agentsViewFolderLocation.missing', "The folder {0} of this session no longer exists.", this._labelService.getUriLabel(workingDirectory, { noPrefix: true })));
+					this._log('toAlternate', 'missing');
+				}
+				return this._move(request, primary, current, undefined);
+			}
+			location = await this._provider.resolveLocation(primary, workingDirectory, CancellationToken.None);
+		} catch (error) {
+			// Not knowing where the session works is not the same as it working elsewhere
+			this._logService.error('[agentsView] could not read where a session works', error);
+			if (request === this._request) {
+				this._notificationService.error(localize('agentsViewFolderLocation.readError', "Could not move the folder to {0}: {1}", this._labelService.getUriLabel(workingDirectory, { noPrefix: true }), toErrorMessage(error)));
+				this._log('toAlternate', 'failed');
+			}
+			return this._move(request, primary, current, undefined);
+		}
+		// A session that works elsewhere opens in place
+		return this._move(request, primary, location?.uri ?? current, location ? 'toAlternate' : undefined);
+	}
+
+	/**
+	 * Asks the workspace to move its folder to `location` of `primary`, or to keep it at `location` when that is where it
+	 * is (`direction` undefined), unless a later request of its own came meanwhile.
+	 */
+	private async _move(request: number, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection | undefined): Promise<void> {
+		if (request !== this._request) {
+			if (direction) {
+				this._log(direction, 'superseded');
 			}
 			return;
 		}
-		const location = await this._folderLocationService.resolveLocation(primary, workingDirectory, CancellationToken.None);
-		if (!location) {
-			return; // The session works elsewhere: its chat opens in place
-		}
-		await this._switch(request, primary, location.uri, 'toAlternate');
-	}
-
-	private async _switch(request: number, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection): Promise<void> {
-		if (request !== this._request) {
-			this._log(direction, 'superseded');
-			return;
-		}
+		this._pendingMoves++;
 		try {
 			await this._workspaceEditingService.setFolderLocation(primary, location);
-			this._log(direction, request === this._request ? 'switched' : 'superseded');
+			if (direction) {
+				this._log(direction, request === this._request ? 'switched' : 'superseded');
+			}
 		} catch (error) {
 			this._logService.error('[agentsView] could not move the folder to the location of a session', error);
-			this._log(direction, 'failed');
+			if (direction) {
+				this._log(direction, 'failed');
+			}
+		} finally {
+			this._pendingMoves--;
 		}
 	}
 
 	/** The window's only folder, when the folder can move: a local, desktop, single-folder window with AI features enabled. */
-	private _supportedFolder() {
-		if (isWeb || this._environmentService.remoteAuthority || this._workspaceContextService.getWorkbenchState() !== WorkbenchState.FOLDER || !this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
+	private _supportedFolder(): IWorkspaceFolder | undefined {
+		if (!this._started || isWeb || this._environmentService.remoteAuthority || this._workspaceContextService.getWorkbenchState() !== WorkbenchState.FOLDER || !this._isChatEnabled()) {
 			return undefined;
 		}
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
 		return folder?.uri.scheme === Schemas.file ? folder : undefined;
 	}
 
-	private _returnIfChatDisabled(): void {
-		if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) || this._folderLocationService.currentLocation?.providerId !== AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID) {
+	private _isChatEnabled(): boolean {
+		return !!this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
+	}
+
+	/**
+	 * Offers its locations only while AI features are enabled. As they are disabled, a move it asked for and that is still
+	 * under way does not apply, and the folder returns from a location that a session moved it to.
+	 */
+	private _updateForChatEnablement(): void {
+		if (this._isChatEnabled()) {
+			if (!this._providerRegistration.value) {
+				this._providerRegistration.value = this._folderLocationService.registerProvider(this._provider, { builtIn: true });
+			}
 			return;
 		}
+		this._providerRegistration.clear();
+		this._request++;
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
-		if (folder?.primaryUri) {
-			this._request++;
-			this._workspaceEditingService.setFolderLocation(folder.primaryUri, undefined).then(
-				() => this._log('toPrimary', 'switched'),
-				error => { this._logService.error('[agentsView] could not return the folder to its primary location', error); this._log('toPrimary', 'failed'); });
+		const atOwnLocation = this._folderLocationService.currentLocation?.providerId === AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID;
+		if (!folder || this._workspaceContextService.getWorkbenchState() !== WorkbenchState.FOLDER || (!atOwnLocation && this._pendingMoves === 0)) {
+			return;
 		}
+		const primary = folder.primaryUri ?? folder.uri;
+		// Back to the primary from its own location; else where the folder is, which supersedes its move under way
+		const target = atOwnLocation || !folder.primaryUri ? undefined : folder.uri;
+		this._workspaceEditingService.setFolderLocation(primary, target).then(
+			() => { if (atOwnLocation) { this._log('toPrimary', 'switched'); } },
+			error => { this._logService.error('[agentsView] could not return the folder to its primary location', error); if (atOwnLocation) { this._log('toPrimary', 'failed'); } });
 	}
 
 	private async _exists(resource: URI): Promise<boolean> {
@@ -231,8 +316,10 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 			await this._fileService.stat(resource);
 			return true;
 		} catch (error) {
-			// Only a folder that is not there is missing; other failures leave it to the switch to report
-			return !(error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND);
+			if (isFileNotFound(error)) {
+				return false;
+			}
+			throw error;
 		}
 	}
 
