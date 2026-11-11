@@ -8,7 +8,7 @@ import { derived, IObservable, ISettableObservable, observableSignalFromEvent, o
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -16,7 +16,7 @@ import { logSettingExperimentTrigger } from '../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService, SessionsWindowLLMContributionPoint } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 
 /**
  * Suggests installed extensions that could be useful in the Agents window: entry points to the Extensions section of
@@ -49,6 +49,36 @@ export function isAgentsWindowExtensionSuggestion(extension: IExtension, support
 	}
 	const manifest = extension.local.manifest;
 	return manifest.capabilities?.agentsWindow?.supported !== false && getSessionsWindowSuggestedContributions(manifest).length > 0;
+}
+
+/**
+ * Names a contribution point that makes an extension worth enabling in the Agents window, like the Agent Customizations section it adds to.
+ */
+function getSuggestedContributionLabel(point: SessionsWindowLLMContributionPoint): string {
+	switch (point) {
+		case 'languageModelTools':
+		case 'languageModelToolSets':
+			return localize('agentsWindowExtensions.contribution.tools', "Tools");
+		case 'mcpServerDefinitionProviders':
+			return localize('agentsWindowExtensions.contribution.mcpServers', "MCP Servers");
+		case 'chatSkills':
+			return localize('agentsWindowExtensions.contribution.skills', "Skills");
+		case 'chatAgents':
+			return localize('agentsWindowExtensions.contribution.agents', "Agents");
+		case 'chatInstructions':
+			return localize('agentsWindowExtensions.contribution.instructions', "Instructions");
+		case 'chatPromptFiles':
+			return localize('agentsWindowExtensions.contribution.prompts', "Prompts");
+		case 'chatPlugins':
+			return localize('agentsWindowExtensions.contribution.plugins', "Plugins");
+	}
+}
+
+/**
+ * Names what an extension contributes that makes it worth enabling in the Agents window, without duplicates.
+ */
+export function getSuggestedContributionLabels(manifest: IExtensionManifest): string[] {
+	return [...new Set(getSessionsWindowSuggestedContributions(manifest).map(getSuggestedContributionLabel))];
 }
 
 export const IAgentsWindowExtensionSuggestionsService = createDecorator<IAgentsWindowExtensionSuggestionsService>('agentsWindowExtensionSuggestionsService');

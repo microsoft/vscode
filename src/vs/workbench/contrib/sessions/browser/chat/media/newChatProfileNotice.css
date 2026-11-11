@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shares the look of the other notices below the new-session input, such as the worktree suggestion. */
+.new-session-folder-profile-notice {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	width: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: normal;
+}
+
+.hc-black .new-session-folder-profile-notice,
+.hc-light .new-session-folder-profile-notice {
+	border-color: var(--vscode-contrastBorder);
+	background-color: var(--vscode-editor-background);
+}
+
+.new-session-folder-profile-notice > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-foreground);
+}
+
+.new-session-folder-profile-notice-message {
+	flex: 1;
+	min-width: 0;
+	text-wrap: pretty;
+}
+
+.new-session-folder-profile-notice > .monaco-button {
+	flex-shrink: 0;
+	width: auto;
+	white-space: nowrap;
+}
+
+.new-session-folder-profile-notice > .monaco-action-bar {
+	flex-shrink: 0;
+}

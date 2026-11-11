@@ -55,7 +55,7 @@ import { UninstallAction } from '../../../../workbench/contrib/extensions/browse
 import { ExtensionIconWidget, InstallCountWidget, RatingsWidget } from '../../../../workbench/contrib/extensions/browser/extensionsWidgets.js';
 import { ExtensionRuntimeActionType, ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../workbench/contrib/extensions/common/extensions.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../workbench/services/extensionManagement/common/extensionManagement.js';
-import { getSessionsWindowMissingFeatures, getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService, SessionsWindowLLMContributionPoint, SessionsWindowMissingFeature } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
+import { getSessionsWindowMissingFeatures, getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService, SessionsWindowMissingFeature } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../workbench/services/history/common/history.js';
@@ -63,7 +63,7 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { IExtensionEditorOptions } from '../../../../workbench/contrib/extensions/common/extensionsInput.js';
 import { AgentsWindowExtensionPage } from './agentsWindowExtensionPage.js';
 import { AgentsWindowMarketplaceSearch, getMarketplaceExtensionAriaLabel, getMarketplaceStatisticsLabels, IAgentsWindowMarketplaceEntry, IAgentsWindowMarketplaceMessageEntry, IMarketplaceSearchResult, MARKETPLACE_MESSAGE_TEMPLATE_ID, MARKETPLACE_ROW_TEMPLATE_ID, MarketplaceExtensionRowRenderer, MarketplaceMessageRenderer, MarketplaceSearchStatus } from './agentsWindowExtensionsMarketplace.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { getSuggestedContributionLabels, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 const $ = DOM.$;
 
@@ -255,36 +255,6 @@ export function getMissingFeaturesWarning(features: readonly SessionsWindowMissi
 		return undefined;
 	}
 	return localize('agentsWindowExtensions.missingFeaturesWarning', "Contributes {0}, which are not supported in the Agents window.", features.map(getMissingFeatureLabel).join(', '));
-}
-
-/**
- * Names a contribution point that makes an extension worth enabling in the Agents window, like the Agent Customizations section it adds to.
- */
-function getSuggestedContributionLabel(point: SessionsWindowLLMContributionPoint): string {
-	switch (point) {
-		case 'languageModelTools':
-		case 'languageModelToolSets':
-			return localize('agentsWindowExtensions.contribution.tools', "Tools");
-		case 'mcpServerDefinitionProviders':
-			return localize('agentsWindowExtensions.contribution.mcpServers', "MCP Servers");
-		case 'chatSkills':
-			return localize('agentsWindowExtensions.contribution.skills', "Skills");
-		case 'chatAgents':
-			return localize('agentsWindowExtensions.contribution.agents', "Agents");
-		case 'chatInstructions':
-			return localize('agentsWindowExtensions.contribution.instructions', "Instructions");
-		case 'chatPromptFiles':
-			return localize('agentsWindowExtensions.contribution.prompts', "Prompts");
-		case 'chatPlugins':
-			return localize('agentsWindowExtensions.contribution.plugins', "Plugins");
-	}
-}
-
-/**
- * Names what an extension contributes that makes it worth enabling in the Agents window, without duplicates.
- */
-export function getSuggestedContributionLabels(manifest: IExtensionManifest): string[] {
-	return [...new Set(getSessionsWindowSuggestedContributions(manifest).map(getSuggestedContributionLabel))];
 }
 
 /**

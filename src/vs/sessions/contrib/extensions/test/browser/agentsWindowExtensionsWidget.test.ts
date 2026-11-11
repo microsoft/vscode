@@ -47,10 +47,10 @@ import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../../workbench/
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, AgentsWindowExtensionGroup, AgentsWindowExtensionPageContext, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, getSuggestedContributionLabels, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
+import { AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, AgentsWindowExtensionGroup, AgentsWindowExtensionPageContext, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
 import { AGENTS_WINDOW_MARKETPLACE_QUERY_SOURCE } from '../../browser/agentsWindowExtensionsMarketplace.js';
 import { AgentsWindowExtensionPage } from '../../browser/agentsWindowExtensionPage.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { getSuggestedContributionLabels, IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 interface ITestExtensionOptions {
 	readonly displayName: string;
