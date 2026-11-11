@@ -21,6 +21,8 @@ import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { resolveAgentHostRootSession } from '../../common/agentHostSubscriptionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { IWorkspaceSandboxPathService } from '../workspaceSandboxPathService.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -41,10 +43,12 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		/** The chat's recorded storage resource; keys the temp dir so each chat gets its own. */
 		private readonly _tempDirScope: string,
 		private _workingDirectory: URI | undefined,
+		private _workspaceDirectories: readonly URI[] | undefined,
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
 		private readonly _agentConfigurationService: IAgentConfigurationService,
 		private readonly _sessionDataService: ISessionDataService,
+		private readonly _workspacePaths: IWorkspaceSandboxPathService,
 		sandboxHelper: ISandboxHelperService,
 	) {
 		super();
@@ -52,11 +56,17 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		this.onDidChangeSandboxSettings = Event.any(
 			this._agentConfigurationService.onDidRootConfigChange,
 			Event.map(Event.filter(this._agentConfigurationService.onDidChatConfigChange, event => event.chat === this._target.chat), () => undefined),
+			Event.map(Event.filter(this._workspacePaths.onDidChange, scope => !!this._workspaceDirectories?.length && scope === getWorkingDirectoryScopeId(this._workspaceDirectories.map(directory => directory.toString()))), () => undefined),
 		);
 	}
 
 	setWorkingDirectory(workingDirectory: URI): void {
 		this._workingDirectory = workingDirectory;
+		this._onDidChangeRoots.fire();
+	}
+
+	setWorkspaceDirectories(directories: readonly URI[] | undefined): void {
+		this._workspaceDirectories = directories;
 		this._onDidChangeRoots.fire();
 	}
 
@@ -124,7 +134,8 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._target);
+		const workspacePaths = this._workspaceDirectories?.length ? this._workspacePaths.getPaths(this._workspaceDirectories) : undefined;
+		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._target, process.platform, workspacePaths);
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }
@@ -138,15 +149,17 @@ export class AgentHostSandboxEngine extends Disposable {
 		target: IAgentChatConfigurationTarget,
 		tempDirScope: string,
 		workingDirectory: URI | undefined,
+		workspaceDirectories: readonly URI[] | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IProductService productService: IProductService,
 		@IAgentConfigurationService agentConfigurationService: IAgentConfigurationService,
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@ISandboxHelperService sandboxHelper: ISandboxHelperService,
+		@IWorkspaceSandboxPathService workspacePaths: IWorkspaceSandboxPathService,
 	) {
 		super();
-		this._host = new AgentHostTerminalSandboxHost(target, tempDirScope, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sessionDataService, sandboxHelper);
+		this._host = new AgentHostTerminalSandboxHost(target, tempDirScope, workingDirectory, workspaceDirectories, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sessionDataService, workspacePaths, sandboxHelper);
 		this.engine = instantiationService.createInstance(TerminalSandboxEngine, this._host);
 		this._register(this.engine);
 		this._register(this._host);
@@ -154,5 +167,9 @@ export class AgentHostSandboxEngine extends Disposable {
 
 	setWorkingDirectory(workingDirectory: URI): void {
 		this._host.setWorkingDirectory(workingDirectory);
+	}
+
+	setWorkspaceDirectories(directories: readonly URI[] | undefined): void {
+		this._host.setWorkspaceDirectories(directories);
 	}
 }

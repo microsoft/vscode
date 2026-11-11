@@ -16,6 +16,7 @@ import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalSessionClaim }
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostSandboxEngine } from './agentHostSandboxEngine.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, isMultilineCommand, prefixForHistorySuppression, prepareOutputForModel, shellTypeForExecutable, type IShellCommandResult, type ShellType } from '../shared/shellCommandExecution.js';
 
 // Re-exported for consumers (and tests) that historically imported these
@@ -58,6 +59,7 @@ export class ShellManager extends Disposable {
 	private _resolvedExecutable: Promise<string> | undefined;
 	private _sandboxEngine: AgentHostSandboxEngine | undefined;
 	private _workingDirectory: URI | undefined;
+	private _sandboxWorkspaceDirectories: readonly URI[] | undefined;
 	private _pendingShellCreations = 0;
 	/** Set of shell ids currently executing a command and unsafe to share. */
 	private readonly _busyShellIds = new Set<string>();
@@ -99,6 +101,14 @@ export class ShellManager extends Disposable {
 
 	get workingDirectory(): URI | undefined {
 		return this._workingDirectory;
+	}
+
+	setSandboxWorkspaceDirectories(directories: readonly URI[] | undefined): void {
+		if (getWorkingDirectoryScopeId((directories ?? []).map(directory => directory.toString())) === getWorkingDirectoryScopeId((this._sandboxWorkspaceDirectories ?? []).map(directory => directory.toString()))) {
+			return;
+		}
+		this._sandboxWorkspaceDirectories = directories?.slice();
+		this._sandboxEngine?.setWorkspaceDirectories(this._sandboxWorkspaceDirectories);
 	}
 
 	/** Throws if shell activity prevents changing the working directory safely. */
@@ -147,6 +157,7 @@ export class ShellManager extends Disposable {
 				{ session: this._ownerSession.toString(), chat: this._chat.toString() },
 				this._sandboxScope.toString(),
 				this._workingDirectory,
+				this._sandboxWorkspaceDirectories,
 			);
 			this._register(sandboxEngine);
 			this._register(toDisposable(() => {
