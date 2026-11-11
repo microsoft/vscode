@@ -218,6 +218,42 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.workspaceEditingQueue.queue(() => this.doUpdateFolders(foldersToAdd, foldersToRemove, index));
 	}
 
+	/**
+	 * Moves the single folder of this workspace to `location`, an alternate location of
+	 * `primary`, or back to `primary` when `location` is `undefined`. The workspace
+	 * identity (id, storage) is unchanged: only the folder's effective `uri` changes.
+	 */
+	public setFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
+		return this.workspaceEditingQueue.queue(() => this.doSetFolderLocation(primary, location));
+	}
+
+	private async doSetFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
+		if (this.getWorkbenchState() !== WorkbenchState.FOLDER) {
+			throw new Error('Folder locations are only supported in single-folder workspaces');
+		}
+
+		const folder = this.workspace.folders[0];
+		const currentPrimary = folder.primaryUri ?? folder.uri;
+		if (!this.uriIdentityService.extUri.isEqual(currentPrimary, primary)) {
+			throw new Error('The folder is not the primary location of the workspace folder');
+		}
+
+		const target = location && !this.uriIdentityService.extUri.isEqual(location, primary) ? location : undefined;
+		const currentLocation = folder.primaryUri ? folder.uri : undefined;
+		if (target === currentLocation || (target && currentLocation && this.uriIdentityService.extUri.isEqual(target, currentLocation))) {
+			return; // already there
+		}
+
+		const workspace = new Workspace(
+			this.workspace.id,
+			[new WorkspaceFolder({ uri: target ?? primary, name: folder.name, index: 0, primaryUri: target ? primary : undefined }, { uri: (target ?? primary).toString() })],
+			false,
+			null,
+			uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		workspace.initialized = true;
+		await this.updateWorkspaceAndInitializeConfiguration(workspace, true);
+	}
+
 	public isInsideWorkspace(resource: URI): boolean {
 		return !!this.getWorkspaceFolder(resource);
 	}
@@ -232,7 +268,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					folderUri = workspaceIdOrFolder.uri;
 				}
 
-				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].uri);
+				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].primaryUri ?? this.workspace.folders[0].uri);
 			}
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdOrFolder) && this.workspace.id === workspaceIdOrFolder.id;
@@ -988,7 +1024,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async validateWorkspaceFoldersAndReload(fromCache: boolean): Promise<void> {
-		const validWorkspaceFolders = await this.toValidWorkspaceFolders(this.workspace.folders);
+		const folders = this.workspace.folders;
+		const validWorkspaceFolders = await this.toValidWorkspaceFolders(folders);
+		if (folders !== this.workspace.folders) {
+			// Folders changed (e.g. a folder location switch) while validating; the result is stale
+			return;
+		}
 		const { removed } = this.compareFolders(this.workspace.folders, validWorkspaceFolders);
 		if (removed.length) {
 			await this.updateWorkspaceConfiguration(validWorkspaceFolders, this.workspaceConfiguration.getConfiguration(), fromCache);

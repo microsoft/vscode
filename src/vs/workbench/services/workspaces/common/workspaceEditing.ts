@@ -53,6 +53,14 @@ export interface IWorkspaceEditingService {
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
+	 * Moves the folder whose primary location is `primary` to `location`, or back to its primary
+	 * location when `location` is `undefined`. The workspace identity (id, storage, extension state)
+	 * stays keyed by the primary location. `location` must be resolved by a registered
+	 * `IWorkspaceFolderLocationProvider`. Only supported for single local folder workspaces.
+	 */
+	setFolderLocation(primary: URI, location: URI | undefined): Promise<void>;
+
+	/**
 	 * Enters the workspace with the provided path.
 	 */
 	enterWorkspace(path: URI): Promise<void>;
