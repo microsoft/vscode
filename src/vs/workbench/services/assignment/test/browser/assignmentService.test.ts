@@ -49,9 +49,9 @@ suite('WorkbenchAssignmentService polling', () => {
 	}
 
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Await client readiness and exercise refresh races without public test-only APIs. */
-	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn', options: { endpoint?: string; plan?: string; enterprise?: boolean; accountReady?: DeferredPromise<void>; cached?: Record<string, string | number | boolean>; aiDisabled?: boolean } = {}) {
+	function createService(enabled = true, accountState: 'signedIn' | 'signedOut' | 'missingEndpoint' = 'signedIn', options: { endpoint?: string; plan?: string; enterprise?: boolean; accountReady?: DeferredPromise<void>; cached?: Record<string, string | number | boolean>; aiDisabled?: boolean; telemetryLevel?: 'all' | 'error' | 'crash' | 'off' } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService({ 'workbench.enableExperiments': enabled, 'telemetry.telemetryLevel': 'all', 'chat.disableAIFeatures': options.aiDisabled ?? false });
+		const configuration = new TestConfigurationService({ 'workbench.enableExperiments': enabled, 'telemetry.telemetryLevel': options.telemetryLevel ?? 'all', 'chat.disableAIFeatures': options.aiDisabled ?? false });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		const storage = store.add(new InMemoryStorageService());
@@ -214,15 +214,37 @@ suite('WorkbenchAssignmentService polling', () => {
 		}
 	}));
 
-	test('keeps new TAS discovery enabled with AI disabled under the experiment controls', () => runWithFakedTimers({}, async () => {
-		const { service, ready, requestedUrls } = createService(true, 'signedOut', { aiDisabled: true });
-		try {
-			await ready();
-			assert.deepStrictEqual(requestedUrls, [signedOutEndpoints[0]]);
-		} finally {
-			service.dispose();
-		}
-	}));
+	for (const { experiments, telemetryLevel } of [
+		{ experiments: true, telemetryLevel: 'all' },
+		{ experiments: false, telemetryLevel: 'all' },
+		{ experiments: true, telemetryLevel: 'error' },
+		{ experiments: true, telemetryLevel: 'crash' },
+		{ experiments: true, telemetryLevel: 'off' },
+	] as const) {
+		test(`AI-disabled discovery respects experiments=${experiments}, telemetry=${telemetryLevel}`, () => runWithFakedTimers({}, async () => {
+			const { service, ready, requestedUrls, requestedFilters } = createService(experiments, 'signedOut', { aiDisabled: true, telemetryLevel });
+			try {
+				await ready();
+				const enabled = experiments && telemetryLevel === 'all';
+				if (!enabled) {
+					await timeout(ASSIGNMENT_REFETCH_INTERVAL * 2);
+				}
+				assert.deepStrictEqual({
+					urls: requestedUrls,
+					accountIdentities: requestedFilters.map(filters => filters.copilottrackingid),
+					hasClient: !!service['tasClient'],
+					polling: service['refetchScheduler'].isScheduled(),
+				}, {
+					urls: enabled ? [signedOutEndpoints[0]] : [],
+					accountIdentities: enabled ? [undefined] : [],
+					hasClient: enabled,
+					polling: enabled,
+				});
+			} finally {
+				service.dispose();
+			}
+		}));
+	}
 
 	for (const endpoint of ['https://exp.individual.githubcopilot.com', 'https://exp.business.githubcopilot.com']) {
 		test(`clears account filters and refetches on sign-out from ${endpoint}`, () => runWithFakedTimers({}, async () => {

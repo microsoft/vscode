@@ -97,7 +97,7 @@ export class NodeFetcher implements IFetcher {
 	private _fetch(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string): Promise<Response> {
 		return new Promise((resolve, reject) => {
 			const module = url.startsWith('https:') ? https : http;
-			const req = module.request(url, { method, headers }, res => {
+			const req = module.request(url, { method, headers, signal }, res => {
 				if (signal.aborted) {
 					res.destroy();
 					req.destroy();
