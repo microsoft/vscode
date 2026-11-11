@@ -6465,6 +6465,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * an explicit write) released after {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS}.
 	 */
 	private _keepChatConfigAlive(sessionId: string, backendChat: string): IChatConfigSubscription | undefined {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		let entry = this._chatConfigSubscriptions.get(backendChat);
 		if (!entry && this._failedChatConfigs.has(backendChat)) {
 			if (this._failedChatConfigs.get(backendChat) === this._lastSessionStates.get(sessionId)?.chats) {
@@ -9327,7 +9330,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private static readonly CHAT_MODEL_RETENTION_MS = 10_000;
 
 	private _keepAgentMergeSessionStateAlive(sessionId: string): void {
-		if (this._isSessionDisabledByPolicy(sessionId)) {
+		if (this._store.isDisposed || this._isSessionDisabledByPolicy(sessionId)) {
 			return;
 		}
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
@@ -9515,7 +9518,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _openSessionStateSubscription(sessionId: string): void {
 		const connection = this.connection;
-		if (!connection) {
+		// A disposed provider, such as one released while nothing shows its sessions, holds none: its sessions can still be read
+		if (!connection || this._store.isDisposed) {
 			return;
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);

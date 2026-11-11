@@ -288,13 +288,13 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 					return 'gone';
 				}
 				// Only once its input shows it: not while it sends, such as while it reseeds after another background send.
-				return target._isIdle() && target.input.restore(input) ? 'restored' : 'busy';
+				return target.isIdle() && target.input.restore(input) ? 'restored' : 'busy';
 			},
 		});
 	}
 
 	/** Whether its input is empty and no send of it is under way. */
-	private _isIdle(): boolean {
+	isIdle(): boolean {
 		const state = this.input.get();
 		return !state.attempt && !state.input.inputText && !state.input.attachments.length;
 	}

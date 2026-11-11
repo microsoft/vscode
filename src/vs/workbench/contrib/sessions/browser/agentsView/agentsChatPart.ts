@@ -101,6 +101,12 @@ export interface IAgentsChatPartService {
 	/** Whether the chat part shows `chatResource` in one of its tabs. */
 	isShowing(chatResource: URI): boolean;
 
+	/** Whether one of its tabs is a new-session composer that has not sent its session yet. */
+	hasComposer(): boolean;
+
+	/** Closes the tabs of new-session composers with nothing typed or attached, and no send under way. */
+	closeIdleComposers(): void;
+
 	/** Moves focus into the chat part. */
 	focus(): void;
 
@@ -226,6 +232,11 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 	}
 
 	/** Whether it is a new-session composer that has not sent its session yet. */
+	/** Whether it is a new-session composer with nothing typed or attached, and no send of it under way. */
+	get isIdleComposer(): boolean {
+		return !!this._composerModel.get()?.isIdle();
+	}
+
 	get isComposer(): boolean {
 		return !!this._composerModel.get();
 	}
@@ -435,6 +446,23 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	isShowing(chatResource: URI): boolean {
 		return !!this._findChat(chatResource);
+	}
+
+	closeIdleComposers(): void {
+		for (const chat of [...this._chats.values()]) {
+			if (chat.isIdleComposer) {
+				this._closeChat(chat);
+			}
+		}
+	}
+
+	hasComposer(): boolean {
+		for (const chat of this._chats.values()) {
+			if (chat.isComposer) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	focus(): void {
