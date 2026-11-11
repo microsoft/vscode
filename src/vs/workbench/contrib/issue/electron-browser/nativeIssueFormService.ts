@@ -205,8 +205,8 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 
 		const layout = this.getReporterLayout();
 		const sourceWindow = getActiveWindow();
-		// The quick layout attaches what the user was looking at, so it is captured before the reporter covers it.
-		const screenshot = layout === 'quick' ? await this.screenshotToolService.captureWindow(sourceWindow, { afterRepaint: true }) : undefined;
+		// The simple layout attaches what the user was looking at, so it is captured before the reporter covers it.
+		const screenshot = layout === 'simple' ? await this.screenshotToolService.captureWindow(sourceWindow, { afterRepaint: true }) : undefined;
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -302,7 +302,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 	/** Reads the layout of a new report, after logging the trigger of the experiment that sets it. */
 	private getReporterLayout(): IssueReporterLayout {
 		logSettingExperimentTrigger(this.telemetryService, issueReporterLayoutSettingId);
-		return this.configurationService.getValue<string>(issueReporterLayoutSettingId) === 'quick' ? 'quick' : 'guided';
+		return this.configurationService.getValue<string>(issueReporterLayoutSettingId) === 'simple' ? 'simple' : 'detailed';
 	}
 
 	private registerReporterWindowKeys(window: ReporterWindow): void {

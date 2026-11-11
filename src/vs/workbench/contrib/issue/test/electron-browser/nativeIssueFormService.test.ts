@@ -368,7 +368,7 @@ suite('NativeIssueFormService reporter windows', () => {
 				return { vetoed, participants: vetos.length };
 			},
 			inputs: () => instances.returnValues.filter((value): value is IssueReporterEditorInput => value instanceof IssueReporterEditorInput),
-			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial, 'guided')),
+			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial, 'detailed')),
 			addGroup: (windowId: number) => {
 				const group = new TestGroup(10 + groups.length, windowId);
 				groups.push(group);
@@ -386,10 +386,10 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	});
 
-	test('opens each new report in the layout of the setting, and in the quick layout attaches the window it covers', async () => {
+	test('opens each new report in the layout of the setting, and in the simple layout attaches the window it covers', async () => {
 		const reports = [];
 		const window = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
-		for (const layout of [undefined, 'quick', 'guided']) {
+		for (const layout of [undefined, 'simple', 'detailed']) {
 			const { service, configuration, inputs, telemetry, screenshotTool } = createService('editor');
 			screenshotTool.windowImage = window;
 			await configuration.setUserConfiguration('issueReporter.wizard.layout', layout);
@@ -403,9 +403,9 @@ suite('NativeIssueFormService reporter windows', () => {
 		}
 		const triggers = ['config.issueReporter.wizard.layout'];
 		assert.deepStrictEqual(reports, [
-			{ layout: ['guided'], attached: [undefined], tool: [], triggers },
-			{ layout: ['quick'], attached: [[window]], tool: ['captureWindow'], triggers },
-			{ layout: ['guided'], attached: [undefined], tool: [], triggers },
+			{ layout: ['detailed'], attached: [undefined], tool: [], triggers },
+			{ layout: ['simple'], attached: [[window]], tool: ['captureWindow'], triggers },
+			{ layout: ['detailed'], attached: [undefined], tool: [], triggers },
 		]);
 	});
 

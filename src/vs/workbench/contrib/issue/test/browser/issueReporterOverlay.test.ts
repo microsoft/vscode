@@ -123,7 +123,7 @@ suite('IssueReporterOverlay', () => {
 			issueTitle: 'Repository selection', issueBody: 'Issue description',
 			...overrides,
 		};
-		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data, options.layout ?? 'guided'));
+		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data, options.layout ?? 'detailed'));
 		const editor = input.descriptionInput;
 		const container = document.createElement('div');
 		container.style.width = '800px';
@@ -275,9 +275,9 @@ suite('IssueReporterOverlay', () => {
 			focusedDescription: true,
 			submitted: ['A title'],
 			events: [
-				{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } },
-				{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } },
-				{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } },
 			],
 		});
 	});
@@ -286,7 +286,7 @@ suite('IssueReporterOverlay', () => {
 		test(`records one preview activation with keyCode ${activation.keyCode}`, () => {
 			const { preview, telemetry } = createReporter();
 			preview.dispatchEvent(new KeyboardEvent('keydown', { ...activation, bubbles: true, cancelable: true }));
-			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } }]);
+			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } }]);
 		});
 	}
 
@@ -301,7 +301,7 @@ suite('IssueReporterOverlay', () => {
 		preview.click();
 		assert.deepStrictEqual({ ignored, events: telemetry.events }, {
 			ignored: [],
-			events: [{ name: 'issueReporter.previewClicked', data: { layout: 'guided', automaticScreenshot: false } }],
+			events: [{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } }],
 		});
 	});
 
@@ -1318,7 +1318,7 @@ suite('IssueReporterOverlay', () => {
 
 	suite('Layouts', () => {
 		function describeForm(container: HTMLElement) {
-			const names = ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-quick-diagnostics', 'wizard-quick-destination', 'wizard-preview'];
+			const names = ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-simple-diagnostics', 'wizard-simple-destination', 'wizard-preview'];
 			const parts = container.querySelectorAll<HTMLElement>(names.map(name => `.${name}`).join(', '));
 			return {
 				order: [...parts].filter(part => !part.closest('[hidden]')).map(part => names.find(name => part.classList.contains(name))),
@@ -1328,32 +1328,32 @@ suite('IssueReporterOverlay', () => {
 			};
 		}
 
-		test('both layouts ask for screenshots and a description first; the quick layout leaves out the rest', () => {
+		test('both layouts ask for screenshots and a description first; the simple layout leaves out the rest', () => {
 			const extension = { id: 'publisher.extension', name: 'extension', publisher: 'publisher', version: '1.0.0', isTheme: false, isBuiltin: false, displayName: 'Extension', repositoryUrl: undefined, bugsUrl: 'https://github.com/publisher/extension/issues' };
-			const extensionReport = createReporter({ issueSource: IssueSource.Extension, extensionId: extension.id, enabledExtensions: [extension] }, { layout: 'quick' });
+			const extensionReport = createReporter({ issueSource: IssueSource.Extension, extensionId: extension.id, enabledExtensions: [extension] }, { layout: 'simple' });
 			assert.deepStrictEqual({
-				guided: describeForm(createReporter().container),
-				quick: describeForm(createReporter({}, { layout: 'quick' }).container),
-				quickExtensionReportShowsTarget: !extensionReport.container.querySelector<HTMLElement>('.wizard-classification')!.hidden,
+				detailed: describeForm(createReporter().container),
+				simple: describeForm(createReporter({}, { layout: 'simple' }).container),
+				simpleExtensionReportShowsTarget: !extensionReport.container.querySelector<HTMLElement>('.wizard-classification')!.hidden,
 			}, {
-				guided: {
+				detailed: {
 					order: ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-preview'],
 					title: 'Title*',
 					titlePlaceholder: 'E.g. Workbench is missing problems panel',
 					guidance: 'Describe what happened, the steps to reproduce, what you expected, and what you observed instead.\nMarkdown formatting is supported.',
 				},
-				quick: {
-					order: ['wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-quick-diagnostics', 'wizard-quick-destination', 'wizard-preview'],
+				simple: {
+					order: ['wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-simple-diagnostics', 'wizard-simple-destination', 'wizard-preview'],
 					title: 'Title (optional)',
 					titlePlaceholder: 'Leave empty to generate a title from the description',
 					guidance: 'Describe what you saw. A sentence or two is enough.\nMarkdown formatting is supported.',
 				},
-				quickExtensionReportShowsTarget: true,
+				simpleExtensionReportShowsTarget: true,
 			});
 		});
 
-		test('the quick layout generates a missing title when previewing, or takes the first line of the description', async () => {
-			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'quick' });
+		test('the simple layout generates a missing title when previewing, or takes the first line of the description', async () => {
+			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
 			const requests: string[] = [];
 			const submitted: string[] = [];
 			store.add(overlay.onDidRequestGenerateTitle(description => requests.push(description)));
@@ -1378,15 +1378,15 @@ suite('IssueReporterOverlay', () => {
 			});
 		});
 
-		test('the quick layout includes or leaves out all diagnostics with one checkbox, and asks for no category', () => {
-			const { overlay, container, preview } = createReporter({ issueType: undefined }, { layout: 'quick' });
+		test('the simple layout includes or leaves out all diagnostics with one checkbox, and asks for no category', () => {
+			const { overlay, container, preview } = createReporter({ issueType: undefined }, { layout: 'simple' });
 			overlay.updateModel({ experimentInfo: 'treatment' });
 			const bodies: string[] = [];
 			store.add(overlay.onDidSubmit(event => bodies.push(event.body)));
 			preview.click();
-			container.querySelector<HTMLElement>('.wizard-quick-diagnostics-checkbox')!.click();
+			container.querySelector<HTMLElement>('.wizard-simple-diagnostics-checkbox')!.click();
 			preview.click();
-			container.querySelector<HTMLElement>('.wizard-quick-diagnostics-label')!.click();
+			container.querySelector<HTMLElement>('.wizard-simple-diagnostics-label')!.click();
 			preview.click();
 			assert.deepStrictEqual(bodies.map(body => ({ experiments: body.includes('A/B Experiments'), category: body.includes('Issue Category') })), [
 				{ experiments: true, category: false },
@@ -1395,8 +1395,8 @@ suite('IssueReporterOverlay', () => {
 			]);
 		});
 
-		test('the automatic screenshot of the quick layout is no unsaved input until it is edited', () => {
-			const { overlay, input, container, preview, telemetry } = createReporter({}, { layout: 'quick' });
+		test('the automatic screenshot of the simple layout is no unsaved input until it is edited', () => {
+			const { overlay, input, container, preview, telemetry } = createReporter({}, { layout: 'simple' });
 			input.automaticScreenshot = capturedScreenshot('automatic');
 			overlay.restoreAttachments([input.automaticScreenshot]);
 			const untouched = overlay.hasUnsavedChanges();
@@ -1407,7 +1407,7 @@ suite('IssueReporterOverlay', () => {
 			assert.deepStrictEqual({ untouched, edited: overlay.hasUnsavedChanges(), events: telemetry.events.map(event => event.data) }, {
 				untouched: false,
 				edited: true,
-				events: [{ layout: 'quick', automaticScreenshot: true }, { layout: 'quick', automaticScreenshot: true }],
+				events: [{ layout: 'simple', automaticScreenshot: true }, { layout: 'simple', automaticScreenshot: true }],
 			});
 		});
 	});

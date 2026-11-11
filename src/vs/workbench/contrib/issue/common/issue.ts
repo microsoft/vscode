@@ -37,10 +37,10 @@ export enum IssueSource {
 export const issueReporterLayoutSettingId = 'issueReporter.wizard.layout';
 
 /**
- * How the new issue reporter asks for a report. Quick asks for screenshots and a description and
- * leaves the rest to defaults. Guided also asks for the target, category, title, and diagnostics.
+ * How the new issue reporter asks for a report. Simple asks for screenshots and a description and
+ * leaves the rest to defaults. Detailed also asks for the target, category, title, and diagnostics.
  */
-export type IssueReporterLayout = 'quick' | 'guided';
+export type IssueReporterLayout = 'simple' | 'detailed';
 
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;

@@ -85,7 +85,7 @@ export class IssueReporterEditorInput extends EditorInput {
 	private readonly importedFiles = this._register(new DisposableMap<string>());
 
 	/**
-	 * The screenshot of the window the user was in, which the quick layout attaches when the report
+	 * The screenshot of the window the user was in, which the simple layout attaches when the report
 	 * opens. An edit replaces the attachment, so while it is attached unchanged it is no user input.
 	 */
 	automaticScreenshot: IssueReporterAttachment<IScreenshot> | undefined;
@@ -118,7 +118,7 @@ export class IssueReporterEditorInput extends EditorInput {
 	constructor(
 		data: IssueReporterData | undefined,
 		/** Chosen when the report opens, so the report keeps it when it moves or the setting changes. */
-		readonly layout: IssueReporterLayout = 'guided',
+		readonly layout: IssueReporterLayout = 'detailed',
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();

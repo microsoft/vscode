@@ -94,8 +94,8 @@ type IssueReporterPreviewClickedEvent = {
 type IssueReporterPreviewClickedClassification = {
 	owner: 'Giuspepe';
 	comment: 'Counts pointer and keyboard activations of Preview on GitHub in the new issue reporter, including validation failures. Does not indicate an issue was submitted and collects no report content.';
-	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The layout of the issue reporter: quick or guided.' };
-	automaticScreenshot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot that the quick layout attaches when a report opens is still attached, edited or not.' };
+	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The layout of the issue reporter: simple or detailed.' };
+	automaticScreenshot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot that the simple layout attaches when a report opens is still attached, edited or not.' };
 };
 
 export interface IIssueReporterDiagnosticsState {
@@ -149,7 +149,7 @@ export class IssueReporterOverlay {
 	private typeButtonGroup!: HTMLElement;
 	private typeError!: HTMLElement;
 	private classificationSection!: HTMLElement;
-	/** Set when a preview finds a problem with the target or category, which the quick layout then shows. */
+	/** Set when a preview finds a problem with the target or category, which the simple layout then shows. */
 	private classificationNeedsAttention = false;
 	/** The category that opened the report, such as from Report Performance Issue, rather than the default. */
 	private readonly explicitIssueType: IssueType | undefined;
@@ -213,8 +213,8 @@ export class IssueReporterOverlay {
 		return this.input.descriptionInput;
 	}
 
-	private get quickLayout(): boolean {
-		return this.input.layout === 'quick';
+	private get simpleLayout(): boolean {
+		return this.input.layout === 'simple';
 	}
 
 	constructor(
@@ -277,13 +277,13 @@ export class IssueReporterOverlay {
 		this.setUpdateAvailable(this.showUpdateBanner);
 
 		this.formContent = append(this.wizardPanel, $('div.issue-reporter-form'));
-		this.formContent.classList.toggle('quick-layout', this.quickLayout);
+		this.formContent.classList.toggle('simple-layout', this.simpleLayout);
 		this.createReportFields(this.formContent);
 
-		if (this.quickLayout) {
-			this.createQuickDiagnostics(this.formContent);
-			// The quick layout leaves out the target, but still says where the report goes.
-			append(this.formContent, $('div.wizard-quick-destination')).appendChild(this.targetStatus);
+		if (this.simpleLayout) {
+			this.createSimpleDiagnostics(this.formContent);
+			// The simple layout leaves out the target, but still says where the report goes.
+			append(this.formContent, $('div.wizard-simple-destination')).appendChild(this.targetStatus);
 		} else {
 			const diagnostics = append(this.formContent, $('section.wizard-diagnostics'));
 			append(diagnostics, $('h2.wizard-heading')).textContent = localize('optionalDiagnostics', "Diagnostics (optional)");
@@ -630,8 +630,8 @@ export class IssueReporterOverlay {
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
 
-		// The quick layout is for people who know the guidance and want to report quickly.
-		if (!this.quickLayout) {
+		// The simple layout is for people who know the guidance and want to report quickly.
+		if (!this.simpleLayout) {
 			this.createIssueGuidance(page);
 		}
 
@@ -692,7 +692,7 @@ export class IssueReporterOverlay {
 		this.updateIssueSourceFlags();
 	}
 
-	/** The target and category, which the quick layout leaves to their defaults. */
+	/** The target and category, which the simple layout leaves to their defaults. */
 	private createClassificationFields(page: HTMLElement): void {
 		this.classificationSection = append(page, $('div.wizard-classification'));
 
@@ -777,7 +777,7 @@ export class IssueReporterOverlay {
 	}
 
 	/**
-	 * The quick layout leaves out the target and category. It shows them when the target has no
+	 * The simple layout leaves out the target and category. It shows them when the target has no
 	 * default, for a report about an extension so the user can confirm the extension, and when a
 	 * preview finds a problem with them.
 	 */
@@ -786,7 +786,7 @@ export class IssueReporterOverlay {
 			return;
 		}
 		const needsAttention = this.classificationNeedsAttention || this.selectedIssueSource === undefined || this.selectedIssueSource === IssueSource.Extension;
-		this.classificationSection.hidden = this.quickLayout && !needsAttention;
+		this.classificationSection.hidden = this.simpleLayout && !needsAttention;
 	}
 
 	private createTitleField(page: HTMLElement): void {
@@ -794,7 +794,7 @@ export class IssueReporterOverlay {
 		const titleGroup = append(page, $('div.wizard-field.wizard-title-field'));
 		const titleLabelRow = append(titleGroup, $('div.wizard-title-label-row'));
 		const titleLabel = append(titleLabelRow, $('label.wizard-field-label'));
-		if (this.quickLayout) {
+		if (this.simpleLayout) {
 			titleLabel.textContent = localize('optionalIssueTitle', "Title (optional)");
 		} else {
 			titleLabel.textContent = localize('issueTitle', "Title");
@@ -1115,8 +1115,8 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTitlePlaceholder(): void {
-		if (this.quickLayout) {
-			this.titleInput.setPlaceHolder(localize('quickTitlePlaceholder', "Leave empty to generate a title from the description"));
+		if (this.simpleLayout) {
+			this.titleInput.setPlaceHolder(localize('simpleTitlePlaceholder', "Leave empty to generate a title from the description"));
 			return;
 		}
 		switch (this.selectedIssueSource) {
@@ -1327,8 +1327,8 @@ export class IssueReporterOverlay {
 		this.descriptionGuidance.textContent = '';
 
 		let guidance: string;
-		if (this.quickLayout) {
-			guidance = localize('quickGuidance', "Describe what you saw. A sentence or two is enough.");
+		if (this.simpleLayout) {
+			guidance = localize('simpleGuidance', "Describe what you saw. A sentence or two is enough.");
 		} else {
 			switch (this.selectedIssueType) {
 				case IssueType.Bug:
@@ -1347,7 +1347,7 @@ export class IssueReporterOverlay {
 		}
 		this.descriptionInput.placeholder = `${guidance}\n${markdownHint}`;
 
-		const showGuide = !this.quickLayout && this.selectedIssueType === IssueType.PerformanceIssue;
+		const showGuide = !this.simpleLayout && this.selectedIssueType === IssueType.PerformanceIssue;
 		this.descriptionGuidance.hidden = !showGuide;
 		if (showGuide) {
 			const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
@@ -1660,15 +1660,15 @@ export class IssueReporterOverlay {
 		td.textContent = value;
 	}
 
-	/** In the quick layout, one choice includes or leaves out every kind of diagnostics. */
-	private createQuickDiagnostics(parent: HTMLElement): void {
+	/** In the simple layout, one choice includes or leaves out every kind of diagnostics. */
+	private createSimpleDiagnostics(parent: HTMLElement): void {
 		const options: DiagnosticOption[] = ['includeSystemInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData', 'includeProcessInfo', 'includeWorkspaceInfo'];
-		const section = append(parent, $('section.wizard-quick-diagnostics'));
+		const section = append(parent, $('section.wizard-simple-diagnostics'));
 		const label = localize('includeDiagnostics', "Include diagnostics: system information, extensions, and A/B experiments");
 		const checkbox = this.disposables.add(new Checkbox(label, !options.some(option => this.diagnosticsState.included[option] === false), defaultCheckboxStyles));
-		checkbox.domNode.classList.add('wizard-quick-diagnostics-checkbox');
+		checkbox.domNode.classList.add('wizard-simple-diagnostics-checkbox');
 		section.appendChild(checkbox.domNode);
-		const text = append(section, $('span.wizard-quick-diagnostics-label'));
+		const text = append(section, $('span.wizard-simple-diagnostics-label'));
 		text.textContent = label;
 		// The checkbox has the same label, so screen readers read it once.
 		text.setAttribute('aria-hidden', 'true');
@@ -1787,8 +1787,8 @@ export class IssueReporterOverlay {
 		const hasIssueType = this.getIssueTypeOptions().some(option => option.type === this.selectedIssueType);
 		const hasDescription = this.hasDescriptionContent();
 		let title = this.titleInput.value.trim();
-		// The quick layout generates a missing title from the description.
-		const hasTitle = !!title || this.quickLayout;
+		// The simple layout generates a missing title from the description.
+		const hasTitle = !!title || this.simpleLayout;
 		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
 		this.setFieldError(this.extensionField, this.extensionError, !hasExtension);
 		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
@@ -2710,7 +2710,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	private hasUserInput(): boolean {
-		// The quick layout's automatic screenshot is no user input until the user edits it.
+		// The simple layout's automatic screenshot is no user input until the user edits it.
 		return this.input.hasContentChanges || this.attachments.some(attachment => attachment !== this.input.automaticScreenshot);
 	}
 

@@ -229,7 +229,7 @@ suite('Issue reporter media import lifecycle', () => {
 
 	function createInput(overrides: Partial<IssueReporterData> = {}): IssueReporterEditorInput {
 		const instantiation = workbenchInstantiationService(undefined, store);
-		return store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data, ...overrides }, 'guided'));
+		return store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data, ...overrides }, 'detailed'));
 	}
 
 	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService, screenshotTool: TestScreenshotToolService = createTestScreenshotToolService(store, false).service) {
@@ -309,7 +309,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		const modelService = instantiation.get(IModelService);
 		const before = modelService.getModels().length;
-		const candidates = Array.from({ length: 10 }, () => store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data }, 'guided')));
+		const candidates = Array.from({ length: 10 }, () => store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data }, 'detailed')));
 		const unused = modelService.getModels().length - before;
 		const editors: IssueReporterEditorInput[] = [];
 		for (const candidate of candidates) {
