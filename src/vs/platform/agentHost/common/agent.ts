@@ -28,6 +28,7 @@ import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type Ch
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
+import type { IModelRouterSituation } from './modelRouterSituation.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -1985,6 +1986,8 @@ export interface IAgentTurnModelRequest {
 	readonly previousTurns: readonly Turn[];
 	/** The turn's custom agent, whose own model can take the place of a router's pick. */
 	readonly agent?: AgentSelection;
+	/** Facts about the turn besides its message, such as what is attached. Never content. */
+	readonly situation?: IModelRouterSituation;
 }
 
 export interface IAgentTurnModelResolution {

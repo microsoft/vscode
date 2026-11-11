@@ -76,6 +76,7 @@ import { ChatInputPills, IChatInputOwnPillContext, StandardChatInputPillSources 
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { ChatResourcesControl, IChatResource } from '../../chatResources/chatResourcesControl.js';
 import { ChatResourcesEnabledSettingId } from '../../chatResources/chatResources.js';
+import { ChatResourceContributionEntries, chatResourceContributions, IChatResourceSessionIds } from '../../chatResources/chatResourceContributions.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -966,12 +967,28 @@ export class AgentHostSessionInputPills extends Disposable {
 			const target = resource ? parseGitHubReferenceTarget(resource, 'issue') : undefined;
 			return target ? this._gitHubReferenceResolver.getIssue(target).read(reader) : undefined;
 		})));
+		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
+		// Extensions add resources to every chat whose resource exists; a subagent chat lists none.
+		// Only a native host's session URIs are known to be `ahp-session:/<id>`, whose `<id>` its agents get from `get_current_session`.
+		const contributionSessionIds = derived<IChatResourceSessionIds | undefined>(this, reader => {
+			const chat = chatResource.read(reader);
+			const currentResolution = resolution.read(reader);
+			return chat && currentResolution && !subagentChat.read(reader)
+				? {
+					chatSessionId: getAgentHostChatId(chat),
+					agentSessionId: isNativeAgentHost(currentResolution.connection.initializeResult.read(reader)) ? AgentSession.id(currentResolution.backendSession) : undefined,
+				}
+				: undefined;
+		});
+		const contributedResources = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
+			? instantiationService.createInstance(ChatResourceContributionEntries, chatResourceContributions, contributionSessionIds, (resource: URI) => this._openResource(resource))
+			: undefined);
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const recorded = !subagentChat.read(reader) && currentResolution
 				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
-			return mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader));
+			return [...mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader)), ...contributedResources.read(reader)?.sections.read(reader) ?? []];
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
@@ -979,8 +996,8 @@ export class AgentHostSessionInputPills extends Disposable {
 				? this._buildArtifactSections(metadata.read(reader).references, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
 		});
-		// The files among artifacts and references, whether the agent host or a chat tool recorded them, can open in the chat
-		// once pinned.
+		// The files among artifacts and references, whether the agent host or a chat tool recorded them or an extension
+		// contributed them, can open in the chat once pinned.
 		const recordedResources = derived(this, reader => {
 			const currentMetadata = metadata.read(reader);
 			const currentResolution = resolution.read(reader);
@@ -993,7 +1010,6 @@ export class AgentHostSessionInputPills extends Disposable {
 				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource }] : [];
 			}));
 		});
-		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
 		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
 		const chatResourcesSession = derived(this, reader => subagentChat.read(reader) ? undefined : sessionResource.read(reader));
 		// The pill sources know which entries are pinned, and are created with the decoration of their pinned pills below.

@@ -27,7 +27,7 @@ import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/con
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { CHAT_MODEL_HOLD_TIMEOUT } from '../../../chatWindow/browser/chatWindowOpening.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IChatWindow, IChatWindowOpenOptions, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -41,7 +41,9 @@ import { MultipleSessionsVisibleContext, SessionInChatEditorContext } from '../.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { fillSessionChatDragData } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { Verbosity } from '../../../../../workbench/common/editor.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
@@ -239,6 +241,54 @@ suite('Session chat view editor', () => {
 
 		const shownTabStrips = [...view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-bar')].filter(strip => strip.style.display !== 'none');
 		assert.deepStrictEqual({ chatViews: chatViews.length, shownTabStrips: shownTabStrips.length, chatsToSwitchTo: view.element.querySelectorAll('.chat-composite-bar-tab').length - 1 }, { chatViews: 1, shownTabStrips: 0, chatsToSwitchTo: 0 });
+	});
+
+	test('a chat of another window dragged over a chat editor shows where it opens, and opens beside the chat of the editor on drop', async () => {
+		const { instantiationService } = createServices();
+		const opened: { chat: string; tabOf: string | undefined }[] = [];
+		const other = createTestActiveSession('other');
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionTypes = Event.None;
+			override getSessionForChatResource() {
+				const chat = new class extends mock<IChat>() {
+					override readonly resource = other.mainChat.get().resource;
+					override readonly isArchived = constObservable(false);
+				}();
+				const session = new class extends mock<ISession>() {
+					override readonly loading = constObservable(false);
+					override readonly chats = constObservable([chat]);
+					override readonly mainChat = constObservable(chat);
+				}();
+				return { session, chat };
+			}
+		}());
+		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+			override getWindow() { return {} as ReturnType<IChatWindowService['getWindow']>; }
+			override async open(chat: URI, options?: IChatWindowOpenOptions) {
+				opened.push({ chat: chat.toString(), tabOf: options?.tabOf?.toString() });
+				return undefined;
+			}
+		}());
+		const host: ISessionChatViewHost = {
+			content: constObservable(testPaneContentOf(createTestActiveSession('session'), () => { })),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		};
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
+		mainWindow.document.body.appendChild(view.element);
+		disposables.add(toDisposable(() => view.element.remove()));
+		const dataTransfer = new DataTransfer();
+		fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), 'other', URI.parse('test-chat://other'));
+
+		view.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		const overlay = view.element.querySelector<HTMLElement>('.chat-window-session-drop-overlay');
+		overlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual({ overlay: !!overlay, opened }, { overlay: true, opened: [{ chat: 'test-chat://other', tabOf: 'test-chat://session' }] });
 	});
 
 	test('before its editor moves, the chat saves what it shows, such as where it is scrolled to, for the view where it moves to', () => {

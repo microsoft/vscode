@@ -130,7 +130,8 @@ class CommentingRangeDecorator {
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: 'comment-range-glyph comment-diff-added'
+			linesDecorationsClassName: 'comment-range-glyph comment-diff-added',
+			firstLineDecorationClassName: 'comment-range-glyph comment-diff-added-glyph'
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
@@ -138,7 +139,8 @@ class CommentingRangeDecorator {
 		const hoverDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph line-hover`
+			linesDecorationsClassName: 'comment-range-glyph comment-diff-added',
+			firstLineDecorationClassName: 'comment-range-glyph line-hover'
 		};
 
 		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
