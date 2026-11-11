@@ -22,7 +22,6 @@ use crate::tunnels::agent_host::{
 	AgentHostSidecar, GithubEnvironmentConfig, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
-use crate::tunnels::code_server::CodeServerArgs;
 use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
 use crate::tunnels::legal;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
@@ -986,8 +985,7 @@ async fn spawn_supervisor_and_wait_ready(
 }
 
 /// Endpoint of a running agent host supervisor, as recorded in the shared
-/// local agent-host endpoint registry and consumed by tunnel + bridge
-/// callers.
+/// local agent-host endpoint registry and consumed by tunnel callers.
 pub struct ActiveAgentHost {
 	pub pid: u32,
 	/// Host the supervisor was bound to (e.g. `"0.0.0.0"`, `"::1"`,
@@ -1008,17 +1006,6 @@ impl ActiveAgentHost {
 	/// loopback to preserve the prior behaviour.
 	pub fn dial_host(&self) -> &str {
 		dial_host(self.host.as_deref())
-	}
-
-	/// Populate the `--agent-host-bridge-*` fields on a [`CodeServerArgs`]
-	/// so the spawned VS Code server's `agentHostProxy` channel dials this
-	/// supervisor. Uses [`dial_host`] for the host so a supervisor bound
-	/// to a wildcard (`0.0.0.0` / `::`) is reached via loopback rather
-	/// than the wildcard itself.
-	pub fn apply_to_bridge(&self, csa: &mut CodeServerArgs) {
-		csa.agent_host_bridge_host = Some(self.dial_host().to_string());
-		csa.agent_host_bridge_port = Some(self.port);
-		csa.agent_host_bridge_connection_token = self.token.clone();
 	}
 }
 

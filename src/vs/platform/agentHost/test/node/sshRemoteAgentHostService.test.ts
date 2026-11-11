@@ -693,6 +693,33 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.deepStrictEqual(events, []); // no picker for the single-standalone case
 	});
 
+	for (const { name, config } of [
+		{ name: 'user-initiated connect', config: { userInitiated: true } },
+		{ name: 'silent reconnect', config: { userInitiated: false } },
+		{ name: 'stored dedicated preference', config: { preferredAgentLocation: 'dedicated' as const } },
+	]) {
+		test(`${name} does not reuse a different-quality standalone`, async () => {
+			const incompatible = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'stable-host', quality: 'stable' });
+			const spawned = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'insider-host', quality });
+			const requests: ISSHEndpointSelectionRequest[] = [];
+			service.execResponses = [
+				...discoveryResponses([incompatible]),
+				{ stdout: '', code: 0 },
+				{ stdout: agentEndpointsStdout([incompatible, spawned]), code: 0 },
+			];
+			disposables.add(service.onDidRequestEndpointSelection(request => requests.push(request)));
+
+			const result = await service.connect(makeConfig(config));
+
+			assert.deepStrictEqual({
+				instanceId: result.instanceId,
+				lifecycle: result.lifecycle,
+				spawns: service.mockClients[0].execCalls.some(command => command.includes('--new-instance')),
+				requests,
+			}, { instanceId: 'insider-host', lifecycle: 'managed', spawns: true, requests: [] });
+		});
+	}
+
 	test('prompts among multiple standalones (no editors) and honors the chosen candidate', async () => {
 		const s1 = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'inst-a' });
 		const s2 = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'inst-b' });

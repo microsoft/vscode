@@ -271,10 +271,16 @@ suite('Agents Window workspace handoff telemetry', () => {
 		});
 	});
 
-	test('opens sessions of tunnel editor windows under this window\'s connection and silently falls back for other remotes', async () => {
+	test('opens shared SSH, WSL and tunnel sessions and silently falls back for unsupported remotes', async () => {
 		const sessionType = remoteAgentHostSessionTypeId('tunnel-box', 'copilotcli');
 		const known = URI.parse(`${sessionType}:/known#chat`);
+		const ssh = URI.parse(`${remoteAgentHostSessionTypeId('ssh-host', 'copilotcli')}:/known#chat`);
+		const wsl = URI.parse(`${remoteAgentHostSessionTypeId('wsl-Ubuntu', 'copilotcli')}:/known#chat`);
+		const knownResources = [known, ssh, wsl];
 		const hosts: Record<string, RemoteAgentHostHandoffResult> = {
+			'ssh-remote+host': { connectionAuthority: 'ssh-host', connected: Promise.resolve(true), sharesEditorWindowAgentHost: () => true },
+			'ssh-remote+editor': { connectionAuthority: 'ssh-editor', connected: Promise.resolve(true), sharesEditorWindowAgentHost: () => false },
+			'wsl+Ubuntu': { connectionAuthority: 'wsl-Ubuntu', connected: Promise.resolve(true), sharesEditorWindowAgentHost: () => true },
 			'tunnel+box': { connectionAuthority: 'tunnel-box', connected: Promise.resolve(true), sharesEditorWindowAgentHost: () => true },
 			'tunnel+editor': { connectionAuthority: 'tunnel-box', connected: Promise.resolve(true), sharesEditorWindowAgentHost: () => false },
 			'tunnel+offline': { connectionAuthority: 'tunnel-offline', connected: Promise.resolve(false), sharesEditorWindowAgentHost: () => true },
@@ -291,8 +297,8 @@ suite('Agents Window workspace handoff telemetry', () => {
 			logService: new NullLogService(),
 			// Another chat of the same session is focused.
 			_focusedSessionHostService: { focusedHost: { get: () => ({ chatResource: { get: () => URI.parse(`${sessionType}:/known#focused`) } }) } },
-			waitForSessionAvailable: async (resource: URI) => extUri.isEqual(resource, known),
-			getSessionForResource: (resource: URI) => extUri.isEqual(resource, known) ? upcastPartial<ISession>({ resource: known }) : undefined,
+			waitForSessionAvailable: async (resource: URI) => knownResources.some(known => extUri.isEqual(resource, known)),
+			getSessionForResource: (resource: URI) => knownResources.some(known => extUri.isEqual(resource, known)) ? upcastPartial<ISession>({ resource }) : undefined,
 			sessionsService: { openChat: async (_session: ISession, chatResource: URI) => { opened.push(chatResource.toString()); } },
 		};
 		for (const [remoteAuthority, resource] of [
@@ -303,18 +309,23 @@ suite('Agents Window workspace handoff telemetry', () => {
 			['tunnel+offline', 'agent-host-copilotcli:/known#chat'],
 			['tunnel+unknown', 'agent-host-copilotcli:/known#chat'],
 			['ssh-remote+host', 'agent-host-copilotcli:/known#chat'],
+			['ssh-remote+editor', 'agent-host-copilotcli:/known#chat'],
+			['wsl+Ubuntu', 'agent-host-copilotcli:/known#chat'],
+			['dev-container+2f736f75726365', 'agent-host-copilotcli:/known#chat'],
+			['codespaces+host', 'agent-host-copilotcli:/known#chat'],
 		]) {
 			results.push(await harness.resolveAndOpenRemoteSession(URI.parse(resource), remoteAuthority, CancellationToken.None));
 		}
 		assert.deepStrictEqual({ resolved, opened, notifications, results }, {
-			resolved: ['tunnel+box', 'tunnel+box', 'tunnel+box', 'tunnel+editor', 'tunnel+offline', 'tunnel+unknown'],
-			opened: [known.toString()],
+			resolved: ['tunnel+box', 'tunnel+box', 'tunnel+box', 'tunnel+editor', 'tunnel+offline', 'tunnel+unknown', 'ssh-remote+host', 'ssh-remote+editor', 'wsl+Ubuntu'],
+			opened: [known.toString(), ssh.toString(), wsl.toString()],
 			notifications: [
 				'The session of your remote window could not be found on the remote agent host.',
-				'The session of your remote window can\'t be opened in the Agents Window, because the Agents Window is connected to a different agent host on the tunnel\'s machine than your remote window.',
+				'The session of your remote window can\'t be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window.',
 				'The session of your remote window could not be opened in the Agents Window. Tunnel \'unknown\' was not found for the signed-in accounts.',
+				'The session of your remote window can\'t be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window.',
 			],
-			results: [undefined, undefined, undefined, 'unsupported', undefined, undefined, 'unsupported'],
+			results: [undefined, undefined, undefined, 'unsupported', undefined, undefined, undefined, 'unsupported', undefined, 'unsupported', 'unsupported'],
 		});
 	});
 
