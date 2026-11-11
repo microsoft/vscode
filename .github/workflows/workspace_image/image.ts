@@ -154,7 +154,7 @@ async function runUntilDeadline(command: string, args: readonly string[]): Promi
 }
 
 /** Whether a volume is mounted at a folder, on Linux and macOS */
-function isMountPoint(folder: string): boolean {
+export function isMountPoint(folder: string): boolean {
 	return fs.statSync(folder).dev !== fs.statSync(path.dirname(folder)).dev;
 }
 
@@ -186,6 +186,11 @@ function toolFolders(root: string): Record<string, string> {
 
 /** Aborts the requests of `restore`, the writes of its image and the PowerShell that attaches it, when `restore` runs out of time */
 const downloads = new AbortController();
+
+/** Stops the writes and the commands of a restore that runs out of time, for scripts that mount images themselves */
+export function abortRestore(reason: Error): void {
+	downloads.abort(reason);
+}
 
 function githubHeaders(): Record<string, string> {
 	const token = process.env.GH_TOKEN;
@@ -420,9 +425,16 @@ async function locateZipEntry(url: string, total: number): Promise<Located> {
 }
 
 /** Reads ranges of the file of an artifact, and renews the signed URL when it expires */
-interface Source {
+export interface Source {
 	readonly size: number;
 	read(from: number, length: number): Promise<Buffer>;
+}
+
+/** Reads ranges of a packed image on the disk, such as one that a pipeline cache restored */
+export async function openFileSource(file: string): Promise<Source & { close(): Promise<void> }> {
+	const handle = await fs.promises.open(file, 'r');
+	const { size } = await handle.stat();
+	return { size, read: (from, length) => readAll(handle, length, from), close: () => handle.close() };
 }
 
 async function openArtifact(id: number): Promise<Source> {
@@ -707,53 +719,58 @@ function samePath(a: string, b: string): boolean {
 	return process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
 }
 
+/**
+ * Recreates a packed ext4 image in the sparse file `file` and mounts it at `root`, on Linux, and
+ * returns how to unmount it. The loop device attaches the file while the image is written, as
+ * attaching a file waits for the kernel to write its changes to the disk. udev reads the volume when
+ * it appears, before the image is in it, so this drops what udev read before the mount. barrier=0
+ * keeps an fsync in the volume from making the loop device wait for all of the image to reach the
+ * disk, which the kernel writes while the job goes on. noinit_itable leaves the inode tables that
+ * mkfs left to initialize alone, as they are zeros already, instead of writing them during the job.
+ */
+export async function mountLinuxImage(source: Source, file: string, root: string, connections: number): Promise<() => void> {
+	const sized = Promise.withResolvers<void>();
+	const attached = sized.promise.then(async () => {
+		const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
+		log(`attached the image to ${device}`);
+		return device;
+	});
+	// Awaited once the image is written
+	attached.catch(() => { });
+	let loop: string;
+	try {
+		log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
+		loop = await attached;
+		// Bounded by its own timeout
+		spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
+		await runUntilDeadline('sudo', ['blockdev', '--flushbufs', loop]);
+		await runUntilDeadline('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
+	} catch (err) {
+		sized.reject(err);
+		const device = await attached.catch(() => undefined);
+		if (device) {
+			// The deadline may have stopped sudo after the mount
+			if (isMountPoint(root)) {
+				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+			}
+			spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
+		}
+		throw err;
+	}
+	return () => {
+		spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+		spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
+	};
+}
+
 /** Mounts a disk image at the root folder, and returns how to unmount it */
 async function mount(source: Source, root: string, connections: number): Promise<() => void> {
 	const temp = process.env.RUNNER_TEMP ?? os.tmpdir();
 	const ws = workspace();
 	switch (process.platform) {
-		case 'linux': {
-			// An ext4 volume in a sparse file. The loop device attaches the file while the image
-			// downloads, as attaching a file waits for the kernel to write its changes to the disk. udev
-			// reads the volume when it appears, before the image is in it, so the restore drops what udev
-			// read before the mount. barrier=0 keeps an fsync in the volume from making the loop device
-			// wait for all of the image to reach the disk, which the kernel writes while the job goes on.
-			// noinit_itable leaves the inode tables that mkfs left to initialize alone, as they are zeros
-			// already, instead of writing them during the job.
-			const file = path.join(temp, 'workspace-image.ext4');
-			const sized = Promise.withResolvers<void>();
-			const attached = sized.promise.then(async () => {
-				const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
-				log(`attached the image to ${device}`);
-				return device;
-			});
-			// Awaited once the image is written
-			attached.catch(() => { });
-			let loop: string;
-			try {
-				log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
-				loop = await attached;
-				// Bounded by its own timeout
-				spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
-				await runUntilDeadline('sudo', ['blockdev', '--flushbufs', loop]);
-				await runUntilDeadline('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
-			} catch (err) {
-				sized.reject(err);
-				const device = await attached.catch(() => undefined);
-				if (device) {
-					// The deadline may have stopped sudo after the mount
-					if (isMountPoint(root)) {
-						spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
-					}
-					spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
-				}
-				throw err;
-			}
-			return () => {
-				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
-				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
-			};
-		}
+		case 'linux':
+			// An ext4 volume in a sparse file
+			return mountLinuxImage(source, path.join(temp, 'workspace-image.ext4'), root, connections);
 		case 'darwin': {
 			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
 			const file = path.join(temp, 'workspace-image.asif');
