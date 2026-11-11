@@ -3157,10 +3157,12 @@ suite('AutomationsCardsWidget', () => {
 		const accessibleProvider = disposables.add(instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor))!);
 		const accessibleContent = accessibleProvider.provideContent();
 
-		assert.deepStrictEqual({ emptyState, savedState, accessible: {
-			includesEnvironment: accessibleContent.includes(environment.name),
-			includesUnavailable: accessibleContent.includes('Some automations are unavailable.'),
-		} }, {
+		assert.deepStrictEqual({
+			emptyState, savedState, accessible: {
+				includesEnvironment: accessibleContent.includes(environment.name),
+				includesUnavailable: accessibleContent.includes('Some automations are unavailable.'),
+			}
+		}, {
 			emptyState: {
 				controlDisplay: 'none',
 				count: '1/1 remotes detected',
