@@ -85,6 +85,30 @@ function Get-NumericEventValue($Value) {
 	return $null
 }
 
+function Get-EventText($Event) {
+	$xml = [xml]$Event.ToXml()
+	return (@($xml.SelectNodes('/*[local-name()="Event"]/*[local-name()="EventData"]/*[local-name()="Data"]') | ForEach-Object { $_.InnerText }) -join "`n")
+}
+
+function Test-TcpConnection([string]$HostName, [int]$Port) {
+	$client = [System.Net.Sockets.TcpClient]::new()
+	$watch = [System.Diagnostics.Stopwatch]::StartNew()
+	try {
+		# A refused connection takes about two seconds on Windows, because TCP retries the SYN before giving up.
+		if ($client.ConnectAsync($HostName, $Port).Wait(5000)) {
+			$result = 'Success'
+		} else {
+			$result = 'TimedOut'
+		}
+	} catch {
+		$socketError = $_.Exception.GetBaseException()
+		$result = if ($socketError -is [System.Net.Sockets.SocketException]) { [string]$socketError.SocketErrorCode } else { 'Failed' }
+	} finally {
+		$client.Dispose()
+	}
+	return [ordered]@{ result = $result; elapsedMs = $watch.ElapsedMilliseconds }
+}
+
 [System.IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $capture = [ordered]@{
 	schemaVersion = 1
@@ -102,8 +126,43 @@ Write-JsonFile 'capture' $capture
 Write-Host '##vso[task.setvariable variable=VSCODE_NETWORK_DIAGNOSTICS_CAPTURED]true'
 
 # Do not mistake evidence from an earlier invocation for sections interrupted in this one.
-foreach ($section in @('listener', 'dns-servers', 'dns-udp-endpoints', 'dns-tcp-listeners', 'listener-crashes', 'dns-timeouts', 'dns-query-results', 'listener-log-inventory')) {
+foreach ($section in @('listener-health', 'listener', 'dns-servers', 'dns-udp-endpoints', 'dns-tcp-listeners', 'listener-crashes', 'listener-clr-exceptions', 'dns-timeouts', 'dns-query-results', 'listener-log-inventory')) {
 	Write-JsonFile $section ([ordered]@{ capturedAt = $started.ToString('o'); status = 'notCollected' })
+}
+
+# 1ES Network Isolation sets 1ESNI_CONFIG_PATH and the proxy variables when it starts EtwNetworkEventListener.exe, which
+# serves the job's HTTP proxy and DNS. If the listener exits, every later download fails, which looks like a GitHub, npm
+# or Azure DevOps outage in the failing step. Report that explicitly; the proxy address itself is not recorded.
+Write-Diagnostic 'listener-health' {
+	$isolationStarted = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable('1ESNI_CONFIG_PATH'))
+	$listenerRunning = @(Get-Process -ErrorAction Stop | Where-Object ProcessName -EQ 'EtwNetworkEventListener').Count -gt 0
+	$proxy = $null
+	$proxyUri = $null
+	$proxyValue = @($env:HTTPS_PROXY, $env:HTTP_PROXY) | Where-Object { $_ } | Select-Object -First 1
+	if ($proxyValue -and [Uri]::TryCreate($proxyValue, [UriKind]::Absolute, [ref]$proxyUri) -and $proxyUri.Scheme -eq 'http') {
+		$connection = Test-TcpConnection $proxyUri.Host $proxyUri.Port
+		$proxy = [ordered]@{ port = $proxyUri.Port; reachable = $connection.result -eq 'Success'; connectResult = $connection.result; connectMs = $connection.elapsedMs }
+	}
+	$verdict = if (-not $isolationStarted) {
+		'notIsolated'
+	} elseif (-not $listenerRunning) {
+		'listenerStopped'
+	} elseif ($proxy -and -not $proxy.reachable) {
+		'proxyUnreachable'
+	} else {
+		'listenerRunning'
+	}
+	if ($verdict -eq 'listenerStopped') {
+		Write-Host '##vso[task.logissue type=error]The 1ES Network Isolation listener (EtwNetworkEventListener.exe), which serves the HTTP proxy and DNS of this job, is no longer running. Network failures after it stopped, such as "Failed to connect to github.com port 443 ... over proxy" or "No such host is known", are a Network Isolation infrastructure failure rather than a VS Code or service outage. See listener-health.json and the listener crash records in the network diagnostics.'
+	} elseif ($verdict -eq 'proxyUnreachable') {
+		Write-Host "##vso[task.logissue type=error]The 1ES Network Isolation listener (EtwNetworkEventListener.exe) is running, but its HTTP proxy port refuses connections ($($proxy.connectResult)). Network failures in this job are a Network Isolation infrastructure failure rather than a VS Code or service outage. See listener-health.json in the network diagnostics."
+	}
+	[ordered]@{
+		verdict = $verdict
+		isolationStarted = $isolationStarted
+		listenerRunning = $listenerRunning
+		proxy = $proxy
+	}
 }
 
 Write-Diagnostic 'listener' {
@@ -163,6 +222,28 @@ Write-Diagnostic 'listener-crashes' {
 				recordId = $_.RecordId
 				processId = Get-NumericEventValue $data['ProcessId']
 				exceptionCode = Get-NumericEventValue $data['ExceptionCode']
+			}
+		})
+	}
+}
+
+# The listener is a .NET program, so an unhandled managed exception is logged by the .NET Runtime, not as an
+# Application Error. Keep the exception type and the method names of its stack; exception messages can contain hosts or
+# URLs of proxied requests, so they are not archived.
+Write-Diagnostic 'listener-clr-exceptions' {
+	$runtimeEvents = @(Get-MatchingEvents 'Application' "System[Provider[@Name='.NET Runtime'] and (EventID=1025 or EventID=1026)]")
+	$events = @($runtimeEvents | Where-Object { (Get-EventText $_) -match '^Application: EtwNetworkEventListener\.exe\b' })
+	[ordered]@{
+		truncated = $runtimeEvents.Count -gt $maximumRecords
+		events = @($events | Select-Object -First $maximumRecords | ForEach-Object {
+			$text = Get-EventText $_
+			$exceptionMatch = [regex]::Match($text, '(?m)^Exception Info: (?<type>[\w.`+]+)')
+			[ordered]@{
+				time = $_.TimeCreated.ToUniversalTime().ToString('o')
+				eventId = $_.Id
+				recordId = $_.RecordId
+				exceptionType = if ($exceptionMatch.Success) { $exceptionMatch.Groups['type'].Value } else { $null }
+				frames = @([regex]::Matches($text, '(?m)^\s+at (?<method>[\w.`+<>$|]+)\(') | Select-Object -First 16 | ForEach-Object { $_.Groups['method'].Value })
 			}
 		})
 	}

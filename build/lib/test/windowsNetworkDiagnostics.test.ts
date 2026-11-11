@@ -5,7 +5,9 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
@@ -34,9 +36,15 @@ interface DiagnosticSection {
 			queryStatus?: string | null;
 			processId?: string;
 			exceptionCode?: string;
+			exceptionType?: string | null;
+			frames?: string[];
 		}[];
 		files?: { name: string; bytes: number }[];
 		contentsCollected?: boolean;
+		verdict?: string;
+		isolationStarted?: boolean;
+		listenerRunning?: boolean;
+		proxy?: { port: number; reachable: boolean; connectResult: string; connectMs: number } | null;
 	};
 }
 
@@ -86,6 +94,16 @@ function Get-WinEvent {
 		Write-Error -ErrorId NoMatchingEventsFound -Category ObjectNotFound -Message 'No matching events' -ErrorAction Stop
 	}
 	$version = 0
+	if ($LogName -eq 'Application' -and $FilterXPath.Contains("Provider[@Name='.NET Runtime']")) {
+		if ($FilterXPath -notlike '*EventID=1026*') { throw 'Missing .NET Runtime event filter' }
+		$listenerText = "Application: EtwNetworkEventListener.exe&#10;CoreCLR Version: 9.0.0&#10;Description: The process was terminated due to an unhandled exception.&#10;Exception Info: System.IO.IOException: $env:AZURE_DEVOPS_EXT_PAT&#10;   at NetworkIsolation.Proxy.HttpProxyServer.&lt;AcceptAsync&gt;d__12.MoveNext()&#10;   at NetworkIsolation.Proxy.HttpProxyServer.RunAsync(System.Threading.CancellationToken)"
+		$otherText = 'Application: pwsh.exe&#10;Exception Info: System.InvalidOperationException: unrelated'
+		return @($listenerText, $otherText) | ForEach-Object {
+			$xml = '<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><EventID>1026</EventID><Version>0</Version></System><EventData><Data>' + $_ + '</Data></EventData></Event>'
+			[pscustomobject]@{ Id = 1026; Version = 0; ProcessId = 4; RecordId = 124; TimeCreated = [DateTime]'2026-08-24T08:26:12Z'; Xml = $xml; Message = $env:AZURE_DEVOPS_EXT_PAT } |
+				Add-Member -MemberType ScriptMethod -Name ToXml -Value { $this.Xml } -PassThru
+		}
+	}
 	if ($LogName -eq 'Application') {
 		if (-not $FilterXPath.Contains("Data[@Name='AppName']='EtwNetworkEventListener.exe'")) { throw 'Missing listener filter' }
 		$id = 1000
@@ -112,7 +130,7 @@ function Get-WinEvent {
 }
 `;
 
-function fixture(scenario: string) {
+function fixture(scenario: string, extraEnv: Record<string, string> = {}) {
 	const root = mkdtempSync(path.join(tmpdir(), 'vscode-network-diagnostics-'));
 	const output = path.join(root, 'output with spaces');
 	const localAppData = path.join(root, 'local');
@@ -129,7 +147,11 @@ function fixture(scenario: string) {
 		rmSync(logs, { recursive: true });
 	}
 	const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `${fakeCommands}\n& ${quotePowerShell(collector)} -OutputDirectory ${quotePowerShell(output)}`];
-	const env = { ...process.env, LOCALAPPDATA: localAppData, DIAGNOSTIC_SCENARIO: scenario, AZURE_DEVOPS_EXT_PAT: secret, BUILD_BUILDID: '467068' };
+	const env: NodeJS.ProcessEnv = { ...process.env, LOCALAPPDATA: localAppData, DIAGNOSTIC_SCENARIO: scenario, AZURE_DEVOPS_EXT_PAT: secret, BUILD_BUILDID: '467068' };
+	for (const name of ['1ESNI_CONFIG_PATH', 'HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy']) {
+		delete env[name];
+	}
+	Object.assign(env, extraEnv);
 	return {
 		root,
 		output,
@@ -155,6 +177,8 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 				udp: f.section('dns-udp-endpoints').data.endpoints,
 				tcp: f.section('dns-tcp-listeners').data.listeners,
 				crash: f.section('listener-crashes').data.events?.map(event => [event.eventId, event.processId, event.exceptionCode]),
+				clr: f.section('listener-clr-exceptions').data.events?.map(event => [event.eventId, event.exceptionType, event.frames]),
+				health: f.section('listener-health').data,
 				timeouts: f.section('dns-timeouts').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId, event.queryType, event.queryStatus]),
 				dns: f.section('dns-query-results').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId, event.queryType, event.queryStatus]),
 				copiedLogs: f.section('listener-log-inventory').data.contentsCollected,
@@ -166,6 +190,8 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 				udp: [{ address: '127.0.0.1', port: 53, processId: 8061 }],
 				tcp: [{ address: '::1', port: 53, processId: 8061 }],
 				crash: [[1000, '0x1f7d', 'c0000005']],
+				clr: [[1026, 'System.IO.IOException', ['NetworkIsolation.Proxy.HttpProxyServer.<AcceptAsync>d__12.MoveNext', 'NetworkIsolation.Proxy.HttpProxyServer.RunAsync']]],
+				health: { verdict: 'notIsolated', isolationStarted: false, listenerRunning: true, proxy: null },
 				timeouts: [[1014, '4321', '90', null, null]],
 				dns: [[3008, '4321', null, '1', '11001']],
 				copiedLogs: false,
@@ -174,9 +200,53 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 			assert.ok(!`${contents}\n${result.stdout}\n${result.stderr}`.includes(secret));
 			assert.deepStrictEqual(readdirSync(f.output).sort(), [
 				'capture.json', 'dns-query-results.json', 'dns-servers.json', 'dns-tcp-listeners.json', 'dns-timeouts.json',
-				'dns-udp-endpoints.json', 'listener-crashes.json', 'listener-log-inventory.json', 'listener.json',
+				'dns-udp-endpoints.json', 'listener-clr-exceptions.json', 'listener-crashes.json', 'listener-health.json', 'listener-log-inventory.json', 'listener.json',
 			]);
 		} finally {
+			f.dispose();
+		}
+	});
+
+	test('reports a stopped Network Isolation listener and its refused proxy port as an infrastructure failure', async () => {
+		// A port that was just released refuses connections, like the proxy port of a listener that exited.
+		const closed = createServer().listen(0, '127.0.0.1');
+		await once(closed, 'listening');
+		const port = (closed.address() as AddressInfo).port;
+		closed.close();
+		await once(closed, 'close');
+		const f = fixture('empty', { '1ESNI_CONFIG_PATH': 'C:\\NI', HTTPS_PROXY: `http://127.0.0.1:${port}` });
+		try {
+			const result = f.run();
+			const health = f.section('listener-health').data;
+			assert.deepStrictEqual({
+				status: result.status,
+				verdict: health.verdict,
+				listenerRunning: health.listenerRunning,
+				proxy: health.proxy && [health.proxy.port, health.proxy.reachable, health.proxy.connectResult],
+				annotated: /##vso\[task\.logissue type=error\]The 1ES Network Isolation listener \(EtwNetworkEventListener\.exe\).*is no longer running/.test(result.stdout),
+				addressRecorded: readFileSync(path.join(f.output, 'listener-health.json'), 'utf8').includes('127.0.0.1'),
+			}, { status: 0, verdict: 'listenerStopped', listenerRunning: false, proxy: [port, false, 'ConnectionRefused'], annotated: true, addressRecorded: false });
+		} finally {
+			f.dispose();
+		}
+	});
+
+	test('does not report an infrastructure failure while the listener and its proxy port are up', async () => {
+		const proxy = createServer().listen(0, '127.0.0.1');
+		await once(proxy, 'listening');
+		const port = (proxy.address() as AddressInfo).port;
+		const f = fixture('complete', { '1ESNI_CONFIG_PATH': 'C:\\NI', HTTPS_PROXY: `http://127.0.0.1:${port}` });
+		try {
+			const result = f.run();
+			const health = f.section('listener-health').data;
+			assert.deepStrictEqual({
+				status: result.status,
+				verdict: health.verdict,
+				proxy: health.proxy && [health.proxy.port, health.proxy.reachable, health.proxy.connectResult],
+				annotated: result.stdout.includes('type=error'),
+			}, { status: 0, verdict: 'listenerRunning', proxy: [port, true, 'Success'], annotated: false });
+		} finally {
+			proxy.close();
 			f.dispose();
 		}
 	});
@@ -308,6 +378,7 @@ interface PipelineStep {
 	continueOnError?: boolean;
 	timeoutInMinutes?: number;
 	pwsh?: string;
+	template?: string;
 }
 
 interface PipelineOutput {
@@ -320,26 +391,36 @@ interface PipelineOutput {
 function readPipeline(file: string) {
 	return load(readFileSync(path.join(pipelineRoot, file), 'utf8')) as {
 		steps: PipelineStep[];
-		jobs: { templateContext: { outputs: PipelineOutput[] } }[];
+		jobs: { templateContext: { outputs: PipelineOutput[] }; steps: PipelineStep[] }[];
 	};
 }
 
 suite('Windows network diagnostic templates', () => {
-	test('collects immediately after Build client, only on failure, with bounded and non-fatal execution', () => {
-		const steps = readPipeline('win32/steps/product-build-win32-compile.yml').steps;
-		const index = steps.findIndex(step => step.displayName === 'Build client');
-		assert.ok(index >= 0);
-		assert.deepStrictEqual(steps[index + 1], {
+	test('collects only on failure, with bounded and non-fatal execution', () => {
+		assert.deepStrictEqual(readPipeline('win32/steps/product-build-win32-network-diagnostics.yml').steps, [{
 			pwsh: 'node build/azure-pipelines/common/runWithTimeout.ts 45 -- powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File build/azure-pipelines/win32/collect-network-diagnostics.ps1 -OutputDirectory "$(Build.SourcesDirectory)\\.build\\logs\\network"',
 			displayName: 'Collect Windows network failure diagnostics',
 			condition: 'failed()',
 			continueOnError: true,
 			timeoutInMinutes: 2,
-		});
-		assert.equal(steps.filter(step => step.displayName === 'Collect Windows network failure diagnostics').length, 1);
+		}]);
 	});
 
-	test('publishes the new compile artifact only when collection initialized, and reuses CI/flaky log outputs', () => {
+	test('collects after every other step of the compile and product test jobs', () => {
+		// The 1ES template stops Network Isolation after the user steps, so the last user step still sees the listener.
+		assert.deepStrictEqual([
+			readPipeline('win32/steps/product-build-win32-compile.yml').steps.at(-1),
+			readPipeline('win32/product-build-win32-test.yml').jobs[0].steps.at(-1),
+			['win32/steps/product-build-win32-compile.yml', 'win32/steps/product-build-win32-test.yml'].filter(file =>
+				readFileSync(path.join(pipelineRoot, file), 'utf8').includes('collect-network-diagnostics.ps1')),
+		], [
+			{ template: 'product-build-win32-network-diagnostics.yml@self' },
+			{ template: './steps/product-build-win32-network-diagnostics.yml@self' },
+			[],
+		]);
+	});
+
+	test('publishes the new compile artifact only when collection initialized, and reuses CI, test and flaky log outputs', () => {
 		const output = readPipeline('win32/product-build-win32.yml').jobs[0].templateContext.outputs.find(output => output.targetPath.endsWith('/.build/logs/network'));
 		assert.deepStrictEqual(output, {
 			output: 'pipelineArtifact',
@@ -350,8 +431,8 @@ suite('Windows network diagnostic templates', () => {
 			isProduction: false,
 			condition: 'and(failed(), eq(variables[\'VSCODE_NETWORK_DIAGNOSTICS_CAPTURED\'], \'true\'))',
 		});
-		assert.deepStrictEqual(['win32/product-build-win32-ci.yml', 'common/product-smoke-flaky-build.yml'].map(file =>
+		assert.deepStrictEqual(['win32/product-build-win32-ci.yml', 'win32/product-build-win32-test.yml', 'common/product-smoke-flaky-build.yml'].map(file =>
 			readPipeline(file).jobs[0].templateContext.outputs.find(output => output.targetPath.endsWith('/.build/logs'))?.condition
-		), ['always()', 'succeededOrFailed()']);
+		), ['not(succeeded())', 'always()', 'succeededOrFailed()']);
 	});
 });
