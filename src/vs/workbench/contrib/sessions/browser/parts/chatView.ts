@@ -180,7 +180,11 @@ export interface ISessionViewHostOptions {
  */
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
-	readonly element: HTMLElement = $('.chat-view');
+	/**
+	 * The root of the chat: `.sessions-chat` is the class its styles are keyed on, so that it looks the same in every host,
+	 * such as the Agents window, a chat window or the chat part of an editor window, whatever the host's own classes.
+	 */
+	readonly element: HTMLElement = $('.chat-view.sessions-chat');
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
