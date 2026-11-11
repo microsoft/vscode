@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
+import { ensureCodeWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -197,6 +198,8 @@ suite('OverlayWebview', () => {
 		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
 		store.add(toDisposable(() => frame.remove()));
 		const target = frame.contentWindow!;
+		ensureCodeWindow(target, 12000);
+		store.add(registerWindow(target));
 		store.add(cloneGlobalStylesheets(target));
 		const root = $('.monaco-workbench.agent-sessions-workbench.aux-overlay-test');
 		target.document.body.appendChild(root);
@@ -211,7 +214,7 @@ suite('OverlayWebview', () => {
 		for (const radius of [0, 3]) {
 			sheet.textContent = `.aux-overlay-test .part { border-radius: ${radius}px; }`;
 			changes.fire();
-			await new Promise<void>(resolve => target.requestAnimationFrame(() => resolve()));
+			await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(target, resolve)));
 			radii.push(overlay.container.style.borderRadius);
 		}
 		assert.deepStrictEqual(radii, ['7px', '0px', '2px']);

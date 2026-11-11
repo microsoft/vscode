@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
+import { ensureCodeWindow } from '../../../../../base/browser/window.js';
 import { Button, unthemedButtonStyles } from '../../../../../base/browser/ui/button/button.js';
 import { InputBox, unthemedInboxStyles } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -291,6 +292,8 @@ suite('WorkbenchSizeService', () => {
 		store.add(toDisposable(() => frame.remove()));
 		const targetWindow = frame.contentWindow;
 		assert.ok(targetWindow);
+		ensureCodeWindow(targetWindow, 12001);
+		store.add(registerWindow(targetWindow));
 		store.add(cloneGlobalStylesheets(targetWindow));
 		const root = $('.monaco-workbench.semantic-auxiliary-test');
 		targetWindow.document.body.appendChild(root);
@@ -323,7 +326,7 @@ suite('WorkbenchSizeService', () => {
 			store.add(toDisposable(() => observer.disconnect()));
 			observer.observe(targetWindow.document.head, { subtree: true, childList: true, characterData: true });
 		});
-		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(targetWindow, resolve)));
 		assert.deepStrictEqual({ initial, updated: targetWindow.getComputedStyle(root).getPropertyValue('--vscode-toolsPanel-cornerRadius').trim(), initialClipping, clipping: overlay.style.borderRadius }, {
 			initial: '3px', updated: '5px', initialClipping: '2px', clipping: '4px',
 		});
