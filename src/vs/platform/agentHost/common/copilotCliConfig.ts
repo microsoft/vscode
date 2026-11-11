@@ -6,10 +6,20 @@
 import { isObject } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
+import { getLocalModelSafetyDisclosure } from './localModel.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
 
 export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
-export const COPILOT_HYDRA_FUSION_MODEL_NAME = 'HydraFusion';
+/** The runtime's HydraFusion Max model, which it only offers with HydraFusion v2 (`HYDRAFUSION_PLAN_V2`). */
+export const COPILOT_HYDRA_FUSION_MAX_MODEL_ID = 'hydrafusion-max';
+
+/** The runtime's HydraFusion routing models, which users see as Copilot Fusion's High and Max effort levels, in that order. */
+export const COPILOT_HYDRA_FUSION_MODEL_IDS: readonly string[] = [COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MAX_MODEL_ID];
+
+/** Whether the model id names one of the runtime's HydraFusion routing models. */
+export function isCopilotHydraFusionModelId(modelId: string | undefined): boolean {
+	return modelId !== undefined && COPILOT_HYDRA_FUSION_MODEL_IDS.includes(modelId);
+}
 
 /**
  * Root-config keys consumed exclusively by the Copilot CLI provider
@@ -21,34 +31,65 @@ export const enum CopilotCliConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
 	EnableShellInitScript = 'enableShellInitScript',
+	/** Enable runtime image generation and editing. The workbench mirrors it from the selected image model. */
+	ImageGeneration = 'imageGeneration',
+	/** Request a visible AI label on generated and edited images. */
+	ImageGenerationWatermark = 'imageGenerationWatermark',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
 	RuntimePath = 'runtimePath',
+	/** Copilot runtime policy helper executable. An empty path disables it. */
+	PolicyHelper = 'policyHelper',
+	/** Requested M365 account-choice rollout value, not the startup-effective account/service mode. */
+	M365Enabled = 'm365Enabled',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
-	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
-	Tgrep = 'tgrep',
+	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
+	SearchSubagent = 'searchSubagent',
+	SearchSubagentGrepNudge = 'searchSubagentGrepNudge',
+	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
+	SearchSubagentModel = 'searchSubagentModel',
+	/** Offer the runtime's built-in Explore agent. On by default. */
+	ExploreAgent = 'exploreAgent',
+	/** Use the runtime's execution subagent instead of the extension-native client tool. */
+	ExecutionSubagent = 'executionSubagent',
+	/** Runtime model ID for the execution subagent; empty inherits the session model. */
+	ExecutionSubagentModel = 'executionSubagentModel',
+	/** Whether the workbench enablement value is controlled by its configuration default. */
+	ExecutionSubagentDefaultControlled = 'executionSubagentDefaultControlled',
+	/** Whether the workbench model value is controlled by its configuration default. */
+	ExecutionSubagentModelDefaultControlled = 'executionSubagentModelDefaultControlled',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
-	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
-	ToolSearchEnabled = 'toolSearchEnabled',
-	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
-	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
-	/** Default thinking level shown in the model picker for Claude models; unsupported values are ignored. */
-	ClaudeDefaultReasoningEffort = 'claudeDefaultReasoningEffort',
-	/** Enable the experimental HydraFusion synthetic model. Off by default. */
-	HydraFusion = 'hydraFusion',
+	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
+	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
+	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
+	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
+	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
+	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
+	LocalMemory = 'localMemory',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
 	AutoModeTierOverride = 'autoModeTierOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
+	/** Opt-in for on-device models (`chat.copilot.localModel.enabled`). Startup key; off by default. */
+	LocalModelEnabled = 'localModelEnabled',
+	/** Whether Auto may route to the active on-device model. Read live at dispatch. */
+	LocalModelUseInAuto = 'localModelUseInAuto',
+	/** Absolute path to the user's `llama-server`; empty means there is no llama.cpp to run. */
+	LocalModelLlamaServerPath = 'localModelLlamaServerPath',
+	/** Account-dependent part of the on-device gate, computed by the workbench: preview features allowed, signed in, AI features enabled. */
+	LocalModelAccountGate = 'localModelAccountGate',
+	/** Whether Copilot adds its `Co-authored-by` trailer to the commits it creates. On by default. */
+	IncludeCoAuthoredBy = 'includeCoAuthoredBy',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -64,51 +105,82 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 
 export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
 
+export const AgentHostCopilotPolicyHelperSettingId = 'chat.agentHost.copilot.policyHelper';
+
+/** Policy helper executable for the Copilot runtime, subject to device and server policy precedence. */
+export interface ICopilotPolicyHelperConfig {
+	readonly path: string;
+	readonly args?: readonly string[];
+}
+
+/** Normalizes policy helper arguments and treats invalid or empty paths as unset. */
+export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPolicyHelperConfig | undefined {
+	if (!copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value) || !value.path.trim()) {
+		return undefined;
+	}
+	return { path: value.path, args: value.args ?? [] };
+}
+
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
-export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
+export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+export const CopilotSearchSubagentGrepNudgeSettingId = 'chat.copilot.searchSubagent.grepNudge.enabled';
+/** Selects the image model offered to Copilot agents, or turns image generation off. */
+export const CopilotImageGenerationModelSettingId = 'chat.copilot.imageGeneration.model';
+/** Legacy boolean setting, migrated to {@link CopilotImageGenerationModelSettingId}. */
+export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGeneration.enabled';
+export const CopilotImageGenerationWatermarkSettingId = 'chat.copilot.imageGeneration.watermark';
+
+export const CopilotSearchSubagentModelSettingId = 'chat.copilot.searchSubagent.model';
+
+export const CopilotExploreAgentEnabledSettingId = 'chat.copilot.exploreAgent.enabled';
+
+export const AgentHostCopilotExecutionSubagentEnabledSettingId = 'chat.agentHost.copilot.executionSubagent.enabled';
+
+export const AgentHostCopilotExecutionSubagentModelSettingId = 'chat.agentHost.copilot.executionSubagent.model';
+
+export const DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL = 'gpt-5.6-luna';
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
-export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
+export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
-export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
+export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
 
-export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
+/**
+ * Root config key that hosts before Auto's tiers always came from the Copilot service read to launch the runtime
+ * with `DYNAMIC_AUTO_TIERS`. Current hosts always do; clients keep sending `true` so older hosts present Auto the same way.
+ */
+export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
+
+export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
 
-/** Contributed by the Copilot extension (experiment-driven) and shared with Copilot Chat. */
-export const CopilotClaudeDefaultReasoningEffortSettingId = 'github.copilot.chat.claudeDefaultReasoningEffort';
-
-export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
+
+export const AgentHostCopilotIncludeCoAuthoredBySettingId = 'chat.agentHost.copilot.includeCoAuthoredBy';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
-export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
+export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 30_000;
 
 /** Floors valid skill character budgets and returns the default for invalid values. */
 export function normalizeSkillCharBudget(value: number | undefined): number {
 	return value !== undefined && Number.isFinite(value) && value >= 1 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
 }
 
-/** Floors valid tool-search thresholds and returns the default for invalid values. */
-export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
-	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
-}
-
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 export interface ICopilotCliModelCapabilityOverride {
 	/** Family alias (e.g. `"claude-opus-4.8"`) for prompt and tool-capability routing. */
 	readonly family?: string;
-	/** Wins over the model picker's thinking level; unrecognized values are ignored. */
+	/** Wins over the model picker's effort level; unrecognized values are ignored. */
 	readonly reasoningEffort?: string;
 	/** SDK tool allowlist (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
 	readonly availableTools?: readonly string[];
@@ -157,10 +229,21 @@ export function resolveModelCapabilityOverrideField<K extends keyof ICopilotCliM
 }
 
 export const copilotCliConfigSchema = createSchema({
+	[CopilotCliConfigKey.ImageGeneration]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
+		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing when the runtime's image model is available to your account. Prompts and selected images are sent to that model, and its charges are in addition to the conversation model. Account access and tool permissions still apply. Disabling this setting prevents future image tool calls."),
+	}),
+	[CopilotCliConfigKey.ImageGenerationWatermark]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.imageGenerationWatermark.title', "Image Watermark"),
+		description: localize('agentHost.config.imageGenerationWatermark.description', "Request a visible \"Made with AI\" label on images generated or edited by Copilot. Applies to new and existing Copilot sessions without enabling image generation. Labels are generated by the image model and are not guaranteed. Turning this off does not remove existing labels from input images."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
-		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
+		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior. Not supported on Windows, where sessions use the SDK's terminal and sandbox runtime."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.EnableShellInitScript]: schemaProperty<boolean>({
@@ -186,6 +269,31 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.copilotRuntimePath.description', "Absolute path to a local Copilot runtime executable. Empty uses the bundled runtime."),
 		default: '',
 	}),
+	[CopilotCliConfigKey.PolicyHelper]: schemaProperty<ICopilotPolicyHelperConfig>({
+		type: 'object',
+		title: localize('agentHost.config.copilotPolicyHelper.title', "Copilot Policy Helper"),
+		description: localize('agentHost.config.copilotPolicyHelper.description', "Policy helper executable for the Copilot runtime. Device and server policies take precedence. An empty path disables it. Changes restart the runtime after active turns and subagents finish."),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.config.copilotPolicyHelper.path.title', "Path"),
+				description: localize('agentHost.config.copilotPolicyHelper.path.description', "Absolute path to the policy helper executable."),
+			},
+			args: {
+				type: 'array',
+				items: { type: 'string', title: localize('agentHost.config.copilotPolicyHelper.args.item.title', "Argument") },
+				title: localize('agentHost.config.copilotPolicyHelper.args.title', "Arguments"),
+				description: localize('agentHost.config.copilotPolicyHelper.args.description', "Arguments passed to the policy helper executable."),
+			},
+		},
+		required: ['path'],
+	}),
+	[CopilotCliConfigKey.M365Enabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.m365Enabled.title', "Microsoft 365 Copilot"),
+		description: localize('agentHost.config.m365Enabled.description', "Requested enablement of Microsoft 365 Copilot access and account choice for Copilot Agent Host sessions. Requires restarting VS Code; changing this value must not switch an active account or service."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
@@ -198,10 +306,52 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.Tgrep]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.SearchSubagent]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.tgrep.title', "Indexed Search (tgrep)"),
-		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
+		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
+		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.SearchSubagentGrepNudge]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.searchSubagentGrepNudge.title', "Search Subagent Grep Nudge"),
+		description: localize('agentHost.config.searchSubagentGrepNudge.description', "During the first two user messages, defer at most one grep search per message to suggest the available search subagent. Further grep calls proceed through normal permissions. Does not affect searches inside subagents."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.searchSubagentModel.title', "Search Subagent Model"),
+		description: localize('agentHost.config.searchSubagentModel.description', "CAPI model ID to use for the search subagent. Empty uses the runtime default. An unavailable model makes the search tool unavailable. Changing this value restarts the Copilot SDK client after active turns finish."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.ExploreAgent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.exploreAgent.title', "Explore Agent"),
+		description: localize('agentHost.config.exploreAgent.description', "When enabled, Copilot SDK sessions can use the runtime's built-in Explore agent, independently of the search subagent tool. Applied when a session launches or resumes. Does not disable custom agents named Explore."),
+		default: true,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagent.title', "Runtime Execution Subagent"),
+		description: localize('agentHost.config.executionSubagent.description', "Opt into the Copilot runtime execution subagent in Copilot Agent Host sessions. Runtime experiment assignments may override this default. When available, the runtime implementation replaces the extension-native execution tool. Changing this setting restarts the Copilot runtime after active turns finish."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.executionSubagentModel.title', "Runtime Execution Subagent Model"),
+		description: localize('agentHost.config.executionSubagentModel.description', "Default model ID for the Copilot runtime execution subagent. Empty inherits the session model. Runtime experiment assignments may override this default. Changing this setting restarts the Copilot runtime after active turns finish."),
+		default: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagentDefaultControlled.title', "Runtime Execution Subagent Default Control"),
+		description: localize('agentHost.config.executionSubagentDefaultControlled.description', "Whether the workbench execution subagent enablement setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagentModelDefaultControlled.title', "Runtime Execution Subagent Model Default Control"),
+		description: localize('agentHost.config.executionSubagentModelDefaultControlled.description', "Whether the workbench execution subagent model setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.LocalIndexEnabled]: schemaProperty<boolean>({
@@ -216,22 +366,28 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.StabilityOrderedPrompt]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
-		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
-		default: true,
+		title: localize('agentHost.config.stabilityOrderedPrompt.title', "Stability-Ordered System Prompt"),
+		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
+		default: false,
 	}),
-	[CopilotCliConfigKey.ToolSearchDeferThreshold]: schemaProperty<number>({
-		type: 'number',
-		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
-		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
-		default: 1,
-	}),
-	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
-		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
+		title: localize('agentHost.config.progressUpdatesPrompt.title', "Progress Updates Prompt"),
+		description: localize('agentHost.config.progressUpdatesPrompt.description', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send brief user-visible progress updates before and between tool calls."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPromptDefaultControlled.title', "Progress Updates Prompt Default Control"),
+		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
+		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({
@@ -244,12 +400,6 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
 		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
-		default: '',
-	}),
-	[CopilotCliConfigKey.ClaudeDefaultReasoningEffort]: schemaProperty<string>({
-		type: 'string',
-		title: localize('agentHost.config.claudeDefaultReasoningEffort.title', "Claude Default Thinking Level"),
-		description: localize('agentHost.config.claudeDefaultReasoningEffort.description', "Overrides the default thinking level shown in the model picker for Claude models. Empty uses the built-in default. Ignored for models that do not support the chosen level."),
 		default: '',
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
@@ -270,7 +420,7 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'string',
 					enum: [...reasoningEffortLevels],
 					title: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.title', "Reasoning Effort"),
-					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's thinking level. Unrecognized values are ignored."),
+					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's effort level. Unrecognized values are ignored."),
 				},
 				availableTools: {
 					type: 'array',
@@ -302,6 +452,36 @@ export const copilotCliConfigSchema = createSchema({
 			},
 		},
 		default: {},
+	}),
+	[CopilotCliConfigKey.LocalModelEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localModelEnabled.title', "On-Device Models"),
+		description: localize('agentHost.config.localModelEnabled.description', "When enabled, Copilot SDK sessions can download and run on-device models. Changing this setting restarts the Copilot SDK client after active turns finish."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.LocalModelUseInAuto]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localModelUseInAuto.title', "Use On-Device Model in Auto"),
+		description: localize('agentHost.config.localModelUseInAuto.description', "When enabled, Auto can route turns to the active on-device model, with cloud fallback. {0}", getLocalModelSafetyDisclosure()),
+		default: false,
+	}),
+	[CopilotCliConfigKey.LocalModelLlamaServerPath]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.localModelLlamaServerPath.title', "llama-server Path"),
+		description: localize('agentHost.config.localModelLlamaServerPath.description', "Absolute path to the llama-server executable that serves on-device models. VS Code doesn't install llama.cpp."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.LocalModelAccountGate]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localModelAccountGate.title', "On-Device Models Allowed for Account"),
+		description: localize('agentHost.config.localModelAccountGate.description', "Whether the signed-in account allows on-device models. Set by the client."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.IncludeCoAuthoredBy]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.includeCoAuthoredBy.title', "Include Co-authored-by Trailer"),
+		description: localize('agentHost.config.includeCoAuthoredBy.description', "When enabled, Copilot SDK sessions add a `Co-authored-by` trailer to the commits they create. Applied when a session starts or resumes."),
+		default: true,
 	}),
 });
 

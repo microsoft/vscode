@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatFetchError } from '../../../platform/chat/common/commonTypes';
-import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { getAutoModeTier, isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getImageTelemetryEventMeasurements, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { FetcherId } from '../../../platform/networking/common/fetcherService';
@@ -201,6 +201,7 @@ export class ChatMLFetcherTelemetrySender {
 				"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
 				"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for a BYOK model", "isMeasurement": true },
 				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for an Auto model", "isMeasurement": true },
+				"autoTier": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Auto routing tier the request's model was routed under (efficiency, balance, intelligence, or the internal fast tier); absent when the request did not go through Auto." },
 				"bytesReceived": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of bytes received in the response", "isMeasurement": true },
 				"retryAfterError": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Error of the original request." },
 				"retryAfterErrorGitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id of the original request if available" },
@@ -237,6 +238,7 @@ export class ChatMLFetcherTelemetrySender {
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort ?? requestBody.reasoning_effort,
 			reasoningSummary: requestBody.reasoning?.summary,
 			modelCallId,
+			autoTier: getAutoModeTier(chatEndpointInfo),
 			...(baseTelemetry?.properties.subType ? { subType: baseTelemetry.properties.subType } : {}),
 			...(baseTelemetry?.properties.parentModelCallId ? { parentModelCallId: baseTelemetry.properties.parentModelCallId } : {}),
 			...(baseTelemetry?.properties.iterationNumber ? { iterationNumber: baseTelemetry.properties.iterationNumber } : {}),

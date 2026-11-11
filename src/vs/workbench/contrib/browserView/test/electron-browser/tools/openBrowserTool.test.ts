@@ -15,10 +15,11 @@ import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkF
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IRemoteExplorerService } from '../../../../../services/remote/common/remoteExplorerService.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { IChatModel, IChatRequestModel } from '../../../../chat/common/model/chatModel.js';
+import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
 import { OpenBrowserTool } from '../../../electron-browser/tools/openBrowserTool.js';
 import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
-import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions } from '../../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNetwork } from '../../../../../../platform/browserView/common/browserView.js';
 import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Tunnel, TunnelModel } from '../../../../../services/remote/common/tunnelModel.js';
@@ -95,7 +96,8 @@ suite('OpenBrowserTool', () => {
 			}),
 			upcastPartial<IEditorService>({}),
 			upcastPartial<IBrowserViewWorkbenchService>({
-				willUseRemoteProxy: () => true,
+				resolveNetwork: () => ({ authority: 'remote' }),
+				getNetworkStatus: () => ({ label: 'remote', connected: true, proxySupported: true }),
 				createBrowserView: async (options, openOptions) => {
 					createOptions = options;
 					editorOpenOptions = openOptions;
@@ -122,19 +124,40 @@ suite('OpenBrowserTool', () => {
 			CancellationToken.None
 		);
 
-		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, {
+		const expected = {
 			createOptions: {
-				owner: { type: 'agent', sessionId: 'chat:session' },
-				initialAudiences: [{ type: 'agent' }],
+				owner: { type: 'agent' as const, sessionId: 'chat:session' },
+				initialAudiences: [{ type: 'agent' as const }],
 				session: {
 					scope: BrowserViewStorageScope.Agent,
-					affinity: 'chat:session'
+					affinity: 'chat:session',
+					network: { authority: 'remote' }
 				},
 				initialUrl: 'https://example.com',
 				openSource: 'cdpCreated'
 			},
 			editorOpenOptions: { preserveFocus: true },
 			summaryArguments: ['chat:session', 'page-id', 'https://example.com', 5000]
+		};
+		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, expected);
+
+		const restrictions = { sandboxEnabled: true, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: [] };
+		await tool.invoke(
+			upcastPartial<IToolInvocation>({
+				parameters: { url: 'https://example.com', forceNew: false },
+				context: { sessionResource: URI.parse('chat:session'), sandboxNetworkRestrictions: restrictions }
+			}),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None
+		);
+		assert.deepStrictEqual({ createOptions, editorOpenOptions, summaryArguments }, {
+			...expected,
+			createOptions: {
+				...expected.createOptions,
+				initialAudiences: [{ type: 'agent', sessionId: 'chat:session' }],
+				sandboxNetworkRestrictions: restrictions,
+			},
 		});
 	});
 
@@ -145,7 +168,7 @@ suite('OpenBrowserTool', () => {
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		let createCount = 0;
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			willUseRemoteProxy: () => false,
+			resolveNetwork: () => undefined,
 			createBrowserView: async () => {
 				createCount++;
 				return upcastPartial<BrowserEditorInput>({ id: 'page-id' });
@@ -190,6 +213,131 @@ suite('OpenBrowserTool', () => {
 		});
 	});
 
+	test('waits for the Playwright page after sharing an existing tab', async () => {
+		let summaryArguments: readonly [string, string, string, number] | undefined;
+		const sharedModel = upcastPartial<IBrowserViewModel>({ id: 'shared-id', url: 'http://localhost:3000/' });
+		const editor = upcastPartial<BrowserEditorInput>({
+			resolve: async () => upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Available, setSharedWithAgent: async () => sharedModel }),
+		});
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				waitForPageAndGetSummary: async (...args) => {
+					summaryArguments = args;
+					return 'Page summary';
+				}
+			}),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({}),
+			upcastPartial<IRemoteExplorerService>({}),
+			upcastPartial<AgentNetworkFilterService>({}),
+			upcastPartial<IChatService>({}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({}),
+		);
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+		await tool['_shareExistingPage']('session-id', editor);
+
+		assert.deepStrictEqual(summaryArguments, ['session-id', 'shared-id', 'http://localhost:3000/', 5000]);
+	});
+
+	test('reuses only existing pages on the network a new page would use', async () => {
+		// The lookup only considers real browser editors, whose identity and state are getters.
+		const page = (id: string, network: IBrowserViewNetwork | undefined): BrowserEditorInput => Object.create(BrowserEditorInput.prototype, {
+			id: { value: id },
+			url: { value: 'http://localhost:3000/' },
+			title: { value: id },
+			model: { value: upcastPartial<IBrowserViewModel>({ network, sharingState: BrowserViewSharingState.Shared }) },
+		});
+		const pages = [page('local-page', undefined), page('remote-page', { authority: 'remote' })];
+		const reused: Record<string, string[]> = {};
+		// A host that cannot proxy browsers puts new pages on the local network.
+		for (const proxySupported of [true, false]) {
+			const tool = new OpenBrowserTool(
+				upcastPartial<IPlaywrightService>({}),
+				upcastPartial<IEditorService>({ activeEditor: undefined, visibleEditors: [] }),
+				upcastPartial<IBrowserViewWorkbenchService>({
+					resolveNetwork: () => ({ authority: 'remote' }),
+					getNetworkStatus: () => ({ label: 'remote', connected: true, proxySupported }),
+					getContextualBrowserViews: () => new Map(pages.map(p => [p.id, p])),
+				}),
+				upcastPartial<IRemoteExplorerService>({}),
+				upcastPartial<AgentNetworkFilterService>({ isUriAllowed: () => true }),
+				upcastPartial<IChatService>({}),
+				new TestConfigurationService(),
+				upcastPartial<ILogService>({}),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+			);
+
+			const result = await tool.invoke(
+				upcastPartial<IToolInvocation>({
+					parameters: { url: 'http://localhost:3000/' },
+					context: { sessionResource: URI.parse('chat:session') },
+				}),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+
+			const text = result.content.map(part => part.kind === 'text' ? part.value : '').join('');
+			reused[proxySupported ? 'supported' : 'unsupported'] = [...pages.map(p => p.id).filter(id => text.includes(`[${id}]`)), ...text.includes('user\'s local network') ? ['local network notice'] : []];
+		}
+
+		// Reused local pages tell the model that `localhost` is the user's machine.
+		assert.deepStrictEqual(reused, { supported: ['remote-page'], unsupported: ['local-page', 'local network notice'] });
+	});
+
+	test('does not prompt to share an existing page for a subagent invocation', async () => {
+		const model = upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Available, isDirectlyShareable: true });
+		const page: BrowserEditorInput = Object.create(BrowserEditorInput.prototype, {
+			id: { value: 'unshared-page' },
+			url: { value: 'https://example.com/' },
+			title: { value: 'unshared-page' },
+			model: { value: model },
+			resolve: { value: async () => model },
+		});
+		const sessionResource = URI.parse('chat:session');
+		const request = upcastPartial<IChatRequestModel>({ id: 'request' });
+		const result: { appended: number; created: number } = { appended: 0, created: 0 };
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({ waitForPageAndGetSummary: async () => 'Page summary' }),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({
+				resolveNetwork: () => undefined,
+				getNetworkStatus: () => ({ label: 'local', connected: true, proxySupported: true }),
+				getContextualBrowserViews: () => new Map([[page.id, page]]),
+				createBrowserView: async () => {
+					result.created++;
+					return upcastPartial<BrowserEditorInput>({ id: 'new-page' });
+				},
+			}),
+			upcastPartial<IRemoteExplorerService>({}),
+			upcastPartial<AgentNetworkFilterService>({ isUriAllowed: () => true }),
+			upcastPartial<IChatService>({
+				getSession: () => upcastPartial<IChatModel>({ getRequests: () => [request] }),
+				appendProgress: () => { result.appended++; },
+			}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+		);
+
+		await tool.invoke(
+			upcastPartial<IToolInvocation>({
+				parameters: { url: 'https://example.com/' },
+				context: { sessionResource },
+				chatRequestId: 'request',
+				subAgentInvocationId: 'subagent-call',
+			}),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual(result, { appended: 0, created: 1 });
+	});
+
 	test('rechecks policy before existing-page discovery', async () => {
 		let allowed = true;
 		let discoveryCount = 0;
@@ -198,7 +346,8 @@ suite('OpenBrowserTool', () => {
 			formatError: uri => `Blocked ${uri.authority}`,
 		});
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			willUseRemoteProxy: () => true,
+			resolveNetwork: () => ({ authority: 'remote' }),
+			getNetworkStatus: () => ({ label: 'remote', connected: true, proxySupported: true }),
 			getContextualBrowserViews: () => {
 				discoveryCount++;
 				return new Map();

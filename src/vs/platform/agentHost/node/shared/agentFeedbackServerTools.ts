@@ -10,7 +10,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseChatUri, type Annotation, type AnnotationOrigin, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import { type Annotation, type AnnotationOrigin, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -667,13 +667,13 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		if (!feedbackToolRequiresConfirmation(toolName)) {
 			return false;
 		}
-		return hasRevealableComments(getFeedbackToolState(stateManager, context.chatUri).state);
+		return hasRevealableComments(getFeedbackToolState(stateManager, context.sessionUri).state);
 	},
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
 	execute(stateManager, context, toolName, rawArgs): string {
-		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, context.chatUri);
+		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, context.sessionUri);
 		const turnId = stateManager.getChatState(context.chatUri)?.activeTurn?.id;
 		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs, {
 			session: mainSessionUri,
@@ -687,9 +687,8 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	},
 };
 
-function getFeedbackToolState(stateManager: AgentHostStateManager, chatUri: string): { mainSessionUri: string; annotationsUri: string; state: AnnotationsState } {
+function getFeedbackToolState(stateManager: AgentHostStateManager, mainSessionUri: string): { mainSessionUri: string; annotationsUri: string; state: AnnotationsState } {
 	// Peer chats share feedback with their owning session.
-	const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
 	const annotationsUri = buildAnnotationsUri(mainSessionUri);
 	const snapshot = stateManager.getSnapshot(annotationsUri);
 	const state = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };

@@ -345,6 +345,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
 				isActive: this.isActive,
+				isError: (data?.kind === 'subagent' ? data.isError : undefined) ?? !!IChatToolInvocation.resultError(this._subagentToolInvocation),
 				...(this.credits ? { credits: this.credits } : {}),
 				...(data?.kind === 'subagent' && data.modelId ? { modelId: data.modelId } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),
@@ -522,7 +523,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	private removeWorkingSpinner(): void {
 		if (this.workingSpinnerElement) {
-			this.workingSpinnerElement.remove();
+			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
 		}
 	}
@@ -829,6 +830,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			: toolInvocation.invocationMessage;
 		const messageText = typeof message === 'string' ? message : message.value;
 		const label = messageText.replace(/\s+/g, ' ').trim();
+		if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			|| state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+			|| state?.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return label || toolInvocation.toolId;
+		}
 		if (!label) {
 			return undefined;
 		}
@@ -882,9 +888,10 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			}
 			if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
 				const toolLabel = this.getToolLabel(toolInvocation, state);
-				if (toolLabel && (toolLabel !== this.currentRunningToolMessage || !equals(subagent, this.mostRecentToolPresentation?.subagent))) {
+				const toolIcon = toolLabel ? this.getToolIcon(toolInvocation, toolLabel) : undefined;
+				if (toolLabel && (toolLabel !== this.currentRunningToolMessage || !equals(toolIcon, this.currentRunningToolIcon) || !equals(subagent, this.mostRecentToolPresentation?.subagent))) {
 					this.currentRunningToolMessage = toolLabel;
-					this.currentRunningToolIcon = this.getToolIcon(toolInvocation, this.currentRunningToolMessage);
+					this.currentRunningToolIcon = toolIcon;
 					this.updateActiveToolPresentation(toolInvocation, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 					this._updateToolPresentation();
 				}
@@ -923,6 +930,16 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				this.removeWorkingSpinner();
 			} else if (!isWaitingForConfirmation && wasWaitingForConfirmation) {
 				this.toolsWaitingForConfirmation--;
+				if (!this.getToolLabel(toolInvocation, state)) {
+					if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
+						this.currentRunningToolMessage = undefined;
+						this.currentRunningToolIcon = undefined;
+					}
+					this.activeToolPresentations.delete(toolInvocation.toolCallId);
+					if (this.mostRecentToolPresentation?.callId === toolInvocation.toolCallId) {
+						this.mostRecentToolPresentation = undefined;
+					}
+				}
 				if (this.toolsWaitingForConfirmation === 0 && this.autoExpandedForConfirmation && !this.userManuallyExpanded) {
 					// Auto-collapse only if we auto-expanded and user didn't manually expand
 					this.autoExpandedForConfirmation = false;
@@ -1006,6 +1023,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	/** Shows a placeholder that jumps back to the carousel. */
 	private showConfirmationPlaceholder(): void {
+		if (this.context.suppressProgressShimmer) {
+			return;
+		}
 		if (this._confirmationPlaceholder) {
 			this.updateConfirmationPlaceholderLabel();
 			return;

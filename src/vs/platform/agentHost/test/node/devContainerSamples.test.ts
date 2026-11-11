@@ -7,13 +7,26 @@ import assert from 'assert';
 import { createHash } from 'crypto';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { join } from '../../../../base/common/path.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IGitHubAnonymousClient } from '../../../github/common/anonymous/anonymous.js';
+import { IContentClient } from '../../../github/common/content/content.js';
+import { IGitHubService } from '../../../github/common/githubService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { IRequestService } from '../../../request/common/request.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../common/devContainerSamples.js';
+import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
 import { getDevContainerSampleLabels, getDevContainerSampleVolumeName, parseDevContainerSampleConfiguration, prepareDevContainerSample } from '../../node/devContainerSamples.js';
+import { devContainerSandboxRunArgs } from '../../node/devContainerSandbox.js';
 
 suite('Dev Container samples', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const sample = devContainerSamples[2];
 	const repositoryPath = 'https://github.com/Microsoft/vscode-remote-try-node';
 	const folder = 'vscode-remote-try-node';
@@ -83,18 +96,32 @@ suite('Dev Container samples', () => {
 
 	test('clones before lifecycle hooks and reuses cached configuration and volumes', async () => {
 		const calls: string[] = [];
-		const fetchedUrls: string[] = [];
 		const cloneUsesLowercaseUrl: boolean[] = [];
+		const cloneUsesPinnedCommit: boolean[] = [];
 		const volumeName = getDevContainerSampleVolumeName(sample, []);
 		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
+		const leases = { acquired: 0, released: 0 };
+		const service = new class extends mock<IGitHubService>() {
+			override acquireAnonymousClient() {
+				leases.acquired++;
+				return upcastPartial<IGitHubAnonymousClient>({
+					content: upcastPartial<IContentClient>({
+						resolveRef: async ({ owner, repo }, ref) => {
+							calls.push(`resolve ${owner}/${repo}@${ref}`);
+							return commit;
+						},
+						getRawFile: async ({ owner, repo }, commitSha, path) => {
+							calls.push(`read ${owner}/${repo}@${commitSha}/${path}`);
+							return JSON.stringify(config);
+						},
+					}),
+					dispose: () => { leases.released++; },
+				});
+			}
+		}();
 		let existing = false;
-		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
+		const commands: Omit<Parameters<typeof prepareDevContainerSample>[2], 'readSource'> = {
 			onContainerStarted: id => calls.push(`started ${id}`),
-			fetch: async url => {
-				fetchedUrls.push(url);
-				calls.push(url.includes('/commits/') ? 'commit' : 'config');
-				return url.includes('/commits/') ? JSON.stringify({ sha: commit }) : JSON.stringify(config);
-			},
 			docker: async args => {
 				let stdout: string;
 				if (args[0] === 'volume') {
@@ -107,6 +134,7 @@ suite('Dev Container samples', () => {
 					calls.push(clone ? 'clone' : 'read config');
 					if (clone) {
 						cloneUsesLowercaseUrl.push(args.at(-1)!.includes('https://github.com/microsoft/vscode-remote-try-node'));
+						cloneUsesPinnedCommit.push(args.at(-1)!.includes(`checkout -B "$branch" '${commit}'`));
 					}
 					stdout = clone ? '' : JSON.stringify(config);
 				}
@@ -123,21 +151,44 @@ suite('Dev Container samples', () => {
 				};
 			},
 		};
-		const first = await prepareDevContainerSample(sample, cacheDirectory, commands);
+		const configuration = new TestConfigurationService({});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const host = store.add(new class extends DevContainerAgentHostMainService {
+			prepareSample() {
+				return this._prepareSample('sample', sample, CancellationToken.None, commands.onContainerStarted);
+			}
+			protected override _runDocker(args: readonly string[]) {
+				return commands.docker(args);
+			}
+			protected override _runDevContainer(_connectionId: string, args: readonly string[]) {
+				return commands.devcontainer(args);
+			}
+		}(
+			new NullLogService(), new class extends mock<IProductService>() { }(), NullTelemetryService,
+			configuration, new class extends mock<INativeEnvironmentService>() { override readonly userDataPath = cacheDirectory; }(),
+			new class extends mock<IRequestService>() { }(), service,
+		));
+		const first = await host.prepareSample();
 		existing = true;
-		const second = await prepareDevContainerSample(sample, cacheDirectory, commands);
+		const second = await host.prepareSample();
+		const sampleDirectory = join(cacheDirectory, 'devContainerSamples', sample.id);
 		assert.deepStrictEqual({
 			calls,
-			fetchedUrls,
+			leases,
 			cloneUsesLowercaseUrl,
+			cloneUsesPinnedCommit,
 			sameIdentity: first.repository.volumeName === second.repository.volumeName,
-			config: JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')),
+			source: JSON.parse(await readFile(join(sampleDirectory, 'source.json'), 'utf8')),
+			config: JSON.parse(await readFile(join(sampleDirectory, 'devcontainer.json'), 'utf8')),
 		}, {
-			calls: ['commit', 'config', 'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
+			calls: [`resolve microsoft/${folder}@HEAD`, `read microsoft/${folder}@${commit}/.devcontainer/devcontainer.json`,
+				'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
 				'volume ls', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
-			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://raw.githubusercontent.com/microsoft/${folder}/${commit}/.devcontainer/devcontainer.json`],
+			leases: { acquired: 1, released: 1 },
 			cloneUsesLowercaseUrl: [true, true],
+			cloneUsesPinnedCommit: [true, true],
 			sameIdentity: true,
+			source: { commit, content: JSON.stringify(config) },
 			config: {
 				...config,
 				workspaceFolder: `/workspaces/${folder}`,
@@ -147,10 +198,31 @@ suite('Dev Container samples', () => {
 		});
 	});
 
+	test('keeps sandbox Docker options in the generated sample config through lifecycle setup', async () => {
+		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
+		const configurations: object[] = [];
+		await prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: () => { },
+			readSource: async () => ({ commitSha: commit, content: JSON.stringify(config) }),
+			docker: async args => ({
+				stdout: args[0] === 'volume'
+					? args[1] === 'ls' ? getDevContainerSampleVolumeName(sample, []) : JSON.stringify({ 'vsch.local.repository': repositoryPath })
+					: args.includes('cat') ? JSON.stringify(config) : '',
+				stderr: '', code: 0,
+			}),
+			devcontainer: async () => {
+				configurations.push(JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')));
+				return { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 };
+			},
+		}, true);
+		const expected = { ...config, workspaceFolder: `/workspaces/${folder}`, workspaceMount: `type=volume,source=${getDevContainerSampleVolumeName(sample, [])},target=/workspaces`, updateRemoteUserUID: false, runArgs: devContainerSandboxRunArgs };
+		assert.deepStrictEqual(configurations, [expected, expected]);
+	});
+
 	test('unsupported configuration fails before creating a volume or container', async () => {
 		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 			onContainerStarted: () => { throw new Error('No container should be registered'); },
-			fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"image","features":{"java":{}}}',
+			readSource: async () => ({ commitSha: commit, content: '{"image":"image","features":{"java":{}}}' }),
 			docker: async () => { throw new Error('Docker must not run'); },
 			devcontainer: async () => { throw new Error('Dev Container CLI must not run'); },
 		}), /requires an image build/);
@@ -161,7 +233,7 @@ suite('Dev Container samples', () => {
 			let lifecycleCalls = 0;
 			const preparation = prepareDevContainerSample(sample, cacheDirectory, {
 				onContainerStarted: () => { },
-				fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"old-image"}',
+				readSource: async () => ({ commitSha: commit, content: '{"image":"old-image"}' }),
 				docker: async args => ({
 					stdout: args[0] === 'inspect' ? JSON.stringify(rebuilt ? 'new-image' : 'old-image')
 						: args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath })
@@ -193,7 +265,7 @@ suite('Dev Container samples', () => {
 			const started: string[] = [];
 			await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 				onContainerStarted: id => started.push(id),
-				fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"sample-image"}',
+				readSource: async () => ({ commitSha: commit, content: '{"image":"sample-image"}' }),
 				docker: async args => {
 					const isClone = args.includes('/bin/sh');
 					return {
@@ -218,7 +290,7 @@ suite('Dev Container samples', () => {
 		const started: string[] = [];
 		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 			onContainerStarted: id => started.push(id),
-			fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"sample-image"}',
+			readSource: async () => ({ commitSha: commit, content: '{"image":"sample-image"}' }),
 			docker: async args => ({
 				stdout: args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath }) : '',
 				stderr: '', code: 0,

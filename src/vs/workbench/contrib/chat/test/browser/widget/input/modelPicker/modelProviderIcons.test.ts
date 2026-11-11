@@ -43,7 +43,7 @@ suite('ModelProviderIcons', () => {
 			getModelProviderIcon(createModel('deepseek-v4-pro', 'DeepSeek V4 Pro')).id,
 			getModelProviderIcon(createModel('auto', 'Auto')).id,
 			getModelProviderIcon(createModel('auto', 'Auto', 'anthropic')).id,
-			getModelProviderIcon(createModel('hydrafusion', 'HydraFusion', 'agent-host-copilot')).id,
+			getModelProviderIcon(createModel('hydrafusion', 'HydraFusion', 'agent-host-copilot', { modelGroup: { id: 'copilotcli' } })).id,
 			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
 			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5', 'anthropic', { isBYOK: true })).id,
 			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro', 'google', { isBYOK: true })).id,

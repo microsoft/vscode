@@ -7,7 +7,6 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, getEntryAddress, getEntryTypeConfig, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { computeReconnectDelay } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -15,42 +14,16 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHostContribution.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ManagedReconnectAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
+import { disconnectSSHEntry } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 
 const SSH_RECONNECT_PERIODIC_INTERVAL_MS = 60_000;
 
 /** Returns whether an SSH reconnect failure requires pausing retries. */
 export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err) || isSSHHostKeyDeniedError(err);
-}
-
-/** Returns the SSH service's stable key for a configured connection. */
-export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): string {
-	return connection.sshConfigHost
-		? `ssh:${connection.sshConfigHost}`
-		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
-}
-
-/**
- * Disconnect an SSH-backed remote agent host at the user's request.
- *
- * Order matters. `sshService.disconnect` is what drops the persisted SSH
- * entry, and that entry is what makes the address "desired" during
- * reconciliation. Tearing the connection down first fires
- * `onDidChangeConnections` while the entry is still stored, so reconciliation
- * sees a desired-but-disconnected host and immediately re-dials it — the host
- * reappears moments after the user removed it. Dropping the entry first makes
- * the address undesired, so the teardown's own reconcile is a no-op.
- */
-export async function disconnectSSHEntry(
-	connection: IRemoteAgentHostSSHConnection,
-	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
-	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
-): Promise<void> {
-	await sshService.disconnect(sshConnectionKey(connection));
-	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
 }
 
 export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribution implements IWorkbenchContribution {
@@ -71,22 +44,17 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 	) {
 		super(remoteAgentHostService, configurationService, logService, instantiationService, sessionsProvidersService, notificationService);
 
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
-			this._resumeSSHReconnects();
-			this._reconcile();
-		}));
+		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
+		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
-				this._resumeSSHReconnects();
 				this._reconcile();
 			}
 		}));
 
-		this._register(new IntervalTimer()).cancelAndSet(() => {
-			this._resumeSSHReconnects();
-			this._reconcile();
-		}, SSH_RECONNECT_PERIODIC_INTERVAL_MS);
+		// The connection service owns retries; the periodic sweep only reconciles providers.
+		this._register(new IntervalTimer()).cancelAndSet(() => this._reconcile(), SSH_RECONNECT_PERIODIC_INTERVAL_MS);
 
 		this._reconcile();
 	}
@@ -150,37 +118,24 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 			return;
 		}
 		this._reconnectStates.get(sshConfigHost)?.resetForResume();
-		await this._attemptSSHReconnect(sshConfigHost, name, address, true);
-	}
-
-	private async _disconnectSSHOnDemand(connection: IRemoteAgentHostSSHConnection): Promise<void> {
-		if (connection.sshConfigHost) {
-			this._reconnectStates.deleteAndDispose(connection.sshConfigHost);
-		}
-		await disconnectSSHEntry(connection, this._remoteAgentHostService, this._sshService);
-	}
-
-	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, userInitiated: boolean): Promise<void> {
-		const reconnectPolicy = getEntryTypeConfig(RemoteAgentHostEntryType.SSH).reconnect;
-		const attempt = (this._reconnectStates.get(sshConfigHost)?.attempts ?? 0) + 1;
 		const stopwatch = StopWatch.create(false);
 		await this._attemptManagedReconnect({
 			kind: 'SSH',
 			key: sshConfigHost,
 			address,
-			userInitiated,
-			reconnectPolicy,
+			userInitiated: true,
+			reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.SSH).reconnect,
 			shouldPause: shouldPauseSSHReconnectAfterFailure,
-			requiresUserInitiatedResume: isSSHHostKeyDeniedError,
+			requiresUserInitiatedResume: shouldPauseSSHReconnectAfterFailure,
 			getPauseReason: err => isSSHHostKeyDeniedError(err) ? 'host key denial' : 'user cancellation',
 			doConnect: async () => {
 				try {
-					this._remoteAgentHostService.reconnect(address, userInitiated);
+					this._remoteAgentHostService.reconnect(address, true);
 					await this._remoteAgentHostService.waitForConnection(address);
 					logSSHConnectAttempt(this._telemetryService, {
 						operation: 'reconnect',
-						userInitiated,
-						attempt,
+						userInitiated: true,
+						attempt: 1,
 						durationMs: stopwatch.elapsed(),
 						success: true,
 						willRetry: false,
@@ -188,8 +143,8 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 				} catch (err) {
 					logSSHConnectAttempt(this._telemetryService, {
 						operation: 'reconnect',
-						userInitiated,
-						attempt,
+						userInitiated: true,
+						attempt: 1,
 						durationMs: stopwatch.elapsed(),
 						success: false,
 						willRetry: false,
@@ -198,29 +153,14 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 					throw err;
 				}
 			},
-			schedule: state => {
-				state.scheduleRetry(computeReconnectDelay(reconnectPolicy, state.attempts), () => {
-					void this._attemptSSHReconnect(sshConfigHost, name, address, false);
-				});
-			},
 		});
 	}
 
-	private _resumeSSHReconnects(): void {
-		let resumed = 0;
-		for (const entry of this._getProviderEntries()) {
-			if (entry.connection.type !== RemoteAgentHostEntryType.SSH || !entry.connection.sshConfigHost) {
-				continue;
-			}
-			const state = this._reconnectStates.get(entry.connection.sshConfigHost);
-			if (state?.resumeAutomatically()) {
-				resumed++;
-				void this._attemptSSHReconnect(entry.connection.sshConfigHost, entry.name, getEntryAddress(entry), false);
-			}
+	private async _disconnectSSHOnDemand(connection: IRemoteAgentHostSSHConnection): Promise<void> {
+		if (connection.sshConfigHost) {
+			this._reconnectStates.deleteAndDispose(connection.sshConfigHost);
 		}
-		if (resumed > 0) {
-			this._logService.info(`[RemoteAgentHost] Resuming SSH auto-reconnect for ${resumed} paused host(s)`);
-		}
+		await disconnectSSHEntry(connection, this._remoteAgentHostService, this._sshService);
 	}
 }
 

@@ -8,12 +8,12 @@ import { decodeHex, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
-import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
+import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../platform/agentHost/common/devContainerSamples.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 suite('resolveRemoteAuthority', () => {
 
@@ -158,7 +158,7 @@ suite('resolveRemoteAuthority', () => {
 		);
 		assert.deepStrictEqual({
 			authority: resolveRemoteAuthority('agenthost-wsl', providersService, remoteService),
-			folderUri: { scheme: folderUri.scheme, authority: folderUri.authority, path: folderUri.path },
+			folderUri: folderUri && { scheme: folderUri.scheme, authority: folderUri.authority, path: folderUri.path },
 		}, {
 			authority: 'wsl+Ubuntu-24.04',
 			folderUri: { scheme: 'vscode-remote', authority: 'wsl+Ubuntu-24.04', path: '/home/test/project' },
@@ -208,7 +208,7 @@ suite('resolveRemoteAuthority', () => {
 		assert.deepStrictEqual({
 			authority,
 			decodedHostPath: authority ? decodeHex(authority.slice('dev-container+'.length).split('@')[0]).toString() : undefined,
-			folderUri: {
+			folderUri: folderUri && {
 				scheme: folderUri.scheme,
 				authority: folderUri.authority,
 				path: folderUri.path,
@@ -244,6 +244,27 @@ suite('resolveRemoteAuthority', () => {
 			makeProvidersService(),
 			makeRemoteAgentHostService([]),
 		), /Send the first prompt/);
+	});
+
+	test('does not transfer a window-local remote filesystem without an Editor resolver', () => {
+		const remoteFolder = toAgentHostUri(URI.file('C:\\Users\\test\\project'), agentHostAuthority('cloudsandbox:environment'));
+		const localFolder = toAgentHostUri(URI.file('/local/project'), LOCAL_AGENT_HOST_AUTHORITY);
+		const providers = makeProvidersService('cloudsandbox:environment');
+		const remoteService = makeRemoteAgentHostService([{
+			name: 'Windows dev box',
+			connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:environment', environmentId: 'environment' },
+		}]);
+		assert.deepStrictEqual({
+			sandbox: resolveRemoteFolderUri(remoteFolder, 'agenthost-sandbox', providers, remoteService),
+			unknown: resolveRemoteFolderUri(remoteFolder, 'unknown', makeProvidersService(), makeRemoteAgentHostService()),
+			local: resolveRemoteFolderUri(localFolder, 'local', makeProvidersService(), makeRemoteAgentHostService()),
+			file: resolveRemoteFolderUri(URI.file('/local/project'), 'local', makeProvidersService(), makeRemoteAgentHostService()),
+		}, {
+			sandbox: undefined,
+			unknown: undefined,
+			local: localFolder,
+			file: URI.file('/local/project'),
+		});
 	});
 
 	test('returns a Dev Containers authority for a POSIX source folder', () => {
@@ -311,8 +332,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes when user is present', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'myserver',
 			user: 'admin',
 		});
@@ -322,8 +341,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes when port is present', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'myserver',
 			port: 2222,
 		});
@@ -333,8 +350,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes when hostName has uppercase letters', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'MyServer',
 		});
 		const decoded = decodeHex(result).toString();
@@ -343,8 +358,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes with all fields', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'MyServer.example.com',
 			user: 'root',
 			port: 22,
@@ -357,12 +370,22 @@ suite('sshAuthorityString', () => {
 		});
 	});
 
-	test('uses hostName directly when address differs', () => {
+	test('uses a lowercase host name directly', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'actualhost',
 		});
 		assert.strictEqual(result, 'actualhost');
+	});
+
+	test('encodes like Remote - SSH, which identifies the remote by this string', () => {
+		assert.deepStrictEqual({
+			underscore: sshAuthorityString({ hostName: 'my_host' }),
+			ipv6: sshAuthorityString({ hostName: 'fe80::1' }),
+			plus: JSON.parse(decodeHex(sshAuthorityString({ hostName: 'a+b' })).toString()),
+		}, {
+			underscore: 'my_host',
+			ipv6: 'fe80::1',
+			plus: { hostName: 'a+b' },
+		});
 	});
 });

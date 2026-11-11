@@ -105,27 +105,41 @@ suite('Frosted glass styles', () => {
 		const glassMotionTest = supportsGlass(document.body) && (domPosition !== ContextViewDOMPosition.FIXED_SHADOW || supportsShadowSelectors) ? test : test.skip;
 
 		for (const windowClass of ['modern-ui', 'agent-sessions-workbench']) {
-			glassMotionTest(`closing motion scales ${name} menu contents and glass together in ${windowClass}`, () => {
+			glassMotionTest(`closing motion scales and fades ${name} menu contents and glass together in ${windowClass}`, () => {
 				const { root, container, surface, contextView, finishOpening } = createNestedMenu(domPosition, windowClass);
 				finishOpening();
 				contextView.hide();
-				container.getAnimations({ subtree: true }).forEach(animation => {
-					animation.pause();
-					animation.currentTime = 75;
-				});
+				const closingAnimations = container.getAnimations({ subtree: true });
 				const targetWindow = getWindow(container);
-				const paint = targetWindow.getComputedStyle(container, '::before');
-				const contents = targetWindow.getComputedStyle(surface);
 				const scale = (transform: string) => transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
+				const read = (currentTime: number) => {
+					closingAnimations.forEach(animation => {
+						animation.pause();
+						animation.currentTime = currentTime;
+					});
+					const paint = targetWindow.getComputedStyle(container, '::before');
+					const contents = targetWindow.getComputedStyle(surface);
+					return {
+						paintAnimation: paint.animationName,
+						contentAnimation: contents.animationName,
+						paintScale: scale(paint.transform),
+						contentScale: scale(contents.transform),
+						paintOpacity: Number(paint.opacity),
+						contentOpacity: Number(contents.opacity),
+					};
+				};
+				const midway = read(75);
 				const state = {
 					hasEditorMarker: root.classList.contains('modern-ui'),
 					closing: container.classList.contains(CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS),
 					inert: container.inert,
-					paintAnimation: paint.animationName,
-					contentAnimation: contents.animationName,
-					scalesTogether: scale(paint.transform) === scale(contents.transform),
-					shrinking: scale(contents.transform) < 1 && scale(contents.transform) > 0.99,
-					paintOpacity: paint.opacity,
+					paintAnimation: midway.paintAnimation,
+					contentAnimation: midway.contentAnimation,
+					scalesTogether: midway.paintScale === midway.contentScale,
+					shrinking: midway.contentScale < 1 && midway.contentScale > 0.99,
+					// The glass must not outlive the contents (#343443).
+					fadesTogether: midway.paintOpacity === midway.contentOpacity && midway.paintOpacity < 1,
+					glassGoneNearEnd: read(145).paintOpacity < 0.01,
 				};
 				contextView.hide(undefined, true);
 				assert.deepStrictEqual(state, {
@@ -136,7 +150,8 @@ suite('Frosted glass styles', () => {
 					contentAnimation: 'context-view-menu-motion-close',
 					scalesTogether: true,
 					shrinking: true,
-					paintOpacity: '1',
+					fadesTogether: true,
+					glassGoneNearEnd: true,
 				});
 			});
 		}
@@ -325,30 +340,19 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		glassMotionTest(`opens ${name} submenus without changing their glass tint`, () => {
+		glassMotionTest(`opens ${name} submenus without animation or changing their glass tint`, () => {
 			const { root, container, finishOpening } = createNestedMenu(domPosition);
 			finishOpening();
 			const submenu = openSubmenu(container);
-			const animations = submenu.getAnimations({ subtree: true });
-			animations.forEach(animation => {
-				animation.pause();
-				animation.currentTime = 40;
-			});
 			const nestedSubmenu = openSubmenu(submenu);
-			nestedSubmenu.getAnimations({ subtree: true }).forEach(animation => animation.finish());
 			const submenus = [submenu, nestedSubmenu];
-			const tint = () => submenus.map(menu => Math.round(readColor(menu, '::before').rgba.a * 100));
-			const opening = tint();
-			animations.forEach(animation => animation.finish());
 			const supported = supportsGlass(root);
 			assert.deepStrictEqual({
-				opening,
-				settled: tint(),
-				animationCount: animations.length,
+				tint: submenus.map(menu => Math.round(readColor(menu, '::before').rgba.a * 100)),
+				animationCount: submenu.getAnimations({ subtree: true }).length,
 			}, {
-				opening: submenus.map(() => supported ? 50 : 0),
-				settled: submenus.map(() => supported ? 50 : 0),
-				animationCount: supported ? 2 : 1,
+				tint: submenus.map(() => supported ? 50 : 0),
+				animationCount: 0,
 			});
 		});
 	}
@@ -379,6 +383,83 @@ suite('Frosted glass styles', () => {
 			opening: supported.map(supported => supported ? 50 : 0),
 			settled: supported.map(supported => supported ? 50 : 0),
 			animationCount: supported.reduce((count, supported, index) => count + (supported ? 2 : originalAnimations[index].length), 0),
+		});
+	});
+
+	(supportsGlass(document.body) ? test : test.skip)('rounds the menubar menu holder and frosted glass to the outer radius', () => {
+		const { root, menubarMenuContainer } = createOverlays();
+		root.classList.add('modern-ui-frosted-glass');
+		const targetWindow = getWindow(menubarMenuContainer);
+		assert.deepStrictEqual({
+			holderRadius: targetWindow.getComputedStyle(menubarMenuContainer).borderRadius,
+			glassRadius: targetWindow.getComputedStyle(menubarMenuContainer, '::before').borderRadius,
+		}, {
+			holderRadius: '8px',
+			glassRadius: '8px',
+		});
+	});
+
+	(supportsGlass(document.body) ? test : test.skip)('aligns bordered and borderless frosted surfaces to their host curves', () => {
+		const overlays = createOverlays();
+		for (const { surface } of overlays.geometrySurfaces) {
+			surface.style.width = '120px';
+			surface.style.height = '60px';
+		}
+		overlays.root.classList.add('modern-ui-frosted-glass');
+
+		const readGeometry = ({ name, surface }: (typeof overlays.geometrySurfaces)[number]) => {
+			const targetWindow = getWindow(surface);
+			const host = targetWindow.getComputedStyle(surface);
+			const paint = targetWindow.getComputedStyle(surface, '::before');
+			const bounds = surface.getBoundingClientRect();
+			const paintWidth = parseFloat(paint.width) + parseFloat(paint.borderLeftWidth) + parseFloat(paint.borderRightWidth);
+			const paintHeight = parseFloat(paint.height) + parseFloat(paint.borderTopWidth) + parseFloat(paint.borderBottomWidth);
+			return {
+				name,
+				hostRadius: host.borderTopLeftRadius,
+				hostBorder: `${host.borderTopStyle} ${host.borderTopWidth}`,
+				hostBorderColor: host.borderTopStyle === 'none' ? undefined : host.borderTopColor,
+				paintRadius: paint.borderTopLeftRadius,
+				paintBorder: `${paint.borderTopStyle} ${paint.borderTopWidth}`,
+				paintBorderColor: paint.borderTopColor,
+				paintBoxSizing: paint.boxSizing,
+				paintClip: paint.clipPath,
+				paintBackgroundClip: paint.backgroundClip,
+				paintFilter: paint.backdropFilter,
+				sharesBorderBox: Math.abs(paintWidth - bounds.width) < 0.01 && Math.abs(paintHeight - bounds.height) < 0.01,
+			};
+		};
+		const radii = ['8px', '8px', '5px', '8px', '8px', '4px', '4px'];
+		const expected = (bordered: boolean) => overlays.geometrySurfaces.map(({ name }, index) => ({
+			name,
+			hostRadius: radii[index],
+			hostBorder: bordered ? 'solid 1px' : 'none 0px',
+			hostBorderColor: bordered ? 'rgb(90, 123, 157)' : undefined,
+			paintRadius: radii[index],
+			paintBorder: bordered ? 'solid 1px' : 'none 0px',
+			paintBorderColor: 'rgba(0, 0, 0, 0)',
+			paintBoxSizing: 'content-box',
+			paintClip: 'padding-box',
+			paintBackgroundClip: 'padding-box',
+			paintFilter: 'blur(12px)',
+			sharesBorderBox: true,
+		}));
+		const bordered = overlays.geometrySurfaces.map(readGeometry);
+		for (const token of ['widget-border', 'editorWidget-border', 'editorHoverWidget-border']) {
+			overlays.root.style.setProperty(`--vscode-${token}`, 'initial');
+		}
+
+		assert.deepStrictEqual({
+			bordered,
+			borderless: overlays.geometrySurfaces.map(readGeometry),
+			resizableInnerPaint: {
+				content: getWindow(overlays.resizableHoverContent).getComputedStyle(overlays.resizableHoverContent, '::before').content,
+				filter: getWindow(overlays.resizableHoverContent).getComputedStyle(overlays.resizableHoverContent, '::before').backdropFilter,
+			},
+		}, {
+			bordered: expected(true),
+			borderless: expected(false),
+			resizableInnerPaint: { content: 'none', filter: 'none' },
 		});
 	});
 
@@ -542,7 +623,12 @@ suite('Frosted glass styles', () => {
 
 	test('does not move fixed-position children when glass is enabled', () => {
 		const overlays = createOverlays();
-		const children = [overlays.quickInput, overlays.menuContainer, overlays.shadowMenuContainer, overlays.picker].map(container => {
+		const containers = [
+			overlays.menuContainer,
+			overlays.shadowMenuContainer,
+			...overlays.geometrySurfaces.map(({ surface }) => surface),
+		];
+		const children = containers.map(container => {
 			const fixed = append(container, 'fixed-child');
 			fixed.style.cssText = 'position: fixed; top: 17px; left: 19px; width: 10px; height: 10px;';
 			return fixed;
@@ -553,8 +639,9 @@ suite('Frosted glass styles', () => {
 		});
 		const before = positions();
 		overlays.root.classList.add('modern-ui-frosted-glass');
-		assert.deepStrictEqual({ before, after: positions() }, {
-			before: children.map(() => [17, 19]), after: children.map(() => [17, 19]),
+		assert.deepStrictEqual({ viewportAnchored: before.slice(0, 4), after: positions() }, {
+			viewportAnchored: before.slice(0, 4).map(() => [17, 19]),
+			after: before,
 		});
 	});
 

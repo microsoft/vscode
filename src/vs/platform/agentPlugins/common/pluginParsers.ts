@@ -7,7 +7,7 @@ import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { isWindows } from '../../../base/common/platform.js';
-import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
+import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname, getComparisonKey } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -17,6 +17,8 @@ import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServer
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
+import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
+import { toAgentCustomizationMeta } from '../../agentHost/common/meta/agentCustomizationMeta.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
@@ -103,6 +105,9 @@ export interface INamedPluginResource {
 /** A parsed agent resource with the frontmatter metadata shared by providers. */
 export interface IAgentPluginResource extends INamedPluginResource {
 	readonly model?: string;
+	readonly models?: readonly string[];
+	readonly reasoningEffort?: string;
+	readonly modelPolicy?: 'preferred' | 'required';
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
@@ -112,6 +117,8 @@ export interface IAgentPluginResource extends INamedPluginResource {
 interface ISkillPluginResource extends INamedPluginResource {
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
+	/** The skill's frontmatter `argument-hint`, shown as placeholder text after its slash command. */
+	readonly argumentHint?: string;
 }
 
 /** A parsed agent paired with its protocol-level child customization. */
@@ -191,6 +198,11 @@ const COPILOT_FORMAT: IPluginFormatConfig = {
 	},
 };
 
+const GITHUB_COPILOT_FORMAT: IPluginFormatConfig = {
+	...COPILOT_FORMAT,
+	manifestPath: '.github/plugin/plugin.json',
+};
+
 const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
@@ -247,20 +259,48 @@ const PLUGIN_FORMAT_CONFIGS: Readonly<Record<PluginFormat, IPluginFormatConfig>>
 	[PluginFormat.AgentPlugin]: AGENT_PLUGIN_FORMAT,
 };
 
-export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
+export const PLUGIN_MANIFEST_PATHS: readonly string[] = Object.freeze([
+	...new Set([GITHUB_COPILOT_FORMAT, ...Object.values(PLUGIN_FORMAT_CONFIGS)].map(format => format.manifestPath)),
+].sort((first, second) => second.length - first.length));
+
+export function normalizePluginPath(path: string | undefined): string {
+	return path?.replace(/^\/+|\/+$/g, '') ?? '';
+}
+
+async function detectManifestPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig | undefined> {
 	if (await readAgentPluginManifest(pluginUri, fileService)) {
 		return AGENT_PLUGIN_FORMAT;
 	}
 	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService)) {
 		return OPEN_PLUGIN_FORMAT;
 	}
+	if (await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
+		return CLAUDE_FORMAT;
+	}
+	if (await pathExists(joinPath(pluginUri, 'plugin.json'), fileService)) {
+		return COPILOT_FORMAT;
+	}
+	if (await pathExists(joinPath(pluginUri, '.github', 'plugin', 'plugin.json'), fileService)) {
+		return GITHUB_COPILOT_FORMAT;
+	}
+	return undefined;
+}
 
+export async function hasPluginManifest(pluginUri: URI, fileService: IFileService): Promise<boolean> {
+	return await detectManifestPluginFormat(pluginUri, fileService) !== undefined;
+}
+
+export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
+	const manifestFormat = await detectManifestPluginFormat(pluginUri, fileService);
+	if (manifestFormat && manifestFormat.format !== PluginFormat.Copilot) {
+		return manifestFormat;
+	}
 	const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
-	if (isInClaudeDirectory || await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
+	if (isInClaudeDirectory) {
 		return CLAUDE_FORMAT;
 	}
 
-	return COPILOT_FORMAT;
+	return manifestFormat ?? COPILOT_FORMAT;
 }
 
 export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService): Promise<Record<string, unknown> | undefined> {
@@ -350,6 +390,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.model ? { model: resource.model } : {}),
+		...(resource.models || resource.reasoningEffort || resource.modelPolicy ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy }) } : {}),
 		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
@@ -358,6 +399,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 
 function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomization {
 	const uri = resource.uri.toString();
+	const meta = withSkillArgumentHintMeta(undefined, resource.argumentHint);
 	return {
 		type: CustomizationType.Skill,
 		id: buildChildId(resource.uri),
@@ -366,6 +408,7 @@ function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomizat
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
+		...(meta ? { _meta: meta } : {}),
 	};
 }
 
@@ -734,6 +777,7 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'SessionStart': 'SessionStart',
 	'SessionEnd': 'SessionEnd',
 	'UserPromptSubmit': 'UserPromptSubmit',
+	'UserPromptTransformed': 'UserPromptTransformed',
 	'PreToolUse': 'PreToolUse',
 	'PostToolUse': 'PostToolUse',
 	'PreCompact': 'PreCompact',
@@ -745,8 +789,11 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'sessionStart': 'SessionStart',
 	'sessionEnd': 'SessionEnd',
 	'userPromptSubmitted': 'UserPromptSubmit',
+	'userPromptTransformed': 'UserPromptTransformed',
 	'preToolUse': 'PreToolUse',
 	'postToolUse': 'PostToolUse',
+	'preCompact': 'PreCompact',
+	'subagentStart': 'SubagentStart',
 	'agentStop': 'Stop',
 	'subagentStop': 'SubagentStop',
 	'errorOccurred': 'ErrorOccurred',
@@ -999,10 +1046,12 @@ export async function readSkills(
 			return;
 		}
 		let description: string | undefined;
+		let argumentHint: string | undefined;
 		let invocationFlags: ReturnType<typeof toSkillInvocationFlags> = {};
 		try {
 			const parsedInfo = await parseSkillFile(skillMd, fileService);
 			description = parsedInfo.description;
+			argumentHint = parsedInfo.argumentHint;
 			name = parsedInfo.name || name;
 			invocationFlags = toSkillInvocationFlags(parsedInfo.userInvocable, parsedInfo.disableModelInvocation);
 		} catch {
@@ -1012,7 +1061,7 @@ export async function readSkills(
 			return;
 		}
 		seen.add(name);
-		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...invocationFlags });
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...(argumentHint ? { argumentHint } : {}), ...invocationFlags });
 	};
 
 	await Promise.all(dirs.map(async dir => {
@@ -1075,7 +1124,7 @@ async function isResolvedWithin(root: URI, resource: URI, fileService: IFileServ
 export async function readMarkdownComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
 ): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
@@ -1084,8 +1133,9 @@ export async function readMarkdownComponents(
 		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, uri, fileService)) {
 			return;
 		}
-		if (!seen.has(name)) {
-			seen.add(name);
+		const key = options?.deduplicateByName === false ? getComparisonKey(uri) : name;
+		if (!seen.has(key)) {
+			seen.add(key);
 			items.push({ uri, name });
 		}
 	};
@@ -1199,7 +1249,7 @@ export async function readInstructionComponents(
 export async function readAgentComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
 ): Promise<readonly IAgentPluginResource[]> {
 	const files = await readMarkdownComponents(dirs, fileService, options);
 	if (files.length === 0) {
@@ -1213,6 +1263,9 @@ export async function readAgentComponents(
 				name: parsed.name || file.name,
 				...(parsed.description ? { description: parsed.description } : {}),
 				...(parsed.model ? { model: parsed.model } : {}),
+				...(parsed.models && parsed.models.length > 1 ? { models: parsed.models } : {}),
+				...(parsed.reasoningEffort ? { reasoningEffort: parsed.reasoningEffort } : {}),
+				...(parsed.modelPolicy ? { modelPolicy: parsed.modelPolicy } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
@@ -1221,11 +1274,11 @@ export async function readAgentComponents(
 			return file;
 		}
 	}));
-	// De-dupe again in case frontmatter `name` collides; first-seen wins.
+	// By default, frontmatter name collisions also use first-seen wins.
 	const seen = new Set<string>();
 	const result: IAgentPluginResource[] = [];
 	for (const item of enriched) {
-		if (seen.has(item.name)) {
+		if (options?.deduplicateByName !== false && seen.has(item.name)) {
 			continue;
 		}
 		seen.add(item.name);
@@ -1235,7 +1288,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1244,11 +1297,15 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
-		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
+		const models = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).filter(Boolean);
+		const model = models?.[0];
+		const reasoningEffort = frontmatter?.getStringValue('reasoning-effort');
+		const policy = frontmatter?.getStringValue('model-policy');
+		const modelPolicy = policy === 'preferred' || policy === 'required' ? policy : undefined;
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, userInvocable, model, tools, disableModelInvocation };
+		return { name, description, userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
@@ -1259,15 +1316,16 @@ export function resolveAgentDisableModelInvocation(infer: boolean | undefined, d
 	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
+		const argumentHint = frontmatter?.getStringValue('argument-hint')?.trim() || undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
 		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation');
-		return { name, description, userInvocable, disableModelInvocation };
+		return { name, description, argumentHint, userInvocable, disableModelInvocation };
 	} catch {
 		return { name: basename(dirname(uri)) };
 	}
@@ -1405,6 +1463,7 @@ export async function parsePlugin(
 	workspaceRoot: URI | undefined,
 	userHome: URI,
 	boundaryUri?: URI,
+	options?: { readonly deduplicateAgentsByName?: boolean },
 ): Promise<IParsedPlugin> {
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);
 
@@ -1452,7 +1511,10 @@ export async function parsePlugin(
 			? Promise.resolve(embeddedMcp)
 			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
 		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
-		readAgentComponents(agentDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
+		readAgentComponents(agentDirs, fileService, {
+			...(formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : {}),
+			deduplicateByName: options?.deduplicateAgentsByName,
+		}),
 		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
 	]);
 

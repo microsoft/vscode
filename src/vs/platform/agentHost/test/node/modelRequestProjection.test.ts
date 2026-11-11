@@ -147,6 +147,25 @@ suite('modelRequestProjection', () => {
 		), false);
 	});
 
+	test('Git diff path prefixes match across platforms without eliding authored content', () => {
+		const diff = (prefix: string, text = 'preserved-content') => [
+			`diff --git a${prefix}\${workdir}/file b${prefix}\${workdir}/file`,
+			'new file mode 100644',
+			'--- /dev/null',
+			`+++ b${prefix}\${workdir}/file`,
+			'@@ -0,0 +1 @@',
+			`+${text}`,
+		].join('\n');
+		const project = (content: string) => projectModelRequest(request([{ role: 'user', content }]));
+		const expected = project(diff(''));
+		assert.deepStrictEqual([
+			modelRequestsMatch(expected, project(diff('/'))),
+			modelRequestsMatch(expected, project(diff('\\'))),
+			modelRequestsMatch(expected, project(diff('/', 'different-content'))),
+			modelRequestsMatch(expected, project(diff('/').replace('@@ -0,0 +1 @@', '@@ -0,0 +2 @@'))),
+		], [true, true, false, false]);
+	});
+
 	test('prose that merely contains a slash is left alone', () => {
 		const prose = [
 			'use a 3/4 ratio',
@@ -184,6 +203,36 @@ suite('modelRequestProjection', () => {
 			projectModelRequest(request([{ role: 'user', content: notice + 'print the plan' }])),
 			projectModelRequest(request([{ role: 'user', content: notice + 'delete the plan' }])),
 		), false);
+	});
+
+	test('standalone runtime change notices do not change the retained conversation', () => {
+		const notice = '<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>';
+		const messages = [
+			{ role: 'user', content: 'Write a plan.' },
+			{ role: 'assistant', content: 'Plan approved.' },
+			{ role: 'user', content: 'What did the plan say?' },
+		];
+		assert.deepStrictEqual(projectModelRequest(request([
+			messages[0],
+			{ role: 'user', content: notice },
+			messages[1],
+			messages[2],
+		])), projectModelRequest(request(messages)));
+	});
+
+	test('notice elision preserves empty user input, assistant messages, and tool results', () => {
+		const notice = '<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>';
+		assert.deepStrictEqual(projectModelRequest(request([
+			{ role: 'user', content: '' },
+			{ role: 'assistant', content: notice },
+			{ role: 'user', content: `${notice}\nKeep this question.` },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolcall_0', content: notice }] },
+		])).messages, [
+			{ role: 'user', content: '' },
+			{ role: 'assistant', content: '' },
+			{ role: 'user', content: 'Keep this question.' },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolcall_0', content: TOOL_RESULT_PLACEHOLDER }] },
+		]);
 	});
 
 	test('a tool input matches regardless of key order', () => {

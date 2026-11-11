@@ -22,6 +22,7 @@ import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../
 import { getCompactCodicon } from '../../chatIcons.js';
 import { getToolInvocationIcon } from './toolInvocationParts/chatToolPartUtilities.js';
 import './media/chatCodeBlockPill.css';
+import './media/chatInlineAnchorWidget.css';
 
 const $ = dom.$;
 
@@ -83,22 +84,23 @@ export class ChatEditPillElement extends Disposable {
 		const toolIcon = $('span.chat-tool-call-icon', { 'aria-hidden': 'true' });
 		toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(getToolInvocationIcon('edit'))));
 
-		this.statusIndicatorContainer = $('div.status-indicator-container');
+		this.statusIndicatorContainer = $('span.status-indicator-container');
 		this.statusIconEl = $('span.status-icon');
 		this.statusLabelEl = $('span.status-label', {}, '');
 		this.statusIndicatorContainer.append(this.statusIconEl, this.statusLabelEl);
 
-		this.pillElement = $('.chat-codeblock-pill-widget');
+		this.pillElement = $('span.chat-codeblock-pill-widget.show-file-icons');
 		this.pillElement.tabIndex = 0;
-		this.pillElement.classList.add('show-file-icons');
 		this.pillElement.role = 'button';
 		this.progressFillEl = $('span.progress-fill');
-		this.fileIconEl = $('span.icon');
-		this.fileIconLabelEl = $('span.icon-label', {}, '');
+		this.fileIconEl = $('span.icon', { 'aria-hidden': 'true' });
+		this.fileIconLabelEl = $('span.icon-label');
 		this.labelDetailEl = $('span.label-detail', {}, '');
 		this.pillElement.append(this.progressFillEl, this.fileIconEl, this.fileIconLabelEl, this.labelDetailEl);
 
-		this.element.append(toolIcon, this.statusIndicatorContainer, this.pillElement);
+		const row = $('span.chat-codeblock-pill-row');
+		row.append(this.statusIndicatorContainer, ' ', this.pillElement);
+		this.element.append(toolIcon, row);
 
 		this._register(registerOpenEditorListeners(this.pillElement, opts => this._onDidClick.fire(opts)));
 		this._register(dom.addDisposableListener(this.pillElement, dom.EventType.CONTEXT_MENU, e => {

@@ -1062,6 +1062,10 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelToolInvocationOptions<T> {
+		/**
+		 * The selected model. Access throws if an explicit selection cannot be resolved through the language model API.
+		 * Tools that do not use a model can run without accessing this property.
+		 */
 		model?: LanguageModelChat;
 		chatStreamToolCallId?: string;
 	}

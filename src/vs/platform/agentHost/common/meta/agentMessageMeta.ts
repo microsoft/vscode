@@ -5,7 +5,7 @@
 
 import type { Message } from '../state/protocol/state.js';
 import { isCopilotMessageInternal, withCopilotMessageInternal } from './copilotd/copilotdMetadataReader.js';
-import { hasMessagePresentation, readMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript as withVSCodeRequestHidden, withMessageSystemInitiatedLabel } from './vscode/agentMessageMeta.js';
+import { hasMessagePresentation, readMessagePresentation, readMessageReplacedTurn, withMessageHiddenFromTranscript, withMessageReplacedTurn, withMessageRequestHiddenFromTranscript as withVSCodeRequestHidden, withMessageSystemInitiatedLabel } from './vscode/agentMessageMeta.js';
 
 export interface IAgentMessagePresentation {
 	readonly hiddenFromTranscript: boolean;
@@ -33,7 +33,7 @@ export function readMessageSystemInitiatedLabel(message: Message): string | unde
 	return readAgentMessagePresentation(message).systemInitiatedLabel;
 }
 
-export { withMessageHiddenFromTranscript, withMessageSystemInitiatedLabel };
+export { readMessageReplacedTurn, withMessageHiddenFromTranscript, withMessageReplacedTurn, withMessageSystemInitiatedLabel };
 
 export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
 	const result = withVSCodeRequestHidden(message, hidden);

@@ -74,6 +74,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return this._resource;
 	}
 
+	public get textEditorModel() {
+		return this._model.object.textEditorModel;
+	}
+
 	public get name() {
 		return basename(this._labelService.getUriLabel(this._resource));
 	}

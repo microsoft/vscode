@@ -20,10 +20,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
+import { getPluginCacheUri, validatePluginCacheUri } from '../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
@@ -109,9 +111,9 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			return marketplace.localRepositoryUri;
 		}
 
-		const indexed = this._marketplaceIndex.value.get(marketplace.canonicalId);
-		if (indexed?.repositoryUri && this._isSupportedIndexedRepositoryUri(indexed.repositoryUri)) {
-			return indexed.repositoryUri;
+		const indexed = this._getIndexedRepositoryUri(marketplace);
+		if (indexed) {
+			return indexed;
 		}
 
 		return this._getRepoCacheDirForReference(marketplace);
@@ -146,11 +148,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	private async _ensureRemoteRepository(marketplace: IMarketplaceReference, options: IEnsureRepositoryOptions | undefined): Promise<URI> {
-		const storedIndexedRepoDir = this._marketplaceIndex.value.get(marketplace.canonicalId)?.repositoryUri;
-		const indexedRepoDir = storedIndexedRepoDir && this._isSupportedIndexedRepositoryUri(storedIndexedRepoDir) ? storedIndexedRepoDir : undefined;
-		if (storedIndexedRepoDir && !indexedRepoDir) {
-			this._removeMarketplaceIndex(marketplace);
-		}
+		const indexedRepoDir = this._getIndexedRepositoryUri(marketplace);
 		const primaryRepoDir = this._getRepoCacheDirForReference(marketplace);
 		const fallbackRepoDir = marketplace.ref ? undefined : this._getMarketplaceVariantCacheDir(marketplace, 'default');
 		const candidates: URI[] = [];
@@ -264,8 +262,22 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 	}
 
-	private _isSupportedIndexedRepositoryUri(repositoryUri: URI): boolean {
-		return isEqualOrParent(repositoryUri, this._cacheRoot) || isEqualOrParent(repositoryUri, this._legacyCacheRoot);
+	private _getIndexedRepositoryUri(marketplace: IMarketplaceReference): URI | undefined {
+		const indexed = this._marketplaceIndex.value.get(marketplace.canonicalId);
+		if (!indexed?.repositoryUri) {
+			return undefined;
+		}
+		let validationError: unknown;
+		for (const root of [this._cacheRoot, this._legacyCacheRoot]) {
+			try {
+				return validatePluginCacheUri(root, indexed.repositoryUri);
+			} catch (error) {
+				validationError = error;
+			}
+		}
+		this._logService.warn(`[AgentPluginRepositoryService] Discarding invalid cached marketplace location for ${marketplace.displayLabel}`, validationError);
+		this._removeMarketplaceIndex(marketplace);
+		return undefined;
 	}
 
 	/**
@@ -358,6 +370,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			return await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryUpdate,
 					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
 					cancellable: true,
 				},
@@ -379,6 +392,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryRepair,
 					title: localize('purgingMarketplace', "Purging plugin marketplace '{0}'...", marketplace.displayLabel),
 					cancellable: false,
 				},
@@ -417,12 +431,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			}
 			return this._getMarketplaceVariantCacheDir(reference, refSegment);
 		}
-		return joinPath(this._cacheRoot, ...reference.cacheSegments);
+		return getPluginCacheUri(this._cacheRoot, reference.cacheSegments);
 	}
 
 	private _getMarketplaceVariantCacheDir(reference: IMarketplaceReference, variant: string): URI {
 		const baseSegments = reference.ref ? reference.cacheSegments.slice(0, -1) : reference.cacheSegments;
-		return joinPath(this._cacheRoot, MARKETPLACE_VARIANT_CACHE_SEGMENT, ...baseSegments, variant);
+		return getPluginCacheUri(this._cacheRoot, [MARKETPLACE_VARIANT_CACHE_SEGMENT, ...baseSegments, variant]);
 	}
 
 	private _loadMarketplaceIndex(): Map<string, IMarketplaceIndexEntry> {
@@ -496,6 +510,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryClone,
 					title: progressTitle,
 					cancellable: true,
 				},
@@ -535,7 +550,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.ensureRepository(plugin.marketplaceReference, options);
 		}
-		return repo.ensure(this._cacheRoot, plugin, options);
+		const repoDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor) ?? repo.getInstallUri(this._cacheRoot, plugin.sourceDescriptor);
+		return this._cloneSequencer.queue(repoDir.fsPath, () => repo.ensure(this._cacheRoot, plugin, options));
 	}
 
 	async updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean> {
@@ -543,7 +559,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.pullRepository(plugin.marketplaceReference, options);
 		}
-		return repo.update(this._cacheRoot, plugin, options);
+		const repoDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor) ?? repo.getInstallUri(this._cacheRoot, plugin.sourceDescriptor);
+		return this._cloneSequencer.queue(repoDir.fsPath, () => repo.update(this._cacheRoot, plugin, options));
 	}
 
 	async fetchRepository(marketplace: IMarketplaceReference): Promise<boolean> {

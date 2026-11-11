@@ -93,6 +93,10 @@ export class Query {
 		return !/@outdated/.test(this.value);
 	}
 
+	containsMcpTerm(): boolean {
+		return /(^|[^a-z0-9_])mcp($|[^a-z0-9_])/i.test(this.value);
+	}
+
 	equals(other: Query): boolean {
 		return this.value === other.value && this.sortBy === other.sortBy;
 	}

@@ -5,10 +5,35 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, parseAgentHostHarness, parseRemoteAgentHostHarness, parseRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
+import { findRemoteAgentHostSessionTypeAuthority, isCopilotAgentHostProvider, isCopilotAgentHostSessionType, isRemoteAgentHostSessionType, parseAgentHostHarness, parseRemoteAgentHostHarness, parseRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 
 suite('agentHostSessionType', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recognizes both Copilot provider IDs without matching other providers', () => {
+		assert.deepStrictEqual(
+			['copilotcli', 'copilot', 'claude', 'codex', 'copilotcloud', undefined].map(isCopilotAgentHostProvider),
+			[true, true, false, false, false, false],
+		);
+	});
+
+	test('recognizes local and remote Copilot session types without changing their schemes', () => {
+		assert.deepStrictEqual([
+			'agent-host-copilotcli',
+			'agent-host-copilot',
+			'remote-dev-box-copilotcli',
+			'remote-cloudsandbox_environment-one-copilot',
+			'agent-host-claude',
+			'remote-dev-box-codex',
+			'copilotcli',
+			'copilot',
+			'copilotcloud',
+			'remote--copilot',
+			'remote-dev-box-copilot-other',
+		].map(isCopilotAgentHostSessionType), [
+			true, true, true, true, false, false, false, false, false, false, false,
+		]);
+	});
 
 	test('remoteAgentHostSessionTypeId pins the wire format', () => {
 		assert.deepStrictEqual([

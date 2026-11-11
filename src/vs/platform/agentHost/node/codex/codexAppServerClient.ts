@@ -68,6 +68,14 @@ export class JsonRpcError extends Error {
 	}
 }
 
+/**
+ * A {@link JsonRpcError} that the Codex server actually returned in a
+ * response envelope, so the request is known to have been answered and
+ * rejected. Transport failures (exit, write failure) reject with a plain
+ * {@link JsonRpcError} instead because the server's outcome is unknown.
+ */
+export class JsonRpcResponseError extends JsonRpcError { }
+
 // #region Typed method projections
 //
 // Extract `<method>` → `params` / `result` for each direction. The
@@ -267,7 +275,7 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 			}
 			this._pending.delete(id);
 			if (hasKey(msg, { error: true }) && msg.error) {
-				pending.reject(new JsonRpcError(msg.error.code, msg.error.message, msg.error.data));
+				pending.reject(new JsonRpcResponseError(msg.error.code, msg.error.message, msg.error.data));
 			} else {
 				pending.resolve((msg as IWireResponseSuccess).result);
 			}

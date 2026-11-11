@@ -57,9 +57,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/titleChanged
-      - channel: ${session_0}
-        action:
-          type: session/serverToolsChanged
       - method: root/sessionAdded
       - channel: ${session_0}
         action:
@@ -168,3 +165,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

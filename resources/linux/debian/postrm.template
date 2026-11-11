@@ -3,7 +3,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
+@@COPILOT_LINK_HELPER@@
+
 rm -f /usr/bin/@@NAME@@
+
+case "$1" in
+	remove|purge)
+		# Load debconf so the other edition's add-copilot-command answer is respected before handing the link over.
+		if [ -e '/usr/share/debconf/confmodule' ]; then
+			. /usr/share/debconf/confmodule
+		fi
+		vscode_copilot_link remove "@@NAME@@" || :
+		;;
+esac
 
 # Uninstall the desktop entry
 if hash update-desktop-database 2>/dev/null; then

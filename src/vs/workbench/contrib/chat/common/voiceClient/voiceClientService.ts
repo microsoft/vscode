@@ -10,6 +10,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { VoiceCloseKind } from './voiceCloseCodes.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
+import { IChatModel } from '../model/chatModel.js';
 
 export function normalizeAgentsVoiceId(value: unknown): string {
 	const voiceId = typeof value === 'string' ? value.trim() : '';
@@ -377,8 +378,23 @@ export interface IVoiceSessionContext {
 		attachment_count?: number;
 		last_response_summary?: string;
 		pending?: IVoiceSessionPending;
+		/** Bounded recent conversation, supplied only for GPT Live session awareness. */
+		recent_turns?: { user: string; assistant: string }[];
 	}[];
 	display_locale: string;
+}
+
+export function getVoiceRecentTurns(model: IChatModel, lastN: number, completedResponsesOnly = false): { user: string; assistant: string }[] {
+	return model.getRequests().slice(-lastN).map(request => ({
+		user: (request.message.text ?? '').slice(0, 400),
+		assistant: request.response && (!completedResponsesOnly || request.response.isComplete && !request.response.isCanceled)
+			? request.response.response.value
+				.filter(part => part.kind === 'markdownContent')
+				.map(part => part.content.value)
+				.join(' ')
+				.slice(0, 600)
+			: '',
+	}));
 }
 
 export interface IVoiceModelReference {
@@ -491,6 +507,8 @@ export interface IVoiceToolCall {
 	readonly callId: string;
 	readonly name: string;
 	readonly args: Record<string, unknown>;
+	/** Capture turn owning this call, when the transport can identify it. */
+	readonly turnId?: string;
 }
 
 export interface IVoiceSpeechStarted {
@@ -538,8 +556,8 @@ export interface IVoiceTurnAutoEnded {
  * Payload for a terminal websocket close. Despite the name this covers every
  * close that will not reconnect, including an expected end of session: `kind`
  * distinguishes them, and an `expected` close must not paint the UI red or
- * raise a toast. `clientSide` marks a failure that never reached the network,
- * such as an unconfigured backend URL.
+ * raise a toast. `clientSide` marks an unconfigured backend URL, not a BYOK
+ * session creation or connection failure.
  */
 export interface IVoiceFatalDisconnect {
 	readonly code: number;
@@ -625,6 +643,7 @@ export interface IVoiceClientService {
 	readonly _serviceBrand: undefined;
 
 	// --- Connection lifecycle ---
+	hasGptLiveByok(): Promise<boolean>;
 	connect(window: Window & typeof globalThis, authToken?: string): Promise<void>;
 	disconnect(): void;
 
@@ -656,7 +675,7 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult, toolName?: string, toolArgs?: Readonly<Record<string, unknown>>): void;
 	/** Report that one correlated checkpoint playback attempt finished locally. */
 	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
 	/**
@@ -686,6 +705,7 @@ export interface IVoiceClientService {
 	 */
 	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void;
 	stopSpeaking(): void;
+	prepareForInputTargetChange(): void;
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void;
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void;
 
@@ -707,6 +727,8 @@ export interface IVoiceClientService {
 	readonly onSessionInit: Event<IVoiceSessionInit>;
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
+	/** Fired for transports that play remote audio directly instead of emitting PCM chunks. */
+	readonly onDidChangeRemoteAudioState: Event<boolean>;
 	/**
 	 * Fired when the current socket will not reconnect: a refusal, an expected
 	 * end of session, or a give-up. Consumers should tear down to a clean,
@@ -726,6 +748,8 @@ export interface IVoiceClientService {
 	// --- State ---
 	readonly isConnected: boolean;
 	readonly isResuming: boolean;
+	/** Whether the current connection was started with GPT Live session awareness enabled. */
+	readonly isSessionAwarenessEnabled: boolean;
 	/** Whether the current socket close has an automatic retry scheduled. */
 	readonly willReconnect: boolean;
 	/** Backend session id assigned by the realtime server, or ``undefined`` when not yet established. */

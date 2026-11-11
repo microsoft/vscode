@@ -29,13 +29,13 @@ export async function activate(context: vscode.ExtensionContext) {
 function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
 	const isDebugBuild = context.extension.packageJSON.main.includes('/out/');
 
-	const serverModule = context.asAbsolutePath(
-		isDebugBuild
-			// For local non bundled version of vscode-markdown-languageserver
-			// ? './node_modules/vscode-markdown-languageserver/out/node/workerMain'
-			? './node_modules/vscode-markdown-languageserver/dist/node/workerMain'
-			: './dist/serverWorkerMain'
-	);
+	// The unbundled server is resolved like an import: the pnpm workspace usually installs it in a
+	// parent node_modules folder rather than in this extension's.
+	const serverModule = isDebugBuild
+		// For local non bundled version of vscode-markdown-languageserver
+		// ? require.resolve('vscode-markdown-languageserver/out/node/workerMain')
+		? require.resolve('vscode-markdown-languageserver/dist/node/workerMain')
+		: context.asAbsolutePath('./dist/serverWorkerMain');
 
 	// The debug options for the server
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };

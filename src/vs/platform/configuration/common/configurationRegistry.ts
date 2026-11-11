@@ -25,6 +25,8 @@ export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
 
+export type ManagedSettingsPresentationValue = ManagedSettingValue | readonly string[] | Readonly<Record<string, readonly string[]>>;
+
 export interface IConfigurationDelta {
 	removedDefaults?: IConfigurationDefaults[];
 	removedConfigurations?: IConfigurationNode[];
@@ -60,6 +62,13 @@ export interface IAgentHostConfigurationSync {
 	 * different representation the agent host expects).
 	 */
 	readonly transform?: (value: unknown) => unknown;
+
+	/**
+	 * Additional root configuration keys written alongside {@link key}, each
+	 * computed from the mirrored value. Use to keep legacy keys that older agent
+	 * hosts still read in step with a setting that replaced them.
+	 */
+	readonly derivedKeys?: Readonly<Record<string, (value: unknown) => unknown>>;
 
 	/** Which Agent Host targets receive this setting. Defaults to {@link AgentHostConfigurationSyncScope.All}. */
 	readonly scope?: AgentHostConfigurationSyncScope;
@@ -291,11 +300,14 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	policyReference?: IPolicyReference;
 
+	/** Explains an effective policy value and the saved value it overrides in Settings UI and JSON. */
+	policyValueDescription?: (policyValue: unknown, configuredValue: unknown) => string;
+
 	/**
 	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
 	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
 	 */
-	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingValue | undefined;
+	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined, localValue?: unknown) => ManagedSettingsPresentationValue | undefined;
 
 	/**
 	 * When specified, this setting's globally-scoped value is mirrored into the
@@ -320,6 +332,15 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 		 * The name of the experiment. By default, this is `config.${settingId}`
 		 */
 		name?: string;
+
+		/**
+		 * For object settings: when `true`, each key's default value is assigned by its own treatment,
+		 * `${name}.${key}`, instead of the whole default value by one treatment, so that separate experiments
+		 * can control separate keys. Treatments can't be enumerated, so a key's treatment is only resolved
+		 * once the key has been requested, and the mode applies to each key separately. Values that users set
+		 * for a key still win over its experiment value.
+		 */
+		keyed?: boolean;
 	};
 
 	/**
@@ -365,6 +386,14 @@ export type ConfigurationDefaultSource = IExtensionInfo | string;
  */
 export function getConfigurationExperimentName(key: string, experiment: { readonly name?: string } | undefined): string {
 	return experiment?.name ?? `config.${key}`;
+}
+
+/**
+ * The treatment through which an experiment assigns the default value of one key of a keyed
+ * experiment-controlled object setting, see {@link IConfigurationPropertySchema.experiment}.
+ */
+export function getConfigurationKeyExperimentName(key: string, experiment: { readonly name?: string } | undefined, objectKey: string): string {
+	return `${getConfigurationExperimentName(key, experiment)}.${objectKey}`;
 }
 
 export function isConfigurationDefaultSourceEquals(a: ConfigurationDefaultSource | undefined, b: ConfigurationDefaultSource | undefined): boolean {

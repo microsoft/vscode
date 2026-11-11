@@ -6,6 +6,12 @@
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 
 /**
+ * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
+ * The mirrored host value is requested configuration; AgentConfigurationService captures its effective value at host construction.
+ */
+export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
+
+/**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
  * Microsoft Entra sign-in for a GitHub token that is published as a process-lifetime GitHub
  * authentication session. See {@link ChatMicrosoftAuthenticationMode} for its values.
@@ -37,8 +43,68 @@ export function toChatMicrosoftAuthenticationMode(value: unknown): ChatMicrosoft
 }
 
 export const ChatEditAutoApproveSettingId = 'chat.tools.edits.autoApprove';
+export const ChatAgentFilesLocationsSettingId = 'chat.agentFilesLocations';
+export const ChatHookFilesLocationsSettingId = 'chat.hookFilesLocations';
 
 export type ChatEditAutoApprovePatterns = Readonly<Record<string, boolean>>;
+
+export interface IChatSensitiveEditLocation {
+	readonly path: string;
+	readonly isDirectory: boolean;
+}
+
+export const CHAT_CUSTOMIZATION_LOCATION_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
+const CHAT_CUSTOMIZATION_LOCATION_REGEX = new RegExp(CHAT_CUSTOMIZATION_LOCATION_PATTERN);
+
+export function isValidChatCustomizationLocation(path: string): boolean {
+	return CHAT_CUSTOMIZATION_LOCATION_REGEX.test(path);
+}
+
+function isEnabledChatCustomizationLocation(value: unknown): boolean {
+	return value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true');
+}
+
+function addSensitiveEditLocations(locations: Map<string, IChatSensitiveEditLocation>, configuredLocations: unknown): void {
+	if (typeof configuredLocations !== 'object' || configuredLocations === null || Array.isArray(configuredLocations)) {
+		return;
+	}
+
+	for (const [rawPath, enabled] of Object.entries(configuredLocations)) {
+		const trimmedPath = rawPath.trim();
+		if (!isEnabledChatCustomizationLocation(enabled) || trimmedPath.startsWith('~/') || !isValidChatCustomizationLocation(trimmedPath)) {
+			continue;
+		}
+
+		const withoutCurrentDirectory = trimmedPath.replace(/^(?:\.\/)+/, '');
+		const normalizedPath = withoutCurrentDirectory.replace(/\/+$/, '') || '.';
+		locations.set(normalizedPath, {
+			path: normalizedPath,
+			isDirectory: true,
+		});
+	}
+}
+
+/** Protects configured locations and descendants without inferring filesystem types from names. */
+export function getChatSensitiveEditLocations(hookLocations: unknown, agentLocations: unknown): readonly IChatSensitiveEditLocation[] {
+	const locations = new Map<string, IChatSensitiveEditLocation>();
+	addSensitiveEditLocations(locations, hookLocations);
+	addSensitiveEditLocations(locations, agentLocations);
+	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
+}
+
+export function mergeChatSensitiveEditLocations(...locationSets: readonly (readonly IChatSensitiveEditLocation[])[]): readonly IChatSensitiveEditLocation[] {
+	const locations = new Map<string, IChatSensitiveEditLocation>();
+	for (const locationSet of locationSets) {
+		for (const location of locationSet) {
+			const existing = locations.get(location.path);
+			locations.set(location.path, {
+				path: location.path,
+				isDirectory: location.isDirectory || existing?.isDirectory === true,
+			});
+		}
+	}
+	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
+}
 
 export const enum ChatExternalSessionsMode {
 	Recent = 'recent',
@@ -53,8 +119,14 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.mcp.json': false,
 	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	// Dev Container configurations can run commands on the host whenever the container starts.
+	'**/.devcontainer.json': false,
+	'**/.devcontainer/devcontainer.json': false,
+	'**/.devcontainer/*/devcontainer.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,
+	'**/.github/copilot/settings.json': false,
+	'**/.github/copilot/settings.local.json': false,
 	'**/.claude/agents/**': false,
 	'**/.claude/settings.json': false,
 	'**/.claude/settings.local.json': false,

@@ -529,14 +529,21 @@ export interface SessionChatSummary {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
-	 * Whether this chat has been archived independently of its owning session
-	 * (see `chat/isArchivedChanged`).
-	 *
-	 * Generic clients use this to group or filter archived chats in session
-	 * lists without subscribing to the session channel. Absence means the
-	 * chat is not archived.
+	 * Agent provider ID backing this chat. See {@link ChatState.provider}.
+	 * @stability 1.0
 	 */
-	archived?: boolean;
+	provider?: string;
+	/**
+	 * Current chat status, matching {@link ChatSummary.status}.
+	 *
+	 * Includes the activity bits and the orthogonal {@link SessionStatus.IsRead}
+	 * and {@link SessionStatus.IsArchived} flags. Generic clients use these bits
+	 * to present read, unread, or archived chats in session lists without
+	 * subscribing to the session or chat channel. Absence means the host did
+	 * not provide the status; clients MUST treat it as unknown, not as unread
+	 * or unarchived.
+	 */
+	status?: SessionStatus;
 	/**
 	 * Aggregate summary of file changes associated with this chat.
 	 *
@@ -604,6 +611,11 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	enumDynamic?: boolean;
 	/** When `true`, the user may change this property after session creation */
 	sessionMutable?: boolean;
+	/**
+	 * When `true`, the property may be changed per chat with
+	 * `chat/configChanged`, affecting only that chat.
+	 */
+	chatMutable?: boolean;
 }
 
 /**
@@ -1183,6 +1195,19 @@ export interface McpServerCustomization extends CustomizationBase {
 	 * which support apps.
 	 */
 	mcpApp?: McpServerCustomizationApps;
+	/**
+	 * Skills served by this MCP server, for example through the MCP skills
+	 * extension (SEP-2640).
+	 *
+	 * Absent means the host has not discovered skills for this server, or
+	 * does not support MCP-served skills. An empty array means the server
+	 * was queried and serves none.
+	 *
+	 * A skill's effective enabled state is the server's effective enabled
+	 * value and `(skill.enabled ?? true)`. A skill is turned on or off by id
+	 * with {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
+	 */
+	children?: SkillCustomization[];
 }
 
 /**

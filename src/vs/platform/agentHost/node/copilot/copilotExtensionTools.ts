@@ -25,6 +25,9 @@ export function createCopilotExtensionTools(enabled: boolean, reloadExtensions: 
 		},
 		overridesBuiltInTool: true,
 		defer: 'never',
+		metadata: {
+			'github.com/copilot:safeForTelemetry': { name: true, inputsNames: false },
+		},
 		handler: async (): Promise<ToolResultObject> => {
 			try {
 				await reloadExtensions();

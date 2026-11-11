@@ -8,6 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { intersectManagedDomainBoundaries } from '../common/agentHostManagedRules.js';
 
 export const IAgentHostManagedSettingsService = createDecorator<IAgentHostManagedSettingsService>('agentHostManagedSettingsService');
 
@@ -15,10 +16,7 @@ export interface IAgentHostManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	readonly permissions: IAgentHostManagedSettingsPermissions;
-	readonly sandboxRequired: boolean;
-	readonly onDidChangeSandboxRequired: Event<void>;
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void;
-	setClientSandboxRequired(clientId: string, required: boolean): void;
 	removeClient(clientId: string): void;
 }
 
@@ -30,28 +28,9 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 
 	private readonly _permissionsByClient = new Map<string, IAgentHostManagedSettingsPermissions>();
 	private _permissions: IAgentHostManagedSettingsPermissions = {};
-	private readonly _sandboxRequiredByClient = new Set<string>();
-	private readonly _onDidChangeSandboxRequired = this._register(new Emitter<void>());
-	readonly onDidChangeSandboxRequired = this._onDidChangeSandboxRequired.event;
 
 	get permissions(): IAgentHostManagedSettingsPermissions {
 		return this._permissions;
-	}
-
-	get sandboxRequired(): boolean {
-		return this._sandboxRequiredByClient.size > 0;
-	}
-
-	setClientSandboxRequired(clientId: string, required: boolean): void {
-		const previous = this.sandboxRequired;
-		if (required) {
-			this._sandboxRequiredByClient.add(clientId);
-		} else {
-			this._sandboxRequiredByClient.delete(clientId);
-		}
-		if (this.sandboxRequired !== previous) {
-			this._onDidChangeSandboxRequired.fire();
-		}
 	}
 
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void {
@@ -64,7 +43,6 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 	}
 
 	removeClient(clientId: string): void {
-		this.setClientSandboxRequired(clientId, false);
 		if (this._permissionsByClient.delete(clientId)) {
 			this._updatePermissions();
 		}
@@ -74,6 +52,7 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 		const permissions: IAgentHostManagedSettingsPermissions = {};
 		const deny = new Set<string>();
 		const ask = new Set<string>();
+		let limitTo: string[] | undefined;
 		for (const contribution of this._permissionsByClient.values()) {
 			if (contribution.disableBypassPermissionsMode === 'disable') {
 				permissions.disableBypassPermissionsMode = 'disable';
@@ -84,12 +63,16 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 			if (contribution.ask) {
 				contribution.ask.forEach(rule => ask.add(rule));
 			}
+			limitTo = intersectManagedDomainBoundaries(limitTo, contribution.limitTo);
 		}
 		if (deny.size > 0) {
 			permissions.deny = [...deny];
 		}
 		if (ask.size > 0) {
 			permissions.ask = [...ask];
+		}
+		if (limitTo !== undefined) {
+			permissions.limitTo = limitTo;
 		}
 		if (!equals(this._permissions, permissions)) {
 			this._permissions = permissions;

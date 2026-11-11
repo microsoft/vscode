@@ -69,9 +69,9 @@ suite('SSH ProxyCommand', () => {
 		const errors: Error[] = [];
 		for (const windows of [false, true]) {
 			let termination: Promise<void> | undefined;
-			const proxy = store.add(new SSHProxyCommand(proxyCommand, store.add(new NullLogService()), windows, (pid, forceful) => {
+			const proxy = store.add(new SSHProxyCommand(proxyCommand, store.add(new NullLogService()), windows, (pid, forceful, log) => {
 				forcefulModes.push(forceful);
-				termination = killTree(pid, isWindows);
+				termination = killTree(pid, isWindows, log);
 				return termination;
 			}));
 			proxy.stream.on('error', error => errors.push(error));
@@ -82,6 +82,27 @@ suite('SSH ProxyCommand', () => {
 			await Promise.all([closed, termination]);
 		}
 		assert.deepStrictEqual({ forcefulModes, errors }, { forcefulModes: [false, true], errors: [] });
+	});
+
+	test('forwards process-tree termination diagnostics to the log service', async () => {
+		const messages: string[] = [];
+		const terminationLogService = store.add(new NullLogService());
+		const logService = store.add(new class extends NullLogService {
+			override debug(message: string): void {
+				messages.push(message);
+			}
+		});
+		let termination: Promise<void> | undefined;
+		const proxy = store.add(new SSHProxyCommand(proxyCommand, logService, isWindows, (pid, forceful, log) => {
+			log('termination diagnostic');
+			termination = killTree(pid, forceful, message => terminationLogService.debug(message));
+			return termination;
+		}));
+		await new Promise<void>(resolve => proxy.stream.once('data', () => resolve()));
+		const closed = new Promise<void>(resolve => proxy.stream.once('close', resolve));
+		proxy.dispose();
+		await Promise.all([closed, termination]);
+		assert.deepStrictEqual(messages, ['[SSHRemoteAgentHost] termination diagnostic']);
 	});
 
 	(isWindows ? test.skip : test)('reports proxy failures with stderr', async () => {

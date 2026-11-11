@@ -20,6 +20,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
+import { LanguageModelError } from './extHostTypes.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -200,7 +201,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
-			options.model = await this._languageModels.getLanguageModelForRequest(item.extension, dto.modelId);
+			try {
+				options.model = await this._languageModels.getLanguageModelForRequest(item.extension, dto.modelId);
+			} catch (error) {
+				if (!(error instanceof LanguageModelError) || error.code !== LanguageModelError.NotFound.name) {
+					throw error;
+				}
+				// Model-independent tools can run even when the selected model belongs to an external agent runtime.
+				Object.defineProperty(options, 'model', {
+					enumerable: true,
+					get: () => { throw error; },
+				});
+			}
 		}
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.chatStreamToolCallId) {
 			options.chatStreamToolCallId = dto.chatStreamToolCallId;

@@ -18,9 +18,10 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
 import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IAuthMetadataSource, IStartMcpOptions, MainContext, MainThreadMcpShape, IAuthResourceMetadataSource, IAuthServerMetadataSource } from './extHost.protocol.js';
@@ -131,6 +132,18 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			name: folder.name,
 			index: folder.index,
 		}, value) as T;
+	}
+
+	/**
+	 * Hosts without a process environment, such as the web worker extension host,
+	 * leave references verbatim, as the Copilot runtime does without an environment.
+	 */
+	async $expandEnvironmentVariables(launch: McpServerLaunch.Serialized, _expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized> {
+		return launch;
+	}
+
+	async $resolveMcpPolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues> {
+		return Object.fromEntries(values.map(value => [value, value]));
 	}
 
 	$stopMcp(id: number): void {
@@ -691,7 +704,13 @@ export class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
+				try {
+					const endpoint = new URL(event.data, this._launch.uri.toString(true)).toString();
+					this._validateDestinationAndGetIsSameOrigin(endpoint);
+					postEndpoint.complete(endpoint);
+				} catch (error) {
+					postEndpoint.error(error);
+				}
 			}
 		});
 
@@ -877,16 +896,7 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit, options: { isAuthMetadata?: boolean; transportHeaders?: Readonly<Record<string, string>> } = {}): Promise<CommonResponse> {
-		const destination = new URL(url);
-		const configuredUrl = this._launch.uri.toString(true);
-		const isHttp = HTTP_PROTOCOLS.has(destination.protocol);
-		const isSameOrigin = isHttp
-			? destination.origin === new URL(configuredUrl).origin
-			: isSameSocketEndpoint(url, configuredUrl);
-		if (!isHttp && !isSameOrigin) {
-			throw new Error(localize('mcpUnsupportedDestination', "MCP server selected a non-http(s) destination ({0}), which is not allowed", destination.protocol));
-		}
-
+		const isSameOrigin = this._validateDestinationAndGetIsSameOrigin(url);
 		const transportHeaders = { ...options.transportHeaders, 'user-agent': `${product.nameLong}/${product.version}` };
 		init = { ...init, headers: { ...init.headers } };
 		for (const [name, value] of Object.entries(transportHeaders)) {
@@ -975,6 +985,20 @@ export class McpHTTPHandle extends Disposable {
 		}
 
 		return response;
+	}
+
+	private _validateDestinationAndGetIsSameOrigin(url: string): boolean {
+		const destination = new URL(url);
+		const configuredUrl = this._launch.uri.toString(true);
+		const isHttp = HTTP_PROTOCOLS.has(destination.protocol);
+		const isSameOrigin = isHttp
+			? destination.origin === new URL(configuredUrl).origin
+			: isSameSocketEndpoint(url, configuredUrl);
+		if (!isHttp && !isSameOrigin) {
+			throw new Error(localize('mcpUnsupportedDestination', "MCP server selected a non-http(s) destination ({0}), which is not allowed", destination.protocol));
+		}
+
+		return isSameOrigin;
 	}
 
 	private _stripCrossOriginHeaders(headers: Record<string, string>, transportHeaders: Readonly<Record<string, string>>): Record<string, string> {

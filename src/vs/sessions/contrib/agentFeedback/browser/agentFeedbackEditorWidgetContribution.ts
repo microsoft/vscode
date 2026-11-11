@@ -10,16 +10,16 @@ import { autorun, observableSignalFromEvent } from '../../../../base/common/obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { ICodeReviewService, IPRReviewState } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraft, IComposerDraftState } from './agentFeedbackEditorWidget.js';
-import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment } from './sessionEditorComments.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';
 
 /**
  * Editor contribution that manages agent feedback widgets.
@@ -300,5 +300,3 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 		super.dispose();
 	}
 }
-
-registerEditorContribution(AgentFeedbackEditorWidgetContribution.ID, AgentFeedbackEditorWidgetContribution, EditorContributionInstantiation.Eventually);

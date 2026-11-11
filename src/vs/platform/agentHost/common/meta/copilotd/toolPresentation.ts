@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendEscapedMarkdownInlineCode } from '../../../../../base/common/htmlContent.js';
+import { hasDriveLetter, toSlashes } from '../../../../../base/common/extpath.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { isString } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getInlineToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
 import { ToolCallStatus, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
+import { AgentPermissionRequestKind, readPermissionRequestMeta } from './agentPermissionRequestMeta.js';
 
 export interface IToolPresentation {
 	readonly toolKind?: 'terminal' | 'search' | 'read';
@@ -63,6 +68,7 @@ const labels: Readonly<Record<string, IToolLabels>> = {
 	exit_plan_mode: { running: localize('copilotd.plan.running', "Finishing plan"), completed: localize('copilotd.plan.completed', "Finished plan"), failed: localize('copilotd.plan.failed', "Finish plan failed") },
 	respond_to_session_plan: { running: localize('copilotd.respondPlan.running', "Responding to plan"), completed: localize('copilotd.respondPlan.completed', "Responded to plan"), failed: localize('copilotd.respondPlan.failed', "Respond to plan failed") },
 	skill: { subjectKeys: ['skill', 'name'], running: localize('copilotd.skill.running', "Reading skill"), completed: localize('copilotd.skill.completed', "Read skill"), failed: localize('copilotd.skill.failed', "Read skill failed") },
+	read_resource: { subjectKeys: ['uri'], running: localize('copilotd.readResource.running', "Reading MCP resource"), completed: localize('copilotd.readResource.completed', "Read MCP resource"), failed: localize('copilotd.readResource.failed', "Read MCP resource failed") },
 	web_search: { subjectKeys: ['query'], running: localize('copilotd.webSearch.running', "Searching the web"), completed: localize('copilotd.webSearch.completed', "Searched the web"), failed: localize('copilotd.webSearch.failed', "Web search failed") },
 	web_fetch: { subjectKeys: ['url'], running: localize('copilotd.webFetch.running', "Fetching webpage"), completed: localize('copilotd.webFetch.completed', "Fetched webpage"), failed: localize('copilotd.webFetch.failed', "Fetch webpage failed") },
 	sql: { subjectKeys: ['description'], running: localize('copilotd.sql.running', "Running SQL"), completed: localize('copilotd.sql.completed', "Ran SQL"), failed: localize('copilotd.sql.failed', "SQL failed") },
@@ -121,6 +127,62 @@ const labels: Readonly<Record<string, IToolLabels>> = {
 	delete_scheduled_task: { running: localize('copilotd.deleteScheduled.running', "Deleting scheduled task"), completed: localize('copilotd.deleteScheduled.completed', "Deleted scheduled task"), failed: localize('copilotd.deleteScheduled.failed', "Delete scheduled task failed") },
 	run_scheduled_task: { running: localize('copilotd.runScheduled.running', "Starting scheduled task"), completed: localize('copilotd.runScheduled.completed', "Started scheduled task"), failed: localize('copilotd.runScheduled.failed', "Start scheduled task failed") },
 };
+
+function permissionFileUri(fileName: string): URI {
+	// Only Windows-shaped paths normalize backslashes; POSIX filenames must survive Windows clients.
+	const path = hasDriveLetter(fileName, true) || fileName.startsWith('\\\\') ? toSlashes(fileName) : fileName;
+	if (path.startsWith('//')) {
+		const separator = path.indexOf('/', 2);
+		return URI.from({
+			scheme: Schemas.file,
+			authority: separator < 0 ? path.slice(2) : path.slice(2, separator),
+			path: separator < 0 ? '/' : path.slice(separator),
+		});
+	}
+	return URI.from({ scheme: Schemas.file, path });
+}
+
+/** Compensates for copilot-host#981 until write confirmations name their file natively. */
+export function readCopilotWritePermissionPresentation(call: ToolCallState): { invocationMessage: StringOrMarkdown; confirmationTitle?: StringOrMarkdown } | undefined {
+	if (call.status !== ToolCallStatus.PendingConfirmation || call.contributor || call._meta?.ui !== undefined) {
+		return undefined;
+	}
+	const request = readPermissionRequestMeta(call);
+	if (request.kind !== AgentPermissionRequestKind.Write || !request.fileName) {
+		return undefined;
+	}
+	const uri = permissionFileUri(request.fileName);
+	const file = new MarkdownString().appendLink(uri, escapeMarkdownLinkLabel(basename(uri))).value;
+	const message = { markdown: localize('copilotd.permission.editFile', "Edit {0}", file) };
+	return {
+		invocationMessage: typeof call.invocationMessage === 'string' && call.invocationMessage.trim() === 'Edit file' ? message : call.invocationMessage,
+		...(typeof call.confirmationTitle === 'string' && call.confirmationTitle.trim() === 'Edit file' ? { confirmationTitle: localize('copilotd.permission.editFile', "Edit {0}", basename(uri)) } : {}),
+	};
+}
+
+/**
+ * Temporary compatibility fallback for URL permissions until the host names the URL itself.
+ * TODO: move this fix to the host so it emits "{intention}: {url}" as the confirmation message.
+ */
+export function readCopilotUrlPermissionPresentation(call: ToolCallState): { invocationMessage: StringOrMarkdown; confirmationTitle?: StringOrMarkdown } | undefined {
+	if (call.status !== ToolCallStatus.PendingConfirmation || call.contributor || call._meta?.ui !== undefined) {
+		return undefined;
+	}
+	const request = readPermissionRequestMeta(call);
+	if (request.kind !== AgentPermissionRequestKind.Url || !request.url) {
+		return undefined;
+	}
+	if (typeof call.invocationMessage !== 'string' || call.invocationMessage.includes(request.url)) {
+		return undefined;
+	}
+	const intention = call.invocationMessage.trim();
+	return {
+		invocationMessage: intention && intention !== 'Open URL' && intention !== 'Fetch URL'
+			? localize('copilotd.permission.openUrl', "{0}: {1}", intention, request.url)
+			: request.url,
+		...(typeof call.confirmationTitle === 'string' && call.confirmationTitle.trim() ? { confirmationTitle: call.confirmationTitle } : {}),
+	};
+}
 
 export function readCopilotToolPresentation(call: ToolCallState): IToolPresentation | undefined {
 	if (call.contributor || call._meta?.ui !== undefined) {

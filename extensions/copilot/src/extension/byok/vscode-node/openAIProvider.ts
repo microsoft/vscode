@@ -28,6 +28,19 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 
 	public static readonly providerName = 'OpenAI';
 	public static readonly providerId = this.providerName.toLowerCase();
+	private _apiKey: string | undefined;
+	private _modelDiscovery: { apiKey: string; expiresAt: number; models: Promise<OpenAICompatibleLanguageModelChatInformation<OpenAIProviderConfig>[]> } | undefined;
+
+	get apiKey(): string | undefined {
+		return this._apiKey;
+	}
+
+	override updateKnownModels(knownModels: BYOKKnownModels | undefined): void {
+		super.updateKnownModels(knownModels);
+		if (knownModels) {
+			this._modelDiscovery = undefined;
+		}
+	}
 
 	constructor(
 		knownModels: BYOKKnownModels,
@@ -49,6 +62,30 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 			configurationService,
 			expService
 		);
+	}
+
+	/** Silent discovery reuses key-scoped results for one minute; explicit refreshes always reach OpenAI. */
+	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: OpenAIProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<OpenAIProviderConfig>[]> {
+		this._apiKey = apiKey?.trim() || undefined;
+		if (!this._apiKey) {
+			// Model selection probes the unconfigured default group before the configured groups.
+			return super.getAllModels(silent, apiKey, configuration);
+		}
+		const cached = this._modelDiscovery;
+		if (silent && cached?.apiKey === this._apiKey && cached.expiresAt > Date.now()) {
+			return cached.models;
+		}
+		this._modelDiscovery = undefined;
+		const models = super.getAllModels(silent, apiKey, configuration);
+		const discovery = this._modelDiscovery = { apiKey: this._apiKey, expiresAt: Date.now() + 60_000, models };
+		try {
+			return await models;
+		} catch (error) {
+			if (this._modelDiscovery === discovery) {
+				this._modelDiscovery = undefined;
+			}
+			throw error;
+		}
 	}
 
 	protected override getModelsBaseUrl(): string {

@@ -126,13 +126,17 @@ container.appendChild(scrollable.getDomNode());
 scrollable.scanDomNode(); // call after content changes
 ```
 
+Keep scroll handlers lightweight: batch layout reads before writes, coalesce duplicate measurements, and skip unchanged CSSOM writes. Cache numeric values rather than comparing rounded style strings. Validate both unchanged scrolling and resizing that changes appearance without changing the item count.
+
+Verify actual scrollbar dragging and pointer acquisition after changing margins or clipping. In maximized/fullscreen layouts, check screen-edge hit regions as well as visual placement; an inset control must not become unnecessarily difficult to acquire.
+
 ## 8. Responsive Layout
 
 VS Code does **not** use CSS media queries. Instead, it uses a **programmatic constraint-based layout system**:
 
 - `IView.minimumSize` / `maximumSize` — views declare their size constraints.
 - `SplitView` and `Grid` distribute space according to constraints and `LayoutPriority`.
-- `ResizeObserver` is used for container-aware sizing (e.g., editor auto-layout).
+- `dom.DisposableResizeObserver` (not a raw `ResizeObserver`) is used for container-aware sizing (e.g., editor auto-layout).
 - The window is treated as a fixed viewport; space is distributed via sash-based resizing.
 
 When building a responsive component:
@@ -140,6 +144,13 @@ When building a responsive component:
 2. Use `LayoutPriority.Low` for panels that should collapse first.
 3. Use `snap: true` for panels that should snap closed when too small.
 4. Fire `onDidChange` when your constraints change dynamically.
+
+Validate layout at the boundaries where dimensions are consumed:
+
+- Keep grid allocation, CSS margins/borders, and child-content dimensions consistent. Exercise the real `layout()` path and inspect both root bounds and dimensions passed to children; helper values and outer screenshots alone cannot prove content fits.
+- Read current viewport and density state during layout rather than relying solely on constructor-selected behavior. Test transitions in both directions on the same instance, including collapse/expand and narrow/wide layouts, without shifting unrelated siblings.
+- Use existing screen-aware sizing helpers and the target window's effective pixel ratio for fractional scaling. Zoom alone is not device pixel ratio. Check margins, borders, and gap symmetry in CSS coordinates and physical pixels instead of adding compensating pixels or arbitrary tolerances.
+- Keep startup/restored geometry aligned with runtime layout, including missing-state fallbacks. Check affected visibility, density, and window variants, and preserve intentional exclusions such as modal or auxiliary surfaces.
 
 ## 9. Text Overflow & Ellipsis
 
@@ -239,11 +250,18 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 ### Anti-Patterns (NEVER DO)
 
-- **Never** let text clip without an ellipsis — if `overflow: hidden` is set, `text-overflow: ellipsis` must also be set.
+- **Never** let single-line text labels clip without an ellipsis. This rule applies to labels, not structural clipping containers or overflow masks.
 - **Never** rely on a fixed pixel width for text that could be localized — localized strings vary in length.
 - **Never** use `text-overflow: ellipsis` without `overflow: hidden` and `white-space: nowrap` — all three are required.
 - **Never** forget `min-width: 0` on flex children that need to truncate.
 - **Never** truncate text without providing a hover/tooltip for the full string.
+
+### Clipping and Alignment
+
+- Measure content items separately from adjacent actions and toolbars. Recalculate clipping when labels, status indicators, or actions change width, even if the viewport is unchanged.
+- Check first/last and partially visible items with long labels and combined hover/focus/selection states. Masks must not cover actions or scroll hit targets. Recreated overflow edges must preserve the source edge's shape and border state, and clear stale state when clipping ends.
+- Keep hover/focus geometry stable so controls do not jump under the pointer. Test state transitions on existing elements as well as fresh renders.
+- Define which semantic value should align in compound badges or labels. Centering a variable-width string does not preserve the alignment of its trailing status; compare short and long compound values alongside single-value rows.
 
 ---
 
@@ -251,7 +269,7 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 VS Code ships a design-system **size** ramp, registered in `src/vs/platform/theme/common/sizes/baseSizes.ts` and emitted as `--vscode-*` CSS variables. When writing or editing CSS, prefer the token var over a raw px value wherever a token exists. The full tables + rationale live in the auto-injected `.github/instructions/design-tokens.instructions.md` (canonical source — keep this section in sync with it). This section captures the **decision logic** for deeper styling tasks.
 
-> Every `--vscode-*` size var you reference must already exist in `build/lib/stylelint/vscode-known-variables.json` (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
+> Every `var()` you reference, except product-icon `--vscode-icon-*-content` and `--vscode-icon-*-font-family` variables, must exist in `build/lib/stylelint/vscode-known-variables.json` or stylelint/hygiene fails. After registering a *new* token in `baseSizes.ts`, run `./scripts/test-documentation.sh` to regenerate the `"sizes"` array; CSS-only custom properties belong in `"others"`.
 
 ### Spacing — `padding`, `margin`, `gap`
 

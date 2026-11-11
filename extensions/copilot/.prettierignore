@@ -7,7 +7,6 @@ test/.vscode-test/**
 **/*.ts
 **/*.js
 **/*.yml
-test/scenarios/**
 .simulation/**
 .build/**
 test/simulation/fixtures/**

@@ -5,8 +5,11 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /**
  * Shared controller state that desktop layout strategies read/coordinate
@@ -23,9 +26,20 @@ export interface IDesktopLayoutContext {
 	/** `true` while the whole side pane (editor + aux bar) is being toggled together. */
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
+	readonly multipleChatsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
+	chatLayoutActive(reader?: IReader): boolean;
+	chatLayoutSuspended(reader?: IReader): boolean;
+	readonly sharedChatLayout: boolean;
+	/** The session and chat the main window shows, from its host. */
+	shownByMainWindow(reader?: IReader): IShownChat | undefined;
+	/** The session the main window shows, from its host. */
+	readonly mainWindowSession: IObservable<ISession | undefined>;
+	ownerKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
+	compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
+	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 
 /**
@@ -41,8 +55,8 @@ export interface IDesktopLayoutContext {
  * Shared mechanics (the managed-tabs reconcile pipeline + editor-area collapse and the Existing
  * Editor-visibility-profile storage) live in non-strategy coordinator classes in this
  * folder — see `desktopDockedTabsCoordinator.ts`, `desktopDetailPanelCoordinator.ts`, and
- * `desktopVisibilityProfileStore.ts`. The shared detail coordinator owns only content selection
- * and context publication; each lifecycle strategy owns Auxiliary Bar visibility. The shared mechanics are owned by
+ * `desktopVisibilityProfileStore.ts`. The shared detail coordinator retains content selection,
+ * context publication, and transient hide state; each lifecycle strategy decides Auxiliary Bar visibility. The shared mechanics are owned by
  * {@link import('./desktopExistingSessionStrategy.js').DesktopExistingSessionStrategy}
  * (the docked-tabs coordinator, since its reconcile pipeline is shared across the New→Existing
  * submit transition) or by the controller (the visibility-profile store, since it backs one
@@ -51,5 +65,21 @@ export interface IDesktopLayoutContext {
 export abstract class DesktopLayoutStrategy extends Disposable {
 	constructor(protected readonly _ctx: IDesktopLayoutContext) {
 		super();
+	}
+
+	protected _multipleLayoutOwnersVisible(reader?: IReader): boolean {
+		const observable = this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout
+			? this._ctx.multipleChatsVisibleObs
+			: this._ctx.multipleSessionsVisibleObs;
+		return reader ? observable.read(reader) : observable.get();
+	}
+
+	/**
+	 * Whether a chat of another session is shown alongside the active one. Chats of the same
+	 * session share its main editor part, and mounted sessions whose chats are not shown (e.g.
+	 * while a chat is maximized) do not count.
+	 */
+	protected _otherSessionShown(): boolean {
+		return this._ctx.multipleSessionsVisibleObs.get() && this._multipleLayoutOwnersVisible();
 	}
 }

@@ -103,6 +103,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
 		},
 		{
+			id: AICustomizationManagementSection.Canvases,
+			label: localize('copilotCanvases', "Canvases"),
+			icon: Codicon.preview,
+			description: localize('copilotCanvasesDesc', "Review interactive canvases declared for Copilot chats visible in this window."),
+		},
+		{
 			id: AICustomizationManagementSection.Tools,
 			label: localize('tools', "Tools"),
 			icon: toolsIcon,
@@ -197,9 +203,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				}
 				let query: string;
 				if (this.workspaceService.isSessionsWindow) {
-					query = `Generate agent customizations. ${value}`;
+					query = localize('generateCustomizations.request', "Generate agent customizations. {0}", value);
 				} else {
-					query = `/init ${value}`;
+					query = value;
 				}
 
 				// Show confirmation immediately — before prefillChat so it's visible
@@ -218,7 +224,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				this.sentLabel.setAttribute('aria-live', 'polite');
 				this.sentLabel.textContent = localize('sentToChat', "Sent to chat \u2713");
 
-				this.callbacks.prefillChat(query, { isPartialQuery: false, newChat: true });
+				this.callbacks.prefillChat(query, { isPartialQuery: false, newChat: true, generateCustomizations: !this.workspaceService.isSessionsWindow });
 			};
 
 			this._register(DOM.addDisposableListener(submitBtn, 'click', e => { e.stopPropagation(); submit(); }));
