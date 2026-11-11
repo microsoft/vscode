@@ -6,6 +6,7 @@
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
 export const ISessionAttentionService = createDecorator<ISessionAttentionService>('sessionAttentionService');
 
@@ -35,5 +36,7 @@ export interface IInboxSessionAttention {
 export interface ISessionAttentionService {
 	readonly _serviceBrand: undefined;
 	readonly sessionAttention: IObservable<ReadonlyMap<string, IInboxSessionAttention>>;
+	/** Classifies a restoration batch using current metadata without changing archive state or starting polling. */
+	getSessionAttentionAfterUnarchive(sessions: readonly ISession[]): ReadonlyMap<string, IInboxSessionAttention>;
 	acquireSessionAttention(): IDisposable;
 }
