@@ -175,7 +175,6 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		return composer && { draftHost: composer, session: composer.session };
 	});
 	readonly active: IObservable<boolean>;
-	readonly scopeFolders: IObservable<readonly URI[]>;
 
 	private readonly _attachedViews: ChatEditorContent[] = [];
 	private readonly _view = observableValue<ChatEditorContent | undefined>(this, undefined);
@@ -193,13 +192,10 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
 		this.hostShown = derived(this, reader => this._composerModel.read(reader) ? this._composerShown.read(reader) : this._shown.read(reader));
-		// The window's folders, which the Sessions view scopes its list to: the chat offers to switch to a session's folder outside them
-		this.scopeFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
 		this.content = derived(this, reader => {
 			const shown = this.hostShown.read(reader);
 			return shown && this._contentOf(shown);
