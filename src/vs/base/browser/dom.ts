@@ -475,6 +475,8 @@ class AnimationFrameQueueItem implements IDisposable {
 			return;
 		}
 		animFrameRequested.set(targetWindowId, false);
+		// Only needed while a request is pending. Holding it longer would keep a removed iframe's realm alive.
+		animFrameRequestedWith.delete(targetWindowId);
 
 		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
 		CURRENT_QUEUE.set(targetWindowId, currentQueue);
