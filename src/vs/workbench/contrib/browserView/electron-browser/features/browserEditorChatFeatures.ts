@@ -377,28 +377,18 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	/**
 	 * Confirm with the user that they understand the risks of sharing content on untrusted pages.
 	 *
-	 * @returns true if the user confirms (or the page is local / trusted), false if they cancel.
+	 * @param urls The URLs of the pages whose content is shared; `undefined` stands for a page of unknown origin.
+	 * @returns true if the user confirms (or every page is local / trusted), false if they cancel.
 	 */
-	private async _confirmContentAttachmentRisk(url: string): Promise<boolean> {
+	private async _confirmContentAttachmentRisk(...urls: (string | undefined)[]): Promise<boolean> {
 		// If the user previously chose "Don't show again", skip the dialog
 		if (this.storageService.getBoolean(BrowserEditorChatIntegration.SHARING_CONTENT_WARNING_DONT_ASK_KEY, StorageScope.PROFILE)) {
 			return true;
 		}
 
-		try {
-			const parsedUrl = new URL(url);
-			if (parsedUrl.protocol === 'file:') {
-				// Query the workspace trust service for file URLs
-				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(URI.file(parsedUrl.pathname));
-				if (trustInfo.trusted) {
-					return true;
-				}
-			} else if (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1') {
-				// Consider localhost URLs trusted
-				return true;
-			}
-		} catch {
-			// Invalid URL - fall through to the warning
+		const trusted = await Promise.all(urls.map(url => this._isTrustedContentUrl(url)));
+		if (trusted.every(Boolean)) {
+			return true;
 		}
 
 		const result = await this.dialogService.confirm({
@@ -414,6 +404,25 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		return result.confirmed;
+	}
+
+	private async _isTrustedContentUrl(url: string | undefined): Promise<boolean> {
+		if (!url) {
+			return false;
+		}
+		try {
+			const parsedUrl = new URL(url);
+			if (parsedUrl.protocol === 'file:') {
+				// Query the workspace trust service for file URLs
+				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(URI.file(parsedUrl.pathname));
+				return trustInfo.trusted;
+			}
+			// Consider localhost URLs trusted
+			return parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1';
+		} catch {
+			// Invalid URL - show the warning
+			return false;
+		}
 	}
 
 	// -- Chat widget helpers --------------------------------------------
@@ -764,7 +773,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const stopWatch = StopWatch.create(false);
 		if (this.screenshotToolService.shouldUseTool()) {
 			const result = await this.screenshotToolService.capture(this.editor.window);
-			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, model.url, stopWatch);
+			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, stopWatch);
 		}
 
 		let outcome: ScreenshotToolOutcome = 'failed';
@@ -823,7 +832,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const stopWatch = StopWatch.create(false);
 		if (this.screenshotToolService.shouldUseTool()) {
 			const result = await this.screenshotToolService.capture(this.editor.window);
-			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserAreaScreenshot, result, model.url, stopWatch);
+			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserAreaScreenshot, result, stopWatch);
 		}
 
 		this.editor.ensureBrowserFocus();
@@ -888,12 +897,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (this.screenshotToolService.shouldUseTool()) {
 			let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
 			try {
+				const url = model.url;
 				const image = await createScreenshotToolImage(await model.captureScreenshot({ fullPage: true, format: 'png' }), 'image/png');
-				result = { kind: 'captured', mode: 'fullPage', image, includesLayerContent: true };
+				result = { kind: 'captured', mode: 'fullPage', image, layerUrls: [url] };
 			} catch (error) {
 				this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 			}
-			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, model.url, stopWatch);
+			return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, stopWatch);
 		}
 
 		let outcome: ScreenshotToolOutcome = 'failed';
@@ -931,24 +941,25 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	/**
 	 * Attaches what the user captured with the screenshot tool, after confirming the risk of page
-	 * content as the actions without the tool do. The attached screenshot can be edited from chat.
+	 * content as the actions without the tool do. The capture can show other pages than the one that
+	 * started it, such as another browser in the window, so every page it shows is checked. The
+	 * attached screenshot can be edited from chat.
 	 */
-	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, url: string, stopWatch: StopWatch): Promise<void> {
+	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, stopWatch: StopWatch): Promise<void> {
 		let outcome: ScreenshotToolOutcome = result.kind === 'captured' ? 'failed' : result.kind;
 		try {
 			if (result.kind !== 'captured') {
 				return;
 			}
-			const showsPage = result.mode === 'page' || result.mode === 'fullPage' || result.includesLayerContent;
-			if (showsPage && !await this._confirmContentAttachmentRisk(url)) {
+			if (result.layerUrls.length && !await this._confirmContentAttachmentRisk(...result.layerUrls)) {
 				outcome = 'cancelled';
 				return;
 			}
 			const name = getScreenshotToolAttachmentName(result);
 			const { data, mimeType } = getScreenshotToolImageData(result.image);
-			const id = `browser-screenshot-${generateUuid()}`;
-			this.screenshotToolService.registerEditableAttachment(id, { original: result.image, annotationState: undefined });
-			if (!await this._attachToChat([{ id, name, fullName: name, kind: 'image', value: data.buffer, mimeType }])) {
+			const entry: IChatRequestVariableEntry = { id: `browser-screenshot-${generateUuid()}`, name, fullName: name, kind: 'image', value: data.buffer, mimeType };
+			this.screenshotToolService.registerEditableAttachment(entry.id, { original: result.image, annotationState: undefined });
+			if (!await this._attachToChat([entry])) {
 				return;
 			}
 			outcome = 'attached';
@@ -978,7 +989,7 @@ function getScreenshotToolAttachmentName(capture: IScreenshotToolCapture): strin
 	if (capture.mode === 'fullPage') {
 		return localize('browserFullPageScreenshot', 'Browser Full Page Screenshot');
 	}
-	if (capture.mode === 'area' && capture.includesLayerContent) {
+	if (capture.mode === 'area' && capture.layerUrls.length) {
 		return localize('browserAreaScreenshot', 'Browser Area Screenshot');
 	}
 	return localize('screenshotToolScreenshot', "Screenshot");

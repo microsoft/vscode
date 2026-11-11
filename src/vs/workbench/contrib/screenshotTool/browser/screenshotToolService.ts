@@ -43,7 +43,7 @@ const MAX_EDITABLE_ATTACHMENTS = 10;
 interface ICapture {
 	readonly mode: ScreenshotToolMode;
 	readonly image: IScreenshotToolImage;
-	readonly includesLayerContent: boolean;
+	readonly layerUrls: readonly (string | undefined)[];
 }
 
 interface ILayerBounds {
@@ -420,10 +420,11 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	}
 
 	private async capturePage(layer: IScreenshotToolLayer): Promise<Omit<ICapture, 'mode'> | undefined> {
+		const url = layer.url;
 		try {
 			const content = await layer.capture();
 			if (content?.data.byteLength) {
-				return { image: await createScreenshotToolImage(content.data, content.mimeType), includesLayerContent: true };
+				return { image: await createScreenshotToolImage(content.data, content.mimeType), layerUrls: [url] };
 			}
 		} catch (error) {
 			this.logService.warn('[ScreenshotTool] Capturing a page failed, capturing the window instead:', error);
@@ -431,14 +432,19 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return undefined;
 	}
 
-	/** Captures the window or an area of it, painting layers that the window capture misses over it. */
+	/**
+	 * Captures the window or an area of it, painting layers that the window capture misses over it. Layers that other UI
+	 * covers keep the placeholder under that UI, as the user sees them.
+	 */
 	private async captureWindowArea(targetWindow: CodeWindow, area: IScreenshotRect | undefined, afterRepaint: boolean): Promise<Omit<ICapture, 'mode'> | undefined> {
 		if (afterRepaint) {
 			await timeout(REPAINT_DELAY);
 		}
 		const bounds: IScreenshotRect = { x: 0, y: 0, width: targetWindow.innerWidth, height: targetWindow.innerHeight };
 		const target = area ?? bounds;
-		const layers = this.getVisibleLayers(targetWindow).filter(({ rect }) => intersect(rect, target));
+		const shownLayers = this.getVisibleLayers(targetWindow).filter(({ rect }) => intersect(rect, target));
+		const layerUrls = shownLayers.map(({ layer }) => layer.url);
+		const layers = shownLayers.filter(({ layer }) => !layer.covered);
 		const [screenshot, ...layerContents] = await Promise.all([
 			this.hostService.getScreenshot(undefined, targetWindow),
 			...layers.map(({ layer }) => layer.capture().catch(error => {
@@ -452,7 +458,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		const windowDataUrl = toDataUrl(screenshot, 'image/jpeg');
 		const windowImage = await decodeImage(windowDataUrl);
 		if (!area && layerContents.every(content => !content?.data.byteLength)) {
-			return { image: { dataUrl: windowDataUrl, width: windowImage.naturalWidth, height: windowImage.naturalHeight }, includesLayerContent: false };
+			return { image: { dataUrl: windowDataUrl, width: windowImage.naturalWidth, height: windowImage.naturalHeight }, layerUrls };
 		}
 
 		// The capture has device pixels, which can differ from CSS pixels by the zoom level and display scale.
@@ -466,7 +472,6 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			return undefined;
 		}
 		context.drawImage(windowImage, target.x * scaleX, target.y * scaleY, target.width * scaleX, target.height * scaleY, 0, 0, canvas.width, canvas.height);
-		let includesLayerContent = false;
 		for (let i = 0; i < layers.length; i++) {
 			const content = layerContents[i];
 			const { rect } = layers[i];
@@ -482,13 +487,12 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 				(overlap.x - rect.x) * layerScaleX, (overlap.y - rect.y) * layerScaleY, overlap.width * layerScaleX, overlap.height * layerScaleY,
 				(overlap.x - target.x) * scaleX, (overlap.y - target.y) * scaleY, overlap.width * scaleX, overlap.height * scaleY,
 			);
-			includesLayerContent = true;
 		}
-		return { image: { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height }, includesLayerContent };
+		return { image: { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height }, layerUrls };
 	}
 
 	private getClickLayer(targetWindow: CodeWindow, x: number, y: number): ILayerBounds | undefined {
-		return this.getVisibleLayers(targetWindow).find(({ layer, rect }) => layer.capturesOnClick && contains(rect, x, y));
+		return this.getVisibleLayers(targetWindow).find(({ layer, rect }) => layer.capturesOnClick && !layer.covered && contains(rect, x, y));
 	}
 
 	private getVisibleLayers(targetWindow: CodeWindow): ILayerBounds[] {

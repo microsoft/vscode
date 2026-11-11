@@ -55,8 +55,12 @@ export interface IScreenshotToolCapture {
 	readonly kind: 'captured';
 	readonly mode: ScreenshotToolMode;
 	readonly image: IScreenshotToolImage;
-	/** Whether the capture includes content of a layer, such as a browser page. */
-	readonly includesLayerContent: boolean;
+	/**
+	 * The URLs of the layers, such as browser pages, whose content the capture shows, live or as the placeholder under UI
+	 * that covers them, so that entry points can check where the content comes from. `undefined` stands for a layer
+	 * without a URL.
+	 */
+	readonly layerUrls: readonly (string | undefined)[];
 }
 
 export type ScreenshotToolResult = IScreenshotToolCapture | { readonly kind: 'cancelled' | 'failed'; readonly mode: ScreenshotToolMode };
@@ -89,6 +93,14 @@ export interface IScreenshotToolMarkUp extends IDisposable {
 export interface IScreenshotToolLayer {
 	/** The element whose bounds the native content covers, or `undefined` while it shows no native content. */
 	readonly element: HTMLElement | undefined;
+	/**
+	 * Whether UI other than the screenshot tool's, such as a dialog, covers the native content. Window captures then show
+	 * that UI over the content's placeholder, as the user sees them, rather than the content, and a click there does not
+	 * capture the content alone.
+	 */
+	readonly covered: boolean;
+	/** The URL of the native content, such as a browser page's. */
+	readonly url: string | undefined;
 	/** Whether a click on the layer captures only its content. */
 	readonly capturesOnClick: boolean;
 	/** Captures what the layer shows, or resolves `undefined` when it shows nothing. */

@@ -708,7 +708,7 @@ suite('Issue reporter media import lifecycle', () => {
 
 		test('attaches the capture of the source window without another step, and edits it from its thumbnail', async () => {
 			const { service, telemetry } = createTestScreenshotToolService(store, true);
-			service.result = { kind: 'captured', mode: 'area', image: original, includesLayerContent: false };
+			service.result = { kind: 'captured', mode: 'area', image: original, layerUrls: [] };
 			const { summary, container, input } = await capture(service, telemetry, false);
 			const captured = { ...summary, tool: [...summary.tool] };
 			service.editResult = { original, annotationState, image: annotated, annotated: true };

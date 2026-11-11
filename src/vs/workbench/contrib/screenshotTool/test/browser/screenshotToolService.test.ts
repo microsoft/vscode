@@ -110,7 +110,7 @@ suite('ScreenshotTool', () => {
 
 		function summarize(result: ScreenshotToolResult) {
 			return result.kind === 'captured'
-				? { kind: result.kind, mode: result.mode, size: `${result.image.width}x${result.image.height}`, includesLayerContent: result.includesLayerContent }
+				? { kind: result.kind, mode: result.mode, size: `${result.image.width}x${result.image.height}`, layerUrls: result.layerUrls }
 				: result;
 		}
 
@@ -154,7 +154,7 @@ suite('ScreenshotTool', () => {
 			pointer(overlay, 'pointerdown', 20, 20);
 			pointer(overlay, 'pointerup', 22, 21);
 			assert.deepStrictEqual({ result: summarize(await result), captures, overlay: overlay.isConnected, editors: container.querySelectorAll('.screenshot-annotation-editor').length, announced: accessibility.messages.at(-1) }, {
-				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, includesLayerContent: false },
+				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, layerUrls: [] },
 				captures: [mainWindow],
 				overlay: false,
 				editors: 0,
@@ -167,13 +167,13 @@ suite('ScreenshotTool', () => {
 			const page = $('div');
 			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 200px; height: 100px;';
 			container.appendChild(page);
-			store.add(service.registerLayer({ element: page, capturesOnClick: true, capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
+			store.add(service.registerLayer({ element: page, covered: false, url: 'https://example.com/', capturesOnClick: true, capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
 			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			pointer(overlay, 'pointerdown', 50, 50);
 			pointer(overlay, 'pointermove', 150, 120);
 			pointer(overlay, 'pointerup', 150, 120);
-			assert.deepStrictEqual(summarize(await result), { kind: 'captured', mode: 'area', size: '100x70', includesLayerContent: true });
+			assert.deepStrictEqual(summarize(await result), { kind: 'captured', mode: 'area', size: '100x70', layerUrls: ['https://example.com/'] });
 		});
 
 		test('a click on a page layer captures only the page', async () => {
@@ -181,14 +181,45 @@ suite('ScreenshotTool', () => {
 			const page = $('div');
 			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 200px; height: 100px;';
 			container.appendChild(page);
-			store.add(service.registerLayer({ element: page, capturesOnClick: true, capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
+			store.add(service.registerLayer({ element: page, covered: false, url: 'https://example.com/', capturesOnClick: true, capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
 			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			pointer(overlay, 'pointerdown', 150, 150);
 			pointer(overlay, 'pointerup', 150, 150);
 			assert.deepStrictEqual({ result: summarize(await result), captures }, {
-				result: { kind: 'captured', mode: 'page', size: '200x100', includesLayerContent: true },
+				result: { kind: 'captured', mode: 'page', size: '200x100', layerUrls: ['https://example.com/'] },
 				captures: [],
+			});
+		});
+
+		test('pages that other UI covers keep that UI in captures, which still list their URLs', async () => {
+			const { service, container } = createService();
+			const pageCaptures: string[] = [];
+			for (const [left, url, covered] of [[100, 'https://exposed.example/', false], [200, 'https://covered.example/', true]] as const) {
+				const page = $('div');
+				page.style.cssText = `position: fixed; left: ${left}px; top: 100px; width: 100px; height: 100px;`;
+				container.appendChild(page);
+				store.add(service.registerLayer({
+					element: page, covered, url, capturesOnClick: true,
+					capture: async () => {
+						pageCaptures.push(url);
+						return { data: createImage(100, 100, '#ff0000'), mimeType: 'image/png' };
+					},
+				}));
+			}
+			const area = service.capture(mainWindow);
+			pointer(getOverlay(container), 'pointerdown', 50, 50);
+			pointer(getOverlay(container), 'pointermove', 350, 250);
+			pointer(getOverlay(container), 'pointerup', 350, 250);
+			const drag = summarize(await area);
+			// A click on the covered page captures the window, as the user sees it, rather than the page alone.
+			const click = service.capture(mainWindow);
+			pointer(getOverlay(container), 'pointerdown', 250, 150);
+			pointer(getOverlay(container), 'pointerup', 250, 150);
+			assert.deepStrictEqual({ drag, click: summarize(await click), pageCaptures }, {
+				drag: { kind: 'captured', mode: 'area', size: '300x200', layerUrls: ['https://exposed.example/', 'https://covered.example/'] },
+				click: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, layerUrls: ['https://exposed.example/', 'https://covered.example/'] },
+				pageCaptures: ['https://exposed.example/', 'https://exposed.example/'],
 			});
 		});
 
@@ -200,7 +231,7 @@ suite('ScreenshotTool', () => {
 			const result = service.capture(mainWindow);
 			key(getOverlay(container), 'Enter', 13);
 			assert.deepStrictEqual({ result: summarize(await result), focused: mainWindow.document.activeElement === button }, {
-				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, includesLayerContent: false },
+				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, layerUrls: [] },
 				focused: true,
 			});
 		});

@@ -165,7 +165,7 @@ suite('WebContentsViewHost', () => {
 	});
 
 	for (const [overlayClass, paused] of [['screenshot-tool-overlay', false], ['monaco-dialog-modal-block', true]] as const) {
-		test(`hides the page under ${overlayClass} ${paused ? 'and shows' : 'without showing'} that it is paused`, async () => {
+		test(`hides the page under ${overlayClass} ${paused ? 'and shows' : 'without showing'} that it is paused, and ${paused ? 'tells' : 'does not tell'} the screenshot tool that UI covers it`, async () => {
 			const calls: boolean[] = [];
 			let visible = false;
 			const model = upcastPartial<IBrowserViewModel>({
@@ -185,7 +185,8 @@ suite('WebContentsViewHost', () => {
 				},
 				captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 			});
-			const host = createHost();
+			const layers: IScreenshotToolLayer[] = [];
+			const host = createHost(layers);
 			const container = $('div');
 			container.style.cssText = 'position: fixed; left: 0; top: 0; width: 100px; height: 100px;';
 			const overlay = $(`div.${overlayClass}`);
@@ -201,7 +202,7 @@ suite('WebContentsViewHost', () => {
 				await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
 			}
 
-			assert.deepStrictEqual({ calls, paused: host.pauseElement.classList.contains('visible') }, { calls: [true, false], paused });
+			assert.deepStrictEqual({ calls, paused: host.pauseElement.classList.contains('visible'), covered: layers.map(layer => layer.covered) }, { calls: [true, false], paused, covered: [paused] });
 		});
 	}
 
@@ -234,11 +235,11 @@ suite('WebContentsViewHost', () => {
 		host.setVisible(false, true);
 
 		assert.deepStrictEqual({
-			beforeShown, shown, capturesOnClick: layers[0].capturesOnClick,
+			beforeShown, shown, capturesOnClick: layers[0].capturesOnClick, covered: layers[0].covered, url: layers[0].url,
 			captured: captured && { data: captured.data.toString(), mimeType: captured.mimeType },
 			afterHidden: layers.map(layer => layer.element),
 		}, {
-			beforeShown: [undefined], shown: [true], capturesOnClick: true,
+			beforeShown: [undefined], shown: [true], capturesOnClick: true, covered: false, url: 'https://example.test',
 			captured: { data: 'page', mimeType: 'image/jpeg' },
 			afterHidden: [undefined],
 		});

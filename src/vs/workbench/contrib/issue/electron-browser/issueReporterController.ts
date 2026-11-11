@@ -423,7 +423,7 @@ export class IssueReporterController extends Disposable {
 				}
 				const image = await this.screenshotToolService.captureWindow(mainWindow);
 				if (image) {
-					result = { kind: 'captured', mode: 'window', image, includesLayerContent: false };
+					result = { kind: 'captured', mode: 'window', image, layerUrls: [] };
 				}
 			} else {
 				result = await this.screenshotToolService.capture(mainWindow, token);

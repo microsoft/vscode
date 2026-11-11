@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IBrowserViewCaptureScreenshotOptions, IBrowserViewRect } from '../../../../../../platform/browserView/common/browserView.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatPetService } from '../../../../chat/browser/chatPetService.js';
@@ -44,6 +45,13 @@ suite('Browser screenshot actions', () => {
 		instantiationService.stub(IChatPetService, upcastPartial<IChatPetService>({}));
 		const pickedArea = store.add(new Emitter<IBrowserViewRect | undefined>());
 		const pageCaptures: IBrowserViewCaptureScreenshotOptions[] = [];
+		const warnings: string[] = [];
+		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({
+			confirm: async options => {
+				warnings.push(options.message);
+				return { confirmed: false };
+			},
+		}));
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'http://localhost:3000/',
 			isAreaSelectionActive: false,
@@ -60,7 +68,7 @@ suite('Browser screenshot actions', () => {
 		});
 		const editor = upcastPartial<BrowserEditor>({ onDidChangeModel: Event.None, model, window: mainWindow, ensureBrowserFocus: () => { } });
 		const feature = store.add(instantiationService.createInstance(BrowserEditorChatIntegration, editor));
-		return { feature, service, telemetry, attached, pageCaptures };
+		return { feature, service, telemetry, attached, pageCaptures, warnings };
 	}
 
 	test('without the screenshot tool, each action captures the page as before', async () => {
@@ -90,7 +98,7 @@ suite('Browser screenshot actions', () => {
 	test('with the screenshot tool, each action attaches its capture right away, where it can be edited', async () => {
 		const { feature, service, telemetry, attached, pageCaptures } = create(true);
 		const page = { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 };
-		service.result = { kind: 'captured', mode: 'page', image: page, includesLayerContent: true };
+		service.result = { kind: 'captured', mode: 'page', image: page, layerUrls: ['http://localhost:3000/'] };
 		await feature.addScreenshotToChat();
 		service.result = { kind: 'cancelled', mode: 'none' };
 		await feature.addAreaScreenshotToChat();
@@ -111,6 +119,27 @@ suite('Browser screenshot actions', () => {
 				{ entryPoint: 'browserAreaScreenshot', outcome: 'cancelled', mode: 'none', usedTool: true },
 				{ entryPoint: 'browserFullPageScreenshot', outcome: 'attached', mode: 'fullPage', usedTool: true },
 			],
+		});
+	});
+
+	test('with the screenshot tool, warns about every page that a capture shows, not only the page that started it', async () => {
+		const { feature, service, attached, warnings } = create(true);
+		const capture = async (layerUrls: (string | undefined)[]) => {
+			service.result = { kind: 'captured', mode: 'area', image: { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 }, layerUrls };
+			await feature.addAreaScreenshotToChat();
+			// The warning is cancelled, which attaches nothing.
+			return { warnings: warnings.splice(0).length, attached: attached.splice(0).length };
+		};
+		assert.deepStrictEqual({
+			localPages: await capture(['http://localhost:3000/', 'http://127.0.0.1:8080/']),
+			anotherPage: await capture(['http://localhost:3000/', 'https://example.com/']),
+			pageWithoutUrl: await capture([undefined]),
+			noPage: await capture([]),
+		}, {
+			localPages: { warnings: 0, attached: 1 },
+			anotherPage: { warnings: 1, attached: 0 },
+			pageWithoutUrl: { warnings: 1, attached: 0 },
+			noPage: { warnings: 0, attached: 1 },
 		});
 	});
 });

@@ -77,8 +77,12 @@ export class WebContentsViewHost extends Disposable {
 
 		// The page is a native view above the window, so window captures only contain its placeholder.
 		const getPresentedContainer = () => this._presentsPage() ? this._container : undefined;
+		const isCovered = () => this._overlayPaused;
+		const getUrl = () => this._model?.url;
 		this._register(screenshotToolService.registerLayer({
 			get element() { return getPresentedContainer(); },
+			get covered() { return isCovered(); },
+			get url() { return getUrl(); },
 			capturesOnClick: true,
 			capture: () => this._capturePage(),
 		}));
