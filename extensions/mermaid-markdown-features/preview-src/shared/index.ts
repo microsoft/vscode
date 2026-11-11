@@ -186,6 +186,9 @@ export function buildMermaidConfig(
 ): MermaidConfig {
 	return {
 		startOnLoad: false,
+		// Mermaid 12 defaults to ELK, which lays out diagrams with many edges in a single task that can block the
+		// webview for many seconds. Keep dagre, the default before Mermaid 12; diagrams can still opt into `layout: elk`.
+		layout: 'dagre',
 		look: 'classic',
 		flowchart: { subGraphTitleMargin: { ...subgraphTitleMargin } },
 		...vsCodeThemeTracker.resolveMermaidTheme(extensionConfig),
