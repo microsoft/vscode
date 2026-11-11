@@ -14,13 +14,13 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, SWITCH_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
@@ -40,6 +40,10 @@ suite('FolderLocationStatusBarContribution', () => {
 		const executed: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
+		const onDidChangeEntryVisibility = ds.add(new Emitter<{ id: string; visible: boolean }>());
+		const onDidChangePartVisibility = ds.add(new Emitter<{ partId: string; visible: boolean }>());
+		const statusbarContainer = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		ds.add({ dispose: () => statusbarContainer.remove() });
 
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false);
@@ -48,6 +52,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			{ get currentLocation() { return currentLocation; }, onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
 			{
+				onDidChangeEntryVisibility: onDidChangeEntryVisibility.event,
 				addEntry(entry: IStatusbarEntry, _id: string, alignment: unknown, priority: unknown) {
 					added.push({ alignment, priority });
 					entries.push(entry);
@@ -55,13 +60,15 @@ suite('FolderLocationStatusBarContribution', () => {
 					return { update: (e: IStatusbarEntry) => { entries.push(e); }, dispose: () => { visible = false; } };
 				}
 			} as unknown as IStatusbarService,
-			{ mainContainer: { ownerDocument: mainWindow.document } } as unknown as ILayoutService,
+			{ getContainer: () => statusbarContainer, onDidChangePartVisibility: onDidChangePartVisibility.event } as unknown as IWorkbenchLayoutService,
 			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
 			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService
 		));
 
 		return {
-			contribution, entries, executed, added,
+			contribution, entries, executed, added, statusbarContainer,
+			entryVisibilityChanged: () => onDidChangeEntryVisibility.fire({ id: 'status.workspace.folderLocation', visible: true }),
+			partVisibilityChanged: () => onDidChangePartVisibility.fire({ partId: Parts.STATUSBAR_PART, visible: true }),
 			isVisible: () => visible,
 			switchTo() {
 				currentLocation = location;
@@ -115,6 +122,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		const whileHidden = signal();
 
 		element.style.display = 'block';
+		fixture.entryVisibilityChanged();
 		for (let i = 0; i < 20 && !signal(); i++) {
 			await nextFrame();
 		}
@@ -155,28 +163,62 @@ suite('FolderLocationStatusBarContribution', () => {
 			assert.strictEqual(signal(), false);
 		});
 
-		test('readiness follows visibility while the introduction is queued, and observation ends once it was shown', async () => {
+		test('readiness follows visibility changes at an unchanged size, and observation ends once it was shown', async () => {
 			const shown = { value: false };
 			const { fixture, signal, element, frames } = setup(shown);
 			fixture.switchTo();
-			await frames(5);
+			await frames(3);
 			assert.strictEqual(signal(), true);
 
 			element.style.visibility = 'hidden';
-			await frames(5);
+			fixture.entryVisibilityChanged();
+			await frames(3);
 			assert.strictEqual(signal(), false);
 
 			element.style.visibility = 'visible';
-			await frames(5);
+			fixture.partVisibilityChanged();
+			await frames(3);
 			assert.strictEqual(signal(), true);
 
-			// marked as shown while hidden, at an unchanged size: observation ends without a resize
+			// marked as shown while hidden, at an unchanged size: the next event ends the observation
 			element.style.visibility = 'hidden';
 			shown.value = true;
-			await frames(5);
+			fixture.entryVisibilityChanged();
+			await frames(3);
 			element.style.visibility = 'visible';
+			fixture.entryVisibilityChanged();
+			await frames(3);
+			assert.strictEqual(signal(), true);
+		});
+
+		test('a re-created entry is found when the status bar resizes', async () => {
+			const { fixture, signal, element, frames } = setup({ value: false });
+			element.remove();
+			fixture.switchTo();
+			await frames(3);
+			assert.strictEqual(signal(), false);
+
+			mainWindow.document.body.appendChild(element);
+			fixture.statusbarContainer.style.width = '40px';
+			fixture.statusbarContainer.style.height = '10px';
 			await frames(5);
 			assert.strictEqual(signal(), true);
+		});
+
+		test('no frame is requested while idle', async () => {
+			const { fixture, frames } = setup({ value: false });
+			fixture.switchTo();
+			await frames(5);
+
+			const original = mainWindow.requestAnimationFrame;
+			let requested = 0;
+			mainWindow.requestAnimationFrame = callback => { requested++; return original.call(mainWindow, callback); };
+			try {
+				await new Promise<void>(resolve => setTimeout(resolve, 300));
+			} finally {
+				mainWindow.requestAnimationFrame = original;
+			}
+			assert.strictEqual(requested, 0);
 		});
 
 		test('no observer when switching again after it was shown', async () => {
