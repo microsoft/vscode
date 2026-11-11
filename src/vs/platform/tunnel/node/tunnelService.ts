@@ -50,7 +50,7 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	private readonly _connectionListener: (socket: net.Socket) => void;
 	private readonly _errorListener: () => void;
 
-	private readonly _socketsDispose: Map<string, () => void> = new Map();
+	private readonly _socketsDispose: Map<net.Socket, () => void> = new Map();
 
 	constructor(options: IConnectionOptions, private readonly defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, private readonly suggestedLocalPort?: number) {
 		super();
@@ -123,17 +123,12 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			localSocket.write(dataChunk.buffer);
 		}
 
-		localSocket.on('end', () => {
-			if (localSocket.localAddress) {
-				this._socketsDispose.delete(localSocket.localAddress);
-			}
+		localSocket.on('end', () => remoteSocket.end());
+		localSocket.on('close', () => {
+			this._socketsDispose.delete(localSocket);
 			remoteSocket.end();
 		});
-		localSocket.on('close', () => remoteSocket.end());
 		localSocket.on('error', () => {
-			if (localSocket.localAddress) {
-				this._socketsDispose.delete(localSocket.localAddress);
-			}
 			if (remoteSocket instanceof NodeSocket) {
 				remoteSocket.socket.destroy();
 			} else {
@@ -147,8 +142,8 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			this._mirrorGenericSocket(localSocket, remoteSocket);
 		}
 
-		if (localSocket.localAddress) {
-			this._socketsDispose.set(localSocket.localAddress, () => {
+		if (!localSocket.destroyed) {
+			this._socketsDispose.set(localSocket, () => {
 				// Need to end instead of unpipe, otherwise whatever is connected locally could end up "stuck" with whatever state it had until manually exited.
 				localSocket.end();
 				remoteSocket.end();
