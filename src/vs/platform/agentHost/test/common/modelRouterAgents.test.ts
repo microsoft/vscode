@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { parseModelRouter } from '../../common/modelRouter.js';
-import { modelRouterBriefing, modelRouterRoleWarnings, resolveModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
+import { installedModelRouterAgentPlan, modelRouterBriefing, modelRouterRoleWarnings, resolveModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 
 function model(id: string, policyState = PolicyState.Enabled): IAgentModelInfo {
@@ -96,6 +96,24 @@ suite('modelRouterAgents', () => {
 			'Role `explore` is left out of chats: an agent with that name is built in. Give the role another name.',
 			'Role `spare` is not used by any playbook.',
 		]);
+	});
+
+	test('a chat keeps only the agents its first session really got', () => {
+		const plan = resolveModelRouterAgentPlan(router, 'feature', models, reserved)!;
+		const installed = (...names: string[]) => names.map(agentType => ({ agentType, description: '' }));
+		const reviewerOnly = installedModelRouterAgentPlan(plan, installed('reviewer'));
+		assert.deepStrictEqual({
+			// Plans are compared by identity, so a plan that was installed whole stays the same object.
+			whole: installedModelRouterAgentPlan(plan, installed('reviewer', 'docs')) === plan,
+			reviewerOnly: { agents: reviewerOnly?.agents.map(agent => agent.name), guidance: reviewerOnly?.guidance },
+			guidanceOnly: installedModelRouterAgentPlan(plan, [])?.agents,
+			nothing: installedModelRouterAgentPlan({ ...plan, guidance: undefined }, []),
+		}, {
+			whole: true,
+			reviewerOnly: { agents: ['reviewer'], guidance: 'Plan first.' },
+			guidanceOnly: [],
+			nothing: undefined,
+		});
 	});
 
 	test('briefs the main agent about the agents the session has, by the name that starts each', () => {

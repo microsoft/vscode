@@ -68,7 +68,7 @@ import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 import { isModelRouterModelId } from '../../common/modelRouter.js';
-import { modelRouterBriefing, type IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
+import { modelRouterBriefing, type IInstalledModelRouterAgent, type IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import type { CopilotWorkspace } from './copilotWorkspace.js';
 import type { CopilotVirtualSessionFs } from './copilotVirtualSessionFs.js';
@@ -481,6 +481,8 @@ interface ICopilotSessionLaunchBase {
 	readonly availableModels?: () => readonly IAgentModelInfo[];
 	/** The agents and guidance of the model router playbook this chat was started with. The session is launched with exactly this object. */
 	readonly modelRouterAgents?: IModelRouterAgentPlan;
+	/** Told which of the plan's agents this launch really installed. */
+	readonly onModelRouterAgentsInstalled?: (installed: readonly IInstalledModelRouterAgent[]) => void;
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
 	readonly autoTierSupport?: () => IAutoModeTierSupport;
@@ -1637,6 +1639,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const authoredCustomAgents = routerProjection?.agents ?? authoredAgents;
 		const routerBriefing = routerPlan && routerProjection ? modelRouterBriefing(routerPlan, routerProjection.installed) : undefined;
 		if (routerPlan && routerProjection) {
+			plan.onModelRouterAgentsInstalled?.(routerProjection.installed);
 			this._logService.info(`[Copilot:${plan.sessionId}] Model router playbook ${routerPlan.playbook}: agents=${routerProjection.installed.map(installed => installed.agentType).join(', ') || 'none'}`);
 			for (const reason of routerProjection.omitted) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Model router agent left out. ${reason}`);

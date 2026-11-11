@@ -11,8 +11,9 @@ import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
  * that starts work in the chat, and never change afterwards.
  *
  * A chat is *fresh* from its creation until one of its sessions starts root work. While it is
- * fresh, the turn being sent can hold a *candidate* plan. When work starts, the plan the working
- * session was launched with becomes the chat's *committed* plan, which may be none.
+ * fresh, the turn being sent can hold a *candidate* plan. When work starts, what the working
+ * session really got of the plan it was launched with becomes the chat's *committed* plan, which
+ * may be none.
  *
  * Plans are compared by identity: a session is launched with a plan object and stays valid for as
  * long as the chat's plan is that same object. "No plan" is always `undefined`.
@@ -26,6 +27,8 @@ export class CopilotModelRouterAgents {
 	private readonly _currentTurns = new Map<string, string>();
 	private readonly _candidates = new Map<string, IModelRouterAgentPlan>();
 	private readonly _committed = new Map<string, IModelRouterAgentPlan>();
+	/** The agents each chat was last told it lacks, so that it is told once and not on every turn. */
+	private readonly _announcedMissing = new Map<string, string>();
 
 	/** Marks a chat that was just created new: not forked, imported or restored. */
 	markFresh(chat: string): void {
@@ -74,8 +77,9 @@ export class CopilotModelRouterAgents {
 	}
 
 	/**
-	 * A session of the chat started root work. The first time, the plan that session was launched
-	 * with becomes the chat's plan for good; later reports change nothing.
+	 * A session of the chat started root work. The first time, the plan given here becomes the
+	 * chat's plan for good; later reports change nothing. The caller passes what that session
+	 * really got of the plan it was launched with.
 	 */
 	commit(chat: string, launched: IModelRouterAgentPlan | undefined): void {
 		if (!this._fresh.delete(chat)) {
@@ -88,11 +92,25 @@ export class CopilotModelRouterAgents {
 		}
 	}
 
+	/**
+	 * Whether to tell a chat that it lacks these agents. It is told once for a given set of
+	 * agents, not on every turn that asks for them again.
+	 */
+	shouldAnnounceMissing(chat: string, names: readonly string[]): boolean {
+		const key = names.join('\n');
+		if (this._announcedMissing.get(chat) === key) {
+			return false;
+		}
+		this._announcedMissing.set(chat, key);
+		return true;
+	}
+
 	/** Forgets a chat that is gone. */
 	forget(chat: string): void {
 		this._fresh.delete(chat);
 		this._candidates.delete(chat);
 		this._currentTurns.delete(chat);
 		this._committed.delete(chat);
+		this._announcedMissing.delete(chat);
 	}
 }

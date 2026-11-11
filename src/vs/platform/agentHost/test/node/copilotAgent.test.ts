@@ -21682,10 +21682,30 @@ suite('CopilotAgent', () => {
 				// The chat has started work without agents, so a router picked later brings none and says so.
 				const later = await h.send('turn-3');
 				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, launches: h.launches() }, {
-					later: ['These agents of the feature playbook are not available in this chat, because a chat\'s agents are set up when it starts: reviewer. Start a new chat to use them.'],
+					later: ['These agents of the feature playbook are not available in this chat: reviewer. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'],
 					prewarm: ['used'],
 					launches: [{ agents: [], briefed: false }],
 				});
+			});
+
+			test('a chat that lost its agents is told once, also when routing keeps it on its playbook', async () => {
+				const h = await createRoutedAgent('router-restored', ['    uses: [reviewer]']);
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				// As after a host restart: the chat has started work and has no agents, and its saved turn says which playbook it is on.
+				await h.send('turn-1', false);
+				const saved: Turn = {
+					id: 'saved-turn', state: TurnState.Complete, responseParts: [],
+					message: { text: 'build it', origin: { kind: MessageKind.User }, model: { id: 'model-router:team' } },
+					usage: { _meta: { modelRouted: { router: 'team', chosenModel: 'claude-sonnet', playbook: 'feature' } } },
+				};
+				const route = async (turnId: string) => {
+					const resolution = await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'go on', previousTurns: [saved] }, h.context, CancellationToken.None);
+					return { kept: resolution.routed?.kept, notices: resolution.notices };
+				};
+				assert.deepStrictEqual([await route('turn-2'), await route('turn-3')], [
+					{ kept: true, notices: ['These agents of the feature playbook are not available in this chat: reviewer. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'] },
+					{ kept: true, notices: [] },
+				]);
 			});
 
 			test('a router picked in a chat that has agents names only the ones the chat lacks', async () => {
@@ -21697,7 +21717,22 @@ suite('CopilotAgent', () => {
 				const later = await h.send('turn-2', true, 'other');
 				assert.deepStrictEqual({ first, later }, {
 					first: ['The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).'],
-					later: ['These agents of the feature playbook are not available in this chat, because a chat\'s agents are set up when it starts: tester. Start a new chat to use them.'],
+					later: ['These agents of the feature playbook are not available in this chat: tester. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'],
+				});
+			});
+
+			test('a chat keeps only the agents its first session really got', async () => {
+				// No custom agent is named Test Writer, so the tester is left out when the session is launched.
+				const roles = ['  tester:', '    agent: Test Writer'];
+				const team = routerFile(['    uses: [reviewer, tester]'], roles);
+				const h = await createRoutedAgent('router-installed', [], { team, other: team });
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.send('turn-1');
+				// Another router asks for the same two agents. The chat has the reviewer, and never got the tester.
+				const later = await h.send('turn-2', true, 'other');
+				assert.deepStrictEqual({ later, agents: h.launchConfigs.at(-1)?.customAgents?.map(agent => agent.name).filter(name => ['reviewer', 'tester'].includes(name)) }, {
+					later: ['These agents of the feature playbook are not available in this chat: tester. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'],
+					agents: ['reviewer'],
 				});
 			});
 

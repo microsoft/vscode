@@ -112,6 +112,18 @@ suite('CopilotModelRouterAgents', () => {
 		assert.deepStrictEqual({ taken: agents.setCandidate(chat, 't1', plan('other')), committed: agents.planFor(chat) === launched }, { taken: false, committed: true });
 	});
 
+	test('a chat is told once about a set of agents it lacks', () => {
+		const agents = new CopilotModelRouterAgents();
+		const told = [
+			agents.shouldAnnounceMissing(chat, ['reviewer']),
+			agents.shouldAnnounceMissing(chat, ['reviewer']),
+			agents.shouldAnnounceMissing(chat, ['reviewer', 'tester']),
+			agents.shouldAnnounceMissing('chat:2', ['reviewer']),
+		];
+		agents.forget(chat);
+		assert.deepStrictEqual([...told, agents.shouldAnnounceMissing(chat, ['reviewer', 'tester'])], [true, false, true, true, true]);
+	});
+
 	test('forgets a chat that is gone, and keeps chats apart', () => {
 		const agents = new CopilotModelRouterAgents();
 		const other = 'chat:2';

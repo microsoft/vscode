@@ -163,3 +163,18 @@ export function modelRouterBriefing(plan: IModelRouterAgentPlan, installed: read
 	lines.push('</model_router_playbook>');
 	return lines.join('\n');
 }
+
+/**
+ * The plan a chat keeps once a session has started work with it: only the agents that session
+ * really got. A role that could not be installed then, such as one whose custom agent was
+ * missing, stays out of the chat even when a later launch could install it. Returns the same
+ * object when every agent was installed, and `undefined` when nothing is left of the plan.
+ */
+export function installedModelRouterAgentPlan(plan: IModelRouterAgentPlan, installed: readonly IInstalledModelRouterAgent[]): IModelRouterAgentPlan | undefined {
+	const names = new Set(installed.map(agent => agent.agentType));
+	const agents = plan.agents.filter(agent => names.has(agent.name));
+	if (agents.length === plan.agents.length) {
+		return plan;
+	}
+	return agents.length || plan.guidance ? { ...plan, agents } : undefined;
+}

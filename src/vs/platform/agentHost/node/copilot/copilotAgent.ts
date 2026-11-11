@@ -64,7 +64,7 @@ import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMe
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
 import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, type IModelRouter } from '../../common/modelRouter.js';
-import { resolveModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
+import { installedModelRouterAgentPlan, resolveModelRouterAgentPlan, type IInstalledModelRouterAgent } from '../../common/modelRouterAgents.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
 import { DecisionsGate } from '../../common/decisionsGate.js';
 import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
@@ -4254,10 +4254,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const playbook = resolution.routed?.playbook;
 		const plan = router && playbook ? resolveModelRouterAgentPlan(router, playbook, models, COPILOT_RESERVED_AGENT_NAMES) : undefined;
 		const taken = this._modelRouterAgents.setCandidate(chatKey, turnId, plan);
-		if (!plan || resolution.routed?.kept) {
+		if (!plan) {
 			return resolution;
 		}
+		const kept = resolution.routed?.kept === true;
 		if (taken) {
+			// A chat that stays on its playbook was told about its agents when the playbook was chosen.
+			if (kept) {
+				return resolution;
+			}
 			const agents = plan.agents.map(agent => agent.modelName ? `${agent.name} (${agent.modelName})` : agent.name);
 			const leftOut = (plan.leftOut ?? []).map(role => role.reason === 'name'
 				? localize('modelRouter.leftOut.name', "{0} (an agent with that name is built in)", role.name)
@@ -4272,14 +4277,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 				],
 			};
 		}
-		// The chat started work before this playbook was chosen, and a chat's agents are decided once.
-		// It may have some of these agents already, from the playbook it started with.
-		if (!this._modelRouterAgents.isFresh(chatKey)) {
-			const existing = this._modelRouterAgents.planFor(chatKey)?.agents ?? [];
-			const missing = plan.agents.filter(agent => !existing.some(other => structuralEquals(agent, other)));
-			if (missing.length) {
-				return { ...resolution, notices: [...resolution.notices, localize('modelRouter.agentsUnavailable', "These agents of the {0} playbook are not available in this chat, because a chat's agents are set up when it starts: {1}. Start a new chat to use them.", plan.playbook, missing.map(agent => agent.name).join(', '))] };
-			}
+		if (this._modelRouterAgents.isFresh(chatKey)) {
+			return resolution;
+		}
+		// The chat has started work, and a chat's agents are decided once. A playbook chosen now
+		// may ask for agents the chat does not have. So may the playbook the chat is on, when the
+		// chat has no plan at all: after a host restart, which forgets every chat's plan.
+		const committed = this._modelRouterAgents.planFor(chatKey);
+		if (kept && committed) {
+			return resolution;
+		}
+		const missing = plan.agents.filter(agent => !committed?.agents.some(other => structuralEquals(agent, other))).map(agent => agent.name);
+		if (missing.length && this._modelRouterAgents.shouldAnnounceMissing(chatKey, missing)) {
+			return { ...resolution, notices: [...resolution.notices, localize('modelRouter.agentsUnavailable', "These agents of the {0} playbook are not available in this chat: {1}. A chat's agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.", plan.playbook, missing.join(', '))] };
 		}
 		return resolution;
 	}
@@ -10580,10 +10590,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The session keeps exactly the plan object it is launched with: a later check compares by identity.
 		const chatKey = chatChannelUri.toString();
 		const modelRouterAgents = launchPlan.isEphemeral ? undefined : this._modelRouterAgents.planFor(chatKey);
+		// What this launch really installs of that plan. A role can be left out at launch, for
+		// example when its custom agent is missing, and the chat keeps only the ones it got.
+		let installedRouterAgents: readonly IInstalledModelRouterAgent[] | undefined;
 		const workspace = launchPlan.workingDirectory && toCopilotWorkspace(launchPlan.workingDirectory);
 		launchPlan = {
 			...launchPlan,
 			modelRouterAgents,
+			onModelRouterAgentsInstalled: installed => { installedRouterAgents = installed; },
 			workspace,
 			virtualWorkspaceClientId: () => this._activeClients.get(owner.get())?.clientIdForChat(chatChannelUri.toString()),
 			virtualSessionFs: workspace?.kind === 'virtual' ? this._instantiationService.createInstance(
@@ -10624,8 +10638,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				pathMapper: createCopilotSessionPathMapper(workspace, resourceJoinPath(this._copilotHomeService.home, 'session-state', launchPlan.sessionId)),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
-				// The first session of a chat to start work fixes the chat's agents to the ones it was launched with.
-				onRootWorkStarted: () => this._modelRouterAgents.commit(chatKey, modelRouterAgents),
+				// The first session of a chat to start work fixes the chat's agents to the ones it really got.
+				onRootWorkStarted: () => this._modelRouterAgents.commit(chatKey, modelRouterAgents && installedRouterAgents ? installedModelRouterAgentPlan(modelRouterAgents, installedRouterAgents) : modelRouterAgents),
 				builtinPluginDirectories: this._builtinPluginDirectories,
 				activeClientToolSet: launchPlan.activeClientToolSet,
 				currentActiveClientToolSet: () => {
