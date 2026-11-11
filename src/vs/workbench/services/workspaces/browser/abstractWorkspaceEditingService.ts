@@ -137,6 +137,11 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
 		const request = ++this.folderLocationRequest;
 
+		const currentFolder = this.contextService.getWorkspace().folders[0];
+		if (!currentFolder || !this.uriIdentityService.extUri.isEqual(currentFolder.primaryUri ?? currentFolder.uri, primary)) {
+			throw new Error(localize('folderLocationWrongPrimary', "'{0}' is not the primary location of the workspace folder.", primary.toString()));
+		}
+
 		let resolved: IResolvedFolderLocation | undefined;
 		if (location && !this.uriIdentityService.extUri.isEqual(location, primary)) {
 			if (primary.scheme !== Schemas.file || location.scheme !== Schemas.file) {
@@ -153,7 +158,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			}
 
 			// A built-in provider vouches for its locations: they inherit the trust of the primary location
-			if (resolved.builtIn && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			if (resolved.builtIn && (await this.workspaceTrustManagementService.getUriTrustInfo(primary)).trusted) {
 				await this.workspaceTrustManagementService.setUrisTrust([location], true);
 			}
 		}
