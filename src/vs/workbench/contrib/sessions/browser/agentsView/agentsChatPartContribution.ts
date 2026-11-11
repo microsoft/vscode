@@ -17,7 +17,7 @@ import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IAgentsChatPartService } from './agentsChatPart.js';
+import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
@@ -77,11 +77,9 @@ export class AgentsChatPartContribution extends Disposable {
 			if (this._store.isDisposed) {
 				return;
 			}
+			const restored = restoreAgentsChatPart(layoutService, contextKeyService, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)));
 			visible.set(layoutService.isVisible(Parts.CHAT_PART));
-			if (layoutService.isVisible(Parts.CHAT_PART)) {
-				return instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)).restore();
-			}
-			return undefined;
+			return restored;
 		}).catch(onUnexpectedError);
 	}
 }

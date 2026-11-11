@@ -220,7 +220,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		}));
 		this.automations = automations;
 
-		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(environmentService.isSessionsWindow, this._configurationService);
+		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 

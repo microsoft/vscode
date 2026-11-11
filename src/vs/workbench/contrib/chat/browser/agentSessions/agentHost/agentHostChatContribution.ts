@@ -87,7 +87,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	while (true) {
-		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllLocalAgentHostAgents(environmentService.isSessionsWindow, configurationService)).includes(provider)) {
+		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllLocalAgentHostAgents(environmentService, configurationService)).includes(provider)) {
 			return true;
 		}
 		const rootState = agentHostService.rootState.value;
@@ -95,7 +95,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 			return false;
 		}
 		if (rootState) {
-			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllLocalAgentHostAgents(environmentService.isSessionsWindow, configurationService)));
+			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllLocalAgentHostAgents(environmentService, configurationService)));
 		}
 
 		const changed = await Promise.race([
@@ -172,7 +172,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
-		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(this._isSessionsWindow, this._configurationService);
+		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
 		this._canvasPresentationAvailable = this._isLocalAgentHost ? constObservable(true) : observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;

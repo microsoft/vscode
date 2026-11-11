@@ -48,7 +48,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
-import { InAgentsChatPartContext } from './agentsView.js';
+import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsView.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
 /** The chats of the chat part, which it shows again as the window restores. */
@@ -124,6 +124,21 @@ export interface IAgentsChatPartService {
 }
 
 /**
+ * Shows again the chats of the chat part that the layout restored shown. With chat hidden or disabled as the window starts,
+ * such as with AI features off, it hides the chat part instead, without its chats.
+ */
+export async function restoreAgentsChatPart(layoutService: IWorkbenchLayoutService, contextKeyService: IContextKeyService, chatPart: () => IAgentsChatPartService): Promise<void> {
+	if (!layoutService.isVisible(Parts.CHAT_PART)) {
+		return;
+	}
+	if (!contextKeyService.contextMatchesRules(AgentsViewAvailable)) {
+		layoutService.setPartHidden(true, Parts.CHAT_PART);
+		return;
+	}
+	await chatPart().restore();
+}
+
+/**
  * One chat of the chat part: its editor, and the session of the chat, which its editor shows. It follows the chat, such as
  * when its session is replaced, and ends once the chat is deleted or archived. A new-session composer shows until a request
  * it sends starts its session, whose main chat it shows then.
@@ -145,6 +160,8 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		return session && isSessionCreated(session, reader) ? { session, chat: session.mainChat.read(reader) } : undefined;
 	});
 	private _knownSession: ISession | undefined;
+	/** Whether its known session was removed, such as deleted: not hidden as its provider goes away, which removes nothing. */
+	private _knownSessionRemoved = false;
 
 	readonly content: IObservable<ISessionPaneContent | undefined>;
 	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
@@ -221,6 +238,10 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		// it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
 		const sessionsChanged = observableSignal(this);
 		this._register(_sessionsManagementService.onDidChangeSessions(e => {
+			const known = this._knownSession;
+			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
+				this._knownSessionRemoved = true;
+			}
 			if (!this._knownSession || e.added.length || e.removed.length) {
 				sessionsChanged.trigger(undefined);
 			}
@@ -231,12 +252,12 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		}));
 	}
 
-	/** Whether it is a new-session composer that has not sent its session yet. */
 	/** Whether it is a new-session composer with nothing typed or attached, and no send of it under way. */
 	get isIdleComposer(): boolean {
 		return !!this._composerModel.get()?.isIdle();
 	}
 
+	/** Whether it is a new-session composer that has not sent its session yet. */
 	get isComposer(): boolean {
 		return !!this._composerModel.get();
 	}
@@ -283,6 +304,7 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 				owner.session.loading.read(reader);
 			}
 			this._knownSession = owner.session;
+			this._knownSessionRemoved = false;
 			if (isChatWindowChatGone(owner.session, chatResource, reader)) {
 				this._end();
 				return;
@@ -291,6 +313,11 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 			if (shown?.session !== owner.session || shown.chat !== owner.chat) {
 				this._shown.set({ session: owner.session, chat: owner.chat }, undefined);
 			}
+			return;
+		}
+		if (this._knownSessionRemoved && !(this._knownSession && this._sessionsManagementService.getSession(this._knownSession.resource))) {
+			// Its session is gone, such as deleted: its chats with it
+			this._end();
 			return;
 		}
 		if (this._knownSession) {

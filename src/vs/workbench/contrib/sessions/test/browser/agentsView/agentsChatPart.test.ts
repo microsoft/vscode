@@ -27,7 +27,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { AgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
@@ -251,7 +251,7 @@ suite('AgentsChatPartService', () => {
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
-			fireSessionsChanged: (added: readonly ISession[]) => sessionsChanged.fire({ added, removed: [], changed: [] } as never),
+			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => sessionsChanged.fire({ added, removed, changed: [] } as never),
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),
 			/** The tabs of each group, the active one of each, and whether the layout shows the chat part. */
 			layout: () => ({
@@ -369,6 +369,42 @@ suite('AgentsChatPartService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ beforeArchived, archived: service.isShowing(peer) }, { beforeArchived: true, archived: false });
+	});
+
+	test('a chat closes once its session is removed, such as deleted, but not as its provider goes away', async () => {
+		const built = buildTestSession({ id: 'parent', title: 'Parent', chats: [{ id: 'peer', title: 'Peer' }] });
+		const peer = built.chats.get('peer')!.chat.resource;
+		let sessions: readonly ISession[] = [built.session];
+		const { service, fireSessionsChanged } = createService({ sessions: () => sessions });
+		await service.openChat(built.session, peer);
+
+		// Its provider goes, which hides its sessions without removing them
+		sessions = [];
+		fireSessionsChanged([]);
+		await timeout(0);
+		const providerGone = service.isShowing(peer);
+		fireSessionsChanged([], [built.session]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ providerGone, removed: service.isShowing(peer) }, { providerGone: true, removed: false });
+	});
+
+	test('restoring the chat part shown restores its chats, unless chat is hidden or disabled as the window starts, which hides it', async () => {
+		const restore = async (available: boolean) => {
+			const calls: string[] = [];
+			let visible = true;
+			await restoreAgentsChatPart(
+				upcastPartial<IWorkbenchLayoutService>({ isVisible: () => visible, setPartHidden: hidden => { visible = !hidden; calls.push(`hidden=${hidden}`); } }),
+				upcastPartial<IContextKeyService>({ contextMatchesRules: () => available }),
+				() => upcastPartial<IAgentsChatPartService>({ restore: async () => { calls.push('restore chats'); } }),
+			);
+			return { calls, visible };
+		};
+
+		assert.deepStrictEqual({ available: await restore(true), aiOff: await restore(false) }, {
+			available: { calls: ['restore chats'], visible: true },
+			aiOff: { calls: ['hidden=true'], visible: false },
+		});
 	});
 
 	test('opening a chat shows the chat part with the chat in a tab of its own; opening it again shows its tab', async () => {

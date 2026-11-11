@@ -53,7 +53,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
-		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(this._isSessionsWindow, this._configurationService);
+		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
 
 		if (this._isSessionsWindow) {
 			return;

@@ -34,7 +34,7 @@ import { CHAT_OPEN_ACTION_ID } from '../../../../chat/browser/actions/chatAction
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
-import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
 import { AgentsViewGate } from '../../../browser/agentsView/agentsViewGate.js';
 import { Menus } from '../../../browser/menus.js';
@@ -174,6 +174,18 @@ suite('AgentsViewGate', () => {
 		gate.dispose();
 
 		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
+	});
+
+	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {
+		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false) =>
+			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.AgentsViewEnabled]: enabled }));
+
+		assert.deepStrictEqual({
+			local: surfaces(true),
+			remote: surfaces(true, 'ssh-remote+host'),
+			off: surfaces(false),
+			agentsWindow: surfaces(false, undefined, true),
+		}, { local: true, remote: false, off: false, agentsWindow: true });
 	});
 
 	test('creates no chat part in a remote window', () => {
