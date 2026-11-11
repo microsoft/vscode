@@ -6,33 +6,32 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ITerminalProfile, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ITerminalConfigurationService, ITerminalEditorService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalEditor, TerminalEditorDropdownWithPrimaryActionViewItem } from '../../browser/terminalEditor.js';
-import { ITerminalProfile, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../common/terminal.js';
+import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../common/terminal.js';
 
 suite('TerminalEditor - ActionViewItem regression', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createMenuItemAction(id: string): MenuItemAction {
-		return new class extends mock<MenuItemAction>() {
-			override readonly id = id;
-			override readonly label = id;
-			override readonly enabled = true;
-			override readonly item = { id, title: id, icon: Codicon.plus };
-			override run() { return Promise.resolve(); }
-		}();
-	}
-
 	test('should support multiple action view items for create terminal dropdown without cross-disposing (#346848)', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const commandService = instantiationService.get(ICommandService);
+
+		function createMenuItemAction(id: string): MenuItemAction {
+			return new MenuItemAction({ id, title: id, icon: Codicon.plus }, undefined, undefined, undefined, undefined, contextKeyService, commandService);
+		}
 
 		const onDidChangeAvailableProfiles = store.add(new Emitter<ITerminalProfile[]>());
 		instantiationService.stub(ITerminalProfileService, upcastPartial<ITerminalProfileService>({
-			availableProfiles: [{ profileName: 'bash', path: '/bin/bash', isAutoDetected: false }],
+			availableProfiles: [{ profileName: 'bash', path: '/bin/bash', isAutoDetected: false, isDefault: true }],
 			contributedProfiles: [],
 			getDefaultProfileName: () => 'bash',
 			onDidChangeAvailableProfiles: onDidChangeAvailableProfiles.event,
@@ -43,8 +42,7 @@ suite('TerminalEditor - ActionViewItem regression', () => {
 		}));
 
 		instantiationService.stub(ITerminalService, upcastPartial<ITerminalService>({
-			createTerminal: () => Promise.resolve() as any,
-			createAndFocusTerminal: () => Promise.resolve() as any,
+			resolveLocation: () => Promise.resolve(TerminalLocation.Editor),
 		}));
 
 		instantiationService.stub(ITerminalEditorService, upcastPartial<ITerminalEditorService>({
@@ -53,10 +51,10 @@ suite('TerminalEditor - ActionViewItem regression', () => {
 		}));
 
 		instantiationService.stub(ITerminalConfigurationService, upcastPartial<ITerminalConfigurationService>({
-			config: { rightClickBehavior: 'default' } as any
+			config: upcastPartial<ITerminalConfigurationService['config']>({ rightClickBehavior: 'default' })
 		}));
 
-		const editor = store.add(instantiationService.createInstance(TerminalEditor, new TestEditorGroupView(0)));
+		const editor = instantiationService.createInstance(TerminalEditor, new TestEditorGroupView(0));
 
 		const action1 = createMenuItemAction(TerminalCommandId.CreateTerminalEditorSameGroup);
 		const action2 = createMenuItemAction(TerminalCommandId.CreateTerminalEditorSameGroup);
@@ -75,8 +73,24 @@ suite('TerminalEditor - ActionViewItem regression', () => {
 		// Regression verification: item1 must NOT have been disposed when item2 was requested
 		assert.strictEqual(item1.actionDisposables.isDisposed, false);
 
+		// Spy on update calls
+		let item1Updates = 0;
+		let item2Updates = 0;
+		const origUpdate1 = item1.update.bind(item1);
+		item1.update = (dropdownAction, dropdownMenuActions) => {
+			item1Updates++;
+			origUpdate1(dropdownAction, dropdownMenuActions);
+		};
+		const origUpdate2 = item2.update.bind(item2);
+		item2.update = (dropdownAction, dropdownMenuActions) => {
+			item2Updates++;
+			origUpdate2(dropdownAction, dropdownMenuActions);
+		};
+
 		// Profile change should update both items without disposing them
-		onDidChangeAvailableProfiles.fire([{ profileName: 'zsh', path: '/bin/zsh', isAutoDetected: false }]);
+		onDidChangeAvailableProfiles.fire([{ profileName: 'zsh', path: '/bin/zsh', isAutoDetected: false, isDefault: true }]);
+		assert.strictEqual(item1Updates, 1);
+		assert.strictEqual(item2Updates, 1);
 		assert.strictEqual(item1.actionDisposables.isDisposed, false);
 		assert.strictEqual(item2.actionDisposables.isDisposed, false);
 
@@ -85,8 +99,8 @@ suite('TerminalEditor - ActionViewItem regression', () => {
 		assert.strictEqual(item1.actionDisposables.isDisposed, true);
 		assert.strictEqual(item2.actionDisposables.isDisposed, false);
 
-		// Disposing item2 cleans up item2
-		item2.dispose();
+		// Disposing the editor cleans up the remaining active dropdowns (item2)
+		editor.dispose();
 		assert.strictEqual(item2.actionDisposables.isDisposed, true);
 	});
 });
