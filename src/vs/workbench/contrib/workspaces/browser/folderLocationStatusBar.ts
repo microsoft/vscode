@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AnimationFrameScheduler, DisposableResizeObserver } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -109,7 +108,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			id: 'folderLocation',
 			targetId: FOLDER_LOCATION_INTRODUCTION_TARGET_ID,
 			title: localize('folderLocationIntroductionTitle', "Folder Location"),
-			description: localize('folderLocationSwitched', "The folder is now at the location '{0}'. Files, search, terminals and extensions use this location, but open editors stay where they are.", locationText),
+			description: localize('folderLocationSwitched', "The folder is now at the location '{0}'. Files, search, terminals and extensions use this location.", locationText),
 			primaryAction: {
 				label: localize('returnToPrimaryNamed', "Return to {0}", primaryName),
 				run: () => this.commandService.executeCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID),
@@ -161,20 +160,18 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	 */
 	private observeIntroductionTarget(): void {
 		const store = new DisposableStore();
-		const scheduler = store.add(new AnimationFrameScheduler(mainWindow.document.body, () => {
+		let handle = 0;
+		const check = () => {
 			if (this.onboardingService.hasBeenShown(FOLDER_LOCATION_INTRODUCTION_ID)) {
 				this.introductionObservation.clear();
 				return;
 			}
 			this.introductionReady.set(!!resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID), undefined);
-		}));
-		const observer = store.add(new DisposableResizeObserver('FolderLocation.introductionTarget', () => scheduler.schedule()));
-		// eslint-disable-next-line eslint-js/no-restricted-syntax -- the status bar names each item element after its entry id
-		const element = mainWindow.document.getElementById(FOLDER_LOCATION_STATUS_ENTRY_ID);
-		if (element) {
-			store.add(observer.observe(element));
-		}
-		scheduler.schedule();
+			// re-armed from the callback: the browser runs the next callback in the following frame
+			handle = mainWindow.requestAnimationFrame(check);
+		};
+		store.add(toDisposable(() => mainWindow.cancelAnimationFrame(handle)));
+		handle = mainWindow.requestAnimationFrame(check);
 		this.introductionObservation.value = store;
 	}
 }
