@@ -938,20 +938,24 @@ export class BrowserView extends Disposable {
 	private async _withDevTools(pageImage: Electron.NativeImage): Promise<Electron.NativeImage> {
 		const webContents = this._view.webContents;
 		const devTools = webContents.devToolsWebContents;
-		const hostWindow = this._hostWindow;
-		if (!devTools || devTools.isDestroyed() || !webContents.isDevToolsOpened() || !hostWindow) {
+		if (!devTools || devTools.isDestroyed() || !webContents.isDevToolsOpened()) {
 			return pageImage;
 		}
 		try {
-			const [screenX, screenY, width, height] = await devTools.executeJavaScript('[window.screenX, window.screenY, window.innerWidth, window.innerHeight]') as number[];
+			// The DevTools view only covers its own panel; the frontend marks its dock side on <body>.
+			const [dockSide, width, height] = await devTools.executeJavaScript(
+				`[['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked', window.innerWidth, window.innerHeight]`
+			) as [string, number, number];
 			const viewBounds = this._view.getBounds();
-			const content = hostWindow.getContentBounds();
-			const bounds = { x: screenX - content.x - viewBounds.x, y: screenY - content.y - viewBounds.y, width, height };
-			// Allow a little slack for rounding; a panel outside the view is a separate window.
-			const tolerance = 2;
-			if (width <= 0 || height <= 0 || bounds.x < -tolerance || bounds.y < -tolerance || bounds.x + width > viewBounds.width + tolerance || bounds.y + height > viewBounds.height + tolerance) {
+			if (dockSide === 'undocked' || width <= 0 || height <= 0 || width > viewBounds.width || height > viewBounds.height) {
 				return pageImage;
 			}
+			const bounds = {
+				x: dockSide === 'right' ? viewBounds.width - width : 0,
+				y: dockSide === 'bottom' ? viewBounds.height - height : 0,
+				width,
+				height
+			};
 			const devToolsImage = await devTools.capturePage(undefined, { stayHidden: true });
 			if (devToolsImage.isEmpty()) {
 				return pageImage;
