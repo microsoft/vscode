@@ -1116,6 +1116,7 @@ suite('AgentHostClientTools', () => {
 				onDidChangeLanguageModels: Event.None,
 				deltaLanguageModelChatProviderDescriptors: () => { },
 				registerLanguageModelProvider: () => toDisposable(() => { }),
+				lookupLanguageModel: () => undefined,
 			});
 			instantiationService.stub(IConfigurationService, configService);
 			instantiationService.stub(IOutputService, { getChannel: () => undefined });
@@ -3906,6 +3907,7 @@ suite('AgentHostClientTools', () => {
 					chatResource: subagentChat,
 					isChatAvailable: true,
 					isActive: true,
+					isError: false,
 					startedAt: Date.parse('2025-01-01T00:00:00.000Z'),
 					duration: undefined,
 				},

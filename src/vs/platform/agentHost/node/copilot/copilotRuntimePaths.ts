@@ -10,6 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 export interface ICopilotRuntimePaths {
 	readonly runtimePath: string;
 	readonly sdkPath: string;
+	/** Base directory for plugins bundled with the SDK platform package. */
+	readonly pluginsPath: string;
 	readonly extensionSdkPath?: string;
 	readonly extensionBootstrapPath?: string;
 }
@@ -103,6 +105,7 @@ async function resolveCopilotRuntimePathsInPackage(packageUri: URI, platformPack
 		return {
 			runtimePath,
 			sdkPath,
+			pluginsPath: URI.joinPath(packageUri, 'plugins').fsPath,
 			...(extensionExists && extensionBootstrapExists ? {
 				extensionSdkPath: extensionSdkUri.fsPath,
 				extensionBootstrapPath,

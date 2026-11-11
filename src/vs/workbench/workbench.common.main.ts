@@ -395,7 +395,6 @@ import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
-import './contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import './contrib/welcomeViews/common/newFile.contribution.js';
@@ -407,6 +406,7 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 import './contrib/onboarding/browser/onboarding.contribution.js';
 import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import './contrib/chat/browser/onboarding/chatInputSpotlightTour.js';
+import './contrib/chat/browser/onboarding/agentPickerSpotlight.contribution.js';
 import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy

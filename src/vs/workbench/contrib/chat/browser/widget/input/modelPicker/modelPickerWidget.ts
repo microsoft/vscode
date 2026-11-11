@@ -385,6 +385,16 @@ export class ModelPickerWidget extends Disposable {
 		return fusion;
 	}
 
+	/** The name of the Auto model the picker offers as Copilot Fusion, which then stands for Auto while no model is selected. */
+	private _getFusionAutoName(models: readonly ILanguageModelChatMetadataAndIdentifier[]): string | undefined {
+		const fusionModels = models.filter(candidate => candidate.metadata.autoModelFusion);
+		if (!fusionModels.length) {
+			return undefined;
+		}
+		const runnable = this._getRunnablePredicate(models);
+		return fusionModels.find(runnable)?.metadata.name;
+	}
+
 	/**
 	 * The model a HydraFusion tier is shown as, with that tier: Fusion for one of
 	 * Fusion's tiers, or HydraFusion for HydraFusion's own Default or Max.
@@ -826,7 +836,6 @@ export class ModelPickerWidget extends Disposable {
 			models,
 			comparisonModels,
 			selectedModelId: this._selectedModel?.identifier,
-			recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModels: controlModelsForTier,
 			configurationAccess: this._delegate.modelConfiguration ?? this._languageModelsService,
@@ -929,7 +938,7 @@ export class ModelPickerWidget extends Disposable {
 				? localize('chat.modelPicker.activating', "Activating...")
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
-					: (name ?? localize('chat.modelPicker.auto', "Auto"));
+					: (name ?? this._getFusionAutoName(models) ?? localize('chat.modelPicker.auto', "Auto"));
 		const showModelLabel = (!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable);
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));

@@ -8,7 +8,7 @@ import { sandboxCertificateInstallationCapability, sandboxCertificateRefreshCapa
 import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
@@ -17,12 +17,15 @@ import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
+import { resolveBranchChangesetScopeForOwner } from './agentHostBranchChangesetScope.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
 import { deepClone, equals, mixin } from '../../../base/common/objects.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
+import type { ILoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ProtocolLivenessMonitor } from '../common/protocolLivenessMonitor.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
@@ -36,6 +39,7 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
+import { readSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta.js';
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
@@ -47,9 +51,9 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator } from '../common/agentHostExtensionProtocol.js';
-import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
-import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { AgentHostChatStateFileCapabilityMetaKey, AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, PrepareSessionWorktreeCleanupExtensionMethod, prepareSessionWorktreeCleanupParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
+import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey, PrepareSessionWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -133,6 +137,9 @@ import { ClientArtifactIntegrationEndpoint } from './artifactIntegrations/client
 const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
+const CLIENT_PING_INTERVAL = 10_000;
+const CLIENT_LIVENESS_TIMEOUT = 20_000;
 
 const CLIENT_ACTION_ACKNOWLEDGEMENT_TIMEOUT = 30_000;
 
@@ -624,9 +631,10 @@ export interface IProtocolServerExtension {
  * Configuration for protocol-level concerns outside of IAgentService.
  */
 export interface IProtocolServerConfig {
+	readonly loadEstimator?: ILoadEstimator;
 	readonly scopedRelayCredentials?: boolean;
-	/** Trusted listener-owned delegation, applied only after validating the relay credential. */
-	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => Promise<IAgentHostCredentialSource | undefined>;
+	/** Trusted listener-owned delegation, available only to an authorized relay caller. */
+	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => IAgentHostCredentialSource | undefined;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 
@@ -798,6 +806,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._connectionChannels.set(transport, channels);
 		disposables.add(toDisposable(() => this._connectionChannels.delete(transport)));
 		let client: IConnectedClient | undefined;
+		const liveness = disposables.add(new ProtocolLivenessMonitor({
+			pingIntervalMs: CLIENT_PING_INTERVAL,
+			timeoutMs: CLIENT_LIVENESS_TIMEOUT,
+			loadEstimator: this._config.loadEstimator,
+			canCheck: () => !!client && transport.transportKind !== AgentHostTransportKind.MessagePort,
+			onPing: () => transport.send({
+				jsonrpc: '2.0', id: ++this._reverseRequestId, method: 'ping', params: { channel: ROOT_STATE_URI },
+			}),
+			onTimeout: silence => {
+				this._logService.info(`[ProtocolServer] Client liveness: no data from ${client?.clientId} for ${silence}ms; closing transport.`);
+				closeConnection();
+			},
+			onDeferred: duration => this._logService.trace(`[ProtocolServer] Client liveness: deferring close for ${duration}ms due to host load.`),
+		}));
+		if (transport.onDidReceiveData) {
+			disposables.add(transport.onDidReceiveData(() => liveness.recordInboundTraffic()));
+		}
 
 		if (transport.onDidRelayAuthenticationExpire) {
 			disposables.add(transport.onDidRelayAuthenticationExpire(() => {
@@ -812,6 +837,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		disposables.add(transport.onMessage(msg => {
+			liveness.recordInboundTraffic();
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
 
@@ -828,6 +854,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
+						liveness.reset();
 						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
 							if (!disposables.isDisposed) {
 								transport.send(jsonRpcSuccess(msg.id, { ...response, snapshots: this._projectRelaySnapshots(result.client, response.snapshots) }));
@@ -859,6 +886,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
+						liveness.reset();
 						reconnectingClient = result.client;
 						responsePromise = this._trackRequest(result.responsePromise);
 						responsePromise.then(
@@ -943,7 +971,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}));
 
-		disposables.add(transport.onClose(() => {
+		const closeConnection = () => {
 			const record = client ? this._clients.get(client.clientId) : undefined;
 			if (client && record?.state === 'active') {
 				const connectionIndex = record.connections.indexOf(client);
@@ -972,7 +1000,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 			this._connectionDisposables.deleteAndDispose(transport);
-		}));
+		};
+		disposables.add(transport.onClose(closeConnection));
 
 		disposables.add(transport);
 	}
@@ -1105,6 +1134,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostNativeImplementationMetaKey]: true,
 						[AgentHostSessionUrisCapabilityMetaKey]: true,
 						[AgentHostChatUrisCapabilityMetaKey]: true,
+						...(this._config.allowExtensionMethods !== false && this._agentService.getSessionStateFile && !transport.relayPassive
+							? { [AgentHostChatStateFileCapabilityMetaKey]: true } : {}),
 						...transport.relayHandshakeMeta,
 					} : {
 						...getAgentHostExtensionInitializeResultMeta(
@@ -1127,6 +1158,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...(servesClientProxy ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [ForceWorktreeCleanupCapabilityMetaKey]: true } : {}),
+						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.prepareSessionWorktreeCleanup ? { [PrepareSessionWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.listManagedWorktrees && this._agentService.cleanupManagedWorktree ? { [ManagedWorktreesCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
@@ -1471,6 +1503,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			lookupKerberosAuthorization: async proxyUrl => {
 				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }, 30_000);
 				return lookupClientProxyKerberosAuthorizationResultValidator.validateOrThrow(response).authorization;
+			},
+			lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+				// Long enough for the user to answer the client's proxy login dialog.
+				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl, realm, attempt }, 5 * 60_000);
+				const { username, password } = lookupClientProxyBasicAuthorizationResultValidator.validateOrThrow(response);
+				return username ? { username, password: password ?? '' } : undefined;
 			},
 		}));
 		return true;
@@ -2318,6 +2356,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
+			const withoutSourceContext = readSideChatWithoutContext(params);
+			if (withoutSourceContext === 'invalid' || (withoutSourceContext !== undefined && params.source?.kind !== ChatSourceKind.SideChat)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat side-chat context metadata');
+			}
 			const workspace = readCreateChatWorkspaceMeta(params._meta);
 			if (workspace === 'invalid') {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat workspace metadata');
@@ -2371,6 +2413,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 								source: URI.parse(source.chat),
 								turnId: source.turnId,
 								...(source.selection ? { selection: source.selection } : {}),
+								...(withoutSourceContext ? { includeSourceContext: false } : {}),
 							},
 						};
 						break;
@@ -3092,7 +3135,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!content) {
 				return false;
 			}
-			const session = this._ownerOfStorage(content.sessionUri);
+			const contentOwner = gitContent
+				? resolveBranchChangesetScopeForOwner(this._stateManager, content.sessionUri)?.sessionUri ?? content.sessionUri
+				: content.sessionUri;
+			const session = this._ownerOfStorage(contentOwner);
 			if (!session) {
 				return false;
 			}
@@ -3824,6 +3870,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				return this._agentService.cleanupManagedWorktree(URI.parse(validated.content.repository), URI.parse(validated.content.worktree), validated.content.branch, validated.content.force);
 			}
+		}
+		if (method === PrepareSessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
+			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.prepareSessionWorktreeCleanup) {
+			const validated = prepareSessionWorktreeCleanupParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			if (!this._isChannelVisible(client, validated.content.session)) {
+				return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session is outside the host workspace grants'));
+			}
+			return this._agentService.prepareSessionWorktreeCleanup(URI.parse(validated.content.session));
 		}
 		if (method === SessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
 			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.sessionWorktreeCleanup) {

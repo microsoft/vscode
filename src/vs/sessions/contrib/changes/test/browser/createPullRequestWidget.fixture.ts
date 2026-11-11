@@ -17,10 +17,10 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../common/createPullRequestPreferences.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestDetails } from '../../common/pullRequestCreation.js';
+import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../../../../workbench/contrib/sessions/common/createPullRequestPreferences.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestDetails } from '../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { CreatePullRequestWidget } from '../../browser/createPullRequestWidget.js';
+import { CreatePullRequestWidget } from '../../../../../workbench/contrib/sessionChanges/browser/createPullRequestWidget.js';
 
 const details: ISessionPullRequestDetails = {
 	title: 'Preserve keyboard focus when switching sessions',

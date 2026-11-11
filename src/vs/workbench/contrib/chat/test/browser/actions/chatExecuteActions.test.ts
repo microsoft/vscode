@@ -15,7 +15,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { pasteWidgetVisibleCtx } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { dropWidgetVisibleCtx } from '../../../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { IMenuItem, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingResolver, ResultKind } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
@@ -28,7 +28,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModePickerAction, OpenModelPickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../browser/actions/chatQueueActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -264,32 +264,6 @@ suite('GetHandoffsAction', () => {
 	let chatExecuteActions: DisposableStore;
 	suiteSetup(() => {
 		chatExecuteActions = registerChatExecuteActions();
-	});
-
-	test('shows Copilot Agent Host models in the signed-out Agents welcome view', () => {
-		const item = MenuRegistry.getMenuItems(MenuId.ChatInput)
-			.find((candidate): candidate is IMenuItem => isIMenuItem(candidate) && candidate.command.id === OpenModelPickerAction.ID);
-		assert.ok(item?.when);
-
-		const evaluate = (values: Record<string, ContextKeyValue>) => item.when!.evaluate({
-			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
-		});
-		const context = {
-			[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
-			[ChatContextKeys.inAgentSessionsWelcome.key]: true,
-			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
-			[IsSessionsWindowContext.key]: true,
-		};
-
-		assert.deepStrictEqual({
-			signedOut: evaluate(context),
-			editorWindow: evaluate({ ...context, [IsSessionsWindowContext.key]: false }),
-			claude: evaluate({ ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostClaude }),
-		}, {
-			signedOut: true,
-			editorWindow: false,
-			claude: false,
-		});
 	});
 
 	suiteTeardown(() => {

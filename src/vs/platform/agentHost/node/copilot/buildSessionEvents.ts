@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, JsonValue, SessionEvent } from '@github/copilot-sdk';
+import type { Attachment, JsonValue, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { basename } from '../../../../base/common/resources.js';
 import { isDefined, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { readAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { MessageAttachmentKind, type MessageAttachment, type TextRange } from '../../common/state/protocol/state.js';
-import { getInlineToolInput, getTurnError, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ReasoningResponsePart, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
+import { getInlineToolInput, getTurnError, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type MarkdownResponsePart, type ReasoningResponsePart, type ResponsePart, type StringOrMarkdown, type ToolCallCancelledState, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type Turn } from '../../common/state/sessionState.js';
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 
 /**
@@ -123,8 +124,13 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		parentId = event.id;
 	};
 
-	/** Emits the `tool.execution_start` + `tool.execution_complete` pair for a completed tool call. */
-	const pushCompletedToolCall = (tc: ToolCallCompletedState): void => {
+	/**
+	 * Emits the `tool.execution_start` + `tool.execution_complete` pair for a
+	 * finished tool call. A cancelled call is recorded as failed with why it
+	 * was cancelled, so the history the model resumes from does not present
+	 * it as having produced a result.
+	 */
+	const pushFinishedToolCall = (tc: ToolCallCompletedState | ToolCallCancelledState): void => {
 		let parsedToolInput: Record<string, JsonValue> | undefined;
 		const toolInput = getInlineToolInput(tc.toolInput);
 		if (toolInput) {
@@ -142,7 +148,7 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 		// first so a resume reconstructs the sub-agent name/description onto the
 		// parent tool call (the SDK keys this by `toolCallId`). Required fields
 		// fall back to the title so the event stays well-formed.
-		const subagent = tc.content?.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent);
+		const subagent = tc.status === ToolCallStatus.Completed ? tc.content?.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent) : undefined;
 		if (subagent) {
 			push({
 				id: generateUuid(),
@@ -168,17 +174,20 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				...(parsedToolInput ? { arguments: parsedToolInput } : {}),
 			},
 		});
-		const resultText = extractToolResultText(tc.content);
 		push({
 			id: generateUuid(),
 			parentId,
 			timestamp: nextTimestamp(),
 			type: 'tool.execution_complete',
-			data: {
+			data: tc.status === ToolCallStatus.Completed ? {
 				toolCallId: tc.toolCallId,
 				success: tc.success,
-				...(tc.success ? { result: { content: resultText } } : {}),
+				...(tc.success ? { result: toSdkToolResult(tc) } : failedToolCallResult(tc)),
 				...(tc.error ? { error: { message: tc.error.message, ...(tc.error.code ? { code: tc.error.code } : {}) } } : {}),
+			} : {
+				toolCallId: tc.toolCallId,
+				success: false,
+				error: { message: cancelledToolCallMessage(tc), code: tc.reason },
 			},
 		});
 	};
@@ -300,11 +309,11 @@ export function buildSessionEventsFromTurns(turns: readonly Turn[], options: IBu
 				}
 				reasoning += part.content;
 				parts.push({ ...part });
-			} else if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
+			} else if (part.kind === ResponsePartKind.ToolCall && (part.toolCall.status === ToolCallStatus.Completed || part.toolCall.status === ToolCallStatus.Cancelled)) {
 				// Flush accumulated assistant text before the tool call so the
 				// reconstructed part order matches the original interleaving.
 				flushAssistantMessage();
-				pushCompletedToolCall(part.toolCall);
+				pushFinishedToolCall(part.toolCall);
 				endsWithAssistantMessage = false;
 			}
 			// Content refs and system notifications are not yet translated.
@@ -433,6 +442,68 @@ function extractToolResultText(content: readonly ToolResultContent[] | undefined
 }
 
 /**
+ * The SDK result of a successful tool call: its text, plus any content that is
+ * not text (embedded data such as images, and resource references) as SDK
+ * result blocks, which a replay reconstructs.
+ */
+function toSdkToolResult(tc: ToolCallCompletedState): ToolExecutionCompleteResult {
+	const contents: ToolExecutionCompleteContent[] = [];
+	for (const [index, item] of (tc.content ?? []).entries()) {
+		if (item.type === ToolResultContentType.EmbeddedResource) {
+			if (item.contentType.startsWith('image/')) {
+				contents.push({ type: 'image', data: item.data, mimeType: item.contentType });
+			} else if (item.contentType.startsWith('audio/')) {
+				contents.push({ type: 'audio', data: item.data, mimeType: item.contentType });
+			} else {
+				// Embedded data has no resource of its own; the URI only identifies the block.
+				contents.push({ type: 'resource', resource: { uri: `imported-tool-output:/${tc.toolCallId}/${index}`, blob: item.data, mimeType: item.contentType } });
+			}
+		} else if (item.type === ToolResultContentType.Resource) {
+			const name = getResourceName(item.uri);
+			contents.push({ type: 'resource_link', uri: item.uri, name, ...(item.contentType ? { mimeType: item.contentType } : {}) });
+		}
+	}
+	return { content: extractToolResultText(tc.content), ...(contents.length ? { contents } : {}) };
+}
+
+function getResourceName(uri: string): string {
+	try {
+		return basename(URI.parse(uri)) || uri;
+	} catch {
+		return uri;
+	}
+}
+
+/**
+ * The result recorded for a failed tool call. Its text is the error, so only
+ * content that is not text (e.g. a diagnostic image) is kept as a result,
+ * which a replay reconstructs whether or not the call succeeded.
+ */
+function failedToolCallResult(tc: ToolCallCompletedState): { result?: ToolExecutionCompleteResult } {
+	const { contents } = toSdkToolResult(tc);
+	return contents?.length ? { result: { content: '', contents } } : {};
+}
+
+/**
+ * Why a tool call was cancelled, as recorded for the model in place of its
+ * result. Who denied or skipped it is only known from its reason message.
+ * A call whose result was rejected had run. An imported call that was
+ * denied or skipped may have run too (Local records a result rejected after
+ * the call ran the same way), so the wording does not claim it did not run.
+ */
+function cancelledToolCallMessage(tc: ToolCallCancelledState): string {
+	if (tc.reasonMessage) {
+		return typeof tc.reasonMessage === 'string' ? tc.reasonMessage : tc.reasonMessage.markdown;
+	}
+	switch (tc.reason) {
+		case ToolCallCancellationReason.Denied: return 'This tool call was denied.';
+		case ToolCallCancellationReason.Skipped: return 'This tool call was skipped.';
+		case ToolCallCancellationReason.ResultDenied: return 'This tool call ran, but its result was rejected.';
+		default: return 'This tool call was cancelled.';
+	}
+}
+
+/**
  * Serializes SDK session events into the on-disk `events.jsonl` representation:
  * one JSON object per line, terminated by a newline so a subsequent append
  * starts on a fresh line. Returns the empty string for an empty event list.
@@ -510,5 +581,154 @@ export function withImportedTurnDurations(turns: Turn[], durations: ReadonlyMap<
 		const { duration: _inferred, ...rest } = turn;
 		const duration = durations.get(turn.id);
 		return duration === undefined ? rest : { ...rest, duration };
+	});
+}
+
+/**
+ * Session-database metadata key holding how each imported tool call was shown
+ * and confirmed, keyed by tool call id. An event log records a tool call's
+ * name, input and result, from which a replay regenerates its messages and
+ * assumes it needed no confirmation; an imported call's original messages,
+ * confirmation, cancellation and resource references are kept here instead.
+ */
+export const IMPORTED_TOOL_CALLS_DB_KEY = 'agentHost.importedToolCalls';
+
+interface IImportedToolCall {
+	readonly displayName: string;
+	readonly invocationMessage: StringOrMarkdown;
+	readonly pastTenseMessage?: StringOrMarkdown;
+	readonly confirmed?: ToolCallConfirmationReason;
+	/** Set when the call was cancelled; the event log records it as failed. */
+	readonly cancelled?: ToolCallCancellationReason;
+	/** Why the call was cancelled, e.g. who denied it. */
+	readonly reasonMessage?: StringOrMarkdown;
+	/** Resource references in the result, which an event log replay keeps only for MCP tools. */
+	readonly resources?: readonly { readonly uri: string; readonly contentType?: string }[];
+}
+
+/** Serializes how each imported tool call was shown and confirmed for {@link IMPORTED_TOOL_CALLS_DB_KEY}. */
+export function serializeImportedToolCalls(turns: readonly Turn[]): string | undefined {
+	const calls: Record<string, IImportedToolCall> = {};
+	for (const turn of turns) {
+		for (const part of turn.responseParts) {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				continue;
+			}
+			const tc = part.toolCall;
+			if (tc.status === ToolCallStatus.Completed) {
+				const resources = tc.content?.flatMap(item => item.type === ToolResultContentType.Resource ? [{ uri: item.uri, ...(item.contentType ? { contentType: item.contentType } : {}) }] : []);
+				calls[tc.toolCallId] = {
+					displayName: tc.displayName,
+					invocationMessage: tc.invocationMessage,
+					pastTenseMessage: tc.pastTenseMessage,
+					confirmed: tc.confirmed,
+					...(resources?.length ? { resources } : {}),
+				};
+			} else if (tc.status === ToolCallStatus.Cancelled) {
+				calls[tc.toolCallId] = { displayName: tc.displayName, invocationMessage: tc.invocationMessage, cancelled: tc.reason, ...(tc.reasonMessage !== undefined ? { reasonMessage: tc.reasonMessage } : {}) };
+			}
+		}
+	}
+	return Object.keys(calls).length ? JSON.stringify(calls) : undefined;
+}
+
+const confirmationReasons: ReadonlySet<string> = new Set<string>([ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.UserAction, ToolCallConfirmationReason.Setting]);
+const cancellationReasons: ReadonlySet<string> = new Set<string>([ToolCallCancellationReason.Denied, ToolCallCancellationReason.Skipped, ToolCallCancellationReason.ResultDenied]);
+
+function readStringOrMarkdown(value: unknown): StringOrMarkdown | undefined {
+	if (typeof value === 'string') {
+		return value;
+	}
+	return isObject(value) && typeof (value as { markdown?: unknown }).markdown === 'string' ? { markdown: (value as { markdown: string }).markdown } : undefined;
+}
+
+/** Reads the value written by {@link serializeImportedToolCalls}; malformed entries are ignored. */
+export function parseImportedToolCalls(value: string | undefined): ReadonlyMap<string, IImportedToolCall> | undefined {
+	if (!value) {
+		return undefined;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(value);
+	} catch {
+		return undefined;
+	}
+	if (!isObject(parsed) || Array.isArray(parsed)) {
+		return undefined;
+	}
+	const calls = new Map<string, IImportedToolCall>();
+	for (const [toolCallId, entry] of Object.entries(parsed)) {
+		if (!isObject(entry)) {
+			continue;
+		}
+		const raw = entry as Record<string, unknown>;
+		const invocationMessage = readStringOrMarkdown(raw.invocationMessage);
+		if (typeof raw.displayName !== 'string' || invocationMessage === undefined) {
+			continue;
+		}
+		const pastTenseMessage = readStringOrMarkdown(raw.pastTenseMessage);
+		const reasonMessage = readStringOrMarkdown(raw.reasonMessage);
+		const resources = Array.isArray(raw.resources)
+			? raw.resources.flatMap(resource => isObject(resource) && typeof (resource as { uri?: unknown }).uri === 'string'
+				? [{ uri: (resource as { uri: string }).uri, ...(typeof (resource as { contentType?: unknown }).contentType === 'string' ? { contentType: (resource as { contentType: string }).contentType } : {}) }]
+				: [])
+			: [];
+		calls.set(toolCallId, {
+			displayName: raw.displayName,
+			invocationMessage,
+			...(pastTenseMessage !== undefined ? { pastTenseMessage } : {}),
+			...(typeof raw.confirmed === 'string' && confirmationReasons.has(raw.confirmed) ? { confirmed: raw.confirmed as ToolCallConfirmationReason } : {}),
+			...(typeof raw.cancelled === 'string' && cancellationReasons.has(raw.cancelled) ? { cancelled: raw.cancelled as ToolCallCancellationReason } : {}),
+			...(reasonMessage !== undefined ? { reasonMessage } : {}),
+			...(resources.length ? { resources } : {}),
+		});
+	}
+	return calls;
+}
+
+/** Restores how imported tool calls were shown and confirmed over what a replay of the event log inferred. */
+export function withImportedToolCalls(turns: Turn[], calls: ReadonlyMap<string, IImportedToolCall> | undefined): Turn[] {
+	if (!calls?.size) {
+		return turns;
+	}
+	return turns.map(turn => {
+		let changed = false;
+		const responseParts = turn.responseParts.map((part): ResponsePart => {
+			const call = part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? calls.get(part.toolCall.toolCallId) : undefined;
+			if (!call || part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed) {
+				return part;
+			}
+			changed = true;
+			const tc = part.toolCall;
+			if (call.cancelled) {
+				return {
+					...part,
+					toolCall: {
+						status: ToolCallStatus.Cancelled,
+						toolCallId: tc.toolCallId,
+						toolName: tc.toolName,
+						displayName: call.displayName,
+						invocationMessage: call.invocationMessage,
+						...(tc.toolInput !== undefined ? { toolInput: tc.toolInput } : {}),
+						reason: call.cancelled,
+						...(call.reasonMessage !== undefined ? { reasonMessage: call.reasonMessage } : {}),
+					} satisfies ToolCallCancelledState,
+				};
+			}
+			const missing = call.resources?.filter(resource => !tc.content?.some(item => item.type === ToolResultContentType.Resource && item.uri === resource.uri)) ?? [];
+			const content = missing.length ? [...(tc.content ?? []), ...missing.map((resource): ToolResultContent => ({ type: ToolResultContentType.Resource, ...resource }))] : tc.content;
+			return {
+				...part,
+				toolCall: {
+					...tc,
+					displayName: call.displayName,
+					invocationMessage: call.invocationMessage,
+					...(call.pastTenseMessage !== undefined ? { pastTenseMessage: call.pastTenseMessage } : {}),
+					...(call.confirmed ? { confirmed: call.confirmed } : {}),
+					...(content ? { content } : {}),
+				},
+			};
+		});
+		return changed ? { ...turn, responseParts } : turn;
 	});
 }

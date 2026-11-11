@@ -5,7 +5,7 @@
 
 import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
-import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest } from '../common/browserView.js';
+import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -425,8 +425,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 
 		if (placement === 'sideGroup') {
+			// Beside the active group, or beside the group it hands editors off to, such as while a chat is active.
 			const direction = preferredSideBySideGroupDirection(this.configurationService);
-			const group = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+			const group = this.editorGroupsService.addGroup(handOffFromSelfTitledEditor(this.editorGroupsService.activeGroup, this.editorGroupsService), direction);
 			// Lock the group so that other (non-browser) editors are not opened
 			// into it. Browser tabs still open here because we target it directly.
 			group.lock(true);
@@ -584,7 +585,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						session,
 						initialAudiences: createOptions?.initialAudiences,
 						sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
-						initialUrl: createOptions ? createOptions.initialUrl : data.url,
+						initialUrl: createOptions ? createOptions.initialUrl : input.url && normalizeBrowserViewUrl(input.url),
 						openSource: createOptions?.openSource
 					});
 				} finally {

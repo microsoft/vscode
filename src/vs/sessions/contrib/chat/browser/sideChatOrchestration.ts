@@ -5,24 +5,35 @@
 
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISideChatSelection } from '../../../services/sessions/common/session.js';
-import { ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getWindowHost, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, ISideChatSelection } from '../../../../workbench/services/sessions/common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
-/** Activates a new side chat in its own group before sending the request. */
+/**
+ * Opens a new side chat beside its source chat, in the chat window that shows the source chat or else in the grid, before
+ * sending the request.
+ */
 export async function openAndSendSideChat(
 	sessionsManagementService: ISessionsManagementService,
 	sessionsService: ISessionsService,
 	sessionsPartService: ISessionsPartService,
 	session: ISession,
 	sideChat: IChat,
+	sourceChat: URI,
+	sourceInGrid: boolean,
 	requestOptions: ISendRequestOptions,
 ): Promise<void> {
-	const opening = sessionsService.openChat(session, sideChat.resource);
+	const opening = sessionsService.openChat(session, sideChat.resource, { referenceChatResource: sourceChat });
 	const navigationRequest = sessionsService.navigationRequest.get();
 	await opening;
 	if (sessionsService.navigationRequest.get() !== navigationRequest) {
+		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
+		return;
+	}
+	if (!sourceInGrid) {
+		// A foreground send discards the main window's new-session draft and makes its slot follow the sent chat.
 		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 		return;
 	}
@@ -31,40 +42,48 @@ export async function openAndSendSideChat(
 }
 
 /**
- * Creates a side chat branched from `turnId` in `sourceChat`, then opens and
- * sends the request on it via {@link openAndSendSideChat}.
+ * Creates a side chat with source context by default, then opens and sends the request.
+ * Sends in the background if the user navigated away from `sourceChat` meanwhile.
  */
 export async function createAndSendSideChat(
 	sessionsManagementService: ISessionsManagementService,
 	sessionsService: ISessionsService,
 	sessionsPartService: ISessionsPartService,
+	sessionHostService: ISessionHostService,
 	session: ISession,
 	sourceChat: URI,
 	turnId: string,
 	requestOptions: ISendRequestOptions,
 	selection?: ISideChatSelection,
+	includeSourceContext?: boolean,
 ): Promise<IChat> {
+	const sourceHost = sessionHostService.getHostOfChat(sourceChat);
+	const windowHost = sourceHost && getWindowHost(sourceHost);
+	// Navigation in the grid concerns a chat the grid shows only.
+	const inGrid = windowHost?.kind === SessionHostKind.MainWindow;
 	const navigationRequest = sessionsService.navigationRequest.get();
-	const activeSession = sessionsService.activeSession.get();
-	const activeChat = activeSession?.activeChat.get();
-	let navigated = false;
+	const shownSession = windowHost?.session.get();
+	const shownChat = windowHost?.chat.get();
+	let navigated = !windowHost;
 	const navigationObserver = autorun(reader => {
-		const currentSession = sessionsService.activeSession.read(reader);
-		const currentChat = currentSession?.activeChat.read(reader);
-		if (sessionsService.navigationRequest.read(reader) !== navigationRequest || currentSession !== activeSession || currentChat !== activeChat) {
+		if (!windowHost
+			|| (inGrid && sessionsService.navigationRequest.read(reader) !== navigationRequest)
+			|| windowHost.session.read(reader) !== shownSession
+			|| windowHost.chat.read(reader) !== shownChat
+			|| !sessionHostService.isShown(sourceChat, reader)) {
 			navigated = true;
 		}
 	});
 	let sideChat: IChat;
 	try {
-		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection);
+		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection, includeSourceContext);
 	} finally {
 		navigationObserver.dispose();
 	}
 	if (navigated) {
 		await sessionsManagementService.sendRequestInBackground(session, sideChat, requestOptions);
 	} else {
-		await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, requestOptions);
+		await openAndSendSideChat(sessionsManagementService, sessionsService, sessionsPartService, session, sideChat, sourceChat, inGrid, requestOptions);
 	}
 	return sideChat;
 }

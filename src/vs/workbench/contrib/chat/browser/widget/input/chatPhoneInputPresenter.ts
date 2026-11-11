@@ -18,6 +18,7 @@ import { localize } from '../../../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IModePickerDelegate } from './modePickerActionItem.js';
+import { isAutoLanguageModel } from '../../../common/languageModels.js';
 import { IModelPickerDelegate } from './modelPicker/modelPickerActionItem.js';
 import { getModelProviderIcon } from './modelPicker/modelProviderIcons.js';
 
@@ -260,7 +261,9 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 		if (currentModel && this._modelDelegate.getPresentationOptions().showModelIcon) {
 			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel)));
 		}
+		// An Auto offered as Copilot Fusion stands for Auto under its own name.
 		const labelText = currentModel?.metadata.name
+			?? this._modelDelegate.getModels().find(model => isAutoLanguageModel(model) && model.metadata.autoModelFusion)?.metadata.name
 			?? localize('chatPhoneInput.autoLabel', "Auto");
 		const labelSpan = dom.append(trigger, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;

@@ -23,6 +23,10 @@ The Agents Window contributes:
 
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
+Harness-specific built-in skills belong to their provider. Copilot Agent Host supplies `troubleshoot` through the SDK skill provider on both create and resume, enriching its Markdown lazily with the exact host-local SDK conversation log and session-state directory. Explicit session-reference attachments take precedence over the current conversation. The extension troubleshooting skill handles extension debug logs and is registered only for Local sessions. SDK-provided invocation names take precedence over same-named disk skills under the SDK catalog contract. Virtual-workspace Copilot sessions retain their disabled skill discovery.
+
+The host-owned troubleshooting Markdown is defined in code and loaded through the SDK skill provider, without a separate packaged skill asset. Its customization entry is discovery-only, like Claude's built-in skills, and has no openable source. Session-reference trajectory attachments retain their existing Copilot CLI path handling; this skill does not change how referenced sessions are resolved.
+
 ## Service boundary
 
 ### `IAICustomizationWorkspaceService`
@@ -77,6 +81,10 @@ A descriptor may define:
 
 Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 
+Copilot-owned plugin activation is authoritative in the runtime. Global inventory supplies persisted enablement; an initialized chat supplies effective repository enablement. Legacy workbench and Agent Host plugin overrides do not layer over those decisions. Global installation controls use runtime mutations without mirroring local storage. Contextual plugin actions offer global and repository scopes, never session-only activation, and preserve the owning backend session and advertised chat identities. Hosts without the optional plugin-management capability remain read-only; other plugin providers and standalone MCP enablement retain their existing ownership.
+
+Local Copilot plugin discovery uses the runtime inventory for installation identities, content URIs, and activation, including when the runtime uses a non-default home. It does not read or watch the runtime's installation settings. Harness-published session customization changes and host restarts refresh inventory; the local management proxy does not synthesize installation notifications. The host supplies a shared content revision through inventory and customization metadata, stable across activation changes, so discovery retains loaded entries until content changes. Local file reads are limited to the reported plugin content. Session-free customization management remains a separate concern.
+
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 
 ### Customization sources
@@ -86,6 +94,8 @@ When a new descriptor field is added, update every descriptor factory and both w
 Customization source-folder providers may assign an opaque workspace group identity to creation folders and discovered migration candidates. Migration uses that identity to keep each workspace customization in its originating root without inferring provenance from URI path similarity.
 
 `AICustomizationSource` distinguishes local, user, extension, plugin, and built-in items. Source providers and workspace services apply their applicable discovery policy before view-model grouping. Filtering changes presentation only; it does not mutate the underlying customization.
+
+`AICustomizationScope` is an internal presentation axis that answers who a customization applies to: `user`, `workspace`, or `application` (built into VS Code or the agent, shown as Built-in). Scope drives the primary grouping of every management section; storage source continues to drive what can be done with an item. Who supplied an item within its scope is a separate `origin`: a plugin, an extension, or an organization is shown as a nested row in that scope, and the agent's own items are tagged in Built-in. The shared normalizer derives scope from the source and identifies organization files from the default chat extension. Extensions and organization customizations belong to the user. Agent Host adapters derive scope from existing discovery-source metadata (`repository`, `user`, `plugin`, or `builtin`) and MCP configuration sources, retaining an internal scope override for read-only items whose grouping comes from a parent configuration. Built-in agents declare `source: 'builtin'` through `vscode.customizationDiscovery`; no separate scope field crosses the extension API or Agent Host boundary. Absent or unknown host provenance does not establish that an item is built in. Internal items may also carry an origin and a `syncedFromClient` delivery for items synced to a remote agent environment. Overridden customizations are not listed: agent hosts omit them, and local discovery skips same-named duplicates and hides built-in skills that a user or workspace skill replaces. The legacy `remote-host` and `remote-client` group keys are delivery markers, not display groups.
 
 ## Item pipeline
 
@@ -101,9 +111,13 @@ source providers
 
 Section counts and rendered rows consume the same filtered model so hidden or disabled sources cannot appear in one surface but not the other.
 
+Controls belonging to an unfocused chat use a disposable session-scoped items model over the same discovery and filtering pipeline. Reading their counts and section links must not retarget the window's active customization harness.
+
 Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 
 Host-published MCP items retain the runtime-reported configuration source through typed metadata and the shared item contract, independently of lifecycle state or the availability of a local configuration definition. `IAgentHostMcpServer.skillBundle` carries the raw skill-bundle identity and listed child count for effectively enabled MCP containers, allowing navigation from MCP rows to the same bundle in Skills without interpreting scoped server IDs.
+
+Internal item actions may expose a checked state for an inline enablement toggle. The provider owns its state, availability, explanation, and mutation; the shared UI does not infer harness capabilities from action labels or plugin provenance.
 
 The home page shows the original Overview until the default-off marketplace visibility flag and at least one marketplace source are enabled; it then shows unified Discover. With Marketplace visibility off, the legacy MCP and Plugin Available sections remain available. Switching surfaces disposes the previous surface and restores the current visible sections and harness context. Discover normalizes installed item-bearing sections from their existing owners and uses the platform `ICustomizationMarketplaceService` as its available catalog source. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install. The UI and installation consumers depend on source-neutral contracts, not individual catalog backends. Marketplace-backed installation state and reversible install, repair, or uninstall operations remain owned by `ICustomizationMarketplaceInstallService`.
 
@@ -151,7 +165,7 @@ Contributed management sections can declare `enablementSettings` to gate visibil
 
 ## Active-session context
 
-In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
+In the Agents Window, the customization harness and project root track the chat of the focused session host (`IFocusedSessionHostService`). Opening the editor synchronizes it with that chat, and focusing another chat or window can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
 
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 

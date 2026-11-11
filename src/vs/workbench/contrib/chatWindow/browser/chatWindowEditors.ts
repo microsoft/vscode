@@ -86,7 +86,7 @@ export function deserializeChatWindowEditors(instantiationService: IInstantiatio
  * editors dropped on its edges, and its terminals.
  */
 export async function reopenChatWindow(window: IChatWindow, instantiationService: IInstantiationService, open: (chat: URI, options: IChatWindowOpenOptions) => Promise<unknown>, parts: { readonly chatPart: IChatWindowChatPart | undefined; readonly createdParts: readonly IContentPart[] }): Promise<void> {
-	const chat = window.chat.get();
+	const [chat, ...chats] = window.chats.get();
 	// Serialized, as closing the window disposes them, and opened again in the new window.
 	// Not those that ask before they close, such as dirty ones: closing the window merges them into the main window itself.
 	// The groups of its chat part are captured as a whole, which would open such an editor twice: with one there, those
@@ -98,6 +98,7 @@ export async function reopenChatWindow(window: IChatWindow, instantiationService
 	const showTerminals = window.terminalsVisible.get();
 	if (window.close()) {
 		await open(chat, {
+			chats: chats.length ? chats : undefined,
 			editors: deserializeChatWindowEditors(instantiationService, editors),
 			showTerminals,
 			chatPart,
@@ -112,22 +113,37 @@ export function isSerializedChatWindowEditor(value: unknown): value is ISerializ
 	return typeof candidate?.typeId === 'string' && typeof candidate.value === 'string' && (candidate.active === undefined || typeof candidate.active === 'boolean');
 }
 
-/** The groups of a chat window's chat part to open it with again, if the part has more groups than the chat's own. */
-export function captureChatPart(chatPart: IContentPart, chatInput: EditorInput): IChatWindowChatPart | undefined {
+/**
+ * The groups of a chat window's chat part to open it with again, if the part has more groups than the group of its one
+ * chat: where each of `chatInputs`, the editors of its chats in their order, goes in it.
+ */
+export function captureChatPart(chatPart: IContentPart, chatInputs: readonly EditorInput[]): IChatWindowChatPart | undefined {
 	const groups = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
-	const chatGroup = groups.findIndex(group => group.contains(chatInput));
+	const [chatGroup, ...chatGroups] = chatInputs.map(input => groups.findIndex(group => group.contains(input)));
+	if (chatGroup === undefined || chatGroup === -1) {
+		return undefined;
+	}
 	// Its groups, or the editors beside the chat in its group, as tabs
-	const hasMore = groups.length > 1 || (chatGroup !== -1 && groups[chatGroup].count > 1);
-	return hasMore && chatGroup !== -1 ? { state: chatPart.createState(), chatGroup } : undefined;
+	const hasMore = groups.length > 1 || groups[chatGroup].count > 1;
+	if (!hasMore) {
+		return undefined;
+	}
+	const state = chatPart.createState();
+	return chatGroups.length ? { state, chatGroup, chatGroups: chatGroups.map(index => index === -1 ? chatGroup : index) } : { state, chatGroup };
 }
 
-/** The group of a chat part, restored from what {@link captureChatPart} captured, to open the chat in: its own group, else the active one. */
-export function getRestoredChatGroup(chatPart: IEditorPart, captured: IChatWindowChatPart | undefined): IEditorGroup {
-	return (captured && chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[captured.chatGroup]) || chatPart.activeGroup;
+/**
+ * The group of a chat part, restored from what {@link captureChatPart} captured, to open a chat in: the group of the chat
+ * the window opens for, or with `index`, of that one of its other chats; else the active one.
+ */
+export function getRestoredChatGroup(chatPart: IEditorPart, captured: IChatWindowChatPart | undefined, index?: number): IEditorGroup {
+	const groupIndex = index === undefined ? captured?.chatGroup : captured?.chatGroups?.[index] ?? captured?.chatGroup;
+	return (groupIndex !== undefined && chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[groupIndex]) || chatPart.activeGroup;
 }
 
 /** Whether `value`, read from storage, is what {@link captureChatPart} captured. */
 export function isChatWindowChatPart(value: unknown): value is IChatWindowChatPart {
 	const candidate = value as Partial<IChatWindowChatPart> | undefined;
-	return typeof candidate?.state === 'object' && candidate.state !== null && typeof candidate.chatGroup === 'number';
+	return typeof candidate?.state === 'object' && candidate.state !== null && typeof candidate.chatGroup === 'number'
+		&& (candidate.chatGroups === undefined || (Array.isArray(candidate.chatGroups) && candidate.chatGroups.every(index => typeof index === 'number')));
 }

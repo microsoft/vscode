@@ -663,10 +663,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcomeAgentSessions",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/accounts",
 			"project": "vscode-workbench"
 		},
@@ -686,6 +682,22 @@
 		},
 		{
 			"name": "vs/sessions/contrib/automations",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/contrib/sessionChanges",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/services/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/browser/parts/sessions",
 			"project": "vscode-sessions"
 		},
 		{
@@ -726,6 +738,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/chat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatEditor",
 			"project": "vscode-sessions"
 		},
 		{
@@ -774,10 +790,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/github",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/inboxOne",
 			"project": "vscode-sessions"
 		},
 		{

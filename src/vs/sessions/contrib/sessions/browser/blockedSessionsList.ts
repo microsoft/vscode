@@ -15,9 +15,9 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Menus } from '../../../browser/menus.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { IApprovedSession, ISessionCIFixModel, SessionsFlatList, SessionItemStatusContext } from './views/sessionsList.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { IApprovedSession, ISessionCIFixModel, SessionsFlatList, SessionItemStatusContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 
 export const IGNORE_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreInputNeeded';

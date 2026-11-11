@@ -35,20 +35,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts quality $(node -p process.arch) > .build/packagelockhash
-        displayName: Prepare node_modules cache key
-
-      - task: Cache@2
-        inputs:
-          key: '"node_modules" | .build/packagelockhash'
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
-        retryCountOnTaskFailure: 2
-
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
+      - template: ./common/restore-pnpm-store.yml@self
+        parameters:
+          keyArgs: quality
+          os: linux
 
       - script: |
           set -e
@@ -83,7 +73,6 @@ jobs:
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
@@ -98,7 +87,7 @@ jobs:
           set -e
 
           source ./build/azure-pipelines/linux/setup-env.sh
-          node build/npm/preinstall.ts
+          pnpm run preinstall
 
           for i in {1..5}; do # try 5 times
             pnpm install --frozen-lockfile && break
@@ -117,7 +106,6 @@ jobs:
           FOUNDRY_LOCAL_NUGET_MODE: dotnet
           FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
         displayName: Install dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       # NuGetAuthenticate@1 exposes its access token to all later steps as the
       # VSS_NUGET_ACCESSTOKEN environment variable, from where tests can write it
@@ -131,16 +119,11 @@ jobs:
         displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
-      - script: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+      - template: ./common/prune-pnpm-store.yml@self
+        parameters:
+          os: linux
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
@@ -437,6 +420,25 @@ jobs:
           env:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Compile & Hygiene
+
+      # Copilot has its own TypeScript projects and ESLint configuration, which the steps above don't check (see
+      # build/filters.ts). Like the build of the built-in Copilot (see copilot/builtin-steps.yml), the checks run after
+      # Copilot's vscode-capi mixin, so that they cover the code that ships. microsoft/vscode-capi is a separate
+      # repository that installs with npm.
+      - script: BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+        workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
+        displayName: Mixin vscode-capi (Copilot)
+
+      - script: pnpm run lint
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: ESLint (Copilot)
+
+      # The compile runs script/postinstall.ts, which deletes and recopies node_modules/@github/copilot/sdk, so the type
+      # check, which resolves the SDK's declarations there, runs after it. The compile only checks that Copilot builds,
+      # so it skips the release version that .esbuild.mts stamps into package.json in CI.
+      - script: BUILD_SOURCEVERSION= pnpm run compile && pnpm run typecheck
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Compile (Copilot)
 
       - task: AzureCLI@2
         displayName: Fetch secrets
