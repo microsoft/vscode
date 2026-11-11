@@ -70,8 +70,10 @@ export function getDevContainerStateMount(devContainerId: string, target: string
 	return `type=volume,source=${getDevContainerStateVolumeName(devContainerId)},target=${target},external=true`;
 }
 
-export function findDevContainerStateMount<T extends { readonly Type: string; readonly Name?: string }>(mounts: readonly T[]): T | undefined {
-	return mounts.find(mount => mount.Type === 'volume' && !!mount.Name && stateVolumePattern.test(mount.Name));
+export function findDevContainerStateMount<T extends { readonly Type: string; readonly Name?: string; readonly Destination: string }>(mounts: readonly T[]): T | undefined {
+	// Other destinations are not from Dev Containers, e.g., the /volume of "Explore a Volume in a Dev Container".
+	return mounts.find(mount => mount.Type === 'volume' && !!mount.Name && stateVolumePattern.test(mount.Name)
+		&& [devContainerStateWorkspacesTarget, devContainerStateFallbackTarget].includes(normalizeMountTarget(mount.Destination)));
 }
 
 export interface IDevContainerStateMountConfiguration {
@@ -83,12 +85,12 @@ export interface IDevContainerStateMountConfiguration {
 
 /** Uses /workspaces unless Compose or a configured mount could conflict with a volume there. */
 export function getDevContainerStateMountTarget(configuration: IDevContainerStateMountConfiguration, additionalMounts: readonly unknown[] = []): string {
-	// Unresolved variables could resolve to /workspaces.
-	const mayUseWorkspaces = (value: unknown) => typeof value === 'string' && (value.includes('${') || /(?:^|[=:])\/workspaces\/?(?=$|[,:\s])/.test(value));
+	// Unresolved variables could resolve to /workspaces. Checks all paths in a value, e.g., a mount's source and target in runArgs.
+	const mayUseWorkspaces = (value: unknown) => typeof value === 'string' && (value.includes('${') || value.split(/[=:,\s]/).some(part => part.startsWith('/') && normalizeMountTarget(part) === devContainerStateWorkspacesTarget));
 	const mounts = [...Array.isArray(configuration.mounts) ? configuration.mounts : [], ...additionalMounts];
 	const workspaceMountTarget = typeof configuration.workspaceMount === 'string' ? getMountTarget(configuration.workspaceMount) : undefined;
 	if (configuration.dockerComposeFile !== undefined
-		|| (configuration.workspaceMount !== undefined && (!workspaceMountTarget?.startsWith('/workspaces/') || workspaceMountTarget.includes('${')))
+		|| (configuration.workspaceMount !== undefined && (!workspaceMountTarget || !normalizeMountTarget(workspaceMountTarget).startsWith(`${devContainerStateWorkspacesTarget}/`) || workspaceMountTarget.includes('${')))
 		|| (Array.isArray(configuration.runArgs) && configuration.runArgs.some(mayUseWorkspaces))
 		|| mounts.some(mount => mayUseWorkspaces(typeof mount === 'string' ? getMountTarget(mount) ?? mount : typeof mount === 'object' && mount !== null ? (mount as { readonly target?: unknown }).target : mount))) {
 		return devContainerStateFallbackTarget;
@@ -111,6 +113,12 @@ function getMountTarget(mount: string): string | undefined {
 	return undefined;
 }
 
+/** Normalizes a mount destination like Docker, e.g., /workspaces/. and /workspaces// are /workspaces. */
+function normalizeMountTarget(target: string): string {
+	const normalized = posix.normalize(target);
+	return normalized.length > 1 ? normalized.replace(/\/+$/, '') : normalized;
+}
+
 export interface IDevContainerStateLinkOptions {
 	/** Where the state volume is mounted in the container. */
 	readonly volumePath: string;
@@ -126,12 +134,8 @@ export interface IDevContainerStateLinkOptions {
  */
 export function buildLinkDevContainerStateCommand(options: IDevContainerStateLinkOptions): string {
 	const { uid, gid, serverDataFolderName } = options;
-	const normalize = (value: string) => {
-		const normalized = posix.normalize(value);
-		return normalized.length > 1 ? normalized.replace(/\/+$/, '') : normalized;
-	};
-	const volumePath = normalize(options.volumePath);
-	const homeFolder = normalize(options.homeFolder);
+	const volumePath = normalizeMountTarget(options.volumePath);
+	const homeFolder = normalizeMountTarget(options.homeFolder);
 	if (!posix.isAbsolute(volumePath) || volumePath === '/' || !posix.isAbsolute(homeFolder) || !/^\d+$/.test(uid) || !/^\d+$/.test(gid) || !isFolderName(serverDataFolderName)) {
 		throw new Error('Invalid Dev Container state folder or user');
 	}
@@ -155,6 +159,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		`volume=${shellQuote(volumePath)}`,
 		`home=${shellQuote(homeFolder)}`,
 		`owner=${shellQuote(`${uid}:${gid}`)}`,
+		`state_owner=${shellQuote(`0:${gid}`)}`,
 		`state="$volume/"${shellQuote(stateFolderName)}`,
 		`link_path=${shellQuote(devContainerStatePath)}`,
 		// Progress on stdout for telemetry, see `parseLinkDevContainerStateOutput`; messages go to stderr.
@@ -165,9 +170,13 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'progress step:stateFolder',
 		'test ! -L "$state"',
 		'test -d "$state" || mkdir "$state" || test -d "$state"',
-		// Moved folders are no longer protected by the home folder's permissions.
-		'chown "$owner" "$state"',
-		'chmod 700 "$state"',
+		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
+		// owns the state folder and the parents of moved folders, so the user cannot plant symlinks for this script to follow.
+		'chown -h "$state_owner" "$state"',
+		'chmod 750 "$state"',
+		// Serializes links, e.g., from two windows opening the container, so a folder being moved is not taken for restored state.
+		'locked=',
+		'if command -v flock >/dev/null 2>&1; then exec 9<"$state"; flock 9; locked=1; fi',
 		`test -e "$state/.layout" || printf '%s\\n' ${shellQuote(stateLayoutVersion)} > "$state/.layout"`,
 		'progress step:statePath',
 		'if [ -e "$link_path" ] && [ ! -L "$link_path" ]; then echo "$link_path exists and is not a symlink" >&2; exit 1; fi',
@@ -214,7 +223,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  for parent in "$@"; do',
 		'    if [ ! -d "$home_prefix/$parent" ]; then',
 		'      mkdir "$home_prefix/$parent" || test -d "$home_prefix/$parent"',
-		'      chown "$owner" "$home_prefix/$parent"',
+		'      chown -h "$owner" "$home_prefix/$parent"',
 		'    fi',
 		'    test -d "$state/$parent" || mkdir "$state/$parent" || test -d "$state/$parent"',
 		'  done',
@@ -226,7 +235,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'      if [ -d "$src" ]; then rm -rf "$src"; fi',
 		'    elif [ -d "$src" ]; then',
 		'      result=moved',
-		'      mv "$src" "$dst"',
+		// Moving across file systems copies first. Publishing the copy only once complete keeps an interrupted move from
+		// being taken for restored state later. Unfinished copies are removed only while holding the lock.
+		'      if [ -n "$locked" ]; then rm -rf "$dst".moving.*; fi',
+		'      mv "$src" "$dst.moving.$$"',
+		'      mv "$dst.moving.$$" "$dst"',
 		'    else',
 		'      result=created',
 		'    fi',
@@ -305,6 +318,9 @@ export interface IDevContainerStateErrorValues {
 const maxErrorMessageLength = 1000;
 const errorMessageHeadLength = 300;
 const failedCommandPattern = String.raw`\b(Command(?: in \w+)? failed): (\S+)(?: ([a-z][\w-]*)(?=\s|$))?`;
+// Other commands' arguments and other subcommands can contain local values.
+const errorMessageCommands = ['docker', 'podman', 'docker-compose'];
+const errorMessageSubcommands = ['build', 'buildx', 'compose', 'container', 'cp', 'create', 'down', 'exec', 'image', 'inspect', 'network', 'ps', 'pull', 'rm', 'run', 'start', 'stop', 'up', 'volume'];
 
 /**
  * Builds an error message for telemetry from parts such as an error message and a command's stderr. Removes command
@@ -322,8 +338,11 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 	if (values.user && values.user !== 'root') {
 		replacements.push([new RegExp(`(?<![\\w.-])${escapeRegExp(values.user)}(?![\\w.-])`, 'g'), '<user>']);
 	}
-	const summarizeCommand = (_match: string, prefix: string, command: string, subcommand: string | undefined, args: string) =>
-		`${prefix}: ${command.split(/[\\/]/).pop()}${subcommand ? ` ${subcommand}` : ''}${args.trim() ? ' <args>' : ''}`;
+	const summarizeCommand = (_match: string, prefix: string, command: string, subcommand: string | undefined, args: string) => {
+		const name = command.split(/[\\/]/).pop();
+		const keep = !!subcommand && errorMessageCommands.includes(name?.replace(/\.exe$/i, '') || '') && errorMessageSubcommands.includes(subcommand);
+		return `${prefix}: ${name}${keep ? ` ${subcommand}` : ''}${(subcommand && !keep) || args.trim() ? ' <args>' : ''}`;
+	};
 	const lines = parts.flatMap(part => {
 		let text = (part || '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
 		// A part starting with a failed command is the command line, which can span lines and contain local values.

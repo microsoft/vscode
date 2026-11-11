@@ -48,6 +48,11 @@ suite('DevContainerState', () => {
 			['unresolved workspace mount', [{ workspaceMount: 'source=/src,target=/workspaces/${localEnv:NAME},type=bind' }]],
 			['unresolved runArgs', [{ runArgs: ['-v', 'data:${localEnv:ROOT}'] }]],
 			['unresolved mount source', [{ mounts: ['source=${localEnv:HOME}/cache,target=/cache,type=bind'] }]],
+			['non-normalized mount', [{ mounts: ['source=data,target=/workspaces//,type=volume'] }]],
+			['non-normalized object mount', [{ mounts: [{ source: 'data', target: '//workspaces/.', type: 'volume' }] }]],
+			['non-normalized runArgs', [{ runArgs: ['--mount=type=volume,source=data,target=/workspaces/a/..'] }]],
+			['non-normalized workspace mount', [{ workspaceMount: 'source=/src,target=/workspaces/.,type=bind' }]],
+			['workspace mount with double slash', [{ workspaceMount: 'source=/src,target=/workspaces//src,type=bind' }]],
 		];
 		assert.deepStrictEqual(cases.map(([name, args]) => [name, getDevContainerStateMountTarget(...args)]), [
 			['default', devContainerStateWorkspacesTarget],
@@ -64,17 +69,29 @@ suite('DevContainerState', () => {
 			['unresolved workspace mount', devContainerStateFallbackTarget],
 			['unresolved runArgs', devContainerStateFallbackTarget],
 			['unresolved mount source', devContainerStateWorkspacesTarget],
+			['non-normalized mount', devContainerStateFallbackTarget],
+			['non-normalized object mount', devContainerStateFallbackTarget],
+			['non-normalized runArgs', devContainerStateFallbackTarget],
+			['non-normalized workspace mount', devContainerStateFallbackTarget],
+			['workspace mount with double slash', devContainerStateWorkspacesTarget],
 		]);
 	});
 
 	test('finds only state volume mounts', () => {
 		const name = `vscode-state-${'0'.repeat(52)}`;
-		assert.deepStrictEqual(findDevContainerStateMount([
-			{ Type: 'volume', Name: 'vscode' },
-			{ Type: 'bind', Name: name },
-			{ Type: 'volume', Name: `${name}0` },
-			{ Type: 'volume', Name: name },
-		]), { Type: 'volume', Name: name });
+		assert.deepStrictEqual([
+			findDevContainerStateMount([
+				{ Type: 'volume', Name: 'vscode', Destination: '/workspaces' },
+				{ Type: 'bind', Name: name, Destination: '/workspaces' },
+				{ Type: 'volume', Name: `${name}0`, Destination: '/workspaces' },
+				{ Type: 'volume', Name: name, Destination: '/volume' },
+				{ Type: 'volume', Name: name, Destination: '/workspaces' },
+			]),
+			findDevContainerStateMount([{ Type: 'volume', Name: name, Destination: '/.vscode-volume/' }]),
+		], [
+			{ Type: 'volume', Name: name, Destination: '/workspaces' },
+			{ Type: 'volume', Name: name, Destination: '/.vscode-volume/' },
+		]);
 	});
 
 	test('rejects unsafe link options', () => {
@@ -137,11 +154,13 @@ suite('DevContainerState', () => {
 			]),
 			sanitizeDevContainerStateErrorMessage(['Cannot read the Dev Container user (exit 1): unable to find user root in /root/.profile'], { homeFolder: '/root', user: 'root' }),
 			sanitizeDevContainerStateErrorMessage(['', '[1 ms] Start: Run: docker ps']),
+			sanitizeDevContainerStateErrorMessage(['Command failed: test customer-secret-value = expected', 'Command failed: C:\\docker\\docker.exe exec abc', 'Command failed: docker secret-value']),
 		], [
 			`Command in container failed: set <args>\nmkdir: cannot create directory '~/.cache': Permission denied\nunable to find user <user>: no matching entries in passwd file\nnodes and Node.js\nCannot link user state (exit 1):`,
 			`Error: Command failed: docker volume <args>\nError response from daemon: container <id> not found in vscode-state-<id>`,
 			'Cannot read the Dev Container user (exit 1): unable to find user root in ~/.profile',
 			undefined,
+			'Command failed: test <args>\nCommand failed: docker.exe exec <args>\nCommand failed: docker <args>',
 		]);
 	});
 
