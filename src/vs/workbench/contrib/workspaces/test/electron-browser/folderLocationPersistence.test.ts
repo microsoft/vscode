@@ -52,7 +52,7 @@ suite('FolderLocationPersistenceContribution', () => {
 			locationService,
 			{ setFolderLocation: async (p: URI, l: URI | undefined) => { returns.push([p, l]); } } as unknown as IWorkspaceEditingService,
 			{ setWindowFolderLocation: (value: IWindowFolderLocation | undefined) => { persistedCalls.push(value); } } as unknown as INativeHostService,
-			{ configuration: { folderLocation: options.persisted } } as unknown as INativeWorkbenchEnvironmentService,
+			{ folderLocation: options.persisted } as unknown as INativeWorkbenchEnvironmentService,
 			{ notify: (n: { message: string }) => { notifications.push(n.message); } } as unknown as INotificationService,
 			{ extUri } as unknown as IUriIdentityService
 		));
@@ -86,7 +86,8 @@ suite('FolderLocationPersistenceContribution', () => {
 	test('a provider registering late confirms the location', async () => {
 		const fixture = createFixture({ persisted });
 		await settle();
-		assert.strictEqual(fixture.locationService.currentLocation, undefined);
+		const before: IResolvedFolderLocation | undefined = fixture.locationService.currentLocation;
+		assert.strictEqual(before, undefined);
 
 		fixture.registerProvider();
 		await settle();

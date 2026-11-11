@@ -50,7 +50,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.persist(this.folderLocationService.currentLocation)));
 
-		const persisted = environmentService.configuration.folderLocation;
+		const persisted = environmentService.folderLocation;
 		if (persisted) {
 			const cts = this._register(new CancellationTokenSource());
 			this.restore(persisted, cts.token);
