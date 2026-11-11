@@ -26,7 +26,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -107,6 +107,30 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 	override canRunAutomation(): boolean { return true; }
 	override canUpdateAutomation(): boolean { return true; }
 	override canDeleteAutomation(): boolean { return true; }
+}
+
+class FixtureRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
+
+	override readonly onDidChangeConnections = Event.None;
+	override readonly onDidChangeConfiguredEntries = Event.None;
+	override readonly configuredEntries: readonly IRemoteAgentHostEntry[];
+	override readonly connections: readonly IRemoteAgentHostConnectionInfo[];
+
+	constructor(hostCount: number) {
+		super();
+		this.configuredEntries = Array.from({ length: hostCount }, (_, index) => ({
+			name: `Remote host ${index + 1}`,
+			connection: {
+				type: RemoteAgentHostEntryType.WebSocket,
+				address: `127.0.0.1:${65531 + index}`,
+			},
+		}));
+		this.connections = this.configuredEntries.map(entry => ({
+			name: entry.name,
+			address: getEntryAddress(entry),
+			status: RemoteAgentHostConnectionStatus.disconnected,
+		}));
+	}
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -265,17 +289,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	PartialUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The unavailable banner below the automation cards names the disconnected Remote build host and has an inline Manage Remotes text link after the message.'],
+		expectedVisualDescriptions: ['The unavailable banner below the automation cards shows an italic remote detection count followed by a Manage Remotes text link instead of the disconnected-host warning.'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
 	}),
 	PartialDisconnectedRemotes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The unavailable banner names both disconnected hosts, Remote build host and Remote test host, followed by a Manage Remotes text link.'],
+		expectedVisualDescriptions: ['The unavailable banner shows an italic remote detection count followed by a Manage Remotes text link without listing the disconnected hosts.'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
 	}),
 	NarrowPartialDisconnectedRemotes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['At a narrow width, the unavailable banner wraps the disconnected hosts message and the Manage Remotes link without clipping either.'],
+		expectedVisualDescriptions: ['At a narrow width, the unavailable banner keeps the italic remote detection count and Manage Remotes link readable without clipping either.'],
 		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
 	}),
 	PartialUnavailableMultipleReasons: defineComponentFixture({
@@ -334,6 +358,8 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const runs = options.emptyHistory ? [] : data.runs;
 	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
+	const hasDisconnectedProvider = options.unavailableProviders?.some(provider => provider.unavailableReasonCode === 'disconnected') ?? false;
+	const remoteAgentHostService = new FixtureRemoteAgentHostService(hasDisconnectedProvider ? 5 : 0);
 	automationService.historyState = constObservable(options.historyState ?? 'ready');
 	const sessionsManagementService = new FixtureSessionsManagementService(options.cloud && !options.nativeCloud ? [] : runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
@@ -375,6 +401,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 				override readonly extUri = new ExtUri(() => true);
 			}());
 			reg.defineInstance(IAutomationService, automationService);
+			reg.defineInstance(IRemoteAgentHostService, remoteAgentHostService);
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
 			reg.defineInstance(IAgentPluginService, agentPluginService);
