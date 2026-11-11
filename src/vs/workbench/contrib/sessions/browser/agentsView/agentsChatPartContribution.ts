@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
@@ -77,6 +78,8 @@ export class AgentsChatPartContribution extends Disposable {
 			}
 			const restored = restoreAgentsChatPart(layoutService, contextKeyService, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)));
 			visible.set(layoutService.isVisible(Parts.CHAT_PART));
+			// Its folder location provider, and the return from a session's location as AI features are disabled
+			instantiationService.invokeFunction(accessor => accessor.get(IAgentsViewFolderLocationService));
 			return restored;
 		}).catch(onUnexpectedError);
 	}
