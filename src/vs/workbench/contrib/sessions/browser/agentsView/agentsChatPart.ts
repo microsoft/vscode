@@ -8,7 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -169,7 +169,6 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		return composer && { draftHost: composer, session: composer.session };
 	});
 	readonly active: IObservable<boolean>;
-	readonly scopeFolders: IObservable<readonly URI[]>;
 
 	private readonly _attachedViews: ChatEditorContent[] = [];
 	private readonly _view = observableValue<ChatEditorContent | undefined>(this, undefined);
@@ -187,12 +186,9 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
-		// The window's folders, which the Sessions view scopes its list to: the chat offers to switch to a session's folder outside them
-		this.scopeFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
 		this.content = derived(this, reader => {
 			const shown = this._composerModel.read(reader) ? this._composerShown.read(reader) : this._shown.read(reader);
 			return shown && this._contentOf(shown);

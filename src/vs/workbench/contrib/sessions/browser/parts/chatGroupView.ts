@@ -26,7 +26,6 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { SessionFolderBanner } from './sessionFolderBanner.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
@@ -129,8 +128,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _surface: HTMLElement;
 	private readonly _barContainer: HTMLElement;
 	private readonly _readOnlyBanner: SessionReadOnlyBanner;
-	/** Offers to switch to the folder of a session outside the host's workspace, for a host with {@link ISessionViewHostOptions.scopeFolders}. */
-	private readonly _folderBanner: SessionFolderBanner | undefined;
 	private readonly _contentContainer: HTMLElement;
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
@@ -180,8 +177,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _sessionActive = true;
 	/** Whether this group's session is currently visible in the sessions part. */
 	private _sessionVisible = true;
-	/** {@link _sessionVisible}, for what only the shown chat computes, such as its {@link _folderBanner}. */
-	private readonly _sessionVisibleObservable = observableValue<boolean>(this, true);
 	private _sessionPartVisible = true;
 	/** Whether this is the first group in the chat grid's logical order. */
 	private _primary = false;
@@ -246,7 +241,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		// active chat is non-interactive or its remote host is unavailable.
 		this._readOnlyBanner = this._register(this._instantiationService.createInstance(SessionReadOnlyBanner));
 		append(this._barContainer, this._readOnlyBanner.domNode);
-		this._folderBanner = _hostOptions?.scopeFolders ? this._instantiationService.createInstance(SessionFolderBanner, _hostOptions.scopeFolders) : undefined;
 
 		this._contentContainer = append(this._surface, $('.chat-group-view-content'));
 		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
@@ -393,7 +387,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			return { archived: false, content: { message: localize('sessionReadOnlyBanner.message', "This chat is read-only") } };
 		});
 
-		const folderBanner = this._folderBanner?.getContent(context.session, this._sessionVisibleObservable);
 		const surface = derived<IChatGroupSurface>(reader => {
 			const view = currentView.read(reader);
 			const historyStatus = view?.historyStatus.read(reader);
@@ -431,10 +424,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return { banner: { icon: Codicon.sync, message: localize('sessionReadOnlyBanner.preparing', "Preparing the session...") }, recovery: undefined };
 			}
 
-			if (!transcriptSettled || view?.isInputBlocked.read(reader)) {
-				return { banner: undefined, recovery: undefined };
-			}
-			return { banner: readOnly?.content ?? folderBanner?.read(reader), recovery: undefined };
+			return { banner: !transcriptSettled || view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
@@ -539,7 +529,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			return;
 		}
 		this._sessionVisible = visible;
-		this._sessionVisibleObservable.set(visible, undefined);
 		this._sessionPartVisible = partVisible;
 		this._currentView.value?.setVisible(visible);
 		this._updateSessionActivityBarActive();
