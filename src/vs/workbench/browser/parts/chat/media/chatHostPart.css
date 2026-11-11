@@ -25,3 +25,12 @@
 .monaco-workbench.floating-panels.modern-ui-compact .part.chat {
 	border-radius: 0;
 }
+
+/*
+ * The part reserves the margins of its card itself, as the other cards do (`ChatHostPart.layout`). The editor part it shows
+ * is not the main editor: it takes none of the main editor's card margins (`floatingPanels.css`), which would double the
+ * gap to the card beside it and move its top and bottom edges off those of the cards beside it.
+ */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.chat > .content .part.editor {
+	margin: 0;
+}
