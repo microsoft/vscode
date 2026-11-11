@@ -39,7 +39,7 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from './contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, isWorkspacelessQuickChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getCanvasReferenceKey } from '../../../common/canvasReference.js';
 import { IPaneViewState } from '../../../services/sessions/common/sessionPane.js';
@@ -218,7 +218,7 @@ export function setHostSessionContextKeys(session: ISession | undefined, chat: I
 		keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
 		const mainChat = session?.mainChat?.read(reader);
 		const isMainChat = mainChat && focusedChat && isEqual(mainChat.resource, focusedChat.resource);
-		const cachedFiles = activeChatStats === undefined && isMainChat && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
+		const cachedFiles = activeChatStats === undefined && isMainChat && session && !isWorkspacelessQuickChat(session, focusedChat, reader) ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
 		keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
 		// Count committed (non-draft) chats: untitled in-composer drafts are excluded
@@ -261,6 +261,7 @@ export function setHostSessionContextKeys(session: ISession | undefined, chat: I
 		const workspace = activeChat?.workspace.read(reader);
 		keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 		keys.hasWorkspace.set(!!workspace?.label);
+		keys.isQuickChat.set(!!session && isWorkspacelessQuickChat(session, activeChat, reader));
 
 		const allChats = session?.chats.read(reader) ?? [];
 		keys.activeChatHasSideChats.set(!!activeChat && allChats.some(chat => isSideChatOf(chat, activeChat.resource)));

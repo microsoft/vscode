@@ -81,6 +81,10 @@ A descriptor may define:
 
 Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 
+Copilot-owned plugin activation is authoritative in the runtime. Global inventory supplies persisted enablement; an initialized chat supplies effective repository enablement. Legacy workbench and Agent Host plugin overrides do not layer over those decisions. Global installation controls use runtime mutations without mirroring local storage. Contextual plugin actions offer global and repository scopes, never session-only activation, and preserve the owning backend session and advertised chat identities. Hosts without the optional plugin-management capability remain read-only; other plugin providers and standalone MCP enablement retain their existing ownership.
+
+Local Copilot plugin discovery uses the runtime inventory for installation identities, content URIs, and activation, including when the runtime uses a non-default home. It does not read or watch the runtime's installation settings. Harness-published session customization changes and host restarts refresh inventory; the local management proxy does not synthesize installation notifications. The host supplies a shared content revision through inventory and customization metadata, stable across activation changes, so discovery retains loaded entries until content changes. Local file reads are limited to the reported plugin content. Session-free customization management remains a separate concern.
+
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 
 ### Customization sources
@@ -107,9 +111,13 @@ source providers
 
 Section counts and rendered rows consume the same filtered model so hidden or disabled sources cannot appear in one surface but not the other.
 
+Controls belonging to an unfocused chat use a disposable session-scoped items model over the same discovery and filtering pipeline. Reading their counts and section links must not retarget the window's active customization harness.
+
 Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 
 Host-published MCP items retain the runtime-reported configuration source through typed metadata and the shared item contract, independently of lifecycle state or the availability of a local configuration definition. `IAgentHostMcpServer.skillBundle` carries the raw skill-bundle identity and listed child count for effectively enabled MCP containers, allowing navigation from MCP rows to the same bundle in Skills without interpreting scoped server IDs.
+
+Internal item actions may expose a checked state for an inline enablement toggle. The provider owns its state, availability, explanation, and mutation; the shared UI does not infer harness capabilities from action labels or plugin provenance.
 
 The home page shows the original Overview until the default-off marketplace visibility flag and at least one marketplace source are enabled; it then shows unified Discover. With Marketplace visibility off, the legacy MCP and Plugin Available sections remain available. Switching surfaces disposes the previous surface and restores the current visible sections and harness context. Discover normalizes installed item-bearing sections from their existing owners and uses the platform `ICustomizationMarketplaceService` as its available catalog source. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install. The UI and installation consumers depend on source-neutral contracts, not individual catalog backends. Marketplace-backed installation state and reversible install, repair, or uninstall operations remain owned by `ICustomizationMarketplaceInstallService`.
 

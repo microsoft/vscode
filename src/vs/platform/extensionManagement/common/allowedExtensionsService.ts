@@ -61,7 +61,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		if (entries.length === 1 && entries[0][0] === '*' && entries[0][1] === true) {
 			return undefined;
 		}
-		return Object.fromEntries(entries);
+		return Object.assign(Object.create(null), Object.fromEntries(entries));
 	}
 
 	isAllowed(extension: IGalleryExtension | IExtension | { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString {

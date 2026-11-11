@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -28,6 +28,7 @@ import { ParallelTasksTourContribution } from '../../browser/parallelTasksTourCo
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
 import { createParallelTasksTour, PARALLEL_TASKS_ONBOARDING_SEEN_KEY, PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 suite('ParallelTasksTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,7 +48,7 @@ suite('ParallelTasksTour', () => {
 		return { session, status, isCreated, isArchived, isAutomation };
 	}
 
-	function createHarness(sessionCount = 1) {
+	function createHarness(sessionCount = 1, hostKind = SessionHostKind.MainWindow) {
 		const storage = disposables.add(new InMemoryStorageService());
 		const usage = new AgentsWindowUsage(storage);
 		for (let i = 0; i < sessionCount; i++) {
@@ -64,7 +65,9 @@ suite('ParallelTasksTour', () => {
 				readonly activeSession = activeSession;
 				override readonly initialRestoreComplete = initialRestoreComplete;
 			}(),
-			focusedSessionHostServiceOf(activeSession),
+			hostKind === SessionHostKind.MainWindow
+				? focusedSessionHostServiceOf(activeSession)
+				: upcastPartial<IFocusedSessionHostService>({ focusedHost: constObservable(upcastPartial<ISessionHost>({ kind: hostKind, session: activeSession })) }),
 			storage,
 			new class extends mock<IViewsService>() { }(),
 		));
@@ -158,6 +161,14 @@ suite('ParallelTasksTour', () => {
 			assert.deepStrictEqual({ beforeDelay, afterDelay: triggered() }, { beforeDelay: false, afterDelay: sessionCount < 3 });
 		}));
 	}
+
+	test('does not trigger for a session started in a chat window, whose sessions list is the main window\'s', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { start, triggered } = createHarness(0, SessionHostKind.ChatWindow);
+		start(createSession().session);
+		await timeout(1_500);
+
+		assert.strictEqual(triggered(), false);
+	}));
 
 	test('does not trigger before a user starts a session or for restored sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { activeSession, triggered } = createHarness(0);

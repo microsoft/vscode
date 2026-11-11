@@ -223,6 +223,45 @@ suite('SessionChangesService', () => {
 		});
 	});
 
+	test('selects the changeset on the chat its editor names, also while only another chat of its session shows', async () => {
+		const selections: { readonly changesetId: string | undefined; readonly chat: string | undefined }[] = [];
+		const sessionResource = URI.parse('agent-host:test-session');
+		const shownChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/shown') });
+		const namedChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/named') });
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(shownChat), chats: constObservable([shownChat, namedChat]) });
+		const sessionsService = new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
+			readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([session]);
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
+			override setChangesetId(changesetId: string | undefined, _session?: ITestSessionWithChat, chat?: IChat): void {
+				selections.push({ changesetId, chat: chat?.resource.toString() });
+			}
+		}();
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() { override async openEditor(): Promise<undefined> { return undefined; } }(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
+			changesViewService,
+			...hostsOf(disposables, sessionsService),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
+
+		await service.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID }, chatResource: namedChat.resource });
+		await service.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: UNCOMMITTED_CHANGES_CHANGESET_ID } });
+
+		assert.deepStrictEqual(selections, [
+			{ changesetId: TURN_CHANGES_CHANGESET_ID, chat: namedChat.resource.toString() },
+			{ changesetId: UNCOMMITTED_CHANGES_CHANGESET_ID, chat: shownChat.resource.toString() },
+		]);
+	});
+
 	test('does not select a changeset on the active session when the target session is not shown', async () => {
 		const selections: object[] = [];
 		const changesViewService = new class extends mock<IChangesViewService>() {

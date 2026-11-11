@@ -68,9 +68,9 @@ export const SessionsChatBackgroundAvailableContext = new RawContextKey<boolean>
 export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<boolean>('sessionWorktreeCleanupEditorFocused', false, localize('sessionWorktreeCleanupEditorFocused', "Whether the Open worktree cleanup editor is focused"));
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
-export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
+export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat, or, where a chat of the session is shown, whether that chat is one; a chat of a quick chat that works in a folder of its own is not"));
 
-/** Whether the session in scope has a workspace, as the Changes and Files tabs of a chat window need. */
+/** Whether the chat in scope has a workspace, as the Changes and Files tabs of a chat window need. */
 export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
 
 //#endregion
@@ -113,6 +113,13 @@ export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessi
  * no operation, yet is exactly when Agent Merge has work to do.
  */
 export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
+
+/**
+ * Whether artifact integrations apply to the active session: they are enabled
+ * and its provider supports them. Pull request actions that a recorded pull
+ * request artifact offers, such as Fix Checks or Merge, are then left to it.
+ */
+export const SessionArtifactIntegrationsEnabledContext = new RawContextKey<boolean>('sessionArtifactIntegrationsEnabled', false, localize('sessionArtifactIntegrationsEnabled', "Whether artifact integrations are enabled and supported for the active session"));
 
 //#endregion
 

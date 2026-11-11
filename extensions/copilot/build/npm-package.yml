@@ -44,11 +44,13 @@ extends:
               NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
         testPlatforms:
           - name: Linux
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
+            # chat-lib is consumed by other products, which don't share our GLIBC requirements.
+            useSysroot: false
           - name: MacOS
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
           - name: Windows
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
         workingDirectory: extensions/copilot/chat-lib
         testSteps:
           - template: extensions/copilot/build/steps/test-chat-lib.yml@self

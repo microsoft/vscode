@@ -17,7 +17,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -73,6 +73,7 @@ import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/
 import { CIStatusWidget } from './checksWidget.js';
 import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -84,7 +85,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../sessions/browser/fixCIChecks.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../sessions/providers/agentHost/browser/agentHostSkillButtons.js';
-import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -92,7 +93,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../sessions/common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesEditorScope, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../sessions/common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../browser/changesStatsWidget.js';
 import { Menus } from '../../sessions/browser/menus.js';
@@ -152,6 +153,35 @@ export function createChangesSessionScope(changesViewService: IChangesViewServic
 	const isMainWindow = windowHost.kind === SessionHostKind.MainWindow;
 	const { session, chat } = windowHost;
 	return { session, chat, isMainWindow, hostCommandContext: windowHost.commandContext, changes: isMainWindow ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session, chat) };
+}
+
+/**
+ * The scope of a Changes editor that shows the changes of `source`. Outside the main window, one that names a chat is the scope
+ * of that chat, as are its diffs, whichever chat its window shows; otherwise it is the scope of the window of `host`.
+ */
+export function createChangesEditorScope(changesViewService: IChangesViewService, sessionsManagementService: ISessionsManagementService, host: ISessionHost, source: IObservable<{ readonly session: URI; readonly chat: URI | undefined } | undefined>): IChangesSessionScope {
+	const windowHost = getWindowHost(host);
+	if (windowHost.kind === SessionHostKind.MainWindow) {
+		return createChangesSessionScope(changesViewService, host);
+	}
+	const sessionsChanged = observableSignalFromEvent('changesEditorScope.sessions', sessionsManagementService.onDidChangeSessions);
+	const named = derived(reader => {
+		const value = source.read(reader);
+		if (!value?.chat) {
+			return undefined;
+		}
+		sessionsChanged.read(reader);
+		return { session: sessionsManagementService.getSession(value.session), chat: value.chat };
+	});
+	const session = derived(reader => {
+		const value = named.read(reader);
+		return value ? value.session : windowHost.session.read(reader);
+	});
+	const chat = derived(reader => {
+		const value = named.read(reader);
+		return value ? value.session?.chats.read(reader).find(candidate => isEqual(candidate.resource, value.chat)) : windowHost.chat.read(reader);
+	});
+	return { session, chat, isMainWindow: false, hostCommandContext: windowHost.commandContext, changes: changesViewService.getSessionChanges(session, chat) };
 }
 
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
@@ -319,6 +349,10 @@ export function isChangesActionsWorkspaceReady(session: ISession | undefined, ch
 		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
 }
 
+const AGENT_MERGE_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionAgentMergeEnabledContext.key]);
+const ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionArtifactIntegrationsEnabledContext.key]);
+const CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS: ReadonlySet<string> = new Set([DesktopChangesEditorTransitionContext.key]);
+
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _buttonBar: WorkbenchButtonBar;
@@ -393,9 +427,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			));
 		});
 
-		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
+		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(AGENT_MERGE_ENABLED_CONTEXT_KEYS)), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
-		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
+		const artifactIntegrationsEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS)), () =>
+			SessionArtifactIntegrationsEnabledContext.getValue(contextKeyService) === true);
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS)), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
@@ -445,10 +481,15 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			// by the host because the Agent Merge menu keys off them to know it
 			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
 			// Merge is unavailable this state simply offers no button.
+			//
+			// With artifact integrations, the pull request artifact offers the
+			// pull request operations, such as Mark Ready and Merge, instead.
+			const hidesPullRequestOperations = artifactIntegrationsEnabledObs.read(reader);
 			const operations = changes.changesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
 				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
+				.filter(op => !hidesPullRequestOperations || !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))
 				.filter(op => !excludedOperationIds.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
@@ -1341,6 +1382,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getTreePaneMinimumSize(reservedSectionHeight: number): number {
+		if (this.isSizeToContent) {
+			return Math.min(this.getTreePaneDesiredSize(), Math.max(0, this.getSplitViewAvailableHeight() - reservedSectionHeight));
+		}
 		if (this.listContainer?.style.display === 'none') {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
@@ -1368,6 +1412,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getTreePaneMaximumSize(): number {
+		if (this.isSizeToContent) {
+			return this.getTreePaneDesiredSize();
+		}
 		if (this.listContainer?.style.display === 'none') {
 			return Number.POSITIVE_INFINITY;
 		}
@@ -1377,6 +1424,18 @@ export class ChangesViewPane extends ViewPane {
 
 	private fireTreePaneSizeChange(): void {
 		this.treePaneSizeChange.fire(undefined);
+		this._onDidChangeOptimalHeight.fire();
+	}
+
+	protected override getOptimalBodyHeight(): number | undefined {
+		if (!this.tree || this.tree.contentHeight === 0 && this.changesViewService.activeSessionChangesetLoadingObs.get()) {
+			return undefined;
+		}
+		const checksHeight = this.ciStatusWidget?.visible
+			? this.ciStatusWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget.desiredHeight)
+			: 0;
+		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
+		return this.getTreePaneDesiredSize() + checksHeight + (this.isSizeToContent ? 0 : 16) + actionsHeight + (actionsHeight > 0 ? 8 : 0);
 	}
 
 	/** Compute the height available to the SplitView within the body. */
@@ -1385,7 +1444,7 @@ export class ChangesViewPane extends ViewPane {
 		if (bodyHeight <= 0) {
 			return 0;
 		}
-		const bodyPadding = 16;
+		const bodyPadding = this.isSizeToContent ? 0 : 16;
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
 		const actionsMargin = actionsHeight > 0 ? 8 : 0;
 		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
@@ -2222,6 +2281,8 @@ export class ChangesPickerSummary extends Disposable {
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
+	/** Whether the Changes editor of this picker does not show the changes its summary is of yet. */
+	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
 	private _container: HTMLElement | undefined;
@@ -2237,6 +2298,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChangesEditorScope editorScope: IChangesEditorScope,
 	) {
 		// Without an explicit scope the picker follows the active session.
 		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
@@ -2288,13 +2350,16 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			return changesets?.some(changeset => changeset.isEnabled.read(reader)) ?? false;
 		});
 
+		const changesPendingObs = this._changesPendingObs = editorScope.changesPendingObs ?? constObservable(false);
+		// Stats of other changes must not show over the editor's diffs, nor be announced, while it does not show these.
 		this._summaryObs = this._summary
-			? changes.changesSummaryObs
+			? derived(reader => changesPendingObs.read(reader) ? undefined : changes.changesSummaryObs.read(reader))
 			: undefined;
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
 			this._summaryObs?.read(reader);
 			const pickerEnabled = this._pickerEnabledObs.read(reader);
+			this._container?.classList.toggle('changes-pending', changesPendingObs.read(reader));
 
 			if (this.element) {
 				this.updatePickerLabel();
@@ -2315,6 +2380,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		container.classList.add('changes-picker-action-rich');
 		container.classList.toggle('changes-picker-action-with-summary', !!this._summary);
+		container.classList.toggle('changes-pending', this._changesPendingObs.get());
 		this.updateAvailability(this._pickerEnabledObs.get());
 	}
 

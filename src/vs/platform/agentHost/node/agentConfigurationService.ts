@@ -17,13 +17,14 @@ import { AgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema, readAgentMergeInjectedConfiguration, withoutAgentMergeElevation } from '../common/agentMerge.js';
 import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
 import { AgentHostMultipleChatProvidersEnabledEnvVar } from '../common/agentService.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
+import { ISessionSandboxPaths, SESSION_SANDBOX_PATHS_CHANGED } from '../common/sandboxPathGrant.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
@@ -183,6 +184,8 @@ export interface IAgentChatConfigurationSeed extends IDisposable {
  * malformed value in one layer transparently falls back to the next.
  */
 export interface IAgentConfigurationService {
+	/** Effective for this host lifetime; the root value remains the requested value for the next start. */
+	readonly copilotM365EnabledAtStartup: boolean;
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -305,6 +308,10 @@ export interface IAgentConfigurationService {
 	/** Runtime-resolved sandbox floor for this configuration owner. */
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
+	/** Personal filesystem edits loaded from the owning session's durable metadata. */
+	getSessionSandboxPaths(session: ProtocolURI): ISessionSandboxPaths | undefined;
+	/** Publishes a loaded or runtime-approved edit to all live chats, without writing client configuration. */
+	setSessionSandboxPaths(session: ProtocolURI, paths: ISessionSandboxPaths): void;
 	/**
 	 * The applied enablement of the session's own sandbox selection: the default
 	 * chat's applied enablement while it uses the session's selection, else the
@@ -370,9 +377,11 @@ export interface IAgentConfigurationService {
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
+	readonly copilotM365EnabledAtStartup: boolean;
 	private _rootConfigWrite = Promise.resolve();
 	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
+	private readonly _sessionSandboxPaths = new Map<ProtocolURI, ISessionSandboxPaths>();
 	/** Sessions and chats whose sandbox selection a client made last; a policy allowing bypass keeps their `off`. */
 	private readonly _sessionSandboxUserSelections = new Set<ProtocolURI>();
 	private readonly _chatSandboxUserSelections = new Set<ProtocolURI>();
@@ -439,9 +448,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		for (const registration of providerConfigurations) {
 			this.registerProviderConfiguration(registration);
 		}
+		this.copilotM365EnabledAtStartup = this.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled) === true;
 		this._wasChatValuesComplete = this._chatValuesComplete;
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			this._sessionSandboxPolicies.delete(session);
+			this._sessionSandboxPaths.delete(session);
 			this._sessionSandboxUserSelections.delete(session);
 		}));
 		// Reduction precedes the envelope and knows the previous values, so a replacement's removed keys are known too.
@@ -1072,6 +1083,28 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
 		const owner = this.resolveConfigurationOwner(session);
 		return owner === undefined ? undefined : this._sessionSandboxPolicies.get(owner);
+	}
+
+	getSessionSandboxPaths(session: ProtocolURI): ISessionSandboxPaths | undefined {
+		const owner = this.resolveConfigurationOwner(session);
+		return owner === undefined ? undefined : this._sessionSandboxPaths.get(owner);
+	}
+
+	setSessionSandboxPaths(session: ProtocolURI, paths: ISessionSandboxPaths): void {
+		// Retain a cleared live delta so another chat cannot reload stale paths after a failed save.
+		const value = paths.readonlyPaths.length || paths.readwritePaths.length || paths.removedReadonlyPaths.length || this._sessionSandboxPaths.has(session) ? paths : undefined;
+		if (equals(this._sessionSandboxPaths.get(session), value)) {
+			return;
+		}
+		if (value) {
+			this._sessionSandboxPaths.set(session, value);
+		} else {
+			this._sessionSandboxPaths.delete(session);
+		}
+		// Launch may load the owner's paths before its session has been published.
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._onDidChatConfigChange.fire({ session, chat: chat.resource, config: { [SESSION_SANDBOX_PATHS_CHANGED]: paths }, origin: undefined });
+		}
 	}
 
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {

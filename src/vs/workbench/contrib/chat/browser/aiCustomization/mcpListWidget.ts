@@ -59,7 +59,8 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { CustomizationOrganizationPolicyNotice } from './customizationOrganizationPolicy.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -1932,8 +1933,8 @@ function createConnectorMcpEntry(connector: IConnectedCopilotConnectorMcpServer,
 	return {
 		type: 'connector-item',
 		id: `copilot-connector:${connector.id}`,
-		label: connector.serverName,
-		description: localize('mcpServerFromConnector', "Connector: {0}", connector.connector.displayName),
+		label: connector.connector.displayName,
+		description: localize('mcpServerFromConnector', "Connector"),
 		activeSessionServer,
 		connector,
 	};
@@ -2282,6 +2283,9 @@ export class McpListWidget extends Disposable {
 		}));
 		this.discoveryMessage = DOM.append(this.sectionTitleHeader, $('p.section-title-description.mcp-discovery-message', { role: 'status' }));
 		this.discoveryMessage.style.display = 'none';
+		const organizationPolicyNotice = this._register(this.instantiationService.createInstance(CustomizationOrganizationPolicyNotice));
+		this.sectionTitleHeader.appendChild(organizationPolicyNotice.element);
+		organizationPolicyNotice.setSection(AICustomizationManagementSection.McpServers);
 
 		// Re-layout when the header height changes so the list's allotted
 		// height stays in sync with the actual on-screen header size. Only
@@ -2417,7 +2421,7 @@ export class McpListWidget extends Disposable {
 							return getCustomizationGroupAriaLabel(entry.label, entry.count, entry.description);
 						}
 						return entry.type === 'connector-item'
-							? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
+							? localize('connectorMcpServerAriaLabel', "{0}. Connector.", entry.label)
 							: entry.type === 'marketplace-item'
 								? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
 								: this.getMcpEntryAriaLabel(entry);
@@ -3002,7 +3006,7 @@ export class McpListWidget extends Disposable {
 					installedKeys.add(key.toLowerCase());
 				}
 			} else if (entry.type === 'builtin-item' || entry.type === 'connector-item') {
-				installedKeys.add(entry.label.toLowerCase());
+				installedKeys.add((entry.type === 'connector-item' ? entry.connector.serverName : entry.label).toLowerCase());
 				if (entry.localServer) {
 					for (const key of getRuntimeServerMatchKeys(entry.localServer)) {
 						installedKeys.add(key.toLowerCase());
@@ -3777,7 +3781,7 @@ export class McpListWidget extends Disposable {
 				case 'builtin-item':
 					return entry.label === serverName;
 				case 'connector-item':
-					return entry.label === serverName || entry.connector.connector.displayName === serverName;
+					return entry.connector.serverName === serverName || entry.connector.connector.displayName === serverName;
 				case 'provider-item':
 					return entry.name === serverName || entry.label === serverName;
 				case 'group-header':

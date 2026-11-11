@@ -54,14 +54,16 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
@@ -126,6 +128,23 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	test('the title bar leaves Fix Checks and Open Pull Request to the pull request artifact while artifact integrations apply to the session', () => {
+		const fixChecks = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu).filter(isIMenuItem).find(item => item.command.id === FIX_CI_CHECKS_COMMAND_ID)!;
+		const openPullRequest = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.agentSessions.openPullRequest')!;
+		const visible = (artifactIntegrationsEnabled: boolean) => {
+			const context = contextWith({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveSessionContextKeys.HasPullRequest.key]: true,
+				[hasActiveSessionFailedCIChecks.key]: true,
+				[activeSessionCIFixRequested.key]: false,
+				[SessionArtifactIntegrationsEnabledContext.key]: artifactIntegrationsEnabled,
+			});
+			return [fixChecks, openPullRequest].map(item => item.when?.evaluate(context) ?? true);
+		};
+
+		assert.deepStrictEqual({ disabled: visible(false), enabled: visible(true) }, { disabled: [true, true], enabled: [false, false] });
 	});
 
 	suite('Open Changes', () => {
@@ -343,7 +362,7 @@ suite('Changes View Actions', () => {
 		});
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService, new NoChangesEditorScope())).render(container);
 			return container;
 		};
 		const snapshot = (container: HTMLElement) => ({
@@ -395,7 +414,7 @@ suite('Changes View Actions', () => {
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope())).render(container);
 		const snapshot = () => {
 			const label = container.querySelector('.changes-picker-label');
 			return {
@@ -471,7 +490,7 @@ suite('Changes View Actions', () => {
 			override getTooltip(): string {
 				return super.getTooltip();
 			}
-		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
+		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope()));
 		picker.render(container);
 		const snapshot = () => ({
 			label: container.querySelector('.changes-picker-label')?.textContent,
@@ -533,7 +552,7 @@ suite('Changes View Actions', () => {
 		instantiationService.stub(IChangesViewService, changesViewService);
 		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope())).render(container);
 
 		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
 		const snapshot = () => ({
@@ -601,7 +620,7 @@ suite('Changes View Actions', () => {
 			}
 			override hide(): void { }
 		}();
-		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }()));
+		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(), new NoChangesEditorScope()));
 		picker.render(container);
 		picker.show();
 		await items[0].run();
@@ -642,7 +661,7 @@ suite('Changes View Actions', () => {
 		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }(), new NoChangesEditorScope());
 			picker.render(container);
 			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
 		};
@@ -766,9 +785,9 @@ suite('Changes View Actions', () => {
 		const withFileList = render(true);
 		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
 		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
 			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
 		});
 	});
 
@@ -1116,6 +1135,10 @@ suite('Changes View Actions', () => {
 
 	test('Changes accessibility help describes Word Wrap', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
+	});
+
+	test('Changes accessibility help includes the floating Markdown guidance', () => {
+		assert.strictEqual(getChangesAccessibilityHelp().includes('The floating Files widget remains available alongside Markdown Editor and Markdown previews.'), true);
 	});
 
 	test('Changes accessibility help describes Files View and its selection state', () => {

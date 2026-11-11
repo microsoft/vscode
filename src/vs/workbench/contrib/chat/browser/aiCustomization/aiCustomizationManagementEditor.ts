@@ -3974,7 +3974,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!contribution || !container) {
 			return undefined;
 		}
-		const widget = contribution.create(this.instantiationService, container);
+		const widget = contribution.create(this.instantiationService, container, this.group);
 		this.contributedSectionWidgets.set(section, widget);
 		widget.setCloseCustomizationEditor?.(() => this.closeCustomizationEditor());
 		const disposables = new DisposableStore();

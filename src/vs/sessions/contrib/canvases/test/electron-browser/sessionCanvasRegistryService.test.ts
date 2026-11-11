@@ -36,7 +36,7 @@ import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities }
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
-import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
+import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { getCanvasReferenceKey, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
@@ -84,6 +84,7 @@ suite('SessionCanvasRegistryService', () => {
 		const canvasService = upcastPartial<ICanvasService>({
 			enabled,
 			reopenableCanvases: observableValue('reopenableCanvases', []),
+			isOwnerPresentable: (_reference, reader) => enabled.read(reader),
 			revealCanvas: async reference => { revealed.push(reference); },
 			reopenCanvas: async () => { },
 		});
@@ -580,6 +581,53 @@ suite('SessionCanvasRegistryService', () => {
 				canvasId: 'main',
 				instanceId: getSessionCanvasDefinitionInstanceId(definitions[0]),
 			}],
+		});
+	});
+
+	test('lists the focused chat\'s running canvases as Running, open or not and not those of chats other windows show, and opens another one from Available', async () => {
+		const definition: ISessionCanvasDefinition = {
+			canvasId: 'timeline', extensionId: 'user:timeline', extensionSource: 'user',
+			displayName: 'Timeline', description: 'A timeline.', requiresInput: false,
+		};
+		const harness = createHarness([definition]);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const instance = (instanceId: string): ISessionCanvas => ({
+			resource: URI.parse(`agent-host-canvas:/session/${instanceId}`), instanceId, title: 'Timeline',
+			source: URI.parse(`https://example.com/${instanceId}`), extensionId: definition.extensionId, canvasId: definition.canvasId,
+		});
+		const first = instance(getSessionCanvasDefinitionInstanceId(definition));
+		harness.canvases.set([first], undefined);
+		// A chat window shows another chat, whose running canvas the canvas service presents there.
+		const otherWindowChat = {
+			owner: { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/other'), chat: URI.parse('agent-host-chat:/other/main') },
+			canvases: constObservable([{ ...instance('other-window'), title: 'Other Window Canvas' }]),
+		};
+		const contextService = upcastPartial<ICanvasContextService>({
+			contexts: derived(reader => [...harness.contextService.contexts.read(reader), otherWindowChat]),
+		});
+		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, contextService));
+		const getEntries = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith(`${OPEN_SESSION_CANVAS_COMMAND_ID}.`) || item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0));
+		const titles = () => getEntries().map(item => `${item.group}:${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}`);
+		const run = (index: number) => CommandsRegistry.getCommand(getEntries()[index].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
+		const withOne = titles();
+		await run(1);
+		harness.canvases.set([first, instance(harness.opened[0].instanceId), { ...instance('reconnecting'), source: undefined }], undefined);
+		const withTwo = titles();
+		await run(0);
+
+		assert.deepStrictEqual({
+			withOne,
+			opened: harness.opened.map(entry => entry.instanceId),
+			withTwo,
+			revealed: harness.revealed.map(reference => reference.canvas.toString()),
+		}, {
+			withOne: ['1_running:Timeline', '2_available:Timeline'],
+			opened: [`${first.instanceId}-2`],
+			withTwo: ['1_running:Timeline (1)', '1_running:Timeline (2)', '2_available:Timeline'],
+			revealed: [first.resource.toString()],
 		});
 	});
 

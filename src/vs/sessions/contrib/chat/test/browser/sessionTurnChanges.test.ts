@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -19,6 +20,7 @@ import { IChangesViewService } from '../../../../../workbench/contrib/sessions/c
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +30,12 @@ suite('SessionTurnChanges', () => {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 		}();
 	}
+
+	const noChatWindows = new class extends mock<ISessionHostService>() {
+		override getHostOfChat(): ISessionHost | undefined {
+			return undefined;
+		}
+	}();
 
 	test('activates the chat and reveals Last Turn Changes when the Changes editor is hidden or already open', async () => {
 		const chatResource = URI.parse('chat:session');
@@ -91,6 +99,7 @@ suite('SessionTurnChanges', () => {
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
+			noChatWindows,
 		));
 
 		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
@@ -180,6 +189,7 @@ suite('SessionTurnChanges', () => {
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
+			noChatWindows,
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -283,6 +293,7 @@ suite('SessionTurnChanges', () => {
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
+			noChatWindows,
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([]),
@@ -292,6 +303,67 @@ suite('SessionTurnChanges', () => {
 		service.openChangesForRequest(chatResource, 'latest', { isLastTurn: true });
 
 		assert.deepStrictEqual(selections, ['turn:historical', TURN_CHANGES_CHANGESET_ID]);
+	});
+
+	test('opens the Changes editor of the chat a chat window shows, and of the session in the main window', async () => {
+		const chatWindowChat = upcastPartial<IChat>({ resource: URI.parse('chat:nested'), updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')) });
+		const mainWindowChat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), updatedAt: constObservable(new Date('2026-08-13T09:00:00Z')) });
+		const session = upcastPartial<ITestSessionWithChat>({
+			resource: URI.parse('agent-host:session'),
+			providerId: 'local-agent-host',
+			chats: constObservable([mainWindowChat, chatWindowChat]),
+			mainChat: constObservable(mainWindowChat),
+			activeChat: constObservable(chatWindowChat),
+		});
+		const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined });
+		const mainWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined });
+		const opened: object[] = [];
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource(chatResource: URI) {
+					return { session, chat: chatResource.toString() === chatWindowChat.resource.toString() ? chatWindowChat : mainWindowChat };
+				}
+			}(),
+			new class extends mock<ISessionsService>() {
+				override async openChat(): Promise<void> { }
+			}(),
+			focusedSessionHostServiceOf(constObservable<ITestSessionWithChat | undefined>(session)),
+			new class extends mock<ISessionChangesService>() {
+				override async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
+					const selection = options?.changesetSelection;
+					opened.push({
+						sessionResource: sessionResource.toString(),
+						chatResource: options?.chatResource?.toString(),
+						changesetId: selection?.kind === 'transient' ? selection.changeset.id : selection?.id,
+					});
+					return undefined;
+				}
+			}(),
+			new class extends mock<IAgentWorkbenchLayoutService>() {
+				override revealEditorPartExplicitly(): void { }
+			}(),
+			createChangesViewService(),
+			new class extends mock<ISessionHostService>() {
+				override getHostOfChat(chatResource: URI): ISessionHost | undefined {
+					return chatResource.toString() === chatWindowChat.resource.toString() ? chatWindowHost : mainWindowHost;
+				}
+			}(),
+		));
+		disposables.add(service.registerProvider('chat', {
+			getChangesForRequest: () => constObservable([]),
+		}));
+
+		service.openChangesForRequest(chatWindowChat.resource, 'latest', { isLastTurn: true });
+		service.openChangesForRequest(chatWindowChat.resource, 'historical', { isLastTurn: false });
+		service.openChangesForRequest(mainWindowChat.resource, 'latest', { isLastTurn: true });
+		await timeout(0);
+
+		assert.deepStrictEqual(opened, [
+			{ sessionResource: 'agent-host:session', chatResource: 'chat:nested', changesetId: TURN_CHANGES_CHANGESET_ID },
+			{ sessionResource: 'agent-host:session', chatResource: 'chat:nested', changesetId: 'turn:historical' },
+			{ sessionResource: 'agent-host:session', chatResource: undefined, changesetId: TURN_CHANGES_CHANGESET_ID },
+		]);
 	});
 
 	test('selects the chat-owned Last Turn Changes when another chat is more recent', () => {
@@ -357,6 +429,7 @@ suite('SessionTurnChanges', () => {
 				override revealEditorPartExplicitly(): void { }
 			}(),
 			createChangesViewService(),
+			noChatWindows,
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -405,6 +478,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			createChangesViewService(),
+			noChatWindows,
 		));
 		disposables.add(service.registerProvider('test', {
 			getChangesForRequest: () => constObservable([{
@@ -461,6 +535,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IChangesViewService>() {
 				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
 			}(),
+			noChatWindows,
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable(AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES),
@@ -510,6 +585,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			changesViewService,
+			noChatWindows,
 		));
 
 		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
@@ -587,6 +663,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IChangesViewService>() {
 				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
 			}(),
+			noChatWindows,
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -657,6 +734,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IChangesViewService>() {
 				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
 			}(),
+			noChatWindows,
 		));
 
 		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
