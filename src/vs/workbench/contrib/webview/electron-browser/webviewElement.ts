@@ -6,6 +6,7 @@
 import { getWindow } from '../../../../base/browser/dom.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -20,6 +21,7 @@ import { IRemoteAuthorityResolverService } from '../../../../platform/remote/com
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { FindInFrameOptions, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { WebviewInitInfo } from '../browser/webview.js';
 import { WebviewElement } from '../browser/webviewElement.js';
@@ -33,6 +35,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
 
 	private _findStarted: boolean = false;
+	private _findSelectionRetained: boolean = false;
 	private _cachedHtmlContent: string | undefined;
 
 	private readonly _webviewMainService: IWebviewManagerService;
@@ -54,10 +57,11 @@ export class ElectronWebviewElement extends WebviewElement {
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
-			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService);
+			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService, remoteAgentService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
@@ -65,7 +69,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
-				if (this._findStarted && this._cachedHtmlContent !== newContent) {
+				if ((this._findStarted || this._findSelectionRetained) && this._cachedHtmlContent !== newContent) {
 					this.stopFind(false);
 					this._cachedHtmlContent = newContent;
 				}
@@ -78,6 +82,8 @@ export class ElectronWebviewElement extends WebviewElement {
 	}
 
 	override dispose(): void {
+		this.stopFind(false);
+
 		// Make sure keyboard handler knows it closed (#71800)
 		this._webviewKeyboardHandler.didBlur();
 
@@ -112,7 +118,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
+			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options).catch(onUnexpectedError);
 		}
 	}
 
@@ -130,8 +136,8 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._iframeDelayer.trigger(() => {
 			this._findStarted = true;
-			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
-		});
+			return this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
+		}).catch(onUnexpectedError);
 	}
 
 	public override stopFind(keepSelection?: boolean): void {
@@ -139,10 +145,13 @@ export class ElectronWebviewElement extends WebviewElement {
 			return;
 		}
 		this._iframeDelayer.cancel();
+		if (this._findStarted || (this._findSelectionRetained && !keepSelection)) {
+			this._webviewMainService.stopFindInFrame(this.findTarget, this.id, {
+				keepSelection
+			}).catch(onUnexpectedError);
+			this._findSelectionRetained = !!keepSelection;
+		}
 		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame(this.findTarget, this.id, {
-			keepSelection
-		});
 		this._onDidStopFind.fire();
 	}
 

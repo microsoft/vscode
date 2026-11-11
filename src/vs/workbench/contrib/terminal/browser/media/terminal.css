@@ -438,6 +438,16 @@
 	display: none;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label {
+	min-width: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-description-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
 	vertical-align: text-bottom;
 }
@@ -446,11 +456,24 @@
 	display: none;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-label-container {
+	display: flex;
+	align-items: center;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-name-container {
+	flex-shrink: 0;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+/* There is not enough room for the icon next to the input box when tabs only show icons */
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .tabs-list .editable-tab .monaco-icon-name-container,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-description-container {
 	display: none;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-inputbox {
+	flex: 1;
 	min-width: 0;
 	width: 100%;
 	box-sizing: border-box;

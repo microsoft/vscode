@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RELAY_ACTIVITY_INTERVAL_MS } from '../../common/relayActivity.js';
 import {
 	TUNNEL_STEP_TIMEOUT_MS,
 	TunnelAgentHostConnector,
@@ -75,6 +78,7 @@ class FakeRelayClient implements ITunnelRelayClient {
 
 class FakeSocket implements ITunnelMessageSocket {
 	private readonly _onDidReceiveMessage = new Emitter<string>();
+	private readonly _onDidReceiveData = new Emitter<void>();
 	private readonly _onDidClose = new Emitter<ITunnelSocketCloseEvent>();
 	private readonly _queuedMessages: string[];
 
@@ -90,6 +94,7 @@ class FakeSocket implements ITunnelMessageSocket {
 		}
 		return disposable;
 	};
+	readonly onDidReceiveData = this._onDidReceiveData.event;
 	readonly onDidClose = this._onDidClose.event;
 	closeCalls = 0;
 	disposeCalls = 0;
@@ -105,6 +110,14 @@ class FakeSocket implements ITunnelMessageSocket {
 		this.closeCalls++;
 	}
 
+	fireMessage(message: string): void {
+		this._onDidReceiveMessage.fire(message);
+	}
+
+	fireData(): void {
+		this._onDidReceiveData.fire();
+	}
+
 	fireClose(event: ITunnelSocketCloseEvent): void {
 		this._onDidClose.fire(event);
 	}
@@ -112,6 +125,7 @@ class FakeSocket implements ITunnelMessageSocket {
 	dispose(): void {
 		this.disposeCalls++;
 		this._onDidReceiveMessage.dispose();
+		this._onDidReceiveData.dispose();
 		this._onDidClose.dispose();
 	}
 }
@@ -175,7 +189,7 @@ function createConnector(tunnel: ITunnelDescriptor, relayClient: FakeRelayClient
 }
 
 suite('TunnelAgentHostConnector', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('derives the same base64url tokens as Node crypto, including a leading dash', async () => {
 		const inputs = ['tunnel-1', 'hello', 'leading-dash-58'];
@@ -191,42 +205,35 @@ suite('TunnelAgentHostConnector', () => {
 		const failure = new Error('Relay authorization rejected');
 		const pending = new DeferredPromise<void>();
 		const relay = new FakeRelayClient(pending.p);
-		const socket = new FakeSocket();
+		const socket = store.add(new FakeSocket());
 		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, relay, new FakeSocketFactory(socket));
-		try {
-			const connect = connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
-			const rejected = assert.rejects(connect, error => error === failure);
-			await pending.error(failure);
-			await rejected;
-			assert.deepStrictEqual({
-				phases: events.map(event => `${event.phase}:${event.outcome}`),
-				error: events.at(-1)?.error?.message,
-				disposed: relay.disposeCalls,
-				tokenLeaked: JSON.stringify(events).includes('private-token'),
-			}, {
-				phases: ['tunnel.lookup:started', 'tunnel.lookup:succeeded', 'relay.create:started', 'relay.create:succeeded', 'relay.connect:started', 'relay.connect:failed'],
-				error: 'Relay authorization rejected',
-				disposed: 1,
-				tokenLeaked: false,
-			});
-		} finally {
-			connector.dispose();
-			socket.dispose();
-		}
+		store.add(toDisposable(() => connector.dispose()));
+		const connect = connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+		const rejected = assert.rejects(connect, error => error === failure);
+		await pending.error(failure);
+		await rejected;
+		assert.deepStrictEqual({
+			phases: events.map(event => `${event.phase}:${event.outcome}`),
+			error: events.at(-1)?.error?.message,
+			disposed: relay.disposeCalls,
+			tokenLeaked: JSON.stringify(events).includes('private-token'),
+		}, {
+			phases: ['tunnel.lookup:started', 'tunnel.lookup:succeeded', 'relay.create:started', 'relay.create:succeeded', 'relay.connect:started', 'relay.connect:failed'],
+			error: 'Relay authorization rejected',
+			disposed: 1,
+			tokenLeaked: false,
+		});
 	});
 
 	test('captures observed relay close code and redacts its reason', async () => {
 		const events: IConnectionDiagnosticEvent[] = [];
 		const socket = new FakeSocket();
 		const { connector } = createConnector({ tunnelId: 'test', clusterId: 'cluster', labels: ['protocolv5'] }, new FakeRelayClient(), new FakeSocketFactory(socket));
-		try {
-			await connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
-			socket.fireClose({ code: 1011, reason: 'token=private-value' });
-			const close = events.find(event => event.phase === 'relay.closed');
-			assert.deepStrictEqual({ detail: close?.detail, outcome: close?.outcome }, { detail: 'code=1011; reason=token=[redacted]', outcome: 'info' });
-		} finally {
-			connector.dispose();
-		}
+		store.add(toDisposable(() => connector.dispose()));
+		await connector.connect('private-token', 'github', 'test', 'cluster', event => events.push(event));
+		socket.fireClose({ code: 1011, reason: 'token=private-value' });
+		const close = events.find(event => event.phase === 'relay.closed');
+		assert.deepStrictEqual({ detail: close?.detail, outcome: close?.outcome }, { detail: 'code=1011; reason=token=[redacted]', outcome: 'info' });
 	});
 
 	test('uses the legacy root route for v5 and the gateway route for v6', async () => {
@@ -247,32 +254,31 @@ suite('TunnelAgentHostConnector', () => {
 			gatewaySocketFactory,
 		);
 
-		try {
-			const [legacy, gateway, legacyConnection] = await Promise.all([
-				legacyConnector.prepareSelection('token', 'github', 'legacy', 'cluster'),
-				gatewayConnector.prepareSelection('token', 'github', 'gateway', 'cluster'),
-				legacyConnector.connect('token', 'github', 'legacy', 'cluster'),
-			]);
-			assert.deepStrictEqual({
-				legacy,
-				legacyRelayCreations: legacyFactory.createRelayClientCalls,
-				legacySocketPaths: legacySocketFactory.paths,
-				gatewayInventory: gateway?.inventory,
-				gatewayRelayCreations: gatewayFactory.createRelayClientCalls,
-				gatewaySocketPaths: gatewaySocketFactory.paths,
-			}, {
-				legacy: undefined,
-				legacyRelayCreations: 1,
-				legacySocketPaths: ['/?tkn=xJ_qdCX6f4aZiXqXwVnGaQJn2QA7t4xT-vqPwVwyXYQ'],
-				gatewayInventory: { userDataPath: '/data', endpoints: [] },
-				gatewayRelayCreations: 1,
-				gatewaySocketPaths: ['/agent-host/select'],
-			});
-			await legacyConnector.disconnect(legacyConnection.connectionId);
-		} finally {
+		store.add(toDisposable(() => {
 			legacyConnector.dispose();
 			gatewayConnector.dispose();
-		}
+		}));
+		const [legacy, gateway, legacyConnection] = await Promise.all([
+			legacyConnector.prepareSelection('token', 'github', 'legacy', 'cluster'),
+			gatewayConnector.prepareSelection('token', 'github', 'gateway', 'cluster'),
+			legacyConnector.connect('token', 'github', 'legacy', 'cluster'),
+		]);
+		assert.deepStrictEqual({
+			legacy,
+			legacyRelayCreations: legacyFactory.createRelayClientCalls,
+			legacySocketPaths: legacySocketFactory.paths,
+			gatewayInventory: gateway?.inventory,
+			gatewayRelayCreations: gatewayFactory.createRelayClientCalls,
+			gatewaySocketPaths: gatewaySocketFactory.paths,
+		}, {
+			legacy: undefined,
+			legacyRelayCreations: 1,
+			legacySocketPaths: ['/?tkn=xJ_qdCX6f4aZiXqXwVnGaQJn2QA7t4xT-vqPwVwyXYQ'],
+			gatewayInventory: { userDataPath: '/data', endpoints: [] },
+			gatewayRelayCreations: 1,
+			gatewaySocketPaths: ['/agent-host/select'],
+		});
+		await legacyConnector.disconnect(legacyConnection.connectionId);
 	});
 
 	test('times out a relay step and disposes the relay client', async () => {
@@ -309,15 +315,12 @@ suite('TunnelAgentHostConnector', () => {
 			relayClient,
 			new FakeSocketFactory(new Error('socket open failed')),
 		);
-		try {
-			await assert.rejects(
-				() => connector.connect('token', 'github', 'socket-failure', 'cluster'),
-				/socket open failed/,
-			);
-			assert.strictEqual(relayClient.disposeCalls, 1);
-		} finally {
-			connector.dispose();
-		}
+		store.add(toDisposable(() => connector.dispose()));
+		await assert.rejects(
+			() => connector.connect('token', 'github', 'socket-failure', 'cluster'),
+			/socket open failed/,
+		);
+		assert.strictEqual(relayClient.disposeCalls, 1);
 	});
 
 	test('disposes active tunnel connections when the connector is disposed', async () => {
@@ -352,22 +355,19 @@ suite('TunnelAgentHostConnector', () => {
 			new FakeSocketFactory(socket),
 			logService,
 		);
-		try {
-			const { connectionId } = await connector.connect('token', 'github', 'failed', 'cluster');
-			logService.infoMessages.length = 0;
-			const error = new Error('WebSocket frame payload length 104857601 exceeds the configured limit of 104857600.');
-			socket.fireClose({ error });
+		store.add(toDisposable(() => connector.dispose()));
+		const { connectionId } = await connector.connect('token', 'github', 'failed', 'cluster');
+		logService.infoMessages.length = 0;
+		const error = new Error('WebSocket frame payload length 104857601 exceeds the configured limit of 104857600.');
+		socket.fireClose({ error });
 
-			assert.deepStrictEqual({
-				info: logService.infoMessages,
-				warn: logService.warnMessages,
-			}, {
-				info: [],
-				warn: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=undefined, reason=(empty), error=${error.message}`],
-			});
-		} finally {
-			connector.dispose();
-		}
+		assert.deepStrictEqual({
+			info: logService.infoMessages,
+			warn: logService.warnMessages,
+		}, {
+			info: [],
+			warn: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=undefined, reason=(empty), error=${error.message}`],
+		});
 	});
 
 	test('logs normal relay socket closes without a warning', async () => {
@@ -379,21 +379,46 @@ suite('TunnelAgentHostConnector', () => {
 			new FakeSocketFactory(socket),
 			logService,
 		);
-		try {
-			const { connectionId } = await connector.connect('token', 'github', 'closed', 'cluster');
-			logService.infoMessages.length = 0;
-			socket.fireClose({ code: 1000, reason: 'done' });
+		store.add(toDisposable(() => connector.dispose()));
+		const { connectionId } = await connector.connect('token', 'github', 'closed', 'cluster');
+		logService.infoMessages.length = 0;
+		socket.fireClose({ code: 1000, reason: 'done' });
 
-			assert.deepStrictEqual({
-				info: logService.infoMessages,
-				warn: logService.warnMessages,
-			}, {
-				info: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=1000, reason=done`],
-				warn: [],
-			});
-		} finally {
+		assert.deepStrictEqual({
+			info: logService.infoMessages,
+			warn: logService.warnMessages,
+		}, {
+			info: [`[TunnelAgentHost] WebSocket relay closed for connection ${connectionId}; code=1000, reason=done`],
+			warn: [],
+		});
+	});
+
+	test('reports throttled relay activity while a message is still arriving', async () => {
+		const clock = sinon.useFakeTimers();
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'downloading', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+		);
+		store.add(toDisposable(() => {
 			connector.dispose();
+			clock.restore();
+		}));
+		const { connectionId } = await connector.connect('token', 'github', 'downloading', 'cluster');
+		const activity: string[] = [];
+		const listener = connector.onDidRelayActivity(id => activity.push(id));
+
+		// Partial data for 1.5 intervals, then the final chunk, whose message arrives before its data event.
+		for (let chunk = 0; chunk < 3; chunk++) {
+			socket.fireData();
+			clock.tick(RELAY_ACTIVITY_INTERVAL_MS / 2);
 		}
+		socket.fireMessage('{"jsonrpc":"2.0","id":1}');
+		socket.fireData();
+		listener.dispose();
+
+		assert.deepStrictEqual(activity, [connectionId, connectionId]);
 	});
 
 	test('cleans up when the gateway inventory is malformed', async () => {
@@ -404,23 +429,20 @@ suite('TunnelAgentHostConnector', () => {
 			relayClient,
 			new FakeSocketFactory(socket),
 		);
-		try {
-			await assert.rejects(
-				() => connector.prepareSelection('token', 'github', 'bad-inventory', 'cluster'),
-				/invalid "userDataPath"/,
-			);
-			assert.deepStrictEqual({
-				socketCloseCalls: socket.closeCalls,
-				socketDisposeCalls: socket.disposeCalls,
-				relayDisposeCalls: relayClient.disposeCalls,
-			}, {
-				socketCloseCalls: 1,
-				socketDisposeCalls: 1,
-				relayDisposeCalls: 1,
-			});
-		} finally {
-			connector.dispose();
-		}
+		store.add(toDisposable(() => connector.dispose()));
+		await assert.rejects(
+			() => connector.prepareSelection('token', 'github', 'bad-inventory', 'cluster'),
+			/invalid "userDataPath"/,
+		);
+		assert.deepStrictEqual({
+			socketCloseCalls: socket.closeCalls,
+			socketDisposeCalls: socket.disposeCalls,
+			relayDisposeCalls: relayClient.disposeCalls,
+		}, {
+			socketCloseCalls: 1,
+			socketDisposeCalls: 1,
+			relayDisposeCalls: 1,
+		});
 	});
 
 	test('cleans up when the gateway selection acknowledgement is malformed', async () => {
@@ -434,24 +456,21 @@ suite('TunnelAgentHostConnector', () => {
 			relayClient,
 			new FakeSocketFactory(socket),
 		);
-		try {
-			const selection = await connector.prepareSelection('token', 'github', 'bad-ack', 'cluster');
-			await assert.rejects(
-				() => connector.completeSelection(selection!.selectionId, { newDedicated: true }),
-				/not a valid response/,
-			);
-			assert.deepStrictEqual({
-				socketCloseCalls: socket.closeCalls,
-				socketDisposeCalls: socket.disposeCalls,
-				relayDisposeCalls: relayClient.disposeCalls,
-			}, {
-				socketCloseCalls: 1,
-				socketDisposeCalls: 1,
-				relayDisposeCalls: 1,
-			});
-		} finally {
-			connector.dispose();
-		}
+		store.add(toDisposable(() => connector.dispose()));
+		const selection = await connector.prepareSelection('token', 'github', 'bad-ack', 'cluster');
+		await assert.rejects(
+			() => connector.completeSelection(selection!.selectionId, { newDedicated: true }),
+			/not a valid response/,
+		);
+		assert.deepStrictEqual({
+			socketCloseCalls: socket.closeCalls,
+			socketDisposeCalls: socket.disposeCalls,
+			relayDisposeCalls: relayClient.disposeCalls,
+		}, {
+			socketCloseCalls: 1,
+			socketDisposeCalls: 1,
+			relayDisposeCalls: 1,
+		});
 	});
 
 	test('accepts a gateway inventory replayed synchronously by the socket', async () => {
@@ -464,12 +483,9 @@ suite('TunnelAgentHostConnector', () => {
 			relayClient,
 			new FakeSocketFactory(socket),
 		);
-		try {
-			const selection = await connector.prepareSelection('token', 'github', 'sync-inventory', 'cluster');
-			assert.deepStrictEqual(selection?.inventory, { userDataPath: '/data', endpoints: [] });
-			await connector.cancelSelection(selection!.selectionId);
-		} finally {
-			connector.dispose();
-		}
+		store.add(toDisposable(() => connector.dispose()));
+		const selection = await connector.prepareSelection('token', 'github', 'sync-inventory', 'cluster');
+		assert.deepStrictEqual(selection?.inventory, { userDataPath: '/data', endpoints: [] });
+		await connector.cancelSelection(selection!.selectionId);
 	});
 });

@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Action } from '../../../../base/common/actions.js';
 import { dispose, IDisposable } from '../../../../base/common/lifecycle.js';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from '../common/files.js';
+import { VIEWLET_ID, IFilesConfiguration, UndoConfirmLevel } from '../common/files.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IQuickInputService, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
@@ -910,7 +910,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
 
-	const explorerViewId = explorerService.getViewId() ?? VIEW_ID;
+	const explorerViewId = explorerService.getViewId();
 	const wasHidden = !viewsService.isViewVisible(explorerViewId);
 	const view = await viewsService.openView(explorerViewId, true);
 	if (wasHidden) {

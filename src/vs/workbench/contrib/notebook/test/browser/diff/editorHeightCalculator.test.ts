@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,7 +24,7 @@ suite('NotebookDiff EditorHeightCalculator', () => {
 	['Hide Unchanged Regions', 'Show Unchanged Regions'].forEach(suiteTitle => {
 		suite(suiteTitle, () => {
 			const fontInfo: FontInfo = { lineHeight: 18, fontSize: 18 } as FontInfo;
-			let disposables: DisposableStore;
+			const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 			let textModelResolver: ITextModelService;
 			let editorWorkerService: IEditorWorkerService;
 			const original: URI = URI.parse('original');
@@ -46,11 +46,8 @@ suite('NotebookDiff EditorHeightCalculator', () => {
 				return createTextModelWithText(lines.join('\n'));
 			}
 
-			teardown(() => disposables.dispose());
-			ensureNoDisposablesAreLeakedInTestSuite();
 
 			setup(() => {
-				disposables = new DisposableStore();
 				textModelResolver = new class extends mock<ITextModelService>() {
 					override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 						return {

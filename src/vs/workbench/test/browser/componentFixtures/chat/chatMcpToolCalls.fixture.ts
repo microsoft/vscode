@@ -59,7 +59,7 @@ function render(context: ComponentFixtureContext, calls: typeof mixedCalls, prog
 		inputVisible: false,
 		agentHostSession: true,
 		collapseCompletedResponses: false,
-		persistentProgress: progress ? ChatProgressAnimation.Weave : undefined,
+		persistentProgress: progress ? ChatProgressAnimation.Draw : undefined,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
 		messages: [{ user: 'Investigate the issue and check the related tools and documentation.', responseComplete: false }],
 		onRendered: ({ model }) => {

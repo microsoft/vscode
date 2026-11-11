@@ -208,7 +208,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
 			// Tier attribution is needed even when the routing row is hidden.
-			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
+			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, token, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
 			stream = autoRouting.stream;
 			try {
 				// If we need to switch to the base model, this function will handle it

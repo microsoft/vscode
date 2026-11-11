@@ -22,7 +22,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeDoubleQuotes, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escape } from '../../../../../base/common/strings.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 
@@ -80,7 +81,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 			await this.hostService.focus(mainWindow);
 
-			if (await this.shouldBlockInstall(promptType, url)) {
+			if (await this.shouldBlockInstall(promptType, urlString)) {
 				return true;
 			}
 
@@ -117,14 +118,18 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 	}
 
-	private async shouldBlockInstall(promptType: PromptsType, url: URI): Promise<boolean> {
-		let uriLabel = url.toString();
+	private async shouldBlockInstall(promptType: PromptsType, urlString: string): Promise<boolean> {
+		// Show the string that is actually requested: `URI.toString()` reserializes and can move the authority delimiter.
+		let uriLabel = urlString;
 		if (uriLabel.length > 50) {
 			uriLabel = `${uriLabel.substring(0, 35)}...${uriLabel.substring(uriLabel.length - 15)}`;
 		}
 
+		// The label is truncated in the middle, so the full URL is kept in `title`. Both are attacker-controlled: escape them.
+		const uriAttribute = escapeDoubleQuotes(escape(urlString));
+		const uriText = escapeMarkdownSyntaxTokens(escape(uriLabel));
 		const detail = new MarkdownString('', { supportHtml: true });
-		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `[${uriLabel}](${url.toString()})`));
+		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `<a href="${uriAttribute}" title="${uriAttribute}">${uriText}</a>`));
 		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"));
 
 		let message: string;

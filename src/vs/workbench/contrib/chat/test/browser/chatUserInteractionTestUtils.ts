@@ -8,6 +8,7 @@ import { stub } from 'sinon';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -19,6 +20,7 @@ import { IChatUserInteractionOTelService } from '../../browser/chatUserInteracti
 import { IChatUserInteractionTiming } from '../../../../../platform/otel/common/chatUserInteraction.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 
 export function createChatUserInteractionTestHarness(disposables: Pick<DisposableStore, 'add'>) {
 	let now = 100;
@@ -63,6 +65,14 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 	instantiationService.stub(ITelemetryService, {
 		publicLog2: (name: string, data: Record<string, unknown> = {}) => { events.push({ name, data }); },
 	});
+	const languageModels = new Map<string, ILanguageModelChatMetadata>([
+		['model-id', upcastPartial<ILanguageModelChatMetadata>({ vendor: 'copilot' })],
+		['user-model', upcastPartial<ILanguageModelChatMetadata>({ vendor: 'user-vendor' })],
+	]);
+	instantiationService.stub(ILanguageModelsService, {
+		lookupLanguageModel: (modelId: string) => languageModels.get(modelId),
+		getVendors: () => [],
+	});
 	instantiationService.stub(ILogService, {
 		trace: (message: string, ...args: unknown[]) => {
 			logs.push({ message, args });
@@ -86,6 +96,7 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 		const response = upcastPartial<IChatResponseModel>({
 			session: upcastPartial<IChatModel>({
 				sessionResource: resource, onDidDispose: disposed.event,
+				isInputBlocked: constObservable(false),
 				getRequests: () => [upcastPartial<IChatRequestModel>({ id: requestId })],
 			}),
 			requestId,

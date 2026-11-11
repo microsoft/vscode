@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -14,10 +14,11 @@ import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -48,8 +49,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createPluginSession(prefix: string, options: IPluginSessionOptions = {}): Promise<IPluginSession> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-mcp-workspace-${prefix}-`));
-		const plugin = mkdtempSync(join(tmpdir(), `ahp-mcp-plugin-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-mcp-workspace-${prefix}-`));
+		const plugin = createTestDirectory(join(tmpdir(), `ahp-mcp-plugin-${prefix}-`));
 		tempDirs.push(workspace, plugin);
 		const manifestDirectory = config.provider === 'claude' ? '.claude-plugin' : '.plugin';
 		for (const directory of [
@@ -78,7 +79,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				'  process.exit(Number(exitCode));',
 				'});',
 			].join('\n'));
-			const command = [process.execPath, hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
+			// Hook commands need Node, not the Electron renderer's executable and Chromium sandbox.
+			const command = [process.env['npm_node_execpath'] ?? 'node', hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
 				.map(value => JSON.stringify(value))
 				.join(' ');
 			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({
@@ -223,11 +225,27 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		return server;
 	}
 
+	async function materializeDefaultChatWithReadyMcpServer(sessionUri: string, pluginUri: string, turnId: string): Promise<void> {
+		const initialized = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Reply exactly "MCP_READY". Do not call tools.', 2);
+		assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
+		await retry(async () => assert.strictEqual((await mcpServerState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
+	}
+
 	function toolResultTexts(sessionUri: string, turnId: string): readonly string[] {
 		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
-			.filter(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId)
+			.filter(({ envelope, action }) => envelope.channel === defaultChatChannel(sessionUri) && action.turnId === turnId)
 			.map(({ action }) => textFromContent(action.result.content ?? []));
+	}
+
+	function assertProbeToolSucceeded(sessionUri: string, turnId: string): void {
+		assertToolCallCompleteText(context.client, {
+			channel: defaultChatChannel(sessionUri),
+			turnId,
+			toolNames: ['customization_probe_server-customization_probe'],
+			expected: [/MCP_PLUGIN_RESULT/],
+			success: true,
+		});
 	}
 
 	async function waitForHook(hookLog: string | undefined, hookType: NonNullable<IPluginSessionOptions['hookType']>): Promise<string> {
@@ -378,7 +396,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-skill-completion-leading', 'Reply exactly "ready".', 2);
 
 			const completions = await context.client.call<CompletionsResult>('completions', {
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				kind: CompletionItemKind.UserMessage,
 				text: '/E2E',
 				offset: 4,
@@ -394,7 +412,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-skill-completion-whitespace', 'Reply exactly "ready".', 2);
 
 			const completions = await context.client.call<CompletionsResult>('completions', {
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				kind: CompletionItemKind.UserMessage,
 				text: 'Use /E2E',
 				offset: 8,
@@ -468,9 +486,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
 			await pluginState(sessionUri, pluginUri);
-			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-pre-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-pre-tool-ready');
+			const turnId = 'turn-hook-pre-tool';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PreToolUse');
 
+			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(hookContent.includes('customization_probe'));
 		});
 
@@ -478,9 +499,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-post-tool', { hookType: 'PostToolUse' });
 			await pluginState(sessionUri, pluginUri);
-			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-post-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-post-tool-ready');
+			const turnId = 'turn-hook-post-tool';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PostToolUse');
 
+			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
 		});
 
@@ -509,10 +533,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-non-json', { hookType: 'PostToolUse', hookStdout: 'not-json' });
 			await pluginState(sessionUri, pluginUri);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-non-json-ready');
 			const turnId = 'turn-hook-non-json';
 			const result = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 
 			await waitForHook(hookLog, 'PostToolUse');
+			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(result.responseText.includes('MCP_PLUGIN_RESULT'));
 		});
 
@@ -689,14 +715,23 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			const { sessionUri, pluginUri } = await createPluginSession('sampling');
 			await pluginState(sessionUri, pluginUri);
 
+			let sawSamplingConfirmation = false;
 			const result = await driveTurnToCompletion(
 				context.client,
 				sessionUri,
 				'turn-mcp-sampling',
 				'Call customization_sample exactly once. If sampling is cancelled, reply exactly "sampling cancelled".',
 				2,
+				{
+					approveToolCall: action => {
+						const isSampling = action.options?.some(option => option.id === 'allow-sampling-always') === true;
+						sawSamplingConfirmation ||= isSampling;
+						return !isSampling;
+					},
+				},
 			);
 
+			assert.ok(sawSamplingConfirmation);
 			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-sampling').some(text => text.includes('MCP_SAMPLE:The user cancelled the request.')));
 			assert.ok(result.responseText.trim().endsWith('sampling cancelled'));
 		});

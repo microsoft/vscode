@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { getFocusedContextView } from '../../../../base/browser/ui/contextview/contextview.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -39,6 +40,7 @@ import { IExtensionManifest } from '../../../../platform/extensions/common/exten
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IManagedSettingsPresentationService } from '../../../services/configuration/common/managedSettingsPresentation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IEditorProgressService, IProgressRunner } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -144,6 +146,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:experimental',
 		`@tag:${EXP_ASSIGNMENT_SETTING_TAG}`,
 		'@tag:agentMerge',
+		'@tag:chatPermissions',
 		`@tag:${ADVANCED_SETTING_TAG}`,
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
@@ -293,6 +296,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
+		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = this._register(new Delayer(200));
@@ -361,6 +365,18 @@ export class SettingsEditor2 extends EditorPane {
 				this.renderTree();
 			} else if (this.currentSettingsModel) {
 				this.updateElementsByKey(keys);
+			}
+		}));
+
+		this._register(managedSettingsPresentationService.onDidChange(keys => {
+			if (this.currentSettingsModel) {
+				for (const key of keys) {
+					this.settingsTreeModel.value?.updateElementsByName(key);
+					this.searchResultModel?.updateElementsByName(key);
+				}
+				this.searchResultModel?.updateChildren();
+				this.refreshTOCTree();
+				this.renderTree(undefined, true);
 			}
 		}));
 
@@ -1736,12 +1752,9 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// If the context view is focused, delay rendering settings
-		if (this.contextViewFocused()) {
-			// eslint-disable-next-line no-restricted-syntax
-			const element = this.window.document.querySelector('.context-view');
-			if (element) {
-				this.scheduleRefresh(element as HTMLElement, key);
-			}
+		const focusedContextView = getFocusedContextView(this.rootElement.ownerDocument);
+		if (focusedContextView) {
+			this.scheduleRefresh(focusedContextView, key);
 			return;
 		}
 
@@ -1793,14 +1806,10 @@ export class SettingsEditor2 extends EditorPane {
 		return;
 	}
 
-	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
-	}
-
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
 		if (this.isVisible()
 			&& this.settingsTree.hasElement(element)
-			&& (!element.setting.deprecationMessage || element.isConfigured)) {
+			&& (!element.setting.deprecationMessage || element.setting.deprecationMessageShowInSettings || element.isConfigured)) {
 			this.settingsTree.rerender(element);
 		}
 	}

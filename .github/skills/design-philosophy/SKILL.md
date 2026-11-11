@@ -81,6 +81,8 @@ Principles are **evaluative**: each one is a question you can ask of any surface
 
 Chrome should recede until you engage it. A surface carrying a permanent fill, border, or focus ring it hasn't earned is competing with the user's content for attention it doesn't need. The modern look is **restrained**: things reveal themselves *on intent* - hover, focus, interaction - and sit quietly otherwise.
 
+Quiet must not mean invisible or difficult to operate. Preserve discoverable resize/scroll targets, readable operable controls, and visible keyboard focus. Judge the resting appearance alongside how a user finds and acquires the control.
+
 When this is wrong it sounds like *"this is loud at rest / should be quiet until hover"* or *"the focus ring is firing on click"* - a behavioral description, not a color value.
 
 *Carried out by:* [reveal-on-intent behaviors](#reveal-on-intent), [one stroke](#one-stroke), [theme color](#theme-color).
@@ -91,6 +93,8 @@ When this is wrong it sounds like *"this is loud at rest / should be quiet until
 
 Calm UI is generous and soft. Space isn't wasted; it's what lets the eye rest and groups things without drawing a single line. Edges are rounded rather than sharp. When a surface feels boxed-in or busy, the fix is usually more breathing room on the spacing ramp, not smaller content.
 
+Balance breathing room against usable content area in narrow and information-dense layouts. Evaluate spacing through the supported density modes rather than treating more padding as an unconditional improvement.
+
 *Carried out by:* [the spacing ramp](#spacing-ramp), [elevation tiers](#elevation-tiers) (rounded, not sharp).
 
 #### 3. The interface explains itself, plainly and kindly
@@ -99,13 +103,32 @@ Calm UI is generous and soft. Space isn't wasted; it's what lets the eye rest an
 
 The UI should read like a person talking. Prefer a word to a mystery glyph; write in sentence case; keep the tone human. A lone unlabeled icon, or a Title-Cased Marketing Headline, makes the user work harder than they should - never cryptic, never shouting.
 
+Visible purpose and accessible naming are separate requirements. Where a persistent label is needed, a disappearing placeholder or hover is not a substitute; check the control before and after typing and at increased zoom. Gestures also need a discoverable affordance and keyboard alternative: documenting an invisible drag region does not make it understandable.
+
 *Carried out by:* [words & casing](#words-casing).
+
+##### Make unavailable features understandable
+
+Users look for features they have seen in release notes, documentation, or promotion. Silently removing an otherwise relevant option when policy, account entitlement, setup, or version requirements prevent its use makes the product feel broken. Prefer keeping it discoverable but disabled, with a concise, truthful reason and a useful next step.
+
+- Distinguish **blocked by organization policy**, **requires sign-in/upgrade/update**, **not supported here**, and **still loading** using authoritative state; absence from a list alone is not evidence of policy.
+- Reuse existing disabled-row styling and the briefcase indicator for managed policy. Provide a visible reason or independently actionable **Learn why** link; do not make hover the only way to discover the explanation.
+- Presentation must not grant access: block pointer, keyboard, and stale-menu activation while keeping explanatory links operable. Follow the [accessibility guidance](../accessibility/SKILL.md#explaining-unavailable-options).
+- This is not a blanket rule to expose everything. Preserve explicit feature-hiding choices (including disabled AI), unsupported provider capabilities, and unreleased feature gates. Explain unavailable features where they are relevant without inventing support or exposing sensitive policy values.
+
+Reuse these patterns rather than copying entire implementations:
+
+| Surface | Example |
+|---|---|
+| Settings | [Managed-setting indicator and accessible policy text](../../../src/vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators.ts) |
+| Model picker | [Unavailable models with distinct admin, upgrade, and update explanations](../../../src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemPrimitives.ts) |
+| Harness picker | [Availability descriptions and policy help links](../../../src/vs/workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.ts) |
+| Permissions picker | [Shared permission-level policy presentation](../../../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.ts) and [picker integration](../../../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.ts), with [runtime policy boundaries](../policy-and-managed-settings/sdk-runtime-policy.md) |
 
 > **Worked example - a boxed-in toolbar**
 > - **See:** a toolbar sits on a solid filled bar, separator lines between every button, the buttons pushed up against each other.
 > - **Feeling:** not *Calm* - busy and boxed-in.
-> - **Principle:** breaks *Quiet at rest* (the fill and separators are permanent
->   chrome that hasn't earned its place) and *Room to breathe* (buttons jammed together).
+> - **Principle:** breaks *Quiet at rest* (the fill and separators are permanent chrome that hasn't earned its place) and *Room to breathe* (buttons jammed together).
 > - **Move:** let the bar read transparent at rest, drop the separators (one stroke - and here the answer is *no*), and space the buttons out on the ramp.
 
 ### Focused
@@ -115,6 +138,8 @@ The UI should read like a person talking. Prefer a word to a mystery glyph; writ
 > **Ask:** *where does the eye go first - and is anything secondary competing with it?*
 
 Every view should have a clear **center of attention** - the one thing the eye should land on first. Keep secondary information *out* of that spot: demote it with a quieter type role, a recessed surface, or a smaller icon, so the thing that matters leads and everything else supports it. A view where everything has equal weight is *flat* - the eye has nowhere to go.
+
+Attention-required states may deliberately interrupt quiet chrome. Verify they remain recognizable while the user works elsewhere, not only in the active view. Preserve selection/focus legibility and a static alternative when reduced motion is enabled.
 
 *Carried out by:* [type roles](#type-ramp), [elevation tiers](#elevation-tiers), [icon size by context](#icon-sizes).
 
@@ -143,13 +168,10 @@ Equivalent elements must look equivalent, because they pull from the same named 
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
-> - **See:** two dialogs open side by side; one has 8px corners, the other 6px -
->   both are floating overlays.
+> - **See:** two dialogs open side by side; one has 8px corners, the other 6px - both are floating overlays.
 > - **Feeling:** not *Consistent* - the UI feels like it's drifting.
-> - **Principle:** breaks *Sameness signals sameness* (two equivalent surfaces look
->   different for no reason) and *Elevation is encoded* (an overlay belongs on the Outer tier).
-> - **Move:** point both at the Outer radius token; the 6px was a literal someone
->   typed instead of naming the tier.
+> - **Principle:** breaks *Sameness signals sameness* (two equivalent surfaces look different for no reason) and *Elevation is encoded* (an overlay belongs on the Outer tier).
+> - **Move:** point both at the Outer radius token; the 6px was a literal someone typed instead of naming the tier.
 
 ### Delightful
 
@@ -166,10 +188,8 @@ A delight bug sounds like *"this transition is doing nothing for me"* (cut it) o
 > **Worked example - a bouncing panel**
 > - **See:** a side panel slides in with a 600ms bounce every time you toggle it.
 > - **Feeling:** not *Delightful* (gimmicky) and not *Calm* (slow and shouty).
-> - **Principle:** breaks *Delight earns its keep* - the bounce isn't doing a job,
->   and the toggle is already obvious.
-> - **Move:** if nothing needs orienting, cut the animation; if the panel's arrival
->   genuinely needs explaining, replace it with a short, subtle, interruptible fade that honors `prefers-reduced-motion`.
+> - **Principle:** breaks *Delight earns its keep* - the bounce isn't doing a job, and the toggle is already obvious.
+> - **Move:** if nothing needs orienting, cut the animation; if the panel's arrival genuinely needs explaining, replace it with a short, subtle, interruptible fade that honors `prefers-reduced-motion`.
 
 ---
 
@@ -328,3 +348,10 @@ These aren't wrong, they're just *incomplete* - they fix one spot and drift back
 - **One observation per thread.** Keep each piece of feedback to a single surface + value, so it can be discussed and resolved on its own.
 - **Light vs. dark vs. high-contrast.** If something only breaks in one theme, say so - that usually points at a *theme token* problem, not a color choice.
 - **Reduced motion.** For animation feedback, note whether you have `prefers-reduced-motion` on; a transition should still make sense without it.
+- **Scope shared changes.** Identify the component that owns the behavior and which consumers must remain unchanged, including other window and modal variants. Shared styling should express shared intent, not accidentally impose one surface's policy everywhere.
+- **Reuse interaction paths.** Prefer the shared renderer and hover behavior over patching individual DOM nodes. Preserve content trust boundaries, link activation, keyboard access, and disposal; verify each rendered content field rather than only the first visible example.
+- **Verify behavior, not proxies.** Exercise real [layout paths](../ux-css-layout/SKILL.md#8-responsive-layout), keyboard navigation, and pointer interactions. A helper assertion, DOM attribute, or static screenshot alone cannot establish that the resulting interaction works.
+- **Cover relevant states and transitions.** Choose theme, density, overflow, and interaction combinations based on what changed. Include transitions on existing components, not just fresh renders; follow the [theming guidance](../ux-theming/SKILL.md#3-using-colors-in-css) and render representative states through production components and services.
+- **Treat defaults as behavior changes.** Preserve explicit user choices and rollout controls unless changing them is intentional. Check affected workflows and automation in both old and new modes.
+- **Keep visual evidence current.** Resolve review findings and rendering failures before accepting screenshot baselines. Capture the final visual revision, review unexpected changes outside the intended surface, and revalidate affected states after merges or refinements.
+- **Validate proportionally.** Reuse current diagnostics and batch focused checks. Include production stylesheet interactions, global registration effects, and the failing browser when relevant; do not dismiss failures solely because they appear outside the edited component. Record the tested revision, commands, results, and remaining gaps rather than relying on repeated reruns or blanket baseline acceptance.

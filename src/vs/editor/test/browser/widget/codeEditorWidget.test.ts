@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IME } from '../../../../base/common/ime.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
@@ -14,10 +15,76 @@ import { ILanguageConfigurationService } from '../../../common/languages/languag
 import { GlyphMarginLane } from '../../../common/model.js';
 import { createTextModel } from '../../common/testTextModel.js';
 import { createCodeEditorServices, withTestCodeEditor } from '../testCodeEditor.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
+import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 
 suite('CodeEditorWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #347431: native edit context releases focus when another editor is focused while IME is disabled', function () {
+		// Needs real focus/blur events, which don't fire while the document is unfocused
+		if (typeof (globalThis as { EditContext?: unknown }).EditContext !== 'function' || !document.hasFocus()) {
+			this.skip();
+		}
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const containerA = document.createElement('div');
+		const containerB = document.createElement('div');
+		container.append(containerA, containerB);
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editorA = disposables.add(instantiationService.createInstance(CodeEditorWidget, containerA, { editContext: true }, { contributions: [] }));
+		const editorB = disposables.add(instantiationService.createInstance(CodeEditorWidget, containerB, { editContext: true }, { contributions: [] }));
+		editorA.setModel(disposables.add(createTextModel('first')));
+		editorB.setModel(disposables.add(createTextModel('second')));
+
+		try {
+			editorA.focus();
+			IME.disable();
+			editorB.focus();
+			assert.deepStrictEqual([editorA.hasTextFocus(), editorB.hasTextFocus()], [false, true]);
+
+			IME.enable();
+			assert.strictEqual(document.activeElement, containerB.querySelector('.native-edit-context'));
+		} finally {
+			IME.enable();
+		}
+	});
+
+	test('preserves the documentation link when the cursor limit is reached', () => {
+		const prompts: Parameters<INotificationService['prompt']>[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override prompt(...args: Parameters<INotificationService['prompt']>) {
+				prompts.push(args);
+				return super.prompt(...args);
+			}
+		};
+		withTestCodeEditor('first\nsecond', {
+			multiCursorLimit: 1,
+			serviceCollection: new ServiceCollection([INotificationService, notificationService]),
+		}, editor => {
+			editor.setSelections([new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)]);
+			assert.strictEqual(prompts.length, 1);
+			const [severity, message, choices] = prompts[0];
+			assert.ok(message instanceof NotificationText);
+			assert.deepStrictEqual({
+				severity,
+				text: message.toString(),
+				links: message.nodes.filter(node => typeof node !== 'string'),
+				actions: choices.map(choice => choice.label),
+			}, {
+				severity: Severity.Warning,
+				text: 'The number of cursors has been limited to 1. Consider using find and replace for larger changes or increase the editor multi cursor limit setting.',
+				links: [{ label: 'find and replace', href: 'https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace' }],
+				actions: ['Find and Replace', 'Increase Multi Cursor Limit'],
+			});
+		});
+	});
 
 	test('onDidChangeModelDecorations', () => {
 		withTestCodeEditor('', {}, (editor, viewModel) => {

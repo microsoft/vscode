@@ -445,7 +445,22 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
+	markAsSingleton(onDidUnregisterWindow(({ vscodeWindowId }) => {
+		// A callback can close its window while the current queue is being processed.
+		const currentQueue = CURRENT_QUEUE.get(vscodeWindowId);
+		if (currentQueue) {
+			currentQueue.length = 0;
+		}
+		NEXT_QUEUE.delete(vscodeWindowId);
+		CURRENT_QUEUE.delete(vscodeWindowId);
+		animFrameRequested.delete(vscodeWindowId);
+		inAnimationFrameRunner.delete(vscodeWindowId);
+	}));
+
 	const animationFrameRunner = (targetWindowId: number) => {
+		if (!animFrameRequested.has(targetWindowId)) {
+			return;
+		}
 		animFrameRequested.set(targetWindowId, false);
 
 		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
@@ -458,7 +473,9 @@ class AnimationFrameQueueItem implements IDisposable {
 			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner.set(targetWindowId, false);
+		if (inAnimationFrameRunner.has(targetWindowId)) {
+			inAnimationFrameRunner.set(targetWindowId, false);
+		}
 	};
 
 	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
@@ -2095,6 +2112,12 @@ export class DragAndDropObserver extends Disposable {
 		this.registerListeners();
 	}
 
+	/** Resets tracking when a nested drop target consumes the end of a drag. */
+	reset(): void {
+		this.counter = 0;
+		this.dragStartTime = 0;
+	}
+
 	private registerListeners(): void {
 		if (this.callbacks.onDragStart) {
 			this._register(addDisposableListener(this.element, EventType.DRAG_START, (e: DragEvent) => {
@@ -2132,16 +2155,12 @@ export class DragAndDropObserver extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDragEnd?.(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDrop?.(e);
 		}));
 	}

@@ -41,12 +41,14 @@ export interface IExtUri {
 
 	/**
 	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
+	 * Non-file URIs must be contained with both POSIX and Windows path semantics by default.
 	 *
 	 * @param base A uri which is "longer" or at least same length as `parentCandidate`
 	 * @param parentCandidate A uri which is "shorter" or up to same length as `base`
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 * @param forcePosixSemantics Use only POSIX semantics for non-file URIs whose provider is known to use POSIX paths.
 	 */
-	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
+	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean, forcePosixSemantics?: boolean): boolean;
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
@@ -168,13 +170,25 @@ export class ExtUri implements IExtUri {
 		return this._ignorePathCasing(uri);
 	}
 
-	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
+	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false, forcePosixSemantics: boolean = false): boolean {
 		if (base.scheme === parentCandidate.scheme) {
 			if (base.scheme === Schemas.file) {
 				return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), this._ignorePathCasing(base)) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 			}
 			if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-				return extpath.isEqualOrParent(base.path, parentCandidate.path, this._ignorePathCasing(base), true) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+				const ignoreCase = this._ignorePathCasing(base);
+				if (!extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, true)) {
+					return false;
+				}
+				// Non-file URIs can still be backed by a Windows filesystem.
+				if (!forcePosixSemantics && (base.path.includes('\\') || parentCandidate.path.includes('\\'))) {
+					const basePath = extpath.toSlashes(paths.win32.normalize(originalFSPath(base)));
+					const parentPath = extpath.toSlashes(paths.win32.normalize(originalFSPath(parentCandidate)));
+					if (!extpath.isEqualOrParent(basePath, parentPath, ignoreCase, true)) {
+						return false;
+					}
+				}
+				return base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 			}
 		}
 		return false;

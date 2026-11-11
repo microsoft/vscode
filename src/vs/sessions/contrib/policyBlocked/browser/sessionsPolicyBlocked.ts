@@ -17,11 +17,11 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IManagedSettingsUpdateInfo } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../../workbench/services/policies/common/organizationSupport.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
@@ -39,7 +39,23 @@ export interface ISessionsBlockedOverlayOptions {
 	readonly accountName?: string;
 	readonly freshness?: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
 	readonly updateInfo?: IManagedSettingsUpdateInfo;
+	/** The organization's validated support page, offered wherever the overlay says to contact an administrator. */
+	readonly supportUrl?: string;
 	readonly shouldFocus?: boolean;
+	/** The label of the action to focus when this overlay replaces one where it had focus. */
+	readonly focusAction?: string;
+}
+
+/** The card's keyboard-focusable actions, in tab order. */
+function getFocusableActions(card: HTMLElement): HTMLElement[] {
+	const actions: HTMLElement[] = [];
+	const walker = card.ownerDocument.createTreeWalker(card, NodeFilter.SHOW_ELEMENT);
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (isHTMLElement(node) && node.tabIndex >= 0 && !node.hasAttribute('disabled') && node.getAttribute('aria-disabled') !== 'true') {
+			actions.push(node);
+		}
+	}
+	return actions;
 }
 
 /**
@@ -58,7 +74,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
@@ -70,36 +85,30 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			this.overlay.setAttribute('aria-modal', 'true');
 		}
 		this.overlay.tabIndex = -1;
-		if (options.shouldFocus !== false) {
-			this.overlay.focus();
-		}
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const workbenchRoot = layoutService.mainContainer;
 		workbenchRoot.classList.add('sessions-policy-blocked');
 		this._register(toDisposable(() => workbenchRoot.classList.remove('sessions-policy-blocked')));
 
-		const scrollContent = options.reason === SessionsBlockedReason.UpdateRequired ? $('.sessions-policy-blocked-scroll-content') : this.overlay;
-		const scrollable = options.reason === SessionsBlockedReason.UpdateRequired
-			? this._register(new DomScrollableElement(scrollContent, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto, useShadows: false }))
-			: undefined;
+		// Every card scrolls, so its actions stay reachable in a short window or with large text.
+		const scrollContent = $('.sessions-policy-blocked-scroll-content');
+		const scrollable = this._register(new DomScrollableElement(scrollContent, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto, useShadows: false }));
 		const revealFocusedAction = () => {
 			const focusedElement = getActiveElement();
 			if (isHTMLElement(focusedElement) && scrollContent.contains(focusedElement)) {
 				focusedElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-				scrollable?.scanDomNode();
+				scrollable.scanDomNode();
 			}
 		};
-		if (scrollable) {
-			const scrollContainer = append(this.overlay, scrollable.getDomNode());
-			scrollContainer.classList.add('sessions-policy-blocked-scrollable');
-			this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop })));
-			const focusScroll = this._register(new MutableDisposable());
-			this._register(addDisposableListener(scrollContent, EventType.FOCUS_IN, () => {
-				// Reveal after the browser's native focus scrolling.
-				focusScroll.value = scheduleAtNextAnimationFrame(getWindow(scrollContent), revealFocusedAction);
-			}));
-		}
+		const scrollContainer = append(this.overlay, scrollable.getDomNode());
+		scrollContainer.classList.add('sessions-policy-blocked-scrollable');
+		this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop })));
+		const focusScroll = this._register(new MutableDisposable());
+		this._register(addDisposableListener(scrollContent, EventType.FOCUS_IN, () => {
+			// Reveal after the browser's native focus scrolling.
+			focusScroll.value = scheduleAtNextAnimationFrame(getWindow(scrollContent), revealFocusedAction);
+		}));
 		const card = append(scrollContent, $('.sessions-policy-blocked-card'));
 		if (options.reason === SessionsBlockedReason.UpdateRequired) {
 			this.overlay.classList.add('update-required');
@@ -118,15 +127,29 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 						part.inert = true;
 					}
 				}
-				scrollable?.scanDomNode();
+				scrollable.scanDomNode();
 				revealFocusedAction();
 			};
 			layout();
 			this._register(layoutService.onDidLayoutMainContainer(layout));
+		} else {
+			this._register(layoutService.onDidLayoutMainContainer(() => {
+				scrollable.scanDomNode();
+				revealFocusedAction();
+			}));
 		}
 
 		this._register(addDisposableListener(getWindow(this.overlay), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (options.reason === SessionsBlockedReason.UpdateRequired) {
+				return;
+			}
+			// Dialogs and quick picks opened from the card, such as link protection, render outside it.
+			if (isHTMLElement(e.target) && e.target.closest('.monaco-dialog-modal-block, .quick-input-widget')) {
+				return;
+			}
+			if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey && this._cycleFocusWithinCard(card, e.target, e.shiftKey)) {
+				e.preventDefault();
+				e.stopPropagation();
 				return;
 			}
 			if (card.contains(e.target as Node)) {
@@ -145,6 +168,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 
 		append(card, $('div.sessions-policy-blocked-logo'));
 
+		let defaultFocus: HTMLElement = this.overlay;
 		switch (options.reason) {
 			case SessionsBlockedReason.AgentDisabled:
 				this._renderAgentDisabled(card);
@@ -158,19 +182,51 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			case SessionsBlockedReason.ManagedSettingsRefresh:
 				this._renderManagedSettingsRefresh(card, options.freshness);
 				break;
-			case SessionsBlockedReason.UpdateRequired: {
-				const button = this._renderUpdateRequired(card, options.updateInfo!);
-				scrollable?.scanDomNode();
-				if (options.shouldFocus !== false) {
-					button.focus();
-				}
+			case SessionsBlockedReason.UpdateRequired:
+				defaultFocus = this._renderUpdateRequired(card, options.updateInfo!).element;
 				break;
-			}
+		}
+		scrollable.scanDomNode();
+		if (options.shouldFocus !== false) {
+			// A rerender keeps focus on the same action, or moves it to the primary action if that one was removed.
+			const actions = getFocusableActions(card);
+			const focusTarget = options.focusAction === undefined
+				? defaultFocus
+				: actions.find(action => action.textContent === options.focusAction)
+				?? actions.find(action => action.classList.contains('monaco-button'))
+				?? actions[0]
+				?? defaultFocus;
+			focusTarget.focus();
 		}
 	}
 
 	hasFocus(): boolean {
 		return this.overlay.contains(getActiveElement());
+	}
+
+	/** The label of the focused card action, so a rerender can focus the same action again. */
+	getFocusedAction(): string | undefined {
+		const focused = getActiveElement();
+		return isHTMLElement(focused) && focused !== this.overlay && this.overlay.contains(focused) ? focused.textContent ?? undefined : undefined;
+	}
+
+	/**
+	 * Keeps Tab focus within the card: from the overlay or another surface it enters the card,
+	 * and from the last or first action it wraps around. Returns whether focus was moved.
+	 */
+	private _cycleFocusWithinCard(card: HTMLElement, target: EventTarget | null, backwards: boolean): boolean {
+		const actions = getFocusableActions(card);
+		if (!actions.length) {
+			return false;
+		}
+		const first = actions[0];
+		const last = actions[actions.length - 1];
+		const inCard = isHTMLElement(target) && card.contains(target);
+		if (inCard && target !== (backwards ? first : last)) {
+			return false;
+		}
+		(backwards ? last : first).focus();
+		return true;
 	}
 
 	override dispose(): void {
@@ -188,7 +244,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				return;
 			}
 		}
-		this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+		this.sessionsService.focusActiveSession();
 	}
 
 	private _renderUpdateRequired(card: HTMLElement, info: IManagedSettingsUpdateInfo): Button {
@@ -215,12 +271,12 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 	}
 
 	private _renderAgentDisabled(card: HTMLElement): void {
-		this.overlay.setAttribute('aria-label', localize('policyBlocked.aria', "Agents disabled by organization policy"));
+		this.overlay.setAttribute('aria-label', localize('policyBlocked.aria', "Agents disabled by your organization"));
 
 		append(card, $('h2', undefined, localize('policyBlocked.title', "Agents Disabled")));
 
 		const description = append(card, $('p'));
-		append(description, document.createTextNode(localize('policyBlocked.description', "Your organization has disabled Agents via policy.")));
+		append(description, document.createTextNode(localize('policyBlocked.description', "Agents are disabled by your organization. Contact your administrator.")));
 		append(description, document.createTextNode(' '));
 		const learnMore = append(description, $('a.sessions-policy-blocked-link')) as HTMLAnchorElement;
 		learnMore.textContent = localize('policyBlocked.learnMore', "Learn more");
@@ -230,9 +286,22 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			this.openerService.open(URI.parse('https://aka.ms/VSCode/Agents/docs'));
 		}));
 
+		this._renderOrganizationSupportButton(card, false);
 		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
 		button.label = localize('policyBlocked.openVSCode', "Open VS Code");
 		this._register(button.onDidClick(() => this._openVSCode()));
+	}
+
+	/** Offers the organization's support page, when it provides one, as the next step after "Contact your administrator". */
+	private _renderOrganizationSupportButton(card: HTMLElement, secondary: boolean): void {
+		const supportUrl = this.options.supportUrl;
+		if (!supportUrl) {
+			return;
+		}
+		const label = getOrganizationSupportActionLabel();
+		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary, title: getOrganizationSupportActionTooltip(supportUrl), ariaLabel: label }));
+		button.label = label;
+		this._register(button.onDidClick(() => openOrganizationSupport(this.openerService, supportUrl)));
 	}
 
 	private _renderLoading(card: HTMLElement): void {
@@ -243,7 +312,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 	}
 
 	private _renderAccountPolicyGate(card: HTMLElement, options: ISessionsBlockedOverlayOptions): void {
-		this.overlay.setAttribute('aria-label', localize('accountGate.aria', "Sign-in required by your administrator"));
+		this.overlay.setAttribute('aria-label', localize('accountGate.aria', "Sign-in required by your organization"));
 
 		append(card, $('h2', undefined, localize('accountGate.title', "Sign-In Required")));
 
@@ -287,6 +356,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this._register(signInButton.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.agenticSignIn');
 		}));
+		this._renderOrganizationSupportButton(card, true);
 	}
 
 	private _renderManagedSettingsRefresh(card: HTMLElement, freshness: ISessionsBlockedOverlayOptions['freshness']): void {
@@ -313,6 +383,11 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			const retryButton = this._register(new Button(card, { ...defaultButtonStyles }));
 			retryButton.label = localize('managedSettingsRefresh.retry', "Retry");
 			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true })));
+		}
+		if (freshness?.failure !== ManagedSettingsFreshnessFailure.NoToken
+			&& freshness?.failure !== ManagedSettingsFreshnessFailure.RateLimited
+			&& freshness?.failure !== ManagedSettingsFreshnessFailure.UpdateRequired) {
+			this._renderOrganizationSupportButton(card, true);
 		}
 
 		const openVSCodeButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));

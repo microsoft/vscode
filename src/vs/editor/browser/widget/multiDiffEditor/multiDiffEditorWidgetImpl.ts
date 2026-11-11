@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
+import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -44,6 +45,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public readonly scrollTop;
 	public readonly scrollLeft;
 	public readonly layoutDebugState: IObservable<IMultiDiffEditorLayoutDebugState>;
+
+	/** Diff items whose content intersects the viewport, in document order. */
+	public readonly visibleDiffItems: IObservable<readonly DocumentDiffItemViewModel[]>;
 
 	private readonly _viewItemsInfo;
 
@@ -94,13 +98,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		let viewItemsInfo!: IObservable<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>;
 		let viewItems!: IObservable<readonly VirtualizedViewItem[]>;
+		// What the scroll view renders is disposed after it: disposing it otherwise makes the scroll view render once more,
+		// such as its templates as their bindings dispose, which would create templates while the widget disposes.
+		const renderedItemsStore = new DisposableStore();
 		this._scrollView = this._register(new CompressedVirtualizedScrollView(
 			this._element,
 			this._dimension,
 			this._spaceBetweenPx,
 			context => {
 				const sourceItems = derived(this, reader => this._viewModel.read(reader)?.items.read(reader) ?? []);
-				const manager = this._register(new VirtualizedItemManager<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>(sourceItems, context, {
+				const manager = renderedItemsStore.add(new VirtualizedItemManager<DocumentDiffItemViewModel, DiffEditorItemBinding, DiffEditorItemTemplate>(sourceItems, context, {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
 					getUnboundSize: item => derived(item, reader => {
@@ -153,7 +160,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						transaction(tx => adaptedItem.setViewState(data, tx));
 					}
 					return adaptedItem;
-				}).recomputeInitiallyAndOnChange(this._store);
+				}).recomputeInitiallyAndOnChange(renderedItemsStore);
 				viewItemsInfo = derived<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>(this, reader => {
 					const items = adaptedItems.read(reader);
 					const map = new Map(items.map(item => [item.viewModel, item]));
@@ -168,6 +175,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return derived(this, reader => [...viewItems.read(reader), paddingBottomItem.read(reader)]);
 			},
 		));
+		this._register(renderedItemsStore);
 		this._viewItemsInfo = viewItemsInfo;
 		this._viewItems = viewItems;
 		this.scrollTop = this._scrollView.scrollTop;
@@ -200,6 +208,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				} : undefined,
 				items: items.map((item, index) => item.getLayoutDebugState(reader, layout.items[index])),
 			};
+		});
+		this.visibleDiffItems = derivedOpts<readonly DocumentDiffItemViewModel[]>({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+			const layout = this._scrollView.layout.read(reader);
+			// Layout items are index-aligned with the view items (the trailing padding item is not a view item).
+			return this._viewItems.read(reader)
+				.filter((_item, index) => layout.items[index]?.visibility === 'visible')
+				.map(item => item.viewModel);
 		});
 		const variantClassNames = this._variantConfiguration.classNames.map(className => `.${className}`).join('');
 		this._elements = h(`div.monaco-component.multiDiffEditor${variantClassNames}`, {}, [

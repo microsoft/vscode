@@ -11,11 +11,13 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { OnboardingTryoutContribution } from '../../browser/onboardingTryout.contribution.js';
-import { onboardingTryoutPresentationRegistry } from '../../common/onboardingTryout.js';
+import { IOnboardingTryoutScenario, IOnboardingTryoutService, onboardingTryoutPresentationRegistry, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
 
 suite('Lazy tryout presentations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,4 +63,78 @@ suite('Lazy tryout presentations', () => {
 			availability: [{ kind: 'ready' }, { kind: 'ready' }], constructions: 1, executed: 0,
 		});
 	});
+});
+
+suite('Copy feature example link', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let instantiation: TestInstantiationService;
+	let scenarios: Map<string, IOnboardingTryoutScenario>;
+	let copied: string[];
+	let items: readonly IQuickPickItem[];
+	let selection: 'first' | 'cancel' | 'remove';
+
+	function register(id: string, title: string): void {
+		scenarios.set(id, {
+			id,
+			trigger: { kind: 'command', commandId: RUN_ONBOARDING_TRYOUT_COMMAND_ID },
+			presentation: { kind: 'test', payload: {} },
+			tryout: { title, description: 'A local description.' },
+		});
+	}
+
+	setup(() => {
+		instantiation = store.add(new TestInstantiationService());
+		scenarios = new Map();
+		copied = [];
+		items = [];
+		selection = 'first';
+		register('sample', 'Local Example');
+		register('hidden', 'Hidden Example');
+		instantiation.stub(IOnboardingTryoutService, {
+			getTryouts: () => [...scenarios.values()],
+			getTryout: id => scenarios.get(id),
+			getAvailability: id => id === 'hidden' ? { kind: 'hidden' } : { kind: 'ready' },
+			run: () => assert.fail('Copying a link must not run the example'),
+		});
+		instantiation.stub(IClipboardService, { writeText: async text => { copied.push(text); } });
+		instantiation.stub(IQuickInputService, {}, 'pick', async (choices: readonly IQuickPickItem[]) => {
+			items = choices;
+			if (selection === 'remove') {
+				scenarios.delete('sample');
+			}
+			return selection === 'cancel' ? undefined : choices[0];
+		});
+	});
+
+	teardown(() => sinon.restore());
+
+	async function copy(): Promise<void> {
+		await instantiation.invokeFunction(CommandsRegistry.getCommand('developer.onboarding.copyTryoutLink')!.handler);
+	}
+
+	for (const [title, markdown] of [
+		['Local Example', '`try(sample,Local Example)`'],
+		['Compare A, B (Read-Only) & <C>', '`try(sample,Compare A, B (Read-Only) & <C>)`'],
+		['Compare `model` and ``provider``', '```try(sample,Compare `model` and ``provider``)```'],
+	]) {
+		test(`copies shorthand with the installed title: ${title}`, async () => {
+			register('sample', title);
+			await copy();
+			assert.deepStrictEqual({
+				copied,
+				items: items.map(item => ({ label: item.label, description: item.description, detail: item.detail })),
+			}, {
+				copied: [markdown],
+				items: [{ label: title, description: 'sample', detail: 'A local description.' }],
+			});
+		});
+	}
+
+	for (const result of ['cancel', 'remove'] as const) {
+		test(`does not overwrite the clipboard when selection ends with ${result}`, async () => {
+			selection = result;
+			await copy();
+			assert.deepStrictEqual(copied, []);
+		});
+	}
 });

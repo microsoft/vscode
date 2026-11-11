@@ -85,8 +85,10 @@ export class AgentHostSessionsV2MigrationService<T> {
 		getPermanentExclusion: (candidate: IAgentHostSessionsV2Candidate<T>) => IAgentHostSessionsV2Exclusion | undefined,
 		resolve: (candidate: IAgentHostSessionsV2Candidate<T>) => Promise<AgentHostSessionsV2CandidateResolution<T>>,
 		force = false,
+		onDidReadBackfill?: (wasBackfilled: boolean) => void,
 	): Promise<IAgentHostSessionsV2MigrationReport<T> | undefined> {
 		const wasBackfilled = await this._database.isSessionsV2Backfilled(provider, AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+		onDidReadBackfill?.(wasBackfilled);
 		const providerCandidates = !force && wasBackfilled ? [] : await enumerate();
 		if (providerCandidates === undefined) {
 			return undefined;
@@ -185,7 +187,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 	): Promise<IAgentHostSessionsV2MigrationOutcome<T>> {
 		const session = candidate.session.toString();
 		try {
-			if (await this._database.isSessionTombstoned(session)) {
+			if (await this._database.isSessionSuppressed(session)) {
 				return { status: 'excluded' };
 			}
 			const priorProviderExclusion = candidate.current && candidate.current.provider !== provider

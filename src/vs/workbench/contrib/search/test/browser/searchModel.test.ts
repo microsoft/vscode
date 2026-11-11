@@ -287,6 +287,57 @@ suite('SearchModel', () => {
 		};
 	}
 
+	test('Search Model: cleared AI folder roots are not disposed again with the model', () => {
+		const model = store.add(instantiationService.createInstance(SearchModelImpl));
+		const heading = model.searchResult.aiTextSearchResult;
+		const disposals: sinon.SinonSpy[] = [];
+
+		for (let i = 0; i < 3; i++) {
+			heading.query = { contentPattern: 'sample', type: QueryType.aiText, folderQueries };
+			const folder = heading.folderMatches()[0];
+			const dispose = sinon.spy(folder, 'dispose');
+			heading.clear(true);
+			disposals.push(dispose);
+		}
+
+		model.dispose();
+		assert.deepStrictEqual(disposals.map(dispose => dispose.callCount), [1, 1, 1]);
+	});
+
+	for (const ai of [false, true]) {
+		for (const cleanup of ['add', 'clear', 'dispose']) {
+			test(`Search Model: ${ai ? 'AI' : 'text'} query replacements retain all roots until ${cleanup}`, () => {
+				const model = store.add(instantiationService.createInstance(SearchModelImpl));
+				const heading = ai ? model.searchResult.aiTextSearchResult : model.searchResult.plainTextSearchResult;
+				const disposals: sinon.SinonSpy[] = [];
+
+				for (let i = 0; i < 3; i++) {
+					heading.query = ai
+						? { contentPattern: 'sample', type: QueryType.aiText, folderQueries }
+						: { contentPattern: { pattern: 'sample' }, type: QueryType.Text, folderQueries };
+					disposals.push(...heading.folderMatches().map(folder => sinon.spy(folder, 'dispose')));
+					if (i === 0) {
+						heading.add([aRawMatch('/sample', new TextSearchMatch('sample', lineOneRange))], 'initial', true);
+					}
+				}
+
+				const before = disposals.map(dispose => dispose.callCount);
+				if (cleanup === 'add') {
+					heading.add([], 'replacement', true);
+					heading.add([], 'replacement', true);
+				} else if (cleanup === 'clear') {
+					heading.clear(true);
+				}
+				model.dispose();
+
+				assert.deepStrictEqual({ before, after: disposals.map(dispose => dispose.callCount) }, {
+					before: disposals.map(() => 0),
+					after: disposals.map(() => 1)
+				});
+			});
+		}
+	}
+
 	test('Search Model: Search adds to results', async () => {
 		const results = [
 			aRawMatch('/1',
@@ -457,6 +508,44 @@ suite('SearchModel', () => {
 		assert.ok(target.calledWith('searchResultsFirstRender'));
 		assert.ok(target.calledWith('searchResultsFinished'));
 	});
+
+	for (const reportProgress of [false, true]) {
+		test(`Search Model: Releases the progress emitter after ${reportProgress ? 'first progress' : 'completion'}`, async () => {
+			const completion = new DeferredPromise<ISearchComplete>();
+			const firstRender = new DeferredPromise<void>();
+			instantiationService.stub(ITelemetryService, 'publicLog', (eventName: string) => {
+				if (eventName === 'searchResultsFirstRender') {
+					firstRender.complete();
+				}
+			});
+			const searchService = searchServiceWithDeferredPromise(completion.p);
+			const search = sinon.spy(searchService, 'textSearchSplitSyncAsync');
+			instantiationService.stub(ISearchService, searchService);
+			instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
+
+			const model = store.add(instantiationService.createInstance(SearchModelImpl));
+			const disposables = Reflect.get(Reflect.get(model, '_store'), '_toDispose') as ReadonlySet<unknown>;
+			const initialCount = disposables.size;
+			const result = model.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
+			assert.strictEqual(disposables.size, initialCount + 1);
+
+			if (reportProgress) {
+				search.firstCall.args[2]!({ message: 'Searching' });
+			} else {
+				completion.complete({ results: [], messages: [] });
+			}
+			await firstRender.p;
+			assert.strictEqual(disposables.size, initialCount);
+
+			if (reportProgress) {
+				assert.strictEqual(completion.isSettled, false);
+				search.firstCall.args[2]!({ message: 'Still searching' });
+				completion.complete({ results: [], messages: [] });
+			}
+			await result.asyncResults;
+			assert.strictEqual(disposables.size, initialCount);
+		});
+	}
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
 		const target2 = sinon.spy();

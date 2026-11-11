@@ -5,14 +5,9 @@
 
 import { ILogService } from '../../../log/common/log.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import { AGENT_BRANCH_PREFIX } from '../../common/worktreePaths.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './copilotApiService.js';
 
-/**
- * Branch-name prefix for worktree-isolated agent sessions, e.g.
- * `agents/add-feature`. Shared by every agent-host provider (Copilot, Codex,
- * Claude) via {@link WorktreeIsolation}.
- */
-export const AGENT_BRANCH_PREFIX = 'agents/';
 const AGENT_BRANCH_SESSION_ID_SUFFIX_LENGTH = 8;
 const MAX_BRANCH_NAME_HINT_LENGTH = 48;
 const MIN_GENERATED_BRANCH_NAME_LENGTH = 8;

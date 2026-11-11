@@ -1106,13 +1106,38 @@ function fixBackspace(txt: string) {
  */
 function fixCarriageReturn(txt: string) {
 	txt = txt.replace(/\r+\n/gm, '\n'); // \r followed by \n --> newline
-	while (txt.search(/\r[^$]/g) > -1) {
-		const base = txt.match(/^(.*)\r+/m)![1];
-		let insert = txt.match(/\r+(.*)$/m)![1];
-		insert = insert + base.slice(insert.length, base.length);
-		txt = txt.replace(/\r+.*$/m, '\r').replace(/^.*\r/m, insert);
+	if (!txt.includes('\r')) {
+		return txt;
 	}
-	return txt;
+	// Preserve the legacy replacement-string behavior of dollar text on overwritten lines.
+	if (txt.includes('$') && txt.split(/[\n\u2028\u2029]/).some(line => line.includes('\r') && line.includes('$'))) {
+		while (txt.search(/\r[^$]/g) > -1) {
+			const base = txt.match(/^(.*)\r+/m)![1];
+			let insert = txt.match(/\r+(.*)$/m)![1];
+			insert = insert + base.slice(insert.length, base.length);
+			txt = txt.replace(/\r+.*$/m, '\r').replace(/^.*\r/m, insert);
+		}
+		return txt;
+	}
+
+	const pendingCarriageReturn = txt.endsWith('\r') && !txt.endsWith('\r\r') ? '\r' : '';
+	return txt.slice(0, txt.length - pendingCarriageReturn.length).replace(/[^\n\u2028\u2029]+/g, line => {
+		if (!line.includes('\r')) {
+			return line;
+		}
+		const segments = line.split(/\r+/);
+		const fragments: string[] = [];
+		let length = 0;
+		// Later segments overwrite prefixes; keep only the uncovered suffix of each earlier segment.
+		for (let index = segments.length - 1; index >= 0; index--) {
+			const segment = segments[index];
+			if (segment.length > length) {
+				fragments.push(segment.slice(length));
+				length = segment.length;
+			}
+		}
+		return fragments.join('');
+	}) + pendingCarriageReturn;
 }
 
 const BACKSPACE_CHARACTER = '\b'.charCodeAt(0);

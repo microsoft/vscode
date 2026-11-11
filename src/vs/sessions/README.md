@@ -34,15 +34,16 @@ Do not turn those files into general Sessions guidance.
 | Automations ownership, AHP routing, persistence, and run lifecycle | [AUTOMATIONS.md](AUTOMATIONS.md) |
 | Workbench parts, grid, title bar, and editor presentation | [LAYOUT.md](LAYOUT.md) |
 | Session-aware layout capture and restoration | [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) |
-| Single-pane behavior scenarios | [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) |
+| Desktop behavior scenarios | [DESKTOP.md](DESKTOP.md) |
 | Sessions sidebar list | [SESSIONS_LIST.md](SESSIONS_LIST.md) |
+| Multi-harness implementation comparisons | [SESSION_COMPARISONS.md](SESSION_COMPARISONS.md) |
 | System-wide Open Agents Window keybinding ownership | [SYSTEM_WIDE_KEYBINDING.md](SYSTEM_WIDE_KEYBINDING.md) |
 | Phone layout and mobile components | [MOBILE.md](MOBILE.md) |
 | AI customizations | [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) |
 | Copilot customizations | [copilot-customizations-spec.md](copilot-customizations-spec.md) |
-| Copilot Chat provider | [COPILOT_CHAT_SESSIONS_PROVIDER.md](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) |
-| Agent Host provider | [AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) |
-| Remote Agent Host provider | [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) |
+| Copilot Chat provider | [COPILOT_CHAT_SESSIONS_PROVIDER.md](../workbench/contrib/sessions/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) |
+| Agent Host provider | [AGENT_HOST_SESSIONS_PROVIDER.md](../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) |
+| Remote Agent Host provider | [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](../workbench/contrib/sessions/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) |
 
 ## Structural boundaries
 

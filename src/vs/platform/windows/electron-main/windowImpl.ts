@@ -33,7 +33,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -54,6 +54,11 @@ export interface IWindowCreationOptions {
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
 	readonly isSessionsWindow?: boolean;
+
+	/**
+	 * Minimize the window, as it was when the application quit.
+	 */
+	readonly minimized?: boolean;
 }
 
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
@@ -178,6 +183,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private maximizedWindowState: IWindowState | undefined;
 
+	/**
+	 * Unlike `isMaximized()`, remains set while a maximized window is minimized.
+	 */
+	protected maximized = false;
+
 	private hasWindowControlOverlay = false;
 
 	protected _win: electron.BrowserWindow | null = null;
@@ -189,6 +199,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Window Events
 		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
+			this.maximized = true;
+
 			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this._win) {
 				const [x, y] = this._win.getPosition();
 				const [width, height] = this._win.getSize();
@@ -200,6 +212,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this._onDidMaximize.fire();
 		}));
 		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => {
+			this.maximized = false;
+
 			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this.maximizedWindowState) {
 				this.maximizedWindowState = undefined;
 
@@ -310,7 +324,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 	}
 
-	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
+	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0, minimized = false): void {
 
 		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
@@ -349,7 +363,16 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			this._win?.show();
+			if (!minimized) {
+				this._win?.show();
+			}
+		}
+
+		if (minimized) {
+			if (!this._win?.isVisible()) {
+				this._win?.showInactive(); // a window that is about to be minimized must not take focus
+			}
+			this._win?.minimize();
 		}
 	}
 
@@ -423,6 +446,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Force:
 				if (isMacintosh) {
+					if (electron.app.isHidden()) {
+						// Show first: a hidden app ignores window focus and re-focuses its last active window when un-hidden
+						this.win?.show();
+					}
 					electron.app.focus({ steal: true });
 				}
 				this.doFocusWindow();
@@ -483,7 +510,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private windowControlsDimmed = false;
 	private lastWindowControlColors: { backgroundColor?: string; foregroundColor?: string } | undefined;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
+	updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -521,16 +548,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			// When the position is set, the horizontal margin is offset to ensure
-			// the distance between the traffic lights and the window frame is equal
-			// in both directions.
-			const buttonHeight = isTahoeOrNewer(release()) ? 14 : 16;
-			const offset = Math.floor((options.height - buttonHeight) / 2);
-			if (!offset) {
-				win.setWindowButtonPosition(null);
-			} else {
-				win.setWindowButtonPosition({ x: offset + 1, y: offset });
-			}
+			win.setWindowButtonPosition(getMacOSWindowControlsPosition(options.height, release(), options.horizontalInset));
 		}
 	}
 
@@ -561,6 +579,29 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	toggleFullScreen(): void {
 		this.setFullScreen(!this.isFullScreen, false);
+	}
+
+	handleTitleDoubleClick(): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// On macOS as the system settings say: zoom, minimize or nothing
+		const action = isMacintosh ? electron.systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string') : undefined;
+		switch (action) {
+			case 'Minimize':
+				win.minimize();
+				break;
+			case 'None':
+				break;
+			default:
+				if (win.isMaximized()) {
+					win.unmaximize();
+				} else {
+					win.maximize();
+				}
+		}
 	}
 
 	protected setFullScreen(fullscreen: boolean, fromRestore: boolean): void {
@@ -746,6 +787,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly jsCallStackCollector: Delayer<void>;
 	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
 
+	/**
+	 * How long an extension test window launched from the CLI may stay
+	 * unresponsive before the test run is failed. A window can stall
+	 * transiently, for example while a cold first launch in CI starts its
+	 * GPU process, and should not fail the run when it recovers.
+	 */
+	private static readonly EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD = 60_000;
+	private readonly extensionTestUnresponsiveScheduler: RunOnceScheduler;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService logService: ILogService,
@@ -790,6 +840,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			if (config.minimized) {
+				options.show = false; // a window that is created visible takes focus
+			}
 			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
 			if (iconPath) {
 				options.icon = iconPath;
@@ -805,7 +858,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.setWin(this._win, options);
 
 			// Apply some state after window creation
-			this.applyState(this.windowState, hasMultipleDisplays);
+			this.applyState(this.windowState, hasMultipleDisplays, config.minimized);
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
@@ -829,6 +882,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}, samplePeriod));
 
 		//#endregion
+
+		this.extensionTestUnresponsiveScheduler = this._register(new RunOnceScheduler(() => {
+			this.logService.error(`CodeWindow: extension test window did not recover from unresponsive within ${CodeWindow.EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD / 1000}s, exiting with code 1`);
+			this.lifecycleMainService.kill(1);
+		}, CodeWindow.EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD));
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
@@ -1016,9 +1074,18 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// If we run extension tests from CLI, we want to signal
 				// back this state to the test runner by exiting with a
-				// non-zero exit code.
+				// non-zero exit code. An unresponsive window may still
+				// recover, so only exit if it does not within a grace period.
 				if (this.isExtensionDevelopmentTestFromCli) {
-					this.lifecycleMainService.kill(1);
+					if (type === WindowError.UNRESPONSIVE) {
+						if (!this.extensionTestUnresponsiveScheduler.isScheduled()) {
+							this.logService.error(`CodeWindow: extension test window is unresponsive, exiting with code 1 unless it recovers within ${CodeWindow.EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD / 1000}s`);
+							this.extensionTestUnresponsiveScheduler.schedule();
+						}
+					} else {
+						this.logService.error('CodeWindow: extension test window renderer process gone, exiting with code 1');
+						this.lifecycleMainService.kill(1);
+					}
 					return;
 				}
 
@@ -1101,6 +1168,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 				break;
 			case WindowError.RESPONSIVE:
+				this.extensionTestUnresponsiveScheduler.cancel();
 				this.stopCollectingJScallStacks();
 				break;
 		}
@@ -1445,10 +1513,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return configuration.workspace;
 	}
 
-	serializeWindowState(): IWindowState {
+	serializeWindowState(options?: { readonly exact?: boolean }): IWindowState {
 		if (!this._win) {
 			return defaultWindowState();
 		}
+
+		const minimized = !!options?.exact && this._win.isMinimized();
 
 		// fullscreen gets special treatment
 		if (this.isFullScreen) {
@@ -1476,25 +1546,31 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				height: this.windowState.height || defaultState.height,
 				x: this.windowState.x || 0,
 				y: this.windowState.y || 0,
-				zoomLevel: this.customZoomLevel
+				zoomLevel: this.customZoomLevel,
+				minimized: minimized || undefined
 			};
 		}
 
 		const state: IWindowState = Object.create(null);
 		let mode: WindowMode;
 
-		// get window mode
-		if (!isMacintosh && this._win.isMaximized()) {
+		// get window mode (Windows reports a minimized window as not maximized, which only exact restores correct)
+		if (!isMacintosh && (minimized ? this.maximized : this._win.isMaximized())) {
 			mode = WindowMode.Maximized;
 		} else {
 			mode = WindowMode.Normal;
 		}
 
-		// we don't want to save minimized state, only maximized or normal
+		// we don't want to save minimized as mode, only maximized or normal
 		if (mode === WindowMode.Maximized) {
 			state.mode = WindowMode.Maximized;
 		} else {
 			state.mode = WindowMode.Normal;
+		}
+
+		// only exact restores restore minimized windows
+		if (minimized) {
+			state.minimized = true;
 		}
 
 		// only consider non-minimized window states

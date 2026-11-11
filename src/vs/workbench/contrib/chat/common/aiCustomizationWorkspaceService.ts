@@ -33,6 +33,44 @@ export namespace AICustomizationSources {
 export const BUILTIN_STORAGE = AICustomizationSources.builtin;
 
 /**
+ * Who a customization applies to. This is the primary grouping axis of the
+ * management UI and is independent of {@link AICustomizationSource}, which
+ * describes where an item is stored and therefore what can be done with it.
+ * Who supplied an item within its scope (a plugin, extension, or organization)
+ * is a separate tag.
+ *
+ * - `user`: the harness user's home folder (on the agent host when remote),
+ *   including plugins and extensions the user installed and customizations
+ *   from the user's organization.
+ * - `workspace`: the working directories, including workspace-configured plugins.
+ * - `application`: built into VS Code or the agent harness (shown as Built-in).
+ */
+export type AICustomizationScope = 'user' | 'workspace' | 'application';
+
+export namespace AICustomizationScopes {
+	export const user: AICustomizationScope = 'user';
+	export const workspace: AICustomizationScope = 'workspace';
+	export const application: AICustomizationScope = 'application';
+	export const all: readonly AICustomizationScope[] = [user, workspace, application];
+
+	/**
+	 * Derives the scope implied by a storage source when a provider does not
+	 * report one. Extensions and plugins are installed by the user; providers
+	 * that know better should set the scope.
+	 */
+	export function fromSource(source: AICustomizationSource): AICustomizationScope {
+		switch (source) {
+			case AICustomizationSources.local: return workspace;
+			case AICustomizationSources.user: return user;
+			case AICustomizationSources.plugin: return user;
+			case AICustomizationSources.extension: return user;
+			case AICustomizationSources.builtin: return application;
+			default: return user;
+		}
+	}
+}
+
+/**
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
@@ -45,16 +83,31 @@ export const AICustomizationManagementSection = {
 	Automations: 'automations',
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
+	Canvases: 'canvases',
 	Models: 'models',
 	Tools: 'tools',
+	Extensions: 'extensions',
 	HarnessSettings: 'harnessSettings',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
+export interface IAICustomizationMarketplaceOpenTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly sourceId?: string;
+	readonly searchQuery?: string;
+	readonly connectorName?: string;
+	readonly connectorDisplayName?: string;
+	readonly preserveFocus?: boolean;
+	/** Exact registry identity for legacy MCP detail links, not a display-name search. */
+	readonly mcpServer?: { readonly name: string; readonly registryUrl?: string };
+}
+
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	ShowPlugin: 'aiCustomizationManagement.showPlugin',
+	CreateCanvas: 'aiCustomizationManagement.createCanvas',
 	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
@@ -116,8 +169,12 @@ export interface IAICustomizationWorkspaceService {
 
 	/**
 	 * Commits files in the active project.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user) so callers can keep the change pending, otherwise `true`, including
+	 * when there was nothing to commit.
 	 */
-	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
 	 * Commits the deletion of resources that have already been removed from disk.
@@ -125,13 +182,17 @@ export interface IAICustomizationWorkspaceService {
 	 * deleting a skill, the entire customization folder is removed). Implementations
 	 * should ensure that directory deletions are handled recursively as needed.
 	 * In sessions this stages and commits the removal in the relevant repositories.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user), otherwise `true`, including when there was nothing to commit.
 	 */
-	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

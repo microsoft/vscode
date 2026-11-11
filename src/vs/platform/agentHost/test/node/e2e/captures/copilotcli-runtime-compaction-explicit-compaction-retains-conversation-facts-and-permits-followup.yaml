@@ -149,33 +149,40 @@ exchanges:
             ---
 
             Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+
+            Tools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text.
     response:
       content: |-
         <overview>
-        This conversation consisted of a single, simple request: the user asked me to remember a project code word, "COMPACT_ORCHID," for the remainder of the session. No code changes, file exploration, or software engineering tasks were performed.
+        This conversation consisted solely of a memory-retention exercise: the user asked me to remember the exact project code word "COMPACT_ORCHID" and reply with a specific confirmation string. No actual software engineering task, code change, or repository work was requested or performed.
         </overview>
 
         <history>
         1. The user instructed: "Remember COMPACT_ORCHID as the exact project code word for this conversation. Reply exactly 'remembered'."
-           - I replied exactly "remembered" as requested.
-           - No further action was taken or needed.
+           - I replied exactly "remembered" as instructed, with no other action taken.
+
+        2. The user then asked for a detailed summary of the conversation so far, to be used for context compaction.
+           - This summary is being produced now in response to that request.
         </history>
 
         <work_done>
-        No files were created, modified, or deleted. No tasks, builds, or tests were run. The only action taken was acknowledging and storing the code word "COMPACT_ORCHID" for reference in this conversation.
+        No files were created, modified, or deleted. No commands were run. No tools were used. The only substantive action was memorizing and confirming the project code word "COMPACT_ORCHID" for potential future reference in this session.
+
+        Current state: No engineering work has begun. The session is effectively at its starting point aside from the stored code word.
         </work_done>
 
         <technical_details>
-        - The project code word for this conversation is: COMPACT_ORCHID
-        - This should be recalled exactly if referenced later in the conversation.
+        - The project code word for this conversation is exactly: COMPACT_ORCHID
+        - This code word should be recalled exactly if referenced later in the conversation.
+        - No other technical decisions, issues, or discoveries have occurred yet.
         </technical_details>
 
         <important_files>
-        No files were involved in this segment of the conversation.
+        No files have been created, viewed, or modified in this conversation yet.
         </important_files>
 
         <next_steps>
-        No pending work. Awaiting further instructions from the user. If the user references the code word later, respond with "COMPACT_ORCHID" exactly as given.
+        No engineering task has been defined yet. Await further instructions from the user regarding any actual code, repository, or software engineering work. If the code word COMPACT_ORCHID is referenced later, recall it exactly as given.
         </next_steps>
 
         <checkpoint_title>Remembering project code word</checkpoint_title>
@@ -198,30 +205,35 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                This conversation consisted of a single, simple request: the user asked me to remember a project code word, "COMPACT_ORCHID," for the remainder of the session. No code changes, file exploration, or software engineering tasks were performed.
+                This conversation consisted solely of a memory-retention exercise: the user asked me to remember the exact project code word "COMPACT_ORCHID" and reply with a specific confirmation string. No actual software engineering task, code change, or repository work was requested or performed.
                 </overview>
 
                 <history>
                 1. The user instructed: "Remember COMPACT_ORCHID as the exact project code word for this conversation. Reply exactly 'remembered'."
-                   - I replied exactly "remembered" as requested.
-                   - No further action was taken or needed.
+                   - I replied exactly "remembered" as instructed, with no other action taken.
+
+                2. The user then asked for a detailed summary of the conversation so far, to be used for context compaction.
+                   - This summary is being produced now in response to that request.
                 </history>
 
                 <work_done>
-                No files were created, modified, or deleted. No tasks, builds, or tests were run. The only action taken was acknowledging and storing the code word "COMPACT_ORCHID" for reference in this conversation.
+                No files were created, modified, or deleted. No commands were run. No tools were used. The only substantive action was memorizing and confirming the project code word "COMPACT_ORCHID" for potential future reference in this session.
+
+                Current state: No engineering work has begun. The session is effectively at its starting point aside from the stored code word.
                 </work_done>
 
                 <technical_details>
-                - The project code word for this conversation is: COMPACT_ORCHID
-                - This should be recalled exactly if referenced later in the conversation.
+                - The project code word for this conversation is exactly: COMPACT_ORCHID
+                - This code word should be recalled exactly if referenced later in the conversation.
+                - No other technical decisions, issues, or discoveries have occurred yet.
                 </technical_details>
 
                 <important_files>
-                No files were involved in this segment of the conversation.
+                No files have been created, viewed, or modified in this conversation yet.
                 </important_files>
 
                 <next_steps>
-                No pending work. Awaiting further instructions from the user. If the user references the code word later, respond with "COMPACT_ORCHID" exactly as given.
+                No engineering task has been defined yet. Await further instructions from the user regarding any actual code, repository, or software engineering work. If the code word COMPACT_ORCHID is referenced later, recall it exactly as given.
                 </next_steps>
 
                 <checkpoint_title>Remembering project code word</checkpoint_title>

@@ -9,6 +9,7 @@ import { sortCustomizationEnablement, withCustomizationEnablement } from '../../
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
@@ -38,19 +39,8 @@ function makeChat(): ChatState {
 }
 
 function withActiveTurnAndToolCall(state: ChatState): ChatState {
-	state = chatReducer(state, {
-		type: ActionType.ChatTurnStarted,
-		turnId: 'turn-1',
-		startedAt: '2025-01-01T00:00:00.000Z',
-		message: { text: 'hello', origin: { kind: MessageKind.User } },
-	});
-	state = chatReducer(state, {
-		type: ActionType.ChatToolCallStart,
-		turnId: 'turn-1',
-		toolCallId: 'tc-1',
-		toolName: 'readFile',
-		displayName: 'Read File',
-	});
+	state = chatReducer(state, chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
+	state = chatReducer(state, chatToolCallStart('turn-1', 'tc-1', 'readFile', 'Read File'));
 	return state;
 }
 
@@ -59,18 +49,9 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('preserves turn start timestamp and duration after completion', () => {
-		let state = chatReducer(makeChat(), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
+		let state = chatReducer(makeChat(), chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
 		const activeStartedAt = state.activeTurn?.startedAt;
-		state = chatReducer(state, {
-			type: ActionType.ChatTurnComplete,
-			turnId: 'turn-1',
-			duration: 150_000,
-		});
+		state = chatReducer(state, chatTurnComplete('turn-1', 150_000));
 
 		assert.deepStrictEqual({
 			activeStartedAt,
@@ -84,17 +65,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 	});
 
 	test('clamps negative terminal duration', () => {
-		const active = chatReducer(makeChat(), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
-		const afterNegativeDuration = chatReducer(active, {
-			type: ActionType.ChatTurnComplete,
-			turnId: 'turn-1',
-			duration: -5,
-		});
+		const active = chatReducer(makeChat(), chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
+		const afterNegativeDuration = chatReducer(active, chatTurnComplete('turn-1', -5));
 
 		assert.deepStrictEqual(afterNegativeDuration.turns[0], {
 			id: 'turn-1',
@@ -108,12 +80,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 	});
 
 	test('resumes and completes one turn while preserving durable errors', () => {
-		let state = chatReducer(makeChat(), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
+		let state = chatReducer(makeChat(), chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
 		state = chatReducer(state, {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
@@ -128,7 +95,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			part: { kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
 		});
 		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
-		state = chatReducer(state, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 300 });
+		state = chatReducer(state, chatTurnComplete('turn-1', 300));
 
 		assert.deepStrictEqual({
 			activeTurn: state.activeTurn,
@@ -158,13 +125,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to PendingConfirmation (no `confirmed` field)
-		state = chatReducer(state, {
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'Read file?',
-			toolInput: '/foo.ts',
-		});
+		state = chatReducer(state, chatToolCallReady('turn-1', 'tc-1', 'Read file?', { toolInput: '/foo.ts' }));
 
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
@@ -173,14 +134,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to Running first
-		state = chatReducer(state, {
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'Read file',
-			toolInput: '/foo.ts',
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		});
+		state = chatReducer(state, chatToolCallReady('turn-1', 'tc-1', 'Read file', { toolInput: '/foo.ts', confirmed: ToolCallConfirmationReason.NotNeeded }));
 
 		// Then complete with requiresResultConfirmation
 		state = chatReducer(state, {
@@ -197,17 +151,44 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
+	test('result confirmation preserves structured content and result metadata', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, chatToolCallReady('turn-1', 'tc-1', 'Read file', { confirmed: ToolCallConfirmationReason.NotNeeded }));
+		const structuredContent = { value: 'public' };
+		const resultMetadata = { ui: { private: [null, false, 0, {}] } };
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			requiresResultConfirmation: true,
+			result: {
+				success: true,
+				pastTenseMessage: 'Read file',
+				structuredContent,
+				resultMetadata,
+			},
+		});
+		const pendingPart = state.activeTurn?.responseParts[0];
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallResultConfirmed,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			approved: true,
+		});
+		assert.deepStrictEqual([pendingPart, state.activeTurn?.responseParts[0]].map(part =>
+			part?.kind === ResponsePartKind.ToolCall && (part.toolCall.status === ToolCallStatus.PendingResultConfirmation || part.toolCall.status === ToolCallStatus.Completed)
+				? { status: part.toolCall.status, structuredContent: part.toolCall.structuredContent, resultMetadata: part.toolCall.resultMetadata }
+				: undefined), [
+			{ status: ToolCallStatus.PendingResultConfirmation, structuredContent, resultMetadata },
+			{ status: ToolCallStatus.Completed, structuredContent, resultMetadata },
+		]);
+	});
+
 	test('SessionStatus transitions from InputNeeded to InProgress when tool call is confirmed', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to PendingConfirmation
-		state = chatReducer(state, {
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'Read file?',
-			toolInput: '/foo.ts',
-		});
+		state = chatReducer(state, chatToolCallReady('turn-1', 'tc-1', 'Read file?', { toolInput: '/foo.ts' }));
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
 		// Confirm it
@@ -378,27 +359,14 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		assert.strictEqual(state.status, SessionStatus.InProgress);
 
 		// Transition to PendingConfirmation via ChatToolCallReady (no confirmed)
-		state = chatReducer(state, {
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'Read file?',
-			toolInput: '/foo.ts',
-		});
+		state = chatReducer(state, chatToolCallReady('turn-1', 'tc-1', 'Read file?', { toolInput: '/foo.ts' }));
 
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
 	test('ChatToolCallReady preserves action metadata on pending and running tool calls', () => {
 		const state = withActiveTurnAndToolCall(makeChat());
-		const pending = chatReducer(state, {
-			type: ActionType.ChatToolCallReady,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			invocationMessage: 'Read file?',
-			toolInput: '/foo.ts',
-			_meta: { autoApproveBySetting: true },
-		});
+		const pending = chatReducer(state, chatToolCallReady('turn-1', 'tc-1', 'Read file?', { toolInput: '/foo.ts', _meta: { autoApproveBySetting: true } }));
 		const running = chatReducer(state, {
 			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
@@ -424,19 +392,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 	});
 
 	test('ChatToolCallDelta can update the invocation message without exposing partial input', () => {
-		let state = chatReducer(makeChat(), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
-		state = chatReducer(state, {
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			toolName: 'edit',
-			displayName: 'Edit File',
-		});
+		let state = chatReducer(makeChat(), chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
+		state = chatReducer(state, chatToolCallStart('turn-1', 'tc-1', 'edit', 'Edit File'));
 		state = chatReducer(state, {
 			type: ActionType.ChatToolCallDelta,
 			turnId: 'turn-1',
@@ -457,20 +414,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 	});
 
 	test('ChatToolCallReady replaces provisional contributor and intention', () => {
-		let state = chatReducer(makeChat(), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
-		state = chatReducer(state, {
-			type: ActionType.ChatToolCallStart,
-			turnId: 'turn-1',
-			toolCallId: 'tc-1',
-			toolName: 'mcp_tool',
-			displayName: 'MCP Tool',
-			intention: 'Query',
-		});
+		let state = chatReducer(makeChat(), chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
+		state = chatReducer(state, chatToolCallStart('turn-1', 'tc-1', 'mcp_tool', 'MCP Tool', { intention: 'Query' }));
 		state = chatReducer(state, {
 			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
@@ -497,20 +442,8 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 
 	test('ChatToolCallReady cannot change client execution ownership', () => {
 		const readyContributor = (startContributor: ToolCallContributor | undefined, contributor: ToolCallContributor) => {
-			let state = chatReducer(makeChat(), {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-1',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'hello', origin: { kind: MessageKind.User } },
-			});
-			state = chatReducer(state, {
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-1',
-				toolCallId: 'tc-1',
-				toolName: 'tool',
-				displayName: 'Tool',
-				contributor: startContributor,
-			});
+			let state = chatReducer(makeChat(), chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
+			state = chatReducer(state, chatToolCallStart('turn-1', 'tc-1', 'tool', 'Tool', { contributor: startContributor }));
 			state = chatReducer(state, {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',

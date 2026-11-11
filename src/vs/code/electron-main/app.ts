@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, globalShortcut, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -13,7 +13,7 @@ import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
@@ -69,6 +69,7 @@ import { INativeHostMainService, NativeHostMainService } from '../../platform/na
 import { ONBOARDING_TRYOUT_CHANNEL } from '../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { OnboardingTryoutHandoff } from '../../platform/onboarding/electron-main/onboardingTryoutHandoff.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { GPUProcessTelemetry } from '../../platform/gpu/electron-main/gpuProcessTelemetry.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
@@ -84,7 +85,7 @@ import { resolveCommonProperties } from '../../platform/telemetry/common/commonP
 import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
 import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
 import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, getUserContentPathsFromEnvironment, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
@@ -92,6 +93,8 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { UnattendedRestartScheduler } from '../../platform/update/electron-main/unattendedRestartScheduler.js';
+import { IUnattendedRestartReadinessProvider, UnattendedRestartChannelName } from '../../platform/lifecycle/common/unattendedRestart.js';
 import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
@@ -99,7 +102,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, extractChatSessionToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
@@ -121,7 +124,6 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
-import { CancellationToken } from '../../base/common/cancellation.js';
 import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -593,7 +595,7 @@ export class CodeApplication extends Disposable {
 			// For all other URLs, delegate to the OS.
 			contents.setWindowOpenHandler(details => {
 
-				// about:blank windows can open as window witho our default options
+				// about:blank windows can open with our default options
 				if (details.url === 'about:blank') {
 					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
@@ -802,6 +804,13 @@ export class CodeApplication extends Disposable {
 		// Post Open Windows Tasks
 		this.afterWindowOpen(appInstantiationService);
 
+		// Restart to apply updates while the screen is locked
+		this._register(appInstantiationService.createInstance(UnattendedRestartScheduler, {
+			getWindowReadiness: window => ProxyChannel.toService<IUnattendedRestartReadinessProvider>(
+				mainProcessElectronServer.getChannel(UnattendedRestartChannelName, client => client.ctx === `window:${window.id}`)
+			).canRestartUnattended()
+		}));
+
 		const isGeneratingNodeCompileCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
 		const shouldStartCriticalNodeProcesses = isGeneratingNodeCompileCache || process.env['VSCODE_MEASURE_NODE_COMPILE_CACHE'] === '1';
 		if (shouldStartCriticalNodeProcesses) {
@@ -846,7 +855,7 @@ export class CodeApplication extends Disposable {
 		const dialogMainService = accessor.get(IDialogMainService);
 		const protocolMainService = accessor.get(IProtocolMainService);
 
-		// Install URL handlers that deal with protocl URLs either
+		// Install URL handlers that deal with protocol URLs either
 		// from this process by opening windows and/or by forwarding
 		// the URLs into a window process to be handled there.
 
@@ -918,6 +927,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		const openables: IWindowOpenable[] = [];
+		const openableChatSessions: (ChatSessionToOpen | undefined)[] = [];
 		const urls: IProtocolUrl[] = [];
 
 		for (const protocolUrl of protocolUrls) {
@@ -925,7 +935,10 @@ export class CodeApplication extends Disposable {
 				continue; // invalid
 			}
 
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
+			// A chat session parameter targets the window that opens, not the openable itself
+			const { uri: openableUri, chatSessionToOpen } = extractChatSessionToOpen(protocolUrl.uri);
+
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(openableUri);
 			if (windowOpenable) {
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
@@ -935,6 +948,7 @@ export class CodeApplication extends Disposable {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
 
 					openables.push(windowOpenable); // handled as window to open
+					openableChatSessions.push(chatSessionToOpen);
 				}
 			} else {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
@@ -943,7 +957,11 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		return { urls, openables };
+		return {
+			urls,
+			openables,
+			chatSessionToOpen: openables.length === 1 ? openableChatSessions[0] : undefined
+		};
 	}
 
 	private async shouldBlockOpenable(openable: IWindowOpenable, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
@@ -1130,13 +1148,12 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
-		// Extract session parameter to open a specific chat session in the target window
-		const session = params.get('session');
-		if (session !== null) {
-			this.logService.trace(`app#handleProtocolUrl() found 'session' as parameter:`, uri.toString(true));
+		// Extract chat session parameters to open a specific chat session in the target window
+		const { uri: uriWithoutChatSession, chatSessionToOpen } = extractChatSessionToOpen(uri);
+		if (uriWithoutChatSession !== uri) {
+			this.logService.trace(`app#handleProtocolUrl() found chat session parameter:`, uri.toString(true));
 
-			params.delete('session');
-			uri = uri.with({ query: params.toString() });
+			uri = uriWithoutChatSession;
 		}
 
 		// Check if the protocol URL is a window openable to open...
@@ -1154,16 +1171,12 @@ export class CodeApplication extends Disposable {
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
-					gotoLineMode: true
+					gotoLineMode: true,
+					chatSessionToOpen
 					// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
 				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
-
-				// Open chat session in the target window if requested
-				if (window && session) {
-					window.sendWhenReady('vscode:openChatSession', CancellationToken.None, session);
-				}
 
 				return true;
 			}
@@ -1335,7 +1348,8 @@ export class CodeApplication extends Disposable {
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
-			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
+			const userContentPaths = getUserContentPathsFromEnvironment(this.environmentMainService);
+			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, userContentPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
 		} else {
@@ -1431,7 +1445,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
 		// Browser View
-		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables, { unbufferedEvents: ['onDidCreateBrowserView'] });
 		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
 		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewChannelName, browserViewChannel));
 
@@ -1451,8 +1465,13 @@ export class CodeApplication extends Disposable {
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
-			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
-			unbufferedEvents: ['onDidBlurMainWindow']
+			unbufferedEvents: [
+				// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
+				'onDidBlurMainWindow',
+				// GPU subscribers read current state explicitly; do not replay obsolete capabilities.
+				'onDidChangeGPUCompositing',
+				'onDidProgressZipFile'
+			]
 		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
@@ -1564,7 +1583,8 @@ export class CodeApplication extends Disposable {
 					cli: args,
 					urisToOpen: initialProtocolUrls.openables,
 					gotoLineMode: true,
-					initialStartup: true
+					initialStartup: true,
+					chatSessionToOpen: initialProtocolUrls.chatSessionToOpen
 					// remoteAuthority: will be determined based on openables
 				});
 			}
@@ -1733,57 +1753,10 @@ export class CodeApplication extends Disposable {
 		// GPU crash telemetry for skia graphite out of order recording failures
 		// Refs https://github.com/microsoft/vscode/issues/284162
 		if (isMacintosh) {
-			instantiationService.invokeFunction(accessor => {
-				const telemetryService = accessor.get(ITelemetryService);
-				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
-					skia_graphite: string;
-				};
-				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
-				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
-				if (skiaGraphiteEnabled === 'enabled') {
-					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
-					const pendingGpuInfoListener = this._register(new MutableDisposable());
-					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-						if (details.type === 'GPU' && details.reason === 'crashed') {
-							// Wait for gpu-info-update which fires after the GPU process
-							// restarts and the feature status is refreshed. At the time
-							// child-process-gone fires, getGPUFeatureStatus() still
-							// returns the pre-crash status.
-							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
-								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
-								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
-								if (currentRasterizationStatus !== 'enabled') {
-									// Get last 10 GPU log messages (only the message field)
-									let gpuLogMessages: string[] = [];
-									type AppWithGPULogMethod = typeof app & {
-										getGPULogMessages(): IGPULogMessage[];
-									};
-									const customApp = app as AppWithGPULogMethod;
-									if (typeof customApp.getGPULogMessages === 'function') {
-										gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
-									}
-
-									type GpuCrashEvent = {
-										readonly gpuFeatureStatus: string;
-										readonly gpuLogMessages: string;
-									};
-									type GpuCrashClassification = {
-										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
-										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
-										owner: 'deepak1556';
-										comment: 'Tracks GPU process crashes that would result in fallback mode.';
-									};
-
-									telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
-										gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
-										gpuLogMessages: JSON.stringify(gpuLogMessages)
-									});
-								}
-							});
-						}
-					}));
-				}
-			});
+			this._register(instantiationService.createInstance(GPUProcessTelemetry, () => {
+				const customApp: typeof app & { getGPULogMessages?(): IGPULogMessage[] } = app;
+				return typeof customApp.getGPULogMessages === 'function' ? customApp.getGPULogMessages() : [];
+			}));
 		}
 
 		{

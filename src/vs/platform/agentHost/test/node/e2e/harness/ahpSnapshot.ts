@@ -14,7 +14,10 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../common/state/sessionActions.js';
 import type { DispatchActionParams } from '../../../../common/state/protocol/commands.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
+import { withAgentHostE2ESnapshotDiagnostics } from './agentHostE2EDiagnostics.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { agentModelConfigurationReportKey } from '../../../../common/agentModelConfiguration.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };
@@ -152,6 +155,12 @@ export class AhpSnapshotRecorder {
 						if (options.ignoredActionTypes?.includes(action.type)) {
 							continue;
 						}
+						// Asynchronous model readbacks are checked as state, not as conversation-event ordering.
+						if (direction === 's2c' && !params?.origin && !params?.rejectionReason
+							&& action.type === ActionType.SessionConfigChanged && !action.replace
+							&& Object.keys(action.config).length === 1 && Object.hasOwn(action.config, agentModelConfigurationReportKey)) {
+							continue;
+						}
 						if (action.type === ActionType.SessionCustomizationUpdated) {
 							continue;
 						}
@@ -202,7 +211,43 @@ export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IA
 		writeFileSync(snapshotPathForTest(test, 'traffic', 'ahp.yaml'), actual);
 		return;
 	}
-	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+	await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' }));
+}
+
+export async function waitForChatUnreadAfterTurn(client: Pick<IAhpSnapshotClient, 'waitForNotification'>, chat: string, afterServerSeq: number): Promise<void> {
+	await client.waitForNotification(notification => {
+		if (notification.method !== 'action') {
+			return false;
+		}
+		const envelope = notification.params as ActionEnvelope;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& envelope.action.type === ActionType.ChatIsReadChanged
+			&& !envelope.action.isRead;
+	}, 90_000);
+}
+
+/** Waits for the exact turn outcome and its subsequent unread transition before observing completed-turn traffic. */
+export async function waitForChatTurnComplete(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, chat: string, turnId: string, afterServerSeq = 0): Promise<void> {
+	const notification = await client.waitForNotification(candidate => {
+		if (candidate.method !== 'action') {
+			return false;
+		}
+		const envelope = candidate.params;
+		const action = envelope.action;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
+			&& action.turnId === turnId;
+	}, 90_000);
+	if (notification.method !== 'action') {
+		throw new Error('[ahp-snapshot] expected a turn outcome action');
+	}
+	const action = notification.params.action;
+	if (action.type === ActionType.ChatError) {
+		throw client.takeReplayError() ?? new Error(`Turn ${turnId} failed: ${action.part.error.errorType}: ${action.part.error.message}`);
+	}
+	await waitForChatUnreadAfterTurn(client, chat, notification.params.serverSeq);
 }
 
 /** Loads client actions from an AHP snapshot, dispatches them, and asserts the resulting traffic. */
@@ -231,7 +276,7 @@ export class AhpSnapshotScenario {
 	async run(client: IAhpSnapshotClient, sessionUri: string, options?: IAhpSnapshotOptions): Promise<void> {
 		const bindings = new Map<string, string>([
 			['${session_0}', sessionUri],
-			['${chat_0}', buildDefaultChatUri(sessionUri)],
+			['${chat_0}', defaultChatChannel(sessionUri)],
 		]);
 		const seenPrerequisites = new Set<object>();
 		let clientSeq = 1;
@@ -269,7 +314,7 @@ export class AhpSnapshotScenario {
 				})),
 			}));
 		} else {
-			await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+			await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' }));
 		}
 	}
 }
@@ -934,8 +979,11 @@ function readStringArray(value: unknown, name: string): string[] {
 	return value;
 }
 
-async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
-	const finalEntry = entries.at(-1);
+export async function waitForFinalServerMessage(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
+	const lastEntry = entries.at(-1);
+	const finalEntry = lastEntry?.action?.type === ActionType.ChatIsReadChanged
+		? entries.findLast(entry => entry.channel === lastEntry.channel && entry.action?.type === ActionType.ChatTurnComplete) ?? lastEntry
+		: lastEntry;
 	if (!finalEntry) {
 		throw new Error('[ahp-snapshot] serverToClient must not be empty');
 	}
@@ -943,6 +991,22 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 	const finalChannel = finalEntry.channel ? resolvePlaceholder(finalEntry.channel, bindings) : undefined;
 	const finalTurnIdPlaceholder = finalEntry.action ? readOptionalString(finalEntry.action, 'turnId') : undefined;
 	const finalTurnId = finalTurnIdPlaceholder ? resolvePlaceholder(finalTurnIdPlaceholder, bindings) : undefined;
+	if (finalActionType === ActionType.ChatTurnComplete) {
+		if (!finalChannel || !finalTurnId) {
+			throw new Error('[ahp-snapshot] turn completion must identify its chat and turn');
+		}
+		let afterServerSeq = 0;
+		for (const seen of seenNotifications) {
+			if (isMethodMessage(seen) && seen.method === 'action') {
+				const envelope = asRecord(seen.params);
+				if (envelope?.channel === finalChannel && typeof envelope.serverSeq === 'number') {
+					afterServerSeq = Math.max(afterServerSeq, envelope.serverSeq);
+				}
+			}
+		}
+		await waitForChatTurnComplete(client, finalChannel, finalTurnId, afterServerSeq);
+		return;
+	}
 	const notification = await client.waitForNotification(candidate => {
 		if (seenNotifications.has(candidate as object)) {
 			return false;
@@ -957,6 +1021,7 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				return finalTurnId === undefined || action.turnId === finalTurnId;
 			}
 			return action.type === finalActionType
+				&& (action.type !== ActionType.ChatIsReadChanged || !action.isRead)
 				&& (finalTurnId === undefined || (action as { turnId?: string }).turnId === finalTurnId);
 		}
 		return candidate.method === finalEntry.method;

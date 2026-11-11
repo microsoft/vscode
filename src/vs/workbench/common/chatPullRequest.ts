@@ -21,6 +21,15 @@ export interface IPullRequestIconStatus {
 }
 
 /**
+ * Combines GitHub's pull request state and draft flag into a display state.
+ * GitHub keeps `draft: true` on closed draft pull requests, so only open pull
+ * requests are presented as drafts.
+ */
+export function getPullRequestDisplayState(state: 'open' | 'closed' | 'merged', isDraft: boolean): ChatPullRequestState {
+	return state === 'open' && isDraft ? 'draft' : state;
+}
+
+/**
  * Computes the shared pull request glyph and state color used by chat/session pills.
  */
 export function computePullRequestIcon(state: ChatPullRequestState, status?: IPullRequestIconStatus): ThemeIcon {

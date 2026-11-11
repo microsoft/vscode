@@ -38,6 +38,7 @@ import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.j
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
+import { GPUProcessMainService, IGPUProcessMainService } from '../../platform/gpu/electron-main/gpuProcessMainService.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
@@ -164,6 +165,9 @@ class CodeMain {
 		const services = new ServiceCollection();
 		const disposables = new DisposableStore();
 		process.once('exit', () => disposables.dispose());
+
+		// Capture GPU lifecycle changes before asynchronous startup and window creation.
+		services.set(IGPUProcessMainService, disposables.add(new GPUProcessMainService(app)));
 
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };

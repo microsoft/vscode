@@ -5,23 +5,25 @@
 
 import { localize } from '../../../../nls.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { OS } from '../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { timeout } from '../../../../base/common/async.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalGroupService, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { basename } from '../../../../base/common/resources.js';
+import { IChatWindowTerminalsService } from './chatWindowTerminals.js';
 
 const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
 
@@ -30,6 +32,25 @@ const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
  * machine as the renderer). Remote hosts use their `remoteAddress` instead.
  */
 const LOCAL_AGENT_HOST_ADDRESS = '__local__';
+
+/** Strips trailing path separators (except for a root) so equivalent cwd paths compare equal. */
+function normalizeCwd(cwd: string): string {
+	return cwd.replace(/(?<=[^\\/:])[\\/]+$/, '');
+}
+
+/** Whether two cwd paths reported by the host refer to the same directory. */
+function isEqualCwd(a: string, b: string, ignoreCase: boolean): boolean {
+	a = normalizeCwd(a);
+	b = normalizeCwd(b);
+	return ignoreCase ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/** Tracks one reusable terminal and its current task launch. */
+interface ITaskTerminal {
+	readonly instance: ITerminalInstance;
+	isLaunching: boolean;
+	executionId: number;
+}
 
 /**
  * Task runner for sessions backed by an agent host (local or remote). Resolves
@@ -42,6 +63,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	readonly id = 'agentHost';
 	readonly priority = 100;
 
+	/** The terminal that last ran each task, keyed by host, working directory, and task label. */
+	private readonly _taskTerminals = new Map<string, ITaskTerminal>();
+
 	constructor(
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -50,6 +74,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatWindowTerminalsService private readonly _chatWindowTerminalsService: IChatWindowTerminalsService,
 	) { }
 
 	canRun(session: ISession): boolean {
@@ -88,26 +113,115 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (!this._isSessionRemoteHostAvailable(session)) {
 			return undefined;
 		}
-		const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
-			cwd,
-			name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
-		});
-		if (!instance) {
-			this._logService.warn(`${LOG_PREFIX} Failed to create terminal for task '${task.label}' on '${address}'.`);
-			return undefined;
+		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
+		const presentation = this._getPresentation(task);
+		const shouldReuse = !(typeof presentation?.panel === 'string' && presentation.panel.toLowerCase() === 'new');
+		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address, session) : undefined;
+		const isReused = !!taskTerminal;
+		if (!taskTerminal) {
+			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
+				cwd,
+				name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
+			});
+			if (!instance) {
+				this._logService.warn(`${LOG_PREFIX} Failed to create terminal for task '${task.label}' on '${address}'.`);
+				return undefined;
+			}
+			taskTerminal = { instance, isLaunching: false, executionId: 0 };
+			if (shouldReuse) {
+				this._taskTerminals.set(terminalKey, taskTerminal);
+				instance.store.add(instance.onDisposed(() => {
+					if (this._taskTerminals.get(terminalKey) === taskTerminal) {
+						this._taskTerminals.delete(terminalKey);
+					}
+				}));
+			}
 		}
 
-		this._terminalService.setActiveInstance(instance);
-		await this._terminalGroupService.showPanel(true);
-		await instance.sendText(command, /*shouldExecute*/ true);
+		const { instance } = taskTerminal;
+		taskTerminal.isLaunching = true;
+		const executionId = ++taskTerminal.executionId;
+		try {
+			// Run for a session a chat window shows, such as from its Run menu: the task shows in the window's terminals, not
+			// in the main window's panel, which would take the focus to the main window.
+			if (!await this._chatWindowTerminalsService.showSessionTerminal(session, instance.instanceId, false)) {
+				this._terminalService.setActiveInstance(instance);
+				await this._terminalGroupService.showPanel(true);
+			}
+			if (isReused) {
+				// Discard anything typed at the prompt since the last run so it is
+				// not prepended to the task command, like `ITerminalInstance.runCommand`.
+				await instance.sendText('\x03', /*shouldExecute*/ false);
+				await timeout(100);
+			}
+			if (isReused && presentation?.clear === true) {
+				instance.clearBuffer();
+			}
+			this._agentHostTerminalService.markCommandPending(instance);
+			await instance.sendText(command, /*shouldExecute*/ true);
+		} finally {
+			taskTerminal.isLaunching = false;
+		}
 
 		return toDisposable(() => {
-			instance.dispose(TerminalExitReason.User);
+			if (taskTerminal.executionId === executionId) {
+				instance.dispose(TerminalExitReason.User);
+			}
 		});
 	}
 
+	/**
+	 * Returns the terminal that last ran the task identified by {@link key}
+	 * when it can run the task again, mirroring how the workbench task system
+	 * reuses task terminals. A terminal is only reused when it is known to be
+	 * idle, so that the command is never typed into a still running process,
+	 * when the shell is still in the directory the terminal started in, so
+	 * that the command runs from the task's working directory, and when it is
+	 * not hidden in the background (e.g. after switching sessions), since only
+	 * foreground terminals can be activated. One a chat window of the session holds
+	 * while its terminals hide shows there again.
+	 */
+	private _getReusableTerminal(key: string, address: string, session: ISession): ITaskTerminal | undefined {
+		const taskTerminal = this._taskTerminals.get(key);
+		if (!taskTerminal) {
+			return undefined;
+		}
+		const { instance } = taskTerminal;
+		if (instance.isDisposed) {
+			this._taskTerminals.delete(key);
+			return undefined;
+		}
+		if (taskTerminal.isLaunching || this._agentHostTerminalService.isCommandExecuting(instance) !== false) {
+			return undefined;
+		}
+		if (!this._terminalService.foregroundInstances.includes(instance) && !this._chatWindowTerminalsService.holdsSessionTerminal(session, instance.instanceId)) {
+			return undefined;
+		}
+		const terminalCwd = this._agentHostTerminalService.getCwd(instance);
+		if (!terminalCwd) {
+			return undefined;
+		}
+		// Local Windows and macOS file systems are case-insensitive; a remote
+		// host's OS is unknown, so only treat Windows-style paths as such.
+		const ignoreCase = address === LOCAL_AGENT_HOST_ADDRESS ? OS !== OperatingSystem.Linux : /^[a-zA-Z]:[\\/]/.test(terminalCwd.initial);
+		return isEqualCwd(terminalCwd.current, terminalCwd.initial, ignoreCase) ? taskTerminal : undefined;
+	}
+
+	/**
+	 * Reads the task's presentation options, falling back to the legacy
+	 * `terminal` property like the workbench task configuration does.
+	 */
+	private _getPresentation(task: ITaskEntry): { readonly panel?: unknown; readonly clear?: unknown } | undefined {
+		for (const value of [task.presentation, task.terminal]) {
+			if (typeof value === 'object' && value !== null) {
+				return value;
+			}
+		}
+		return undefined;
+	}
+
 	private _getAddress(session: ISession): string | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -127,6 +241,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		}
 		// Unwrap vscode-agent-host URIs to a host file path; pass file URIs through; omit unknown schemes.
 		if (cwd.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts a host-local cwd for remote task variable expansion and terminal creation
 			return fromAgentHostUri(cwd);
 		}
 		if (cwd.scheme === Schemas.file) {

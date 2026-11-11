@@ -161,7 +161,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.monaco-pixel-spinner .monaco-pixel-spinner-dot {
+	.monaco-pixel-spinner .monaco-pixel-spinner-dot,
+	.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot {
 		animation: none;
 		opacity: 1;
 		transform: translateY(0);

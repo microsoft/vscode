@@ -17,10 +17,12 @@ export const enum SessionChatPillKind {
 	Artifacts = 'artifacts',
 	References = 'references',
 	Customizations = 'customizations',
+	Canvases = 'canvases',
 	PullRequests = 'pullRequests',
 	Issues = 'issues',
 	Browsers = 'browsers',
 	Subagents = 'subagents',
+	BackgroundShells = 'backgroundShells',
 }
 
 /** All pill kinds, in the order they are offered in the visibility menu. */
@@ -31,8 +33,10 @@ export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Artifacts,
 	SessionChatPillKind.References,
 	SessionChatPillKind.Customizations,
+	SessionChatPillKind.Canvases,
 	SessionChatPillKind.Browsers,
 	SessionChatPillKind.Subagents,
+	SessionChatPillKind.BackgroundShells,
 ];
 
 export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
@@ -41,10 +45,12 @@ export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 		case SessionChatPillKind.Artifacts: return localize('sessionChatPills.artifacts', "Artifacts");
 		case SessionChatPillKind.References: return localize('sessionChatPills.references', "References");
 		case SessionChatPillKind.Customizations: return localize('sessionChatPills.customizations', "Customizations");
+		case SessionChatPillKind.Canvases: return localize('sessionChatPills.canvases', "Canvases");
 		case SessionChatPillKind.PullRequests: return localize('sessionChatPills.pullRequests', "Pull Requests");
 		case SessionChatPillKind.Issues: return localize('sessionChatPills.issues', "Issues");
 		case SessionChatPillKind.Browsers: return localize('sessionChatPills.browsers', "Browsers");
 		case SessionChatPillKind.Subagents: return localize('sessionChatPills.subagents', "Subagents");
+		case SessionChatPillKind.BackgroundShells: return localize('sessionChatPills.backgroundShells', "Background Shells");
 	}
 }
 
@@ -115,6 +121,11 @@ const defaultHiddenKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Customizations,
 	SessionChatPillKind.Subagents,
 ];
+
+/** Whether a pill kind starts hidden until the user turns it on. */
+export function isSessionChatPillHiddenByDefault(kind: SessionChatPillKind): boolean {
+	return defaultHiddenKinds.includes(kind);
+}
 
 const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	defaultValue: defaultHiddenKinds,

@@ -12,9 +12,7 @@ Use this pattern when the behavior can be prepared safely with isolated sample d
 
 The comparison uses bundled sample text, not workspace files. In the diff editor, use **Diff View** to select Inline, Side by Side, or Automatic, then resize the editor.
 
-<!-- %IF TRYOUTS %
-[Try Smart Diff Layout](command:workbench.action.onboarding.tryFeature?%5B%22editor.smart-diff%22%5D)
-%ENDIF % -->
+`try(editor.smart-diff,Try Smart Diff Layout)`
 
 ## Guide me: Model and provider selection
 
@@ -22,11 +20,19 @@ Use this pattern for a control whose choices have important capability, speed, p
 
 The action opens a new unsent composer in the Agents window, highlights the model picker, and opens its details. Review the available models and providers, but close the picker without selecting anything if you want to leave your current model unchanged. The example never sends a prompt or chooses a billing provider for you.
 
-<!-- %IF TRYOUTS %
-[Explore Models and Providers](command:workbench.action.onboarding.tryFeature?%5B%22chat.model-provider-selection%22%5D)
-%ENDIF % -->
+`try(chat.model-provider-selection,Explore Models and Providers)`
 
 ## Compatibility: existing release-note behavior
+
+The same example can use different shorthand labels while a legacy link keeps its product-generated label:
+
+`try(editor.smart-diff,Compare Inline, Side by Side, and Automatic (Read-Only))`
+
+[Legacy Smart Diff Example](command:workbench.action.onboarding.tryFeature?%5B%22editor.smart-diff%22%5D)
+
+Malformed shorthand remains literal code: `try(editor.smart-diff,)`. A well-formed unknown ID has an inert explanation:
+
+`try(unknown.release-notes-example,Unavailable Example)`
 
 The existing settings chip `setting(editor.wordWrap:on)` remains interactive. The Command Palette shortcut is `kb(workbench.action.showCommands)`.
 

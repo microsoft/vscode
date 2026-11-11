@@ -14,6 +14,7 @@ import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import './parameterHints.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import * as languages from '../../../common/languages.js';
@@ -270,6 +271,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
 		const renderedContents = this.renderDisposeables.add(this.markdownRendererService.render(markdown, {
 			context: this.editor,
+			sanitizerConfig: getEditorMarkdownSanitizerConfig(this.editor),
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}

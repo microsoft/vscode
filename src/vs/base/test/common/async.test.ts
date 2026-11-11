@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as async from '../../common/async.js';
 import * as MicrotaskDelay from '../../common/symbols.js';
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
@@ -12,7 +13,7 @@ import { Event } from '../../common/event.js';
 import { URI } from '../../common/uri.js';
 import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { DisposableStore } from '../../common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { Iterable } from '../../common/iterator.js';
 import { isWeb } from '../../common/platform.js';
 
@@ -1300,6 +1301,24 @@ suite('Async', () => {
 
 				assert.strictEqual(cb, false);
 			});
+		});
+	});
+
+	suite('ProcessTimeRunOnceScheduler', () => {
+		test('does not count wall-clock jumps', () => {
+			const clock = sinon.useFakeTimers();
+			const calls: boolean[] = [];
+			const scheduler = store.add(new async.ProcessTimeRunOnceScheduler(() => calls.push(true), 3000));
+
+			store.add(toDisposable(() => clock.restore()));
+			scheduler.schedule();
+			clock.tick(1000);
+			clock.setSystemTime(Date.now() + 8 * 60 * 60 * 1000);
+			clock.tick(1000);
+			assert.deepStrictEqual(calls, []);
+
+			clock.tick(1000);
+			assert.deepStrictEqual(calls, [true]);
 		});
 	});
 

@@ -8,17 +8,17 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileChangeType, IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 
-/** Coalesces native catalog invalidations after explicit Codex activation, without reading storage formats. */
+/** Coalesces native catalog invalidations and signals transcript changes without reading storage formats. */
 export class CodexChatDiscovery extends Disposable {
-	private readonly _onDidInvalidate = this._register(new Emitter<void>());
-	readonly onDidInvalidate = this._onDidInvalidate.event;
+	private readonly _onDidInvalidateHistory = this._register(new Emitter<void>());
+	readonly onDidInvalidateHistory = this._onDidInvalidateHistory.event;
 	private static readonly refreshDelay = 5000;
 	private static readonly safetyRefreshDelay = 60_000;
 	private readonly _refresh = this._register(new RunOnceScheduler(() => { void this._run(); }, CodexChatDiscovery.refreshDelay));
-	private readonly _safetyRefresh = this._register(new RunOnceScheduler(() => this.invalidate(), CodexChatDiscovery.safetyRefreshDelay));
+	private readonly _safetyRefresh = this._register(new RunOnceScheduler(() => this.invalidateCatalog(), CodexChatDiscovery.safetyRefreshDelay));
 	private readonly _watchers = this._register(new DisposableStore());
 	private _home: URI | undefined;
 	private _started = false;
@@ -43,16 +43,23 @@ export class CodexChatDiscovery extends Disposable {
 		return this._running ?? Promise.resolve();
 	}
 
-	/** Coalesce writes without postponing refresh forever during a streaming turn. */
-	invalidate(): void {
+	/** Coalesce catalog changes without postponing refresh forever. */
+	invalidateCatalog(): void {
 		if (!this._started || this._store.isDisposed) {
 			return;
 		}
 		this._invalidated = true;
-		this._onDidInvalidate.fire();
+		this._onDidInvalidateHistory.fire();
 		if (!this._running && !this._refresh.isScheduled()) {
 			this._refresh.schedule();
 		}
+	}
+
+	private _invalidateHistory(): void {
+		if (!this._started || this._store.isDisposed) {
+			return;
+		}
+		this._onDidInvalidateHistory.fire();
 	}
 
 	/** Use the resolved home from initialize, including configuration overrides. */
@@ -65,8 +72,11 @@ export class CodexChatDiscovery extends Disposable {
 		const sessions = URI.joinPath(home, 'sessions');
 		// App-server fs/watch is shallow; VS Code's recursive watcher follows missing/replaced dated directories.
 		this._watchers.add(this._fileService.onDidFilesChange(event => {
-			if (event.affects(sessions)) {
-				this.invalidate();
+			// Appending to an existing rollout only changes its transcript. A rollout add/delete can change the catalog.
+			if (event.affects(sessions, FileChangeType.ADDED, FileChangeType.DELETED)) {
+				this.invalidateCatalog();
+			} else if (event.affects(sessions, FileChangeType.UPDATED)) {
+				this._invalidateHistory();
 			}
 		}));
 		// Recursive watches do not support correlation yet.
@@ -74,11 +84,16 @@ export class CodexChatDiscovery extends Disposable {
 		// Metadata may change without a rollout append; these paths are invalidation hints, never parsed.
 		const homeWatcher = this._watchers.add(this._fileService.createWatcher(home, { recursive: false, excludes: [] }));
 		this._watchers.add(homeWatcher.onDidChange(event => {
-			if ([...event.rawAdded, ...event.rawUpdated, ...event.rawDeleted].some(resource => {
+			const changes = [...event.rawAdded, ...event.rawUpdated, ...event.rawDeleted];
+			const catalogChanged = changes.some(resource => {
 				const name = basename(resource);
-				return isEqual(resource, home) || name === 'sessions' || name === 'session_index.jsonl' || /^state_.*\.sqlite(?:-wal)?$/.test(name);
-			})) {
-				this.invalidate();
+				return isEqual(resource, home) || name === 'sessions' || name === 'session_index.jsonl';
+			}) || [...event.rawAdded, ...event.rawDeleted].some(resource => /^state_.*\.sqlite$/.test(basename(resource)));
+			if (catalogChanged) {
+				this.invalidateCatalog();
+			} else if (changes.some(resource => /^state_.*\.sqlite(?:-wal)?$/.test(basename(resource)))) {
+				// Existing database and WAL writes are ordinary turn persistence; new databases were handled above.
+				this._invalidateHistory();
 			}
 		}));
 	}

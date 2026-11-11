@@ -89,8 +89,11 @@ function createImageThumbnail(data: Uint8Array, maxSize: number, mimeType: strin
 				return;
 			}
 			context.drawImage(image, 0, 0, canvas.width, canvas.height);
-			const outputMimeType = data.length >= 3 && data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF ? 'image/jpeg' : 'image/png';
-			canvas.toBlob(thumbnail => resolve(thumbnail ?? undefined), outputMimeType);
+			// Chromium encodes PNG and JPEG blobs only while the renderer is idle, so a busy
+			// window (e.g. a streaming chat response) delays the thumbnail by seconds. WebP is
+			// encoded on a worker thread; quality 1 is lossless and preserves PNG thumbnails.
+			const isJpeg = data.length >= 3 && data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF;
+			canvas.toBlob(thumbnail => resolve(thumbnail ?? undefined), 'image/webp', isJpeg ? 0.92 : 1);
 		};
 		image.onerror = () => {
 			URL.revokeObjectURL(url);

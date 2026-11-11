@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Event, Relay } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, isDisposable } from '../../../../base/common/lifecycle.js';
@@ -137,12 +137,7 @@ registerAction2(class extends Action2 {
 		const id = await pickTryout(accessor);
 		const scenario = id && tryoutService.getTryout(id);
 		if (scenario) {
-			await clipboardService.writeText(createMarkdownCommandLink({
-				id: RUN_ONBOARDING_TRYOUT_COMMAND_ID,
-				arguments: [scenario.id],
-				text: scenario.tryout.title,
-				tooltip: scenario.tryout.description,
-			}));
+			await clipboardService.writeText(appendEscapedMarkdownInlineCode(`try(${scenario.id},${scenario.tryout.title})`));
 		}
 	}
 });

@@ -115,7 +115,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			}
 		}));
 
-		this.createTextModelListener(this.commentEditor, this._form);
+		this.createTextModelListener(this.commentEditor);
 
 		this.setCommentEditorDecorations();
 
@@ -156,6 +156,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this.expandReplyArea();
 		}
 
+		// A thread that is created without comments expands its reply area for the first comment. Once its comments
+		// arrive, an untouched reply area collapses to the reply button, as it does when it loses focus.
+		if (commentThread.comments?.length && this.isReplyExpanded && !this.commentEditor.hasWidgetFocus() && !this.commentEditor.getModel()?.getValueLength()) {
+			this._container.classList.remove('expand');
+		}
+
 		if (isReplying) {
 			this.commentEditor.focus();
 		}
@@ -179,7 +185,29 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	public layout(widthInPixel: number) {
-		this.commentEditor.layout({ height: this._editorHeight, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
+		this.commentEditor.layout({ height: this._editorHeight, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ - this.getAvatarWidth() });
+	}
+
+	/**
+	 * The width taken up by the author's avatar, which shares a row with the comment editor.
+	 */
+	private getAvatarWidth(): number {
+		return this.avatar ? dom.getTotalWidth(this.avatar) : 0;
+	}
+
+	/**
+	 * Sizes the comment editor to the space that the author's avatar leaves in the comment form.
+	 */
+	private layoutCommentEditorInForm(): void {
+		const editorNode = this.commentEditor.getDomNode();
+		const formWidth = dom.getContentWidth(this._form);
+		if (!editorNode || formWidth <= 0) {
+			// The form isn't rendered, so there is nothing to measure.
+			this.commentEditor.layout();
+			return;
+		}
+		const editorFrameWidth = dom.getTotalWidth(editorNode) - dom.getContentWidth(editorNode);
+		this.commentEditor.layout({ height: this._editorHeight, width: formWidth - this.getAvatarWidth() - editorFrameWidth });
 	}
 
 	public focusIfNeeded() {
@@ -220,6 +248,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._container.style.display = 'none';
 		} else {
 			this._container.style.display = 'block';
+			if (this.isReplyExpanded) {
+				// The avatar may have appeared or disappeared next to the comment editor.
+				this.layoutCommentEditorInForm();
+			}
 		}
 	}
 
@@ -237,7 +269,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditor.updateOptions({ placeholder });
 	}
 
-	private createTextModelListener(commentEditor: ICodeEditor, commentForm: HTMLElement) {
+	private createTextModelListener(commentEditor: ICodeEditor) {
 		this._commentThreadDisposables.push(commentEditor.onDidFocusEditorWidget(() => {
 			this._commentThread.input = {
 				uri: commentEditor.getModel()!.uri,
@@ -272,7 +304,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 				if (input.value === '') {
 					this._pendingComment = { body: '', cursor: new Position(1, 1) };
-					commentForm.classList.remove('expand');
+					if (this.isReply) {
+						this._container.classList.remove('expand');
+					}
 					commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
 					this._error.classList.add('hidden');
@@ -331,8 +365,48 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditorActions.setActions(editorMenu, true);
 	}
 
-	private get isReplyExpanded(): boolean {
+	/**
+	 * Whether the editor is for a reply, i.e. the thread already has comments.
+	 */
+	private get isReply(): boolean {
+		return !!this._commentThread.comments?.length;
+	}
+
+	get isReplyExpanded(): boolean {
 		return this._container.classList.contains('expand');
+	}
+
+	get domNode(): HTMLElement {
+		return this._container;
+	}
+
+	/**
+	 * Measures the width the reply needs: room for the author's avatar and the reply button, or for the widest of
+	 * the buttons below a reply that is being written, which wrap.
+	 */
+	measureMinimumWidth(): number {
+		if (this._container.style.display === 'none') {
+			return 0;
+		}
+		const targetWindow = dom.getWindow(this._container);
+		const avatarWidth = this.avatar && this.avatar.offsetWidth > 0 ? dom.getTotalWidth(this.avatar) : 0;
+		let buttonWidth = 0;
+		if (this._reviewThreadReplyButton && this._reviewThreadReplyButton.offsetWidth > 0) {
+			// The button stretches to fill the form, so measure its text instead.
+			const range = this._reviewThreadReplyButton.ownerDocument.createRange();
+			range.selectNodeContents(this._reviewThreadReplyButton);
+			const buttonStyle = targetWindow.getComputedStyle(this._reviewThreadReplyButton);
+			buttonWidth = range.getBoundingClientRect().width + (this._reviewThreadReplyButton.offsetWidth - this._reviewThreadReplyButton.clientWidth)
+				+ (parseFloat(buttonStyle.paddingLeft) || 0) + (parseFloat(buttonStyle.paddingRight) || 0);
+		}
+		let actionsWidth = 0;
+		for (const actions of [this._formActions, this._editorActions]) {
+			for (const action of actions?.children ?? []) {
+				actionsWidth = Math.max(actionsWidth, dom.isHTMLElement(action) ? dom.getTotalWidth(action) : 0);
+			}
+		}
+		const style = targetWindow.getComputedStyle(this._container);
+		return (parseFloat(style.marginLeft) || 0) + Math.max(avatarWidth + buttonWidth, actionsWidth) + (parseFloat(style.marginRight) || 0);
 	}
 
 	private expandReplyArea(focus: boolean = true) {
@@ -341,7 +415,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			if (focus) {
 				this.commentEditor.focus();
 			}
-			this.commentEditor.layout();
+			this.layoutCommentEditorInForm();
 		}
 	}
 
@@ -374,8 +448,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
 		this._register(commentEditor.onDidBlurEditorWidget(() => {
-			if (commentEditor.getModel()!.getValueLength() === 0 && commentForm.classList.contains('expand')) {
-				commentForm.classList.remove('expand');
+			if (this.isReply && commentEditor.getModel()!.getValueLength() === 0 && this.isReplyExpanded) {
+				this._container.classList.remove('expand');
 			}
 		}));
 	}

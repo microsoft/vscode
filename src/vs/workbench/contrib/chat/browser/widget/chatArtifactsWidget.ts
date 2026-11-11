@@ -23,10 +23,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ChatMemoryFileResource } from '../../common/chatArtifactExtraction.js';
 import { IChatArtifact, IChatArtifactsService, IArtifactSourceGroup, ArtifactSource } from '../../common/tools/chatArtifactsService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
+import { saveChatArtifact } from '../chatArtifactPillSource.js';
 import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './input/chatInputStack.js';
 
@@ -114,6 +116,7 @@ export class ChatArtifactsWidget extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-artifacts-widget');
@@ -230,7 +233,7 @@ export class ChatArtifactsWidget extends Disposable {
 		// all images from the chat widget session automatically.
 		const first = group.artifacts[0];
 		if (first?.uri) {
-			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri));
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri), undefined, { sessionResource: this._sessionResource.get() });
 		}
 	}
 
@@ -253,7 +256,7 @@ export class ChatArtifactsWidget extends Disposable {
 
 	private async _openScreenshotInCarousel(clicked: IChatArtifact): Promise<void> {
 		if (clicked.uri) {
-			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri));
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri), undefined, { sessionResource: this._sessionResource.get() });
 		}
 	}
 
@@ -290,20 +293,7 @@ export class ChatArtifactsWidget extends Disposable {
 	}
 
 	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
-		const sourceUri = URI.parse(artifact.uri);
-		const defaultFileName = sourceUri.path.split('/').pop() ?? artifact.label;
-		const defaultPath = await this._fileDialogService.defaultFilePath();
-		const defaultUri = URI.joinPath(defaultPath, defaultFileName);
-
-		const targetUri = await this._fileDialogService.showSaveDialog({
-			defaultUri,
-			title: localize('chat.artifacts.saveDialog.title', "Save Artifact"),
-		});
-
-		if (targetUri) {
-			const content = await this._fileService.readFile(sourceUri);
-			await this._fileService.writeFile(targetUri, content.value);
-		}
+		await saveChatArtifact(artifact, this._fileService, this._fileDialogService, this._webContentExtractorService);
 	}
 }
 

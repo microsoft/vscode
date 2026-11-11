@@ -5,37 +5,50 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../base/common/actions.js';
+import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { createSessionComparisonJudgePrompt } from '../../../../../platform/agentHost/common/sessionComparisonPrompts.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
 import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { ChatPetAccessoryIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatPetWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
+import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
+import { ChatProgressAnimation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import type { IChatWidgetFixtureHandle, IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
+import { FixtureMotionAccessibilityService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
+import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
+import { getSessionChatItemHorizontalPadding } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 
 import '../../../../browser/media/style.css';
-import '../../../../browser/parts/media/sessionView.css';
-import '../../browser/media/chatView.css';
+import '../../../../browser/parts/mobile/mobileChatShell.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 
 const fixtureWidth = 800;
 const fixtureHeight = 720;
-const plainContentHorizontalPadding = 64;
-const backgroundContentHorizontalPadding = 88;
 const codiconsBackground = { kind: 'codicons' } as const;
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
-	const part = dom.append(container, dom.$('.part.sessionspart'));
+	const part = dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
@@ -94,31 +107,36 @@ const stickyAssistantResponse = [
 	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
 ].join('\n');
 
-async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions): Promise<void> {
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false, experimentalComposerLayout = false): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
-	container.style.width = `${fixtureWidth}px`;
-	container.style.height = `${options.height ?? fixtureHeight}px`;
+	const width = options.width ?? fixtureWidth;
+	const height = options.height ?? fixtureHeight;
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.toggle('phone-layout', phoneLayout);
 
 	const part = withBackground
 		? createChatBackgroundPart(container, disposableStore)
-		: dom.append(container, dom.$('.part.sessionspart'));
+		: dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 
 	const chatView = dom.append(part, dom.$('.chat-view'));
+	chatView.classList.toggle('chat-view-chat', experimentalComposerLayout);
+	chatView.classList.toggle('experimental-session-composer', experimentalComposerLayout);
 	chatView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 
 	await renderChatWidget({ ...context, container: chatView }, {
-		width: fixtureWidth,
-		height: fixtureHeight,
+		width,
+		height,
 		listHeight: 430,
-		contentHorizontalPadding: withBackground ? backgroundContentHorizontalPadding : plainContentHorizontalPadding,
+		contentHorizontalPadding: getSessionChatItemHorizontalPadding(withBackground),
 		hostLayoutMode: 'listOnly',
-		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
+		persistentContentHeight: withBackground ? 0 : CHAT_INPUT_PILLS_ROW_HEIGHT,
 		responseFooterAction: true,
 		...options,
 	});
@@ -128,6 +146,58 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	auxiliaryBar?.classList.remove('auxiliarybar');
 }
 
+async function renderPhoneChatComposer(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		width: 390,
+		height: 760,
+		listHeight: 570,
+		contentHorizontalPadding: 8,
+		hostLayoutMode: 'listOnly',
+		messages: [{
+			user: 'Keep the phone composer controls aligned.',
+			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
+		}],
+	}, true, false);
+
+	const chatView = context.container.querySelector<HTMLElement>('.chat-view-chat.experimental-session-composer');
+	const secondaryControls = [...context.container.querySelectorAll<HTMLElement>('.chat-responsive-picker-container')]
+		.find(container => container.textContent?.includes('Default permissions'));
+	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
+	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
+	const submitBounds = submitButton?.getBoundingClientRect();
+	const inputActionBounds = inputAction?.getBoundingClientRect();
+	if (chatView
+		|| !submitBounds || !inputActionBounds
+		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
+		throw new Error('The in-chat phone composer must use the standard phone layout and align its input actions.');
+	}
+	const secondaryBounds = secondaryControls?.getBoundingClientRect();
+	if (!secondaryBounds
+		|| secondaryBounds.top < submitBounds.bottom - 1
+		|| !secondaryControls?.checkVisibility()) {
+		throw new Error('The standard active-chat composer must keep its secondary controls below the input.');
+	}
+}
+
+function renderStatusPills(inputPart: ChatInputPart, instantiationService: IInstantiationService, disposableStore: DisposableStore): void {
+	const row = disposableStore.add(new ChatPillsRow('ChatView.fixture', {
+		compact: 'auto',
+		targetWindow: dom.getWindow(inputPart.element),
+	}));
+	const pills = disposableStore.add(instantiationService.createInstance(ChatPillsWidget, {
+		pills: constObservable([
+			{ action: toAction({ id: 'fixture.mode', label: 'Interactive', class: ThemeIcon.asClassName(Codicon.commentDiscussion), run: () => { } }) },
+			{ action: toAction({ id: 'fixture.permissions', label: 'Default Permissions', class: ThemeIcon.asClassName(Codicon.shield), run: () => { } }) },
+		]),
+	}, { ariaLabel: 'Session status' }));
+	const persistentContent = inputPart.persistentContentContainerElement;
+	persistentContent.appendChild(row.element);
+	persistentContent.classList.add('chat-persistent-content-visible');
+	row.content.appendChild(pills.element);
+	row.observe(persistentContent);
+	row.observe(pills.element, () => pills.getPillElements());
+}
+
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
 	const { disposableStore } = context;
 	await renderChatView(context, withBackground, {
@@ -135,25 +205,104 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			user: 'Show how assistant responses read over a custom background.',
 			assistant: [{ kind: 'markdown', text: assistantResponse }],
 		}],
-		decorateInputPart: (inputPart, instantiationService) => {
-			const row = disposableStore.add(new ChatPillsRow('ChatView.fixture', {
-				compact: 'auto',
-				targetWindow: dom.getWindow(inputPart.element),
-			}));
-			const pills = disposableStore.add(instantiationService.createInstance(ChatPillsWidget, {
-				pills: constObservable([
-					{ action: toAction({ id: 'fixture.mode', label: 'Interactive', class: ThemeIcon.asClassName(Codicon.commentDiscussion), run: () => { } }) },
-					{ action: toAction({ id: 'fixture.permissions', label: 'Default Permissions', class: ThemeIcon.asClassName(Codicon.shield), run: () => { } }) },
-				]),
-			}, { ariaLabel: 'Session status' }));
-			const persistentContent = inputPart.persistentContentContainerElement;
-			persistentContent.appendChild(row.element);
-			persistentContent.classList.add('chat-persistent-content-visible');
-			row.content.appendChild(pills.element);
-			row.observe(persistentContent);
-			row.observe(pills.element);
-		},
+		decorateInputPart: (inputPart, instantiationService) => renderStatusPills(inputPart, instantiationService, disposableStore),
 	});
+}
+
+async function renderStickyProgress(context: ComponentFixtureContext, options: { pills?: boolean; inline?: boolean; background?: boolean; image?: boolean; pet?: boolean }): Promise<void> {
+	if (options.pet) {
+		context.container.classList.add('monaco-reduce-motion');
+		configureChatPetFixtureFileRoot(context.disposableStore);
+	}
+	const image = options.image
+		? encodeBase64(VSBuffer.wrap(new Uint8Array(await readFixtureBinaryResource(fixtureResourceUri('src/vs/workbench/test/browser/componentFixtures/chat/media/generated-image.png')))))
+		: undefined;
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatView(context, !!options.background, {
+		height: 540,
+		stickyProgress: true,
+		persistentProgress: ChatProgressAnimation.Draw,
+		thinkingPhrases: ['Working'],
+		additionalServices: options.pet ? registration => {
+			registration.defineInstance(IChatPetService, context.disposableStore.add(new FixtureChatPetService({
+				enabled: true,
+				variant: 'insiders',
+				horizontalPosition: 0.5,
+				selectedAccessory: ChatPetAccessoryIds.CowboyHat,
+			})));
+			registration.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(context.container, context.disposableStore));
+		} : undefined,
+		messages: [{
+			user: 'Review the earlier implementation while the agent keeps working.',
+			assistant: image ? [{
+				kind: 'tool',
+				toolId: 'image_generation',
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				pastTenseMessage: 'Generated image',
+				complete: true,
+				toolSpecificData: { kind: 'generatedImage' },
+				resultDetails: { input: '{}', output: [{ type: 'embed', value: image, mimeType: 'image/png' }] },
+			}] : [{ kind: 'markdown', text: stickyAssistantResponse }],
+		}, {
+			user: 'Check the remaining work and keep me updated.',
+			assistant: [{ kind: 'markdown', text: 'I am checking the remaining changes and their tests.' }],
+			responseComplete: false,
+		}],
+		decorateInputPart: options.pills || options.pet ? (inputPart, instantiationService) => {
+			if (options.pills) {
+				renderStatusPills(inputPart, instantiationService, context.disposableStore);
+			}
+			if (options.pet) {
+				context.disposableStore.add(instantiationService.createInstance(ChatPetWidget, {
+					parent: inputPart.element,
+					dragBounds: inputPart.inputContainerElement ?? inputPart.element,
+					movementBounds: context.container,
+					model: constObservable(undefined),
+					hasInput: constObservable(false),
+					inputChanged: Event.None,
+					getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+					getPlatforms: () => inputPart.getChatPetPlatforms(),
+					onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
+				}, undefined));
+			}
+		} : undefined,
+		onRendered: value => handle = value,
+	});
+	if (!handle) {
+		throw new Error('Sticky progress fixture did not create the chat');
+	}
+	if (image) {
+		await waitForFixtureCondition(() => !!context.container.querySelector('.chat-generated-image-result img'), 'Generated image preview did not render');
+		await Promise.all([...context.container.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')].map(image => image.decode()));
+	}
+	if (options.pet) {
+		await waitForFixtureCondition(() => {
+			const sprite = context.container.querySelector('.chat-pet-sprite:not(.hidden)');
+			const images = [...(sprite?.querySelectorAll<HTMLImageElement>('img.chat-pet-spritesheet[src]') ?? [])];
+			return images.length > 1 && images.every(image => image.complete && image.naturalWidth > 0);
+		}, 'The pet and its hat did not finish loading');
+		assertChatPetInScreenshot(context.container);
+	}
+	const { listWidget } = handle;
+	let previousHeight = -1;
+	await waitForFixtureCondition(() => {
+		const height = listWidget.scrollHeight;
+		const settled = height === previousHeight && height > listWidget.renderHeight;
+		previousHeight = height;
+		return settled;
+	}, 'Sticky progress fixture transcript did not settle');
+	if (options.inline) {
+		listWidget.scrollToEnd();
+	} else {
+		listWidget.scrollTop = 0;
+	}
+	await waitForFixtureCondition(() => {
+		const progress = context.container.querySelector<HTMLElement>('.chat-working-progress');
+		const host = progress?.parentElement;
+		return !!progress && progress.getBoundingClientRect().height > 0
+			&& !!host?.classList.contains(options.inline ? 'chat-working-progress-anchor' : 'chat-sticky-progress');
+	}, 'Sticky progress fixture did not reach its requested position');
 }
 
 async function renderStickyBackgroundContinuity(context: ComponentFixtureContext): Promise<void> {
@@ -342,6 +491,113 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	StickyProgressWithPills: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, { pills: true }),
+	}),
+	StickyProgressWithoutPills: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, {}),
+	}),
+	StickyProgressInline: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, { pills: true, inline: true }),
+	}),
+	StickyProgressWithBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		expectedVisualDescriptions: ['The transcript ends above the status pills without text or code reappearing below the pinned progress row. Standard themes have a soft top-edge fade; high contrast keeps a solid boundary. The progress label stays crisp, the wallpaper remains visible around the controls, and the composer keeps its position.'],
+		render: context => renderStickyProgress(context, { pills: true, background: true }),
+	}),
+	StickyProgressInlineWithBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		expectedVisualDescriptions: ['At the end of the transcript, progress stays inline with the response above the status pills. The wallpaper remains visible behind the pills without transcript content showing through.'],
+		render: context => renderStickyProgress(context, { pills: true, inline: true, background: true }),
+	}),
+	StickyProgressImageWithBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		expectedVisualDescriptions: ['A generated image fades smoothly into the pinned progress backdrop without fading the progress label or reappearing beneath the row or behind the status pills. The wallpaper remains visible behind the pills.'],
+		render: context => renderStickyProgress(context, { pills: true, background: true, image: true }),
+	}),
+	StickyProgressWithPetAndBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		expectedVisualDescriptions: ['The teal pet and its cowboy hat sit in front of the generated image and progress backdrop, with neither the pet nor progress label faded or cut off. Standard themes fade the backdrop at its top edge; high contrast keeps a solid boundary. The wallpaper remains visible behind the status pills.'],
+		render: context => renderStickyProgress(context, { pills: true, background: true, image: true, pet: true }),
+	}),
+	StickyProgressWithPet: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		expectedVisualDescriptions: ['Without a wallpaper, the teal pet and its cowboy hat remain above the pinned progress row and floating status controls.'],
+		render: context => renderStickyProgress(context, { pills: true, image: true, pet: true }),
+	}),
+	StickyProgressWithoutPillsWithBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		expectedVisualDescriptions: ['With no status pills, pinned progress sits immediately above the composer without reserving an empty pill row. Transcript content does not reappear beneath the progress row.'],
+		render: context => renderStickyProgress(context, { background: true }),
+	}),
+	ComparisonJudgeInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Judge Instructions is a compact collapsed disclosure, with the complete prompt hidden until expanded.'],
+		render: context => renderChatView(context, false, {
+			height: 240, listHeight: 220, inputVisible: false,
+			messages: [{ user: createSessionComparisonJudgePrompt('comparison-id'), assistant: [] }],
+			onRendered: ({ listWidget }) => {
+				listWidget.updateRendererOptions({ firstRequestSummary: 'Judge Instructions' });
+				if (!context.container.querySelector('details.chat-request-disclosure')) {
+					throw new Error('Judge instructions must render as a collapsed disclosure.');
+				}
+			},
+		}),
+	}),
+	ComparisonSynthesisInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Synthesis Instructions is a compact collapsed disclosure rather than a full prompt or file attachment.'],
+		render: context => renderChatView(context, false, {
+			height: 240, listHeight: 220, inputVisible: false,
+			messages: [{ user: 'Synthesize the strongest parts of the comparison. Call #readAttemptComparison and inspect the authoritative worktrees.', assistant: [] }],
+			onRendered: ({ listWidget }) => {
+				listWidget.updateRendererOptions({ firstRequestSummary: 'Synthesis Instructions' });
+				if (!context.container.querySelector('details.chat-request-disclosure')) {
+					throw new Error('Synthesis instructions must render as a collapsed disclosure.');
+				}
+			},
+		}),
+	}),
+	PhoneChatComposerSettingsDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With neither setting enabled, a phone-sized active chat uses the standard bottom-pinned composer and keeps the send action aligned with the other input actions.'],
+		render: renderPhoneChatComposer,
+	}),
+	PhoneChatComposerUnifiedWorkspacePicker: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With only the unified workspace picker enabled, a phone-sized active chat keeps the standard bottom-pinned composer because the experimental composer dependency is not enabled.'],
+		render: renderPhoneChatComposer,
+	}),
+	PhoneChatComposerExperimentalComposer: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Even with both new-session settings enabled, a phone-sized active chat keeps the standard composer with permissions in the secondary toolbar below the input.'],
+		render: renderPhoneChatComposer,
+	}),
 	CheckpointControlsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Restore Checkpoint and fork controls each have their own compact opaque surface over the Codicons wallpaper between faded separator lines, with no opaque rectangle behind their toolbar or spacing. Direct hover changes only the hovered control surface.'],

@@ -9,7 +9,7 @@
 import { ActionType } from '../common/actions.js';
 import type { Message } from '../channels-chat/state.js';
 import type { URI } from '../common/state.js';
-import type { AutomationDefinition, AutomationEntry, AutomationOperation, AutomationSessionTemplate, AutomationState, AutomationTrigger } from './state.js';
+import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry, AutomationOperation, AutomationSessionTemplate, AutomationState, AutomationTrigger } from './state.js';
 
 /**
  * Partial replacement of editable {@link AutomationDefinition} fields.
@@ -26,7 +26,9 @@ export interface AutomationDefinitionPatch {
 	message?: Message;
 	/**
 	 * Replacement {@link AutomationDefinition.session}. The host revalidates
-	 * affected event triggers when their discovery context changes.
+	 * affected event triggers when their discovery context changes, and
+	 * captures {@link AutomationSessionTemplate.customizations} entries that
+	 * are new or whose `uri` or `nonce` changed.
 	 */
 	session?: AutomationSessionTemplate;
 	/** Replacement {@link AutomationDefinition.enabled}. */
@@ -36,6 +38,15 @@ export interface AutomationDefinitionPatch {
 	 * validates event ids and normalizes event-trigger titles and descriptions.
 	 */
 	triggers?: AutomationTrigger[];
+	/**
+	 * Complete replacement {@link AutomationDefinition.disableConditions}.
+	 * Omit to leave unchanged; supply an empty array to remove all conditions.
+	 * Each kind may appear at most once; hosts MUST reject duplicate kinds.
+	 * Clearing conditions does not change {@link AutomationDefinition.enabled}.
+	 *
+	 * @uniqueItemsBy kind
+	 */
+	disableConditions?: AutomationDisableCondition[];
 	/** Complete replacement {@link AutomationDefinition._meta}. */
 	_meta?: Record<string, unknown>;
 }
@@ -50,7 +61,9 @@ export interface AutomationDefinitionPatch {
  *
  * This side-effect request leaves optimistic catalogue state unchanged. The
  * host validates trigger ids and configuration, normalizes event-trigger
- * titles and descriptions, persists the definition, then publishes the
+ * titles and descriptions, captures any
+ * {@link AutomationSessionTemplate.customizations | session customizations}
+ * from the dispatching client, persists the definition, then publishes the
  * authoritative result with {@link AutomationSetAction | `automation/set`}.
  * Rejections leave the catalogue unchanged.
  *

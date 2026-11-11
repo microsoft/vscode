@@ -13,10 +13,15 @@ exchanges:
           id: toolcall_0
           name: ask_user
           input:
-            question: Which fruit?
-            choices:
-              - Apple
-              - Banana
+            message: Which fruit?
+            requestedSchema:
+              properties:
+                fruit:
+                  type: string
+                  title: Fruit
+                  enum:
+                    - Apple
+                    - Banana
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -29,15 +34,20 @@ exchanges:
             - type: tool_use
               name: ask_user
               input:
-                question: Which fruit?
-                choices:
-                  - Apple
-                  - Banana
+                message: Which fruit?
+                requestedSchema:
+                  properties:
+                    fruit:
+                      type: string
+                      title: Fruit
+                      enum:
+                        - Apple
+                        - Banana
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'User selected: Banana'
+              content: 'User responded: Banana'
     response:
       content: Banana
       stopReason: end_turn

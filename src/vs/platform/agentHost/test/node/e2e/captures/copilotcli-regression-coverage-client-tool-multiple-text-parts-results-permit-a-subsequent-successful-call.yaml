@@ -1,0 +1,126 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call result_probe exactly once. If it fails or is empty, stop and report that without retrying.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: result_probe
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call result_probe exactly once. If it fails or is empty, stop and report that without retrying.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: result_probe
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                LEFT_RESULT
+                RIGHT_RESULT
+    response:
+      content: 'The probe returned a result: "LEFT_RESULT RIGHT_RESULT"'
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call result_probe exactly once. If it fails or is empty, stop and report that without retrying.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: result_probe
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                LEFT_RESULT
+                RIGHT_RESULT
+        - role: assistant
+          content: 'The probe returned a result: "LEFT_RESULT RIGHT_RESULT"'
+        - role: user
+          content: Call result_probe exactly once again and report its new result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: result_probe
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call result_probe exactly once. If it fails or is empty, stop and report that without retrying.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: result_probe
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                LEFT_RESULT
+                RIGHT_RESULT
+        - role: assistant
+          content: 'The probe returned a result: "LEFT_RESULT RIGHT_RESULT"'
+        - role: user
+          content: Call result_probe exactly once again and report its new result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: result_probe
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'The probe returned a new result: "LIVE_PROBE_RESULT"'
+      stopReason: end_turn

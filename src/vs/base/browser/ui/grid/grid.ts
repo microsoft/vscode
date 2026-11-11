@@ -538,9 +538,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Resize a {@link IView view}.
 	 *
 	 * @param view The {@link IView view} to resize.
-	 * @param size The size the view should be.
+	 * @param size The size the view should be. A dimension left out keeps its size.
 	 */
-	resizeView(view: T, size: IViewSize): void {
+	resizeView(view: T, size: Partial<IViewSize>): void {
 		const location = this.getViewLocation(view);
 		return this.gridview.resizeView(location, size);
 	}

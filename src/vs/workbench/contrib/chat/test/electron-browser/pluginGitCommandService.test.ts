@@ -299,16 +299,17 @@ fatal: could not read Username for 'https://github.com': terminal prompts disabl
 
 	test('pull delegates to ILocalGitService and returns result', async () => {
 		let allowHardResetOnDivergence: boolean | undefined;
+		let skipDetachedHead: boolean | undefined;
 		const service = createService(createLocalGitStub({
 			pull: async (_operationId, _repoPath, options) => {
 				allowHardResetOnDivergence = options?.allowHardResetOnDivergence;
+				skipDetachedHead = options?.skipDetachedHead;
 				return true;
 			},
 		}));
 
 		const result = await service.pull(URI.file('/tmp/repo'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(allowHardResetOnDivergence, true);
+		assert.deepStrictEqual({ result, allowHardResetOnDivergence, skipDetachedHead }, { result: true, allowHardResetOnDivergence: true, skipDetachedHead: true });
 	});
 
 	test('pull and fetch forward an existing GitHub session', async () => {
