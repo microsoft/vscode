@@ -107,6 +107,8 @@ source providers
 
 Section counts and rendered rows consume the same filtered model so hidden or disabled sources cannot appear in one surface but not the other.
 
+Controls belonging to an unfocused chat use a disposable session-scoped items model over the same discovery and filtering pipeline. Reading their counts and section links must not retarget the window's active customization harness.
+
 Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 
 Host-published MCP items retain the runtime-reported configuration source through typed metadata and the shared item contract, independently of lifecycle state or the availability of a local configuration definition. `IAgentHostMcpServer.skillBundle` carries the raw skill-bundle identity and listed child count for effectively enabled MCP containers, allowing navigation from MCP rows to the same bundle in Skills without interpreting scoped server IDs.

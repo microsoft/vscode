@@ -72,7 +72,8 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessio
 import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
-import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { SessionsChatViewStateService } from '../../../../../workbench/contrib/sessions/browser/chat/chatViewStateService.js';
@@ -90,7 +91,7 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { AbstractChatView, IChatViewBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -4159,7 +4160,7 @@ suite('Sessions - Chat View', () => {
 		const view: IStickyBackgroundChatView = Object.assign(Object.create(ChatView.prototype), {
 			_widget: widget,
 			_stickyScrollBackgroundReplica: { value: undefined },
-			chatBackgroundService: { getBackground: () => background },
+			_background: { hasBackground: () => !!background },
 			_chatItemHorizontalPadding: getSessionChatItemHorizontalPadding(false),
 		});
 		const inputBottom = input.getBoundingClientRect().bottom;
@@ -4791,8 +4792,14 @@ suite('Sessions - Chat View', () => {
 		};
 		const codicons = { kind: 'codicons' } as const;
 		const { store, chatView, stickyContainer, sourceRenderer } = createBackgroundReplicaHost(image);
-		const replicaSlot = store.add(new MutableDisposable<SessionsChatBackgroundReplica>());
+		const replicaSlot = store.add(new MutableDisposable<IChatViewBackgroundReplica>());
 		let background: ISessionsChatBackground | undefined = image;
+		const factory = new class extends DefaultChatViewFactory {
+			get background() { return this.viewOptions.background; }
+		}(upcastPartial<ISessionsChatBackgroundService>({
+			onDidChangeBackground: VSCodeEvent.None,
+			getBackground: () => background,
+		}));
 		let stickyScrollDomNode: HTMLElement | undefined = stickyContainer;
 		let paddingUpdates = 0;
 		const view = Object.assign(Object.create(ChatView.prototype), {
@@ -4803,7 +4810,7 @@ suite('Sessions - Chat View', () => {
 				setPersistentContentHeight: () => { },
 			},
 			_stickyScrollBackgroundReplica: replicaSlot,
-			chatBackgroundService: { getBackground: () => background },
+			_background: factory.background,
 			_chatItemHorizontalPadding: getSessionChatItemHorizontalPadding(true),
 		}) as IStickyBackgroundChatView;
 

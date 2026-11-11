@@ -1063,7 +1063,7 @@ suite('GitHub authenticated IPC clients', () => {
 		});
 		const { remote, connection, broker } = connect();
 		const client = store.add(await remote.acquireClient(authorization, signal()));
-		const rejected = assert.rejects(client.notifications.markRead('42', signal()), { kind: 'authentication' });
+		const rejected = assert.rejects(client.notifications.markRead('42', signal()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
 		const fetchSignal = await started.p;
 		broker.token = 'renewed-token';
 		broker.tokens.fire(grantChange);
@@ -2258,7 +2258,7 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 			const { remote, connection, broker } = connect();
 			const client = store.add(await remote.acquireClient(authorization, signal()));
-			const rejected = assert.rejects(client.reviews.resolveThread('T_1', signal()), ending === 'renewal' ? { kind: 'authentication' } : isCancellationError);
+			const rejected = assert.rejects(client.reviews.resolveThread('T_1', signal()), ending === 'renewal' ? { kind: 'unknown', message: 'GitHub credential generation was superseded' } : isCancellationError);
 			const fetchSignal = await started.p;
 			if (ending === 'dispose') {
 				client.dispose();

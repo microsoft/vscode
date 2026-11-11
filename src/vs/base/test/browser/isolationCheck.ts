@@ -29,9 +29,9 @@ export interface IIsolationDetector<S = unknown> {
 	finalize?(): Promise<string[]>;
 	/**
 	 * Puts back the state from before the suite after it was checked, for state that no test may depend on and that
-	 * later suites would otherwise inherit.
+	 * later suites would otherwise inherit. The next suite starts once a returned promise settles.
 	 */
-	reset?(before: S): void;
+	reset?(before: S): void | Promise<void>;
 }
 
 export interface IIsolationFinding {
@@ -352,14 +352,14 @@ export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIs
 				continue;
 			}
 			checked.add(suite);
-			suite.afterAll('Isolation check', () => {
+			suite.afterAll('Isolation check', async () => {
 				const before = snapshots.get(suite);
 				snapshots.delete(suite);
 				if (!before) {
 					return;
 				}
 				lastChecked = suite;
-				detectors.forEach((detector, index) => {
+				for (const [index, detector] of detectors.entries()) {
 					let details: string[];
 					try {
 						details = detector.check(before[index]);
@@ -368,11 +368,11 @@ export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIs
 					}
 					pushFindings(detector.kind, suite, details);
 					try {
-						detector.reset?.(before[index]);
+						await detector.reset?.(before[index]);
 					} catch (error) {
 						pushFindings(detector.kind, suite, [`reset failed: ${error}`]);
 					}
-				});
+				}
 			});
 		}
 	});

@@ -10,11 +10,22 @@
 /*
  * The frame, the row layout and the dismiss button all come from
  * `.chat-input-notice`; only the two content elements are styled here.
+ *
+ * The icon box takes the tip's font size so that `1.4em` is the text's line box;
+ * the glyph keeps the codicon size and centers in it, on the first line of text
+ * at any chat font size.
  */
-.new-chat-in-session .sub-session-tip-icon {
+.new-chat-in-session .sub-session-tip-icon.codicon {
 	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	font-size: inherit;
+	height: 1.4em;
 	color: var(--vscode-descriptionForeground);
-	transform: translateY(2px);
+}
+
+.new-chat-in-session .sub-session-tip-icon.codicon::before {
+	font-size: var(--vscode-codiconFontSize);
 }
 
 .new-chat-in-session .sub-session-tip-text {

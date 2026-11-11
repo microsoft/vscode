@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWindows } from '../../../../base/common/platform.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
@@ -84,14 +85,23 @@ export const enum BrowserViewSharingState {
 	Unavailable = 'unavailable',
 }
 
-/** Adds the default scheme used for browser navigation. */
-export function normalizeBrowserViewUrl(url: string): string {
+/**
+ * Normalizes a URL for browser navigation: adds the default scheme when missing, and for `file:` URLs
+ * decodes a percent-encoded Windows drive-letter colon (`file:///c%3A/x.html` becomes `file:///c:/x.html`)
+ * because external shells cannot resolve the encoded form. All other escapes are preserved. The drive-letter
+ * rewrite only applies on Windows, where `/c:/` is a drive; elsewhere it is an ordinary directory name.
+ */
+export function normalizeBrowserViewUrl(url: string, windows = isWindows): string {
 	// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
 	if (/^localhost(:|\/|$)/i.test(url)) {
 		url = 'http://' + url;
 	} else if (!URL.parse(url)?.protocol) {
 		// No scheme — default to http://; sites typically upgrade to https://.
 		url = 'http://' + url;
+	}
+
+	if (windows && /^file:/i.test(url)) {
+		url = url.replace(/^(file:\/\/[^/]*\/[a-zA-Z])%3A/i, '$1:');
 	}
 
 	return url;
@@ -279,6 +289,9 @@ export interface IBrowserViewOpenHandler {
 
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
+
+/** Whether the page is dimmed while something overlaps it (the screenshot swap happens regardless). */
+export const BrowserDimOverlaySettingId = 'workbench.browser.dimOnOverlay';
 
 /**
  * Resolves the opening network and optional workspace storage partition,

@@ -29,7 +29,7 @@ import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbe
 import { SessionComparisonService } from '../../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { IInboxNotificationsService } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -130,7 +130,7 @@ suite('Sessions - Bulk archive undo', () => {
 			upcastPartial<IChatService>({ getSession: () => undefined }), new NullTelemetryServiceShape(),
 		));
 		instantiationService.stub(ISessionComparisonService, comparisonService);
-		instantiationService.stub(IInboxNotificationsService, upcastPartial<IInboxNotificationsService>({ sessionAttention: constObservable(new Map()) }));
+		instantiationService.stub(ISessionAttentionService, upcastPartial<ISessionAttentionService>({ sessionAttention: constObservable(new Map()) }));
 		const listModel = store.add(instantiationService.createInstance(SessionsListModelService));
 		const membership = () => sessions
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
@@ -152,7 +152,7 @@ suite('Sessions - Bulk archive undo', () => {
 			const context = kind === 'group'
 				? upcastPartial<ISessionGroupItem>({
 					group, sessions: ownSessions, subtreeSessions: targets,
-					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '' } : undefined,
+					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '', configuration: '' } : undefined,
 				})
 				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
 			return instantiationService.invokeFunction(accessor => action.run(accessor, context));

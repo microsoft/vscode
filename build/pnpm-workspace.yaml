@@ -2,7 +2,7 @@ packages:
   - rspack
   - vite
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
+nodeLinker: isolated
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false

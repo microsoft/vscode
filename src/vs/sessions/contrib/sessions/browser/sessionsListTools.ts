@@ -18,7 +18,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionGroupSectionId, ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
@@ -363,10 +363,6 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		const resetFilters = optionalBoolean(operation, 'resetFilters');
 		const filters = this.readFilters(operation, list);
 
-		// Validate before changing anything, so a rejected operation changes nothing.
-		if (grouping === SessionsGrouping.Inbox && !this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
-			throw new SessionsListToolInputError(`Inbox Mode requires "${SESSIONS_LIST_INBOX_ENABLED_SETTING}" to be enabled.`);
-		}
 		if (resetFilters) {
 			view.resetFilters();
 		}
@@ -503,7 +499,7 @@ const organizeInputSchema: IJSONSchema & { type: 'object' } = {
 					after: { type: 'string', description: 'Position after this session ID (moveSessions) or sibling header ID (moveHeader).' },
 					position: { type: 'string', enum: ['top', 'bottom'], description: 'Position first or last in the destination (moveSessions).' },
 					collapsed: { type: 'boolean', description: 'Whether to collapse (setCollapsed).' },
-					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date, or use inbox triage categories (setView). Inbox mode requires sessions.list.inboxEnabled. It preserves custom organization and presents attention-state categories as collapsible groups, with pinned sessions always visible.' },
+					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date, or use inbox triage categories (setView). Inbox mode preserves custom organization and presents attention-state categories as collapsible groups, with pinned sessions always visible.' },
 					sorting: { type: 'string', enum: Object.values(SessionsSorting), description: 'Sort sessions by creation or last update time (setView).' },
 					filters: {
 						type: 'array',

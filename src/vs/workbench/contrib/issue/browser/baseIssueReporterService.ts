@@ -8,10 +8,11 @@ import { Button, ButtonWithDropdown, unthemedButtonStyles } from '../../../../ba
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { abortOnDispose } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
@@ -24,13 +25,15 @@ import { Action } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
+import { GitHubRequestError, isEqualAuthorization } from '../../../../platform/github/common/githubTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
-import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { getGitHubAuthorization, normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 
@@ -71,6 +74,7 @@ export class BaseIssueReporterService extends Disposable {
 	private privateAction: Action;
 	private readonly similarIssueSearch = this._register(new MutableDisposable());
 	private similarIssueSearchGeneration = 0;
+	private readonly disposeSignal = abortOnDispose(this._store);
 
 	constructor(
 		public disableExtensions: boolean,
@@ -108,13 +112,23 @@ export class BaseIssueReporterService extends Disposable {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async () => {
+			const authorization = this.data.githubAuthorization;
+			// A caller-supplied token without a known session must not switch to another account.
+			if (!authorization && this.data.githubAccessToken) {
+				return;
+			}
 			const previousAuthState = !!this.data.githubAccessToken;
 
 			let githubAccessToken = '';
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
-				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-				githubAccessToken = potentialSessions[0]?.accessToken;
+				const session = githubSessions.find(session => authorization
+					? isEqualAuthorization(authorization, getGitHubAuthorization(session))
+					: session.scopes.includes('repo'));
+				githubAccessToken = session?.accessToken ?? '';
+				if (session) {
+					this.data.githubAuthorization ??= getGitHubAuthorization(session);
+				}
 			} catch (e) {
 				// Ignore
 			}
@@ -1270,27 +1284,26 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
-		const init = {
-			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
-				body: issueBody
-			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`,
-				'User-Agent': 'request'
-			})
-		};
-
-		const response = await fetch(url, init);
-		if (!response.ok) {
-			console.error('Invalid GitHub URL provided.');
-			return false;
+		const authorization = this.data.githubAuthorization;
+		let issueUrl: string;
+		try {
+			const sessions = await withGitHubCredentialDeadline(this.disposeSignal, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
+			if (!authorization || !sessions.some(session => isEqualAuthorization(authorization, getGitHubAuthorization(session)))) {
+				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
+			}
+			issueUrl = await this.issueFormService.createGitHubIssue(authorization, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
+			this.disposeSignal.throwIfAborted();
+		} catch (error) {
+			this.disposeSignal.throwIfAborted();
+			if (!isCancellationError(error)) {
+				this.logService.error('[IssueReporter] Failed to create GitHub issue', error);
+			}
+			if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.statusCode >= 400) {
+				return false;
+			}
+			throw error;
 		}
-		const result = await response.json();
-		await this.openLink(result.html_url);
+		await this.openLink(issueUrl);
 		this.close();
 		return true;
 	}

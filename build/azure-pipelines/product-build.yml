@@ -103,6 +103,10 @@ parameters:
     displayName: "🎯 Web"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_WEB_MOBILE
+    displayName: "Build the optional mobile web archive"
+    type: boolean
+    default: false
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -327,13 +331,8 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      # Defender for Linux can block the scan of a job's outputs for the length
-      # of a background scan of the agent, and without a timeout the scan runs
-      # until the job limit. On a timeout, 1ES logs an error and the publish
-      # still runs. This is the default for the jobs that don't set their own
-      # cap; 2 min matches those jobs until the Defender issue is fixed.
       antimalwareScan:
-        scanTimeoutInMinutes: '2'
+        scanTimeoutInMinutes: '10'
       sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
@@ -342,6 +341,9 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
+
+      - ${{ if and(eq(parameters.VSCODE_BUILD_WEB_MOBILE, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
+        - 'Mobile web requires a Product build with VSCODE_BUILD_WEB=true': error
 
       # Reject at template expansion, before allocating agents. Web uploads the matching
       # commit's webview bootstrap assets even when VSCODE_PUBLISH is false.
@@ -359,17 +361,6 @@ extends:
               # Batched CI builds check only the files that their commits change.
               # Scheduled and manual builds check every file.
               VSCODE_CHECK_CHANGED_FILES: ${{ eq(variables['Build.Reason'], 'BatchedCI') }}
-
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_UBUNTU_POOL }}
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -409,14 +400,6 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Copilot
-                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                  VSCODE_TEST_IDS:
-                    - copilot
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -450,6 +433,14 @@ extends:
                     - smoke-electron
                     - smoke-wsl-kerberos-proxy
                     - smoke-wsl-basic-proxy
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: build/azure-pipelines/win32/product-build-win32.yml@self
@@ -477,14 +468,6 @@ extends:
                     VSCODE_TEST_IDS:
                       - unit-node
                       - unit-browser-chromium
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Copilot
-                    VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                    VSCODE_TEST_IDS:
-                      - copilot
                 - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                   parameters:
                     VSCODE_ARCH: x64
@@ -523,6 +506,14 @@ extends:
                       - smoke-wsl-kerberos-proxy
                       - smoke-wsl-basic-proxy
                     VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
+                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: Copilot
+                    VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                    VSCODE_TEST_IDS:
+                      - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64
@@ -588,14 +579,6 @@ extends:
                 parameters:
                   NPM_ARCH: x64
                   VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Copilot
-                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                  VSCODE_TEST_IDS:
-                    - copilot
-              - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
-                parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -627,6 +610,14 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
+              - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:
         - stage: LinuxARM64
@@ -706,14 +697,6 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Copilot
-                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                  VSCODE_TEST_IDS:
-                    - copilot
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -745,6 +728,14 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
@@ -966,6 +957,7 @@ extends:
             - template: build/azure-pipelines/web/product-build-web.yml@self
               parameters:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
