@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester } from 'eslint';
+import { ESLint } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-no-private-agent-host-meta-import.ts';
 
 RuleTester.describe = suite;
@@ -42,11 +42,11 @@ const importForms = [
 	{ name: 'import type expression', code: (source: string) => `type Metadata = import('${source}').Metadata;` },
 ];
 
-function errors(directory: string): RuleTester.TestCaseError[] {
+function errors(directory: string): RuleTester.Error[] {
 	return [{ messageId: 'privateMetadata', data: { directory: `${metadataDirectory}/${directory}` } }];
 }
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-private-agent-host-meta-import', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-no-private-agent-host-meta-import', rule, {
 	valid: [
 		...featureFiles.flatMap(filename => importForms.map(form => ({
 			name: `${form.name} through a domain helper from ${filename}`,

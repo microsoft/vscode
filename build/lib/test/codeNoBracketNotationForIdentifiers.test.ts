@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
-import rule from '../../../.eslint-plugin-local/code-no-bracket-notation-for-identifiers.ts';
+import { RuleTester } from 'oxlint/plugins-dev';
+import eslintRule from '../../../.eslint-plugin-local/code-no-bracket-notation-for-identifiers.ts';
+
+// oxlint runs ESLint rule modules through its ESLint-compatible JS plugin API, but its types differ from ESLint's.
+const rule = eslintRule as unknown as Parameters<RuleTester['run']>[1];
 
 RuleTester.describe = suite;
 RuleTester.it = test;
 
-new RuleTester().run('code-no-bracket-notation-for-identifiers', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-no-bracket-notation-for-identifiers', rule, {
 	valid: [
 		'object.property;',
 		'object[computedProperty];',

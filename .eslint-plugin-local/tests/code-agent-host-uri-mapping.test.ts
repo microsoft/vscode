@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester } from 'eslint';
+import { ESLint } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-agent-host-uri-mapping.ts';
 
 RuleTester.describe = suite;
@@ -21,7 +21,7 @@ const featureFiles = [
 const agentHostFilename = `${repositoryRoot}/${featureFiles[0]}`;
 const otherFilename = `${repositoryRoot}/src/vs/workbench/contrib/files/browser/consumer.ts`;
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-agent-host-uri-mapping', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-agent-host-uri-mapping', rule, {
 	valid: [
 		{
 			name: 'owning connection resource mappers',
