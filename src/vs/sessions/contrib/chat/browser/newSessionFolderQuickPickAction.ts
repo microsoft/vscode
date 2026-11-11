@@ -90,6 +90,7 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 		const fileDialogService = accessor.get(IFileDialogService);
 		const composerService = accessor.get(INewSessionComposerService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatWindowService = accessor.get(IChatWindowService);
 		const chatWindow = resolveChatWindow(accessor, args);
 
@@ -123,7 +124,7 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 			return;
 		}
 		composerService.notifyUserWorkspaceSelection();
-		providerId ??= accessor.get(ISessionsManagementService).resolveWorkspace(folderUri)?.providerId;
+		providerId ??= sessionsManagementService.resolveWorkspace(folderUri)?.providerId;
 		await sessionsService.openNewSession();
 		const result = sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 		if (result !== 'applied') {

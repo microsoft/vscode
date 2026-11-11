@@ -92,7 +92,7 @@ suite('New Session Folder Quick Pick', () => {
 					activeWindow,
 					openNewChat: async (window, options) => { calls.push({ chatWindow: window.windowId, options }); },
 				}));
-				await CommandsRegistry.getCommand('workbench.action.sessions.newSession.pickFolderQuickPick')!.handler(instantiationService);
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.sessions.newSession.pickFolderQuickPick')!.handler(accessor));
 				return calls;
 			};
 
