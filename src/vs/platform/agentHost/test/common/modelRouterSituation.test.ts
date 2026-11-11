@@ -46,8 +46,9 @@ suite('modelRouterSituation', () => {
 	test('reads the workspace, repository, changed files and pull request of the chat\'s own folder', () => {
 		const folder = 'file:///Users/dev/shop-checkout';
 		const other = 'file:///Users/dev/shop-docs';
-		const session = (pullRequestBranchName: string | undefined) => ({
-			_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestUrls: ['https://github.com/contoso/shop/pull/7'], pullRequestBranchName, pullRequestState: 'open' }),
+		const pullRequestUrl = 'https://github.com/contoso/shop/pull/7';
+		const session = (pullRequestBranchName: string | undefined, pullRequestStateUrl = pullRequestUrl) => ({
+			_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestUrls: [pullRequestUrl], pullRequestBranchName, pullRequestState: 'open', pullRequestStateUrl }),
 			workingDirectories: [folder],
 		});
 		const withPeerFolder = withFolderScopeGitState(withFolderGitHubState(session('feature')._meta, getWorkingDirectoryKey(other), { owner: 'contoso', repo: 'docs' }, other), getWorkingDirectoryScopeId([other]), { branchName: 'main', uncommittedChanges: 12 }, [other]);
@@ -57,6 +58,7 @@ suite('modelRouterSituation', () => {
 			full: modelRouterWorkspaceSituation(session('feature'), [folder], true),
 			pullRequestOfAnotherBranch: modelRouterWorkspaceSituation(session('old-feature'), [folder], true),
 			pullRequestWithoutBranch: modelRouterWorkspaceSituation(session(undefined), [folder], true),
+			stateOfAnotherPullRequest: modelRouterWorkspaceSituation(session('feature', 'https://github.com/contoso/shop/pull/3'), [folder], true),
 			defaultChatKeepsSessionState: modelRouterWorkspaceSituation(withPeerSnapshot, [folder], true),
 			peerChatInSessionFolder: modelRouterWorkspaceSituation(withPeerSnapshot, [folder], false),
 			peerChatFolder: modelRouterWorkspaceSituation({ _meta: withPeerFolder, workingDirectories: [folder] }, [other], false),
@@ -67,6 +69,7 @@ suite('modelRouterSituation', () => {
 			full: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
 			pullRequestOfAnotherBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
 			pullRequestWithoutBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
+			stateOfAnotherPullRequest: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
 			defaultChatKeepsSessionState: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
 			peerChatInSessionFolder: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 40 },
 			peerChatFolder: { workspace: 'shop-docs', repository: 'contoso/docs', uncommittedFiles: 12 },

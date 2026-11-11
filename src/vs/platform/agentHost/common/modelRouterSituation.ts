@@ -5,6 +5,7 @@
 
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import type { IAgentModelInfo } from './agent.js';
 import type { SessionMode } from './agentHostSchema.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
@@ -78,8 +79,9 @@ export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta
 		? readSessionGitState(session._meta)
 		: readFolderScopeGitState(session._meta, readWorkingDirectoryScopeId(session._meta, workingDirectories)) ?? (isSessionFolder ? readSessionGitState(session._meta) : undefined);
 	const gitHub = readSessionGitHubState(session._meta, folder);
-	// A stored pull request can be one of a branch the checkout has since left, so it counts only for the branch it names.
-	const pullRequest = git?.branchName && gitHub?.pullRequestUrls?.length && gitHub.pullRequestBranchName === git.branchName ? gitHub.pullRequestState : undefined;
+	// A stored pull request can be one of a branch the checkout has since left, and the stored state is one pull request's.
+	const branchPullRequest = git?.branchName && gitHub?.pullRequestBranchName === git.branchName ? gitHub.pullRequestUrls?.[0] : undefined;
+	const pullRequest = branchPullRequest && gitHub?.pullRequestStateUrl && getPullRequestUrlKey(gitHub.pullRequestStateUrl) === getPullRequestUrlKey(branchPullRequest) ? gitHub.pullRequestState : undefined;
 	return {
 		...(workspace ? { workspace } : {}),
 		...(gitHub?.owner && gitHub.repo ? { repository: `${gitHub.owner}/${gitHub.repo}` } : {}),
