@@ -14,6 +14,8 @@ export interface IRuntimePluginEnablement {
 	readonly effectiveEnabled?: boolean;
 	readonly repositorySupported: boolean;
 	readonly managedDesiredEnabled?: boolean;
+	/** Host-owned installed-content revision, independent of activation. */
+	readonly contentRevision?: string;
 }
 
 export function readRuntimePluginEnablement(customization: { readonly _meta?: Record<string, unknown> }): IRuntimePluginEnablement | undefined {
@@ -25,7 +27,8 @@ export function readRuntimePluginEnablement(customization: { readonly _meta?: Re
 	if (typeof value.provider !== 'string' || !value.provider || typeof value.plugin !== 'string' || !value.plugin
 		|| typeof value.globalEnabled !== 'boolean' || typeof value.repositorySupported !== 'boolean'
 		|| value.effectiveEnabled !== undefined && typeof value.effectiveEnabled !== 'boolean'
-		|| value.managedDesiredEnabled !== undefined && typeof value.managedDesiredEnabled !== 'boolean') {
+		|| value.managedDesiredEnabled !== undefined && typeof value.managedDesiredEnabled !== 'boolean'
+		|| value.contentRevision !== undefined && typeof value.contentRevision !== 'string') {
 		return undefined;
 	}
 	return {
@@ -35,6 +38,7 @@ export function readRuntimePluginEnablement(customization: { readonly _meta?: Re
 		effectiveEnabled: value.effectiveEnabled,
 		repositorySupported: value.repositorySupported,
 		managedDesiredEnabled: value.managedDesiredEnabled,
+		...(value.contentRevision === undefined ? {} : { contentRevision: value.contentRevision }),
 	};
 }
 

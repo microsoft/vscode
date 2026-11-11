@@ -83,6 +83,8 @@ Harness compatibility is distinct from MCP runtime and enablement state. Provide
 
 Copilot-owned plugin activation is authoritative in the runtime. Global inventory supplies persisted enablement; an initialized chat supplies effective repository enablement. Legacy workbench and Agent Host plugin overrides do not layer over those decisions. Global installation controls use runtime mutations without mirroring local storage. Contextual plugin actions offer global and repository scopes, never session-only activation, and preserve the owning backend session and advertised chat identities. Hosts without the optional plugin-management capability remain read-only; other plugin providers and standalone MCP enablement retain their existing ownership.
 
+Local Copilot plugin discovery uses the runtime inventory for installation identities, content URIs, and activation, including when the runtime uses a non-default home. It does not read or watch the runtime's installation settings. Harness-published session customization changes and host restarts refresh inventory; the local management proxy does not synthesize installation notifications. The host supplies a shared content revision through inventory and customization metadata, stable across activation changes, so discovery retains loaded entries until content changes. Local file reads are limited to the reported plugin content. Session-free customization management remains a separate concern.
+
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 
 ### Customization sources

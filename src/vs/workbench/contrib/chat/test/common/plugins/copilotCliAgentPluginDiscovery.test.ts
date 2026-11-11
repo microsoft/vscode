@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, derived, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
@@ -16,7 +16,6 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { FileChangesEvent, FileChangeType } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
@@ -24,6 +23,9 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostService, type IAgentPluginUninstallRequest } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
+import { withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { CustomizationType } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService, TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -92,6 +94,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 	let fileService: FileService;
 	let runtimePlugins: IAgentPluginInstallation[];
+	let customizationChanges: Emitter<ActionEnvelope>;
 
 	setup(() => {
 		removedEnablement.length = 0;
@@ -100,6 +103,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		uninstallCalls.length = 0;
 		enablementCalls.length = 0;
 		runtimePlugins = [];
+		customizationChanges = store.add(new Emitter<ActionEnvelope>());
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
@@ -125,6 +129,8 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			logService,
 			new TestContextService(testWorkspace(workspaceRoot)),
 			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onDidAction = customizationChanges.event;
 				override readonly uninstallPlugin = uninstallSupported ? async (provider: string, request: IAgentPluginUninstallRequest): Promise<void> => {
 					uninstallCalls.push({ provider, request });
 				} : undefined;
@@ -134,6 +140,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 				override async setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
 					enablementCalls.push({ provider, plugin, enabled });
 					runtimePlugins = runtimePlugins.map(installation => installation.directSourceId === plugin || `${installation.name}@${installation.marketplace}` === plugin ? { ...installation, enabled } : installation);
+					publishCustomizations();
 				}
 			}(),
 		));
@@ -153,8 +160,25 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		].join('\n')));
 	}
 
+	function publishCustomizations(contentRevision = '1'): void {
+		runtimePlugins = runtimePlugins.map(plugin => ({ ...plugin, contentRevision }));
+		customizationChanges.fire({
+			channel: 'other-agent:/opaque-session', serverSeq: 1, origin: undefined,
+			action: {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: runtimePlugins.map(plugin => ({
+					type: CustomizationType.Plugin, id: plugin.name, uri: plugin.resource!.toString(), name: plugin.name,
+					_meta: withRuntimePluginEnablement(undefined, {
+						provider: 'copilotcli', plugin: plugin.directSourceId ?? `${plugin.name}@${plugin.marketplace}`,
+						globalEnabled: plugin.enabled === true, repositorySupported: !!plugin.marketplace, contentRevision,
+					}),
+				})),
+			},
+		});
+	}
+
 	async function writeInstalledPlugins(plugins: readonly ITestInstalledPlugin[], resource = configFile): Promise<void> {
-		runtimePlugins = plugins.map(plugin => ({ name: plugin.name, marketplace: plugin.marketplace, enabled: plugin.enabled ?? true, directSourceId: plugin.directSourceId }));
+		runtimePlugins = plugins.map(plugin => ({ name: plugin.name, marketplace: plugin.marketplace, enabled: plugin.enabled ?? true, directSourceId: plugin.directSourceId, resource: plugin.uri, version: plugin.version, contentRevision: '1' }));
 		const installedPlugins = plugins.map(plugin => ({
 			name: plugin.name,
 			marketplace: plugin.marketplace,
@@ -454,6 +478,40 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		});
 	});
 
+	test('preserves plugin entries and loaded contributions across enablement refreshes', async () => {
+		const uri = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(uri, 'spark');
+		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri, version: '1' }]);
+		const discovery = createDiscovery();
+		discovery.start(enablementModel);
+		const plugins = (await waitForState(discovery.plugins, plugins => !!plugins?.length))!;
+		const plugin = plugins[0];
+		await waitForState(plugin.skills, skills => skills.length === 1);
+		const contributionCounts: number[] = [];
+		let publications = 0;
+		store.add(autorun(reader => {
+			publications++;
+			for (const entry of discovery.plugins.read(reader) ?? []) {
+				contributionCounts.push(entry.skills.read(reader).length);
+			}
+		}));
+		await plugin.setEnabled!(false);
+		await plugin.setEnabled!(true);
+		await discovery.refreshPlugins();
+		const retained = discovery.plugins.get();
+		const afterActivation = { samePlugins: retained === plugins, samePlugin: retained?.[0] === plugin, contributionCounts: [...contributionCounts], publications };
+		await writePlugin(uri, 'spark-v2');
+		runtimePlugins = runtimePlugins.map(installation => ({ ...installation, version: '2' }));
+		await discovery.refreshPlugins();
+		assert.deepStrictEqual({
+			afterActivation,
+			updated: discovery.plugins.get()?.map(entry => ({ label: entry.label, replaced: entry !== plugin })),
+		}, {
+			afterActivation: { samePlugins: true, samePlugin: true, contributionCounts: [1], publications: 1 },
+			updated: [{ label: 'spark-v2', replaced: true }],
+		});
+	});
+
 	test('disambiguates same-name direct plugin uninstalls by source identity', async () => {
 		const mainPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-main');
 		const nextPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-next');
@@ -483,7 +541,6 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 					name: 'spark',
 					marketplace: '',
 					directSourceId: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2',
-					source: { kind: 'github', repository: 'owner/repo', ref: 'main', sha: undefined, path: undefined },
 				},
 			}, {
 				uri: nextPlugin.toString(),
@@ -491,7 +548,6 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 					name: 'spark',
 					marketplace: '',
 					directSourceId: '94478a45a5d696cd7e18f9bb6752956b0fb9ac1bd21fe5676215c3fdb0071634',
-					source: { kind: 'github', repository: 'owner/repo', ref: 'next', sha: undefined, path: undefined },
 				},
 			}],
 			uninstallCalls: [{
@@ -544,7 +600,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		}]);
 	});
 
-	test('refreshes after a committed atomic replacement without cache watchers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('refreshes runtime installations and replaced content without config or cache watchers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const pluginUri = joinPath(marketplaceRoot, 'spark');
 		const stagingUri = joinPath(marketplaceRoot, 'transaction-directory');
 		const backupUri = joinPath(marketplaceRoot, 'backup-directory');
@@ -553,27 +609,18 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri, installedAt: 'v1' }]);
 		await timeout(10);
 
-		const watcherEvents = store.add(new Emitter<FileChangesEvent>());
-		const watcherReady = new DeferredPromise<void>();
-		const createWatcherSpy = sinon.stub(fileService, 'createWatcher').callsFake(() => {
-			watcherReady.complete();
-			return {
-				onDidChange: watcherEvents.event,
-				dispose: () => { },
-			};
-		});
+		const createWatcherSpy = sinon.spy(fileService, 'createWatcher');
 		const watchSpy = sinon.spy(fileService, 'watch');
 		const discovery = createDiscovery();
 		discovery.start(enablementModel);
 
 		const initialPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v1');
 		assert.ok(initialPlugins);
-		await watcherReady.p;
 
 		await fileService.move(pluginUri, backupUri);
 		await fileService.move(stagingUri, pluginUri);
 		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri, installedAt: 'v2' }]);
-		watcherEvents.fire(new FileChangesEvent([{ resource: configFile, type: FileChangeType.UPDATED }], false));
+		publishCustomizations('2');
 
 		const updatedPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v2');
 		assert.ok(updatedPlugins);
@@ -586,29 +633,16 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			uncorrelatedWatchCount: watchSpy.callCount,
 		}, {
 			reusedPlugin: false,
-			watchRequests: [{
-				resource: copilotHome.toString(),
-				recursive: false,
-			}],
+			watchRequests: [],
 			uncorrelatedWatchCount: 0,
 		});
 	}));
 
-	test('ignores unrelated Copilot runtime writes and unchanged state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('discovers new harness installations without changes to the default home', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const initialPluginUri = joinPath(marketplaceRoot, 'spark');
 		await writePlugin(initialPluginUri, 'spark');
 		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: initialPluginUri }]);
 		await timeout(10);
-
-		const watcherEvents = store.add(new Emitter<FileChangesEvent>());
-		const watcherReady = new DeferredPromise<void>();
-		sinon.stub(fileService, 'createWatcher').callsFake(() => {
-			watcherReady.complete();
-			return {
-				onDidChange: watcherEvents.event,
-				dispose: () => { },
-			};
-		});
 
 		const discovery = createDiscovery();
 		let publicationCount = 0;
@@ -620,15 +654,10 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 		const initialPlugins = await waitForState(discovery.plugins, plugins => plugins?.length === 1);
 		assert.ok(initialPlugins);
-		await watcherReady.p;
 		const initialDiscoveryCount = discovery.discoveryCount;
 		const initialPublicationCount = publicationCount;
 
 		await fileService.writeFile(joinPath(copilotHome, 'data.db'), VSBuffer.fromString('runtime churn'));
-		watcherEvents.fire(new FileChangesEvent([{ resource: joinPath(copilotHome, 'data.db'), type: FileChangeType.UPDATED }], false));
-		await timeout(500);
-		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: initialPluginUri }]);
-		watcherEvents.fire(new FileChangesEvent([{ resource: configFile, type: FileChangeType.UPDATED }], false));
 		await timeout(500);
 
 		assert.deepStrictEqual({
@@ -643,131 +672,71 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 		const secondPluginUri = joinPath(marketplaceRoot, 'second');
 		await writePlugin(secondPluginUri, 'second');
-		await writeInstalledPlugins([
-			{ name: 'spark', marketplace: 'copilot-plugins', uri: initialPluginUri },
-			{ name: 'second', marketplace: 'copilot-plugins', uri: secondPluginUri },
-		]);
-		watcherEvents.fire(new FileChangesEvent([{ resource: configFile, type: FileChangeType.UPDATED }], false));
+		runtimePlugins.push({ name: 'second', marketplace: 'copilot-plugins', resource: secondPluginUri, enabled: true });
+		publishCustomizations('2');
 		const updatedPlugins = await waitForState(discovery.plugins, plugins => plugins?.length === 2);
 		assert.ok(updatedPlugins);
 		assert.deepStrictEqual(updatedPlugins.map(plugin => plugin.label), ['second', 'spark']);
 	}));
 
-	test('uses non-recursive ancestors until config exists and recovers after recreation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		await fileService.createFolder(userHome);
-		const watcherEvents = store.add(new Emitter<FileChangesEvent>());
-		const watcherReady = [new DeferredPromise<void>(), new DeferredPromise<void>()];
-		let watcherCount = 0;
-		const createWatcherSpy = sinon.stub(fileService, 'createWatcher').callsFake(() => {
-			watcherReady[watcherCount++]?.complete();
-			return {
-				onDidChange: watcherEvents.event,
-				dispose: () => { },
-			};
-		});
+	test('discovers isolated-home plugins and follows uninstall and reinstall notifications', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const reads = sinon.spy(fileService, 'readFile');
 		const discovery = createDiscovery();
 		discovery.start(enablementModel);
 
 		await waitForState(discovery.plugins, plugins => plugins?.length === 0);
-		await watcherReady[0].p;
 
-		const pluginUri = joinPath(marketplaceRoot, 'spark');
+		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/isolated/copilot-home/installed-plugins/spark' });
 		await writePlugin(pluginUri, 'spark-v1');
-		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri, installedAt: 'v1' }]);
-		watcherEvents.fire(new FileChangesEvent([{ resource: copilotHome, type: FileChangeType.ADDED }], false));
+		runtimePlugins = [{ name: 'spark', marketplace: 'copilot-plugins', resource: pluginUri, enabled: false }];
+		publishCustomizations();
 		const installedPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v1');
 		assert.ok(installedPlugins);
-		await watcherReady[1].p;
 
-		await fileService.del(configFile);
-		watcherEvents.fire(new FileChangesEvent([{ resource: configFile, type: FileChangeType.DELETED }], false));
+		runtimePlugins = [];
+		publishCustomizations();
 		await waitForState(discovery.plugins, plugins => plugins?.length === 0);
 
 		await writePlugin(pluginUri, 'spark-v2');
-		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri, installedAt: 'v2' }]);
-		watcherEvents.fire(new FileChangesEvent([{ resource: configFile, type: FileChangeType.ADDED }], false));
+		runtimePlugins = [{ name: 'spark', marketplace: 'copilot-plugins', resource: pluginUri, enabled: true }];
+		publishCustomizations('2');
 		const reinstalledPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v2');
 		assert.ok(reinstalledPlugins);
 
 		assert.deepStrictEqual({
-			watchers: createWatcherSpy.getCalls().map(call => ({
-				resource: call.args[0].toString(),
-				recursive: call.args[1]?.recursive,
-			})),
 			labels: [installedPlugins[0].label, reinstalledPlugins[0].label],
+			enablement: [installedPlugins[0].enablement.get(), reinstalledPlugins[0].enablement.get()],
+			configReads: reads.getCalls().filter(call => call.args[0].path.endsWith('/config.json')).length,
 		}, {
-			watchers: [
-				{ resource: userHome.toString(), recursive: false },
-				{ resource: copilotHome.toString(), recursive: false },
-			],
 			labels: ['spark-v1', 'spark-v2'],
+			enablement: [ContributionEnablementState.EnabledProfile, ContributionEnablementState.EnabledProfile],
+			configReads: 0,
 		});
 	}));
 
-	test('retains the last good inventory while config is malformed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('uses harness inventory even when the default-home config is malformed', async () => {
 		const pluginUri = joinPath(marketplaceRoot, 'spark');
 		await writePlugin(pluginUri, 'spark');
 		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri }]);
-		await timeout(10);
-
-		const watcherEvents = store.add(new Emitter<FileChangesEvent>());
-		const watcherReady = new DeferredPromise<void>();
-		sinon.stub(fileService, 'createWatcher').callsFake(() => {
-			watcherReady.complete();
-			return {
-				onDidChange: watcherEvents.event,
-				dispose: () => { },
-			};
-		});
-		const discovery = createDiscovery();
-		discovery.start(enablementModel);
-		const initialPlugins = await waitForState(discovery.plugins, plugins => plugins?.length === 1);
-		assert.ok(initialPlugins);
-		await watcherReady.p;
-
 		await fileService.writeFile(configFile, VSBuffer.fromString('{ invalid'));
-		watcherEvents.fire(new FileChangesEvent([{ resource: configFile, type: FileChangeType.UPDATED }], false));
-		await timeout(500);
+		const sources = await createDiscovery().discoverPluginSources();
+		assert.deepStrictEqual(sources.map(source => source.uri.toString()), [pluginUri.toString()]);
+	});
 
-		assert.strictEqual(discovery.plugins.get(), initialPlugins);
-	}));
-
-	test('rejects cache paths outside the CLI installed root', async () => {
+	test('accepts harness-reported content outside the default CLI installed root', async () => {
 		const externalPlugin = joinPath(userHome, 'external-plugin');
 		await writePlugin(externalPlugin, 'external');
 		await writeInstalledPlugins([{ name: 'external', marketplace: 'copilot-plugins', uri: externalPlugin }]);
 
 		const sources = await createDiscovery().discoverPluginSources();
 
-		assert.deepStrictEqual(sources, []);
+		assert.deepStrictEqual(sources.map(source => source.uri.toString()), [externalPlugin.toString()]);
 	});
 
-	test('supports the runtime legacy cache-path fallback', async () => {
-		const legacyPlugin = joinPath(installedPluginsRoot, 'spark@copilot-plugins');
-		await writePlugin(legacyPlugin, 'spark');
-		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins' }]);
-
-		const sources = await createDiscovery().discoverPluginSources();
-
-		assert.deepStrictEqual(sources.map(source => source.uri.toString()), [legacyPlugin.toString()]);
-	});
-
-	test('supports legacy snake-case state and marketplace cache layout', async () => {
+	test('does not guess content locations when the harness omits them', async () => {
+		await writePlugin(joinPath(marketplaceRoot, 'spark'), 'spark');
 		runtimePlugins = [{ name: 'spark', marketplace: 'copilot-plugins', enabled: true }];
-		const legacyPlugin = joinPath(marketplaceRoot, 'spark');
-		await writePlugin(legacyPlugin, 'spark');
-		await fileService.writeFile(configFile, VSBuffer.fromString(JSON.stringify({
-			installed_plugins: [{
-				name: 'spark',
-				marketplace: 'copilot-plugins',
-				version: '1.0.0',
-				installed_at: '2026-01-19T00:00:00Z',
-				enabled: true,
-			}],
-		})));
-
 		const sources = await createDiscovery().discoverPluginSources();
-
-		assert.deepStrictEqual(sources.map(source => source.uri.toString()), [legacyPlugin.toString()]);
+		assert.deepStrictEqual(sources, []);
 	});
 });

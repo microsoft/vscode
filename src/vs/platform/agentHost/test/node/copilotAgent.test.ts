@@ -3025,7 +3025,7 @@ suite('CopilotAgent', () => {
 		];
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		afterTest(() => disposeAgent(agent));
-		assert.deepStrictEqual(await agent.listPluginInstallations(), [
+		assert.deepStrictEqual((await agent.listPluginInstallations()).map(({ contentRevision, ...plugin }) => plugin), [
 			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, enabled: false, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
 			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
 			{ name: 'live', marketplace: 'local', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
@@ -3285,6 +3285,46 @@ suite('CopilotAgent', () => {
 			parsing.restore();
 			watching.restore();
 		}
+	});
+
+	test('publishes shared content revisions through customizations and preserves them across enablement', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const root = URI.file('/sdk-installed/native');
+		await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'native', marketplace: 'test', enabled: true, rootPath: root.fsPath }];
+		const agent = createTestAgent(disposables, { fileService, copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const controllers = ['first', 'second'].map(id =>
+			agent['_getOrCreateActiveClient'](AgentSession.uri('copilotcli', `content-revision-${id}`), URI.file('/workspace')).pluginController);
+		await Promise.all(controllers.map(controller => controller.getCustomizationsSettled()));
+		const revision = (await agent.listPluginInstallations())[0].contentRevision;
+		const published: Array<{ enabled: boolean | undefined; revision: string | undefined }> = [];
+		for (const controller of controllers) {
+			disposables.add(controller.onDidPublish(action => {
+				if (action.type === ActionType.SessionCustomizationsChanged) {
+					const plugin = action.customizations.find(plugin => plugin.uri === root.toString())!;
+					const runtime = readRuntimePluginEnablement(plugin);
+					published.push({ enabled: runtime?.globalEnabled, revision: runtime?.contentRevision });
+				}
+			}));
+		}
+		await agent.setPluginEnabled('native@test', false, 'global');
+		const afterEnablement = (await agent.listPluginInstallations())[0].contentRevision;
+		await agent.installPlugin({ source: 'other@test' });
+		const afterInstall = (await agent.listPluginInstallations())[0].contentRevision;
+		assert.deepStrictEqual({
+			revisionPresent: typeof revision === 'string',
+			activationPreserved: afterEnablement === revision,
+			installInvalidated: afterInstall !== revision,
+			published,
+		}, {
+			revisionPresent: true, activationPreserved: true, installInvalidated: true,
+			published: [
+				{ enabled: false, revision }, { enabled: false, revision },
+				{ enabled: false, revision: afterInstall }, { enabled: false, revision: afterInstall },
+			],
+		});
 	});
 
 	test('readiness refresh does not publish an unchanged empty runtime plugin inventory', async () => {

@@ -3175,6 +3175,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				effectiveEnabled: matches.length === 1 ? matches[0].enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
 				managedDesiredEnabled: plugin.managedDesiredEnabled,
 				resource: plugin.rootPath && isAbsolute(plugin.rootPath) ? URI.file(plugin.rootPath) : undefined,
+				contentRevision: this._plugins.runtimePluginContentRevision,
 				version: plugin.version,
 				description: plugin.description,
 				verifiedSource: plugin.verifiedSource,
@@ -3527,7 +3528,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		await Promise.all(this._allLiveSessions().map(session =>
 			this._queueChat(session.sessionId, session.sessionId, 'reloadPluginEnablement', () => session.reloadPlugins('enablement'))));
-		await this._refreshDiscoveredCustomizations();
+		await this._refreshDiscoveredCustomizations(false);
 	}
 
 	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -3634,8 +3635,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	private async _refreshDiscoveredCustomizations(): Promise<void> {
-		await Promise.all([...this._activeClients.values()].map(client => client.pluginController.refreshDiscovery()));
+	private async _refreshDiscoveredCustomizations(refreshRuntimeContents = true): Promise<void> {
+		if (refreshRuntimeContents) {
+			this._plugins.invalidateRuntimePluginContents();
+		}
+		await Promise.all([...this._activeClients.values()].map(client => client.pluginController.refreshDiscovery(false)));
 	}
 
 	recoverCustomizationInstallations(_session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -11702,6 +11706,15 @@ class PluginController extends Disposable {
 	private _hostSync: Promise<readonly IResolvedCustomization[]> = Promise.resolve([]);
 	private _hostRevision = 0;
 	private _lastAppliedRefs: readonly Customization[] = [];
+	private _runtimePluginContentRevision = generateUuid();
+
+	get runtimePluginContentRevision(): string {
+		return this._runtimePluginContentRevision;
+	}
+
+	invalidateRuntimePluginContents(): void {
+		this._runtimePluginContentRevision = generateUuid();
+	}
 
 	constructor(
 		private readonly _getClient: () => Promise<CopilotClient>,
@@ -11968,7 +11981,7 @@ class SessionPluginController extends Disposable {
 	private _isEnablementReady = false;
 	private _runtimePlugins: readonly PluginCustomization[] = [];
 	private readonly _runtimePluginsRefresh = new Sequencer();
-	private readonly _runtimePluginContents = new ResourceMap<{ readonly version: string | undefined; readonly parsed: Promise<IParsedPlugin | undefined> }>();
+	private readonly _runtimePluginContents = new ResourceMap<{ readonly version: string | undefined; readonly contentRevision: string; readonly parsed: Promise<IParsedPlugin | undefined> }>();
 	private readonly _runtimePluginWatchers = this._register(new DisposableResourceMap<DisposableStore>());
 
 	private readonly _previousDirectories: URI[] = [];
@@ -12118,8 +12131,10 @@ class SessionPluginController extends Disposable {
 	}
 
 	/** Re-runs discovery for every live anchor set; a changed published set republishes the session's customizations. */
-	public async refreshDiscovery(): Promise<void> {
-		this._runtimePluginContents.clear();
+	public async refreshDiscovery(refreshRuntimeContents = true): Promise<void> {
+		if (refreshRuntimeContents) {
+			this._parent.invalidateRuntimePluginContents();
+		}
 		await Promise.all([
 			this._refreshRuntimePlugins(),
 			...[...this._anchors.values()].map(({ anchor }) => anchor.refreshDiscovery()),
@@ -12164,7 +12179,8 @@ class SessionPluginController extends Disposable {
 				return undefined;
 			}
 			const uri = installation.resource.toString();
-			const parsed = await this._readRuntimePluginContents(installation.resource, installation.version);
+			const contents = this._readRuntimePluginContents(installation.resource, installation.version);
+			const parsed = await contents.parsed;
 			return {
 				type: CustomizationType.Plugin,
 				id: customizationId(uri),
@@ -12185,6 +12201,7 @@ class SessionPluginController extends Disposable {
 					effectiveEnabled: installation.effectiveEnabled,
 					repositorySupported: !!installation.marketplace,
 					managedDesiredEnabled: installation.managedDesiredEnabled,
+					contentRevision: contents.contentRevision,
 				}),
 				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: installation.effectiveEnabled ?? false }],
 			} satisfies PluginCustomization;
@@ -12194,7 +12211,7 @@ class SessionPluginController extends Disposable {
 		}
 	}
 
-	private _readRuntimePluginContents(resource: URI, version: string | undefined): Promise<IParsedPlugin | undefined> {
+	private _readRuntimePluginContents(resource: URI, version: string | undefined) {
 		if (!this._runtimePluginWatchers.has(resource)) {
 			const store = new DisposableStore();
 			this._runtimePluginWatchers.set(resource, store);
@@ -12202,17 +12219,18 @@ class SessionPluginController extends Disposable {
 			store.add(this._fileService.watch(resource, { recursive: true, excludes: [] }));
 			store.add(this._fileService.onDidFilesChange(event => {
 				if (event.affects(resource)) {
+					this._parent.invalidateRuntimePluginContents();
 					this._runtimePluginContents.delete(resource);
 					void this.publishWhenSettled();
 				}
 			}));
 		}
 		let cached = this._runtimePluginContents.get(resource);
-		if (!cached || cached.version !== version) {
-			cached = { version, parsed: this._parent.tryParsePlugin(resource) };
+		if (!cached || cached.version !== version || cached.contentRevision !== this._parent.runtimePluginContentRevision) {
+			cached = { version, contentRevision: this._parent.runtimePluginContentRevision, parsed: this._parent.tryParsePlugin(resource) };
 			this._runtimePluginContents.set(resource, cached);
 		}
-		return cached.parsed;
+		return cached;
 	}
 
 	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {

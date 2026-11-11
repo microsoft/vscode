@@ -342,6 +342,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	readonly managedDesiredEnabled?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
+	/** Host-owned installed-content revision; activation-only changes preserve it. */
+	readonly contentRevision?: string;
 	readonly version?: string;
 	readonly description?: string;
 	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
