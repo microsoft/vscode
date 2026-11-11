@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import type * as ESTree from 'estree';
 
@@ -28,11 +29,46 @@ export default new class implements eslint.Rule.RuleModule {
 			});
 		}
 
-		return {
-			'VariableDeclaration[kind!="const"] > VariableDeclarator > NewExpression[callee.name="DisposableStore"]': checkVariableDeclaration,
+		const disposableNameRegex = /DisposableStore|MutableDisposable/;
 
-			'PropertyDefinition[readonly!=true][typeAnnotation.typeAnnotation.typeName.name=/DisposableStore|MutableDisposable/]': checkProperty,
-			'PropertyDefinition[readonly!=true] > NewExpression[callee.name=/DisposableStore|MutableDisposable/]': checkProperty,
+		function getName(node: TSESTree.Node | null | undefined): string | undefined {
+			return node && 'name' in node && typeof node.name === 'string' ? node.name : undefined;
+		}
+
+		function getNewExpressionCalleeName(node: TSESTree.Node | null | undefined): string | undefined {
+			return node?.type === AST_NODE_TYPES.NewExpression ? getName(node.callee) : undefined;
+		}
+
+		return {
+			// VariableDeclaration[kind!="const"] > VariableDeclarator > NewExpression[callee.name="DisposableStore"]
+			VariableDeclarator: (inNode: ESTree.VariableDeclarator) => {
+				const node = inNode as TSESTree.VariableDeclarator;
+				if (node.parent.kind !== 'const' && getNewExpressionCalleeName(node.init) === 'DisposableStore') {
+					checkVariableDeclaration(node.init as ESTree.Node);
+				}
+			},
+
+			PropertyDefinition: (inNode: ESTree.PropertyDefinition) => {
+				const node = inNode as TSESTree.PropertyDefinition;
+				if (node.readonly === true) {
+					return;
+				}
+
+				// PropertyDefinition[readonly!=true][typeAnnotation.typeAnnotation.typeName.name=/DisposableStore|MutableDisposable/]
+				const type = node.typeAnnotation?.typeAnnotation;
+				const typeName = type && 'typeName' in type ? getName(type.typeName) : undefined;
+				if (typeName !== undefined && disposableNameRegex.test(typeName)) {
+					checkProperty(inNode);
+				}
+
+				// PropertyDefinition[readonly!=true] > NewExpression[callee.name=/DisposableStore|MutableDisposable/]
+				for (const child of [node.key, node.value]) {
+					const calleeName = getNewExpressionCalleeName(child);
+					if (calleeName !== undefined && disposableNameRegex.test(calleeName)) {
+						checkProperty(child as ESTree.Node);
+					}
+				}
+			},
 		};
 	}
 };
