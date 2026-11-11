@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getWindow, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow, getWindows, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { ensureCodeWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -198,7 +198,8 @@ suite('OverlayWebview', () => {
 		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
 		store.add(toDisposable(() => frame.remove()));
 		const target = frame.contentWindow!;
-		ensureCodeWindow(target, 12000);
+		const windowId = Math.max(...Array.from(getWindows(), ({ window }) => window.vscodeWindowId)) + 1;
+		ensureCodeWindow(target, windowId);
 		store.add(registerWindow(target));
 		store.add(cloneGlobalStylesheets(target));
 		const root = $('.monaco-workbench.agent-sessions-workbench.aux-overlay-test');

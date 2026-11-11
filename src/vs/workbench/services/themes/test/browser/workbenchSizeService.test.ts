@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getWindow, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow, getWindows, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { ensureCodeWindow } from '../../../../../base/browser/window.js';
@@ -292,7 +292,8 @@ suite('WorkbenchSizeService', () => {
 		store.add(toDisposable(() => frame.remove()));
 		const targetWindow = frame.contentWindow;
 		assert.ok(targetWindow);
-		ensureCodeWindow(targetWindow, 12001);
+		const windowId = Math.max(...Array.from(getWindows(), ({ window }) => window.vscodeWindowId)) + 1;
+		ensureCodeWindow(targetWindow, windowId);
 		store.add(registerWindow(targetWindow));
 		store.add(cloneGlobalStylesheets(targetWindow));
 		const root = $('.monaco-workbench.semantic-auxiliary-test');
