@@ -180,6 +180,8 @@ Behind the startup-effective M365 gate, authenticating the [Microsoft discovery 
 
 The SDK binds Microsoft authentication to a session, so the catalog comes from the setup session's `rpc.model.list()`, not the global token-based API. The runtime cannot resolve managed settings for a Microsoft account yet, so the host applies none to that account's catalog; do not read policy from the setup session to compensate.
 
+New Microsoft conversations log in through the current Entra authority and apply full configuration to that SDK session. Conversation policy uses the runtime's normal global `client.rpc.managedSettings.resolve` call with the plan's GitHub token (absent for Microsoft), independently of the catalog omission. Resume preserves the SDK binding without login, switching, rebinding or replacement history; rejected resumes do not delete history. Explicitly scoped GitHub credentials keep their existing path; Microsoft automation readiness remains unavailable.
+
 ### Copilot Connector authentication
 
 Copilot Connectors use the SDK session's GitHub credentials, including refreshable token providers. At create and resume, `CopilotSessionLauncher` checks `sessionAccountSelection`, obtains the opaque account ID from `session.rpc.connectors.getAccount()`, and reconciles that account without enumerating global accounts or matching tokens. Unsupported runtimes and unavailable accounts are logged and skip Connector reconciliation without preventing ordinary chat.

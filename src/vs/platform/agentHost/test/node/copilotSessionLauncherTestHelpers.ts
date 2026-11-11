@@ -92,7 +92,7 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		sessionOpenTelemetry,
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
 		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
-		accountService ?? upcastPartial<ICopilotAccountService>({}),
+		accountService ?? upcastPartial<ICopilotAccountService>({ state: upcastPartial<ICopilotAccountService['state']>({ get: () => ({ kind: 'legacy' }) }) }),
 		upcastPartial<ICopilotApiService>({}),
 	);
 }

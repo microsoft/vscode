@@ -595,7 +595,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
-			microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
 			logPrefix: '[AgentHost]',
 			preferredSessionId,
 			isCurrent: () => this._isAuthenticationCurrent(generation),

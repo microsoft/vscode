@@ -54,6 +54,7 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../..
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
 import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
+import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -423,14 +424,14 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 	}
 });
 
-suite('CopilotSessionLauncher discovery-only boundary', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+suite('CopilotSessionLauncher Microsoft account readiness', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of ['create', 'resume'] as const) {
-		test(`${kind} does not treat account discovery as conversation authentication`, async () => {
+		test(`${kind} does not open a conversation before service authentication`, async () => {
 			const accountService = upcastPartial<ICopilotAccountService>({
 				state: upcastPartial<ICopilotAccountService['state']>({ get: () => ({ kind: 'error', entraAccountId: 'selected', stage: 'discovery' }) }),
-				requireReady: () => upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' }),
+				requireReady: () => { throw new Error('Microsoft setup is not ready'); },
 			});
 			const launcher = createTestLauncher(undefined, undefined, undefined, undefined,
 				upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true }),
@@ -445,7 +446,109 @@ suite('CopilotSessionLauncher discovery-only boundary', () => {
 			const plan: CopilotSessionLaunchPlan = kind === 'create'
 				? { ...base, kind, model: undefined }
 				: { ...base, kind, fallback: { model: undefined } };
-			await assert.rejects(launcher.launch(plan, testRuntime), /conversation authentication is not yet available/);
+			await assert.rejects(launcher.launch(plan, testRuntime), /setup is not ready/);
+		});
+	}
+
+	for (const scenario of ['create', 'resume', 'virtual-create', 'virtual-resume', 'policy-error', 'resume-policy-error'] as const) {
+		test(`prepares the same Microsoft session for policy and full configuration: ${scenario}`, async () => {
+			const kind = scenario.endsWith('resume') || scenario === 'resume-policy-error' ? 'resume' : 'create';
+			const failPolicy = scenario.includes('policy-error');
+			const calls: string[] = [];
+			const storage: (boolean | undefined)[] = [];
+			const workingDirectory = scenario.startsWith('virtual') ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory;
+			const workspace = toCopilotWorkspace(workingDirectory);
+			const sessionFs = workspace.kind === 'virtual'
+				? new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/account-chat'), () => undefined, upcastPartial<IFileService>({})) : undefined;
+			const context: Extract<CopilotAccountContext, { kind: 'ready' }> = {
+				kind: 'ready', entraAccountId: 'identity',
+				choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
+			};
+			const policy = (await createUnmanagedCopilotSettings().resolve({})).resolved;
+			const session = upcastPartial<CopilotSession>({
+				sessionId: 'account-chat', on: () => () => { },
+				disconnect: async () => { calls.push('disconnect'); },
+				rpc: upcastPartial<CopilotSession['rpc']>({
+					agent: upcastPartial<CopilotSession['rpc']['agent']>({ list: async () => { calls.push('agents'); return { agents: [] }; } }),
+					options: { update: async () => ({ success: true }) },
+					managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({
+						get: async () => { calls.push('policy'); if (failPolicy) { throw new Error('Policy unavailable'); } return policy; },
+					}),
+				}),
+			});
+			const client = returningSession(session, config => { calls.push('configure'); storage.push(config?.enableSessionStore); });
+			client.createSession = async () => { assert.fail('Must configure the authenticated session'); };
+			client.deleteSession = async () => { calls.push('delete'); };
+			client.rpc.managedSettings.resolve = async () => { assert.fail('Must not use global authentication'); };
+			const accounts = upcastPartial<ICopilotAccountService>({
+				state: upcastPartial<ICopilotAccountService['state']>({ get: () => context }),
+				requireReady: () => context,
+				openSession: async (_client, options) => {
+					assert.deepStrictEqual({ kind: options.kind, directory: options.workingDirectory, filesystem: options.sessionFs }, {
+						kind, directory: sessionFs?.pathMapper.rootSdkPath ?? workingDirectory.fsPath, filesystem: sessionFs,
+					});
+					storage.push(options.enableSessionStore);
+					calls.push('authenticate');
+					return { session, context };
+				},
+			});
+			const launcher = createTestLauncher(undefined, undefined, undefined, undefined, undefined, undefined, undefined, accounts);
+			const base = {
+				client, sessionId: session.sessionId, workingDirectory, workspace, virtualSessionFs: sessionFs, isEphemeral: true, resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } };
+			let microsoft: boolean | undefined;
+			if (failPolicy) {
+				await assert.rejects(launcher.launch(plan, testRuntime), /Policy unavailable/);
+			} else {
+				microsoft = store.add(await launcher.launch(plan, testRuntime)).usesMicrosoftAuthentication;
+			}
+			assert.deepStrictEqual({ calls, storage, microsoft }, failPolicy
+				? { calls: ['authenticate', 'policy', 'disconnect', ...(kind === 'create' ? ['delete'] : [])], storage: [false], microsoft: undefined }
+				: { calls: ['authenticate', 'policy', 'configure', 'agents'], storage: [false, false], microsoft: true });
+		});
+	}
+
+	for (const phase of ['open', 'configure'] as const) {
+		test(`Microsoft resume does not create or log in after an ${phase} history error`, async () => {
+			const context: Extract<CopilotAccountContext, { kind: 'ready' }> = {
+				kind: 'ready', entraAccountId: 'identity',
+				choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
+			};
+			const calls: string[] = [];
+			const failure = Object.assign(new Error('Session not found'), { code: -32603 });
+			const policy = (await createUnmanagedCopilotSettings().resolve({})).resolved;
+			const session = upcastPartial<CopilotSession>({
+				sessionId: 'saved-chat', disconnect: async () => { calls.push('disconnect'); },
+				rpc: upcastPartial<CopilotSession['rpc']>({
+					managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({ get: async () => policy }),
+				}),
+			});
+			const accounts = upcastPartial<ICopilotAccountService>({
+				state: upcastPartial<ICopilotAccountService['state']>({ get: () => context }),
+				requireReady: () => context,
+				openSession: async (_client, options) => {
+					calls.push(options.kind);
+					if (phase === 'open') { throw failure; }
+					return { session, context };
+				},
+			});
+			const client = new class extends mock<CopilotClient>() {
+				override async createSession(): Promise<CopilotSession> { throw new Error('Resume must not replace history'); }
+				override async resumeSession(): Promise<CopilotSession> { calls.push('configure'); throw failure; }
+				override async deleteSession() { assert.fail('Resume must not delete history'); }
+			}();
+			const launcher = createTestLauncher(undefined, undefined, undefined, undefined, undefined, undefined, undefined, accounts);
+			await assert.rejects(launcher.launch({
+				kind: 'resume', client, sessionId: session.sessionId, workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+				fallback: { model: undefined }, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			}, testRuntime), failure);
+			assert.deepStrictEqual(calls, phase === 'open' ? ['resume'] : ['resume', 'configure', 'disconnect']);
 		});
 	}
 });
@@ -2213,7 +2316,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		});
 	}
 
-	test('client-owned credentials preserve create and resume configuration while Microsoft account choice is enabled', async () => {
+	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
 		const configs: SessionConfig[] = [];
 		const session = {
 			sessionId: 'scoped-session',
@@ -2227,7 +2330,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [CopilotCliConfigKey.M365Enabled]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
@@ -2352,6 +2455,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeConfigs.push(config);
 				return session;
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
@@ -3052,6 +3156,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				interactiveUserOptions.push(config.interactiveUser === true);
 				throw new TestSdkError(message, code);
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		return {
@@ -4767,6 +4872,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 				}
 				return session;
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 		};
 		const launcher = createTestLauncher(undefined, {
 			[CopilotCliConfigKey.AutoModeTierOverride]: override,
@@ -4914,6 +5020,7 @@ suite('CopilotSessionLauncher working directory trust', () => {
 				record(config);
 				return session;
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 			resumeSession: async (_sessionId, config) => {
 				record(config);
 				if (kind === 'fallback') {

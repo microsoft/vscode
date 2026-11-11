@@ -51,7 +51,7 @@ import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.j
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { isMicrosoftCopilotAccountContext, type CopilotAccountContext, type ICopilotServiceChoice } from '../../common/copilotAccountContext.js';
+import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -490,7 +490,6 @@ interface ICopilotSessionLaunchBase {
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
 	readonly accountContext?: Extract<CopilotAccountContext, { kind: 'ready' }>;
 	readonly accountSession?: CopilotSession;
-	readonly accountSelection?: ICopilotServiceChoice;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
@@ -1213,24 +1212,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		if (isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
 			const context = this._accountService.requireReady();
-			try {
-				const authenticated = await this._accountService.openSession(plan.client, {
-					kind: plan.kind, sessionId: plan.sessionId, workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
-					enableSessionStore: this.shouldStoreSession(plan),
-					sessionFs: plan.virtualSessionFs,
-				}, context, runtime.cancellationToken ?? CancellationToken.None);
-				plan = { ...plan, accountContext: context, accountSession: authenticated.session, accountSelection: authenticated.choice };
-			} catch (error) {
-				if (plan.kind !== 'resume' || !shouldCreateEmptySessionAfterResumeError(error) || this._accountService.state.get() !== context) {
-					throw error;
-				}
-				const wrapper = await this.launch({
-					...plan, kind: 'create', model: plan.fallback.model,
-					longContextWindow: plan.fallback.longContextWindow, freeLongContext: plan.fallback.freeLongContext,
-				}, runtime);
-				this._sessionOpenTelemetry.sdkResumeFallbackCreated(AgentSession.uri('copilotcli', plan.sessionId));
-				return wrapper;
-			}
+			const authenticated = await this._accountService.openSession(plan.client, {
+				kind: plan.kind, sessionId: plan.sessionId, workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
+				enableSessionStore: this.shouldStoreSession(plan),
+				sessionFs: plan.virtualSessionFs,
+			}, context, runtime.cancellationToken ?? CancellationToken.None);
+			plan = { ...plan, accountContext: authenticated.context, accountSession: authenticated.session };
 		}
 		try {
 			return await this.launchPrepared(plan, runtime);
@@ -1257,8 +1244,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (runtime.cancellationToken?.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (plan.accountSession) {
-			await this._accountService.verifySessionContext(plan.accountSession, plan.accountContext, plan.accountSelection);
+		if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
+			throw new CancellationError();
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
@@ -1300,7 +1287,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Only a session with no events on disk may fall back to creating a
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
-			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+			if (plan.accountSession || !shouldCreateEmptySessionAfterResumeError(resumeError)) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
@@ -1387,9 +1374,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: SessionConfig['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
-			if (plan.accountContext) {
-				await this._accountService.verifySessionContext(raw, plan.accountContext, plan.accountSelection);
-			}
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
 			const nativeAgent = getNativeAgentSelection(plan);
@@ -1420,7 +1404,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				return undefined;
 			}));
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.enableSessionTelemetry !== false, config.featureFlags?.MCP_SKILLS === true, plan.accountSelection, this._logService);
+		if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
+			throw new CancellationError();
+		}
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, config.enableSessionTelemetry !== false, config.featureFlags?.MCP_SKILLS === true, plan.accountSession !== undefined, this._logService);
 	}
 
 	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
