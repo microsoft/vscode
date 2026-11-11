@@ -383,6 +383,31 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('restores a collapsed extension after a search is cleared', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition(),
+				definition({ canvasId: 'preview-secondary', displayName: 'Preview Secondary' }),
+			],
+		});
+		await timeout(0);
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(search);
+		const expanded = () => harness.container.querySelector('.monaco-list-row[aria-label^="Preview Extension."]')?.getAttribute('aria-expanded');
+		const setQuery = async (value: string) => {
+			search.value = value;
+			search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+		};
+		harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview Extension."] .monaco-tl-twistie')?.click();
+		const collapsed = expanded();
+		await setQuery('Preview Secondary');
+		const searching = expanded();
+		await setQuery('');
+
+		assert.deepStrictEqual({ collapsed, searching, cleared: expanded() }, { collapsed: 'false', searching: 'true', cleared: 'false' });
+	});
+
 	test('opens Canvas documentation from the subtitle', () => {
 		const harness = createHarness({ contextAvailable: false });
 		const link = harness.container.querySelector<HTMLAnchorElement>('.section-title-description a');
@@ -549,6 +574,15 @@ suite('CopilotCanvasesWidget', () => {
 		assert.ok(disable);
 		disable.click();
 		await timeout(20);
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(search);
+		search.value = 'microsoft-foundry';
+		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		await timeout(0);
+		const searchedRows = [...harness.container.querySelectorAll('.copilot-canvas-extension-tree-item .copilot-customization-tree-label')].map(label => label.textContent);
+		search.value = '';
+		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			accessible: ['microsoft-foundry', 'never-run'].every(name => harness.widget.getAccessibilityContent().includes(name)),
@@ -558,6 +592,7 @@ suite('CopilotCanvasesWidget', () => {
 			enabledPluginDetail,
 			disabledPluginDetail: detail('microsoft-foundry'),
 			neverRunEnableable,
+			searchedRows,
 			requests: harness.setRequests.map(request => ({ extensionId: request.extensionId, enabled: request.enabled })),
 			itemCounts: harness.itemCounts,
 		}, {
@@ -568,6 +603,7 @@ suite('CopilotCanvasesWidget', () => {
 			enabledPluginDetail: 'Plugin: microsoft-foundry·No Canvases Reported',
 			disabledPluginDetail: 'Plugin: microsoft-foundry',
 			neverRunEnableable: true,
+			searchedRows: ['microsoft-foundry'],
 			requests: [
 				{ extensionId: 'user:never-run', enabled: true },
 				{ extensionId: 'plugin:microsoft-foundry:microsoft-foundry', enabled: false },

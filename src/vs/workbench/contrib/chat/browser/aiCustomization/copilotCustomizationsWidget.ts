@@ -1093,19 +1093,14 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 					collapsed: group.element.collapsed
 						? ObjectTreeElementCollapseState.PreserveOrCollapsed
 						: ObjectTreeElementCollapseState.PreserveOrExpanded,
-					children: group.children.map(({ item }) => {
-						const key = this.getExtensionItemKey(item);
-						return {
-							element: { type: 'extension', item },
-							collapsible: item.canvases.length > 0,
-							collapsed: query
-								? ObjectTreeElementCollapseState.Expanded
-								: this.collapsedExtensions.has(key)
-									? ObjectTreeElementCollapseState.PreserveOrCollapsed
-									: ObjectTreeElementCollapseState.PreserveOrExpanded,
-							children: item.canvases.map(canvas => ({ element: { type: 'canvas', item: canvas } })),
-						};
-					}),
+					children: group.children.map(({ item }) => ({
+						element: { type: 'extension', item },
+						collapsible: item.canvases.length > 0,
+						collapsed: !query && this.collapsedExtensions.has(this.getExtensionItemKey(item))
+							? ObjectTreeElementCollapseState.Collapsed
+							: ObjectTreeElementCollapseState.Expanded,
+						children: item.canvases.map(canvas => ({ element: { type: 'canvas', item: canvas } })),
+					})),
 				}));
 				this.tree.setChildren(null, children);
 			}
