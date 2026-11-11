@@ -72,9 +72,11 @@ suite('AgentsViewFolderLocation', () => {
 		}
 		return entry;
 	};
+	let reads = 0;
 	const fileService = upcastPartial<IFileService>({
 		stat: async (resource: URI) => upcastPartial<IFileStatWithMetadata>({ isDirectory: (lookup(resource) ?? true) === true }),
 		readFile: async (resource: URI) => {
+			reads++;
 			const entry = lookup(resource);
 			if (typeof entry !== 'string') {
 				throw new FileOperationError('not a file', FileOperationResult.FILE_IS_DIRECTORY);
@@ -186,6 +188,18 @@ suite('AgentsViewFolderLocation', () => {
 			multiRoot: 'none',
 			aiDisabled: 'none',
 		});
+	});
+
+	test('a working directory that is no location is read once, a failed read again', async () => {
+		const { service } = createService();
+		const readsOf = async (path: string) => {
+			const before = reads;
+			await service.switchToSession(sessionIn(path));
+			await service.switchToSession(sessionIn(path));
+			return reads - before;
+		};
+
+		assert.deepStrictEqual({ elsewhere: await readsOf('/work/plain'), failing: await readsOf('/work/denied') }, { elsewhere: 1, failing: 2 });
 	});
 
 	test('a later open that keeps the folder where it is supersedes an earlier move still under way', async () => {
