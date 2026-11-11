@@ -51,7 +51,10 @@ export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 		@IAccessibilityService private readonly _accessibility: IAccessibilityService,
 	) {
 		const animateBeforeAction = action.id === ARCHIVE_SESSION_COMMAND_ID;
-		super(action, animateBeforeAction ? { ...options, onClickAnimation: undefined } : options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibility);
+		const baseOptions = animateBeforeAction && options
+			? Object.create(options, { onClickAnimation: { value: undefined } }) as IMenuEntryActionViewItemOptions
+			: options;
+		super(action, baseOptions, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibility);
 		this._beforeActionAnimationOptions = animateBeforeAction ? options : undefined;
 	}
 

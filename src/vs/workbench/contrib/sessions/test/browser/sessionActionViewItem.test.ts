@@ -46,7 +46,7 @@ suite('SessionActionViewItem', () => {
 		);
 	}
 
-	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }): MenuEntryActionViewItem {
+	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }, viewItemType: 'base' | 'session' = 'base'): MenuEntryActionViewItem {
 		const action = new MenuItemAction(
 			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
 			undefined,
@@ -63,53 +63,17 @@ suite('SessionActionViewItem', () => {
 				}
 			}(),
 		);
-		const viewItem = disposables.add(new MenuEntryActionViewItem(
-			action,
-			options,
-			new class extends mock<IKeybindingService>() { }(),
-			new TestNotificationService(),
-			new class extends mock<IContextKeyService>() { }(),
-			new TestThemeService(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}(),
-		));
-		viewItem.actionRunner = disposables.add(new ActionRunner());
-		viewItem.element = dom.$('button');
-		return viewItem;
-	}
-
-	function createSessionArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions): SessionArchiveActionViewItem {
-		const action = new MenuItemAction(
-			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			new class extends mock<IContextKeyService>() {
-				override contextMatchesRules(): boolean { return true; }
-			}(),
-			new class extends mock<ICommandService>() {
-				override async executeCommand<R = unknown>(): Promise<R | undefined> {
-					await run();
-					return undefined;
-				}
-			}(),
-		);
-		const viewItem = disposables.add(new SessionArchiveActionViewItem(
-			action,
-			options,
-			new TestExperimentTriggerTelemetryService(),
-			new class extends mock<IKeybindingService>() { }(),
-			new TestNotificationService(),
-			new class extends mock<IContextKeyService>() { }(),
-			new TestThemeService(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}(),
-		));
+		const keybindingService = new class extends mock<IKeybindingService>() { }();
+		const notificationService = new TestNotificationService();
+		const contextKeyService = new class extends mock<IContextKeyService>() { }();
+		const themeService = new TestThemeService();
+		const contextMenuService = new class extends mock<IContextMenuService>() { }();
+		const accessibilityService = new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}();
+		const viewItem = disposables.add(viewItemType === 'session'
+			? new SessionArchiveActionViewItem(action, options, new TestExperimentTriggerTelemetryService(), keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService)
+			: new MenuEntryActionViewItem(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService));
 		viewItem.actionRunner = disposables.add(new ActionRunner());
 		viewItem.element = dom.$('button');
 		return viewItem;
@@ -222,7 +186,7 @@ suite('SessionActionViewItem', () => {
 	test('starts archive animation before action completion', async () => {
 		const completion = new DeferredPromise<void>();
 		const configurationService = new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true });
-		const viewItem = createSessionArchiveActionViewItem(() => completion.p, getSessionArchiveActionViewItemOptions({}, configurationService));
+		const viewItem = createArchiveActionViewItem(() => completion.p, getSessionArchiveActionViewItemOptions({}, configurationService), 'session');
 		const click = viewItem.onClick(new MouseEvent('click'));
 		const animationBeforeCompletion = document.body.querySelector('.animation-overlay');
 		await completion.error(new Error('Archive failed'));
@@ -266,11 +230,11 @@ suite('SessionActionViewItem', () => {
 		const row = dom.append(workbench, dom.$('div'));
 		const completion = new DeferredPromise<void>();
 		const configurationService = new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true });
-		const viewItem = createSessionArchiveActionViewItem(() => {
+		const viewItem = createArchiveActionViewItem(() => {
 			viewItem.dispose();
 			row.remove();
 			return completion.p;
-		}, getSessionArchiveActionViewItemOptions({}, configurationService));
+		}, getSessionArchiveActionViewItemOptions({}, configurationService), 'session');
 		const button = viewItem.element!;
 		button.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
 		row.appendChild(button);
