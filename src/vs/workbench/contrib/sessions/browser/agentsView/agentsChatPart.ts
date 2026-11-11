@@ -526,7 +526,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				sent = true;
 				// A send under way as the window restored was not the user's now
 				if (!this._restoringChats) {
-					this._moveToSession(chat.input, session);
+					this._followTab(chat.input);
+					// Only while its tab shows: a send that completes after the user moved on to another tab leaves the folder
+					// where that tab put it, until the user comes back to this one
+					if (this._activeInput.read(undefined) === chat.input) {
+						void this._folderLocationService.switchToSession(session);
+					}
 				}
 			}
 		});
@@ -601,11 +606,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	/** Moves the window's folder to where `session` works, and follows the session of `input`'s tab as it comes to work elsewhere. */
 	private _moveToSession(input: EditorInput, session: ISession): void {
+		this._followTab(input);
+		void this._folderLocationService.switchToSession(session);
+	}
+
+	private _followTab(input: EditorInput): void {
 		const followed = this._followedTabs.get();
 		if (!followed.has(input)) {
 			this._followedTabs.set(new Set([...followed, input]), undefined);
 		}
-		void this._folderLocationService.switchToSession(session);
 	}
 
 	/** A tab the user picked shows its session: the window's folder moves to where that session works, as opening it does. */
