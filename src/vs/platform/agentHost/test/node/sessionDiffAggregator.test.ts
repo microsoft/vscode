@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
@@ -966,5 +967,92 @@ suite('computeTurnDiffs', () => {
 		assert.strictEqual(result.length, 2, 'the moved file (B) and the recreated file (A) are distinct identities');
 		assert.ok(uris.has(URI.file('/repo/b.txt').toString()), 'the renamed file appears at its destination path B');
 		assert.ok(uris.has(URI.file('/repo/a.txt').toString()), 'the recreated file A is a fresh identity');
+	});
+});
+
+suite('sessionDiffAggregator - path spellings', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function addEdit(db: TestSessionDatabase, turnId: string, toolCallId: string, filePath: string, before: string | undefined, after: string): void {
+		db.addEdit({
+			turnId, toolCallId, filePath, kind: before === undefined ? FileEditKind.Create : FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: before === undefined ? undefined : encodeString(before), afterContent: encodeString(after),
+		});
+	}
+
+	/** Diffs in the order of their URIs' code units, which keeps entries with the same URI. */
+	function sorted(diffs: readonly ISessionFileDiff[]): ISimpleDiff[] {
+		return diffs.map(simplify).sort((a, b) => a.uri === b.uri ? 0 : (a.uri ?? '') < (b.uri ?? '') ? -1 : 1);
+	}
+
+	test('shows a file once when its edits spell its path with another case, unless the platform tells such paths apart', async () => {
+		const created = '/repo/Src/file.ts';
+		const edited = '/repo/src/file.ts';
+		const db = new TestSessionDatabase();
+		const diffService = createTestDiffService();
+		addEdit(db, 't1', 'tc1', created, undefined, 'one');
+		addEdit(db, 't1', 'tc2', edited, 'one', 'one\ntwo');
+		const firstTurn = await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] });
+		addEdit(db, 't2', 'tc3', edited, 'one\ntwo', 'one\ntwo\nthree');
+
+		assert.deepStrictEqual({
+			firstTurn: sorted(firstTurn),
+			secondTurn: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't2', previousDiffs: firstTurn })),
+			session: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
+		}, isLinux ? {
+			firstTurn: [simpleDiff(created, 1, 0), simpleDiff(edited, 1, 0)],
+			secondTurn: [simpleDiff(created, 1, 0), simpleDiff(edited, 2, 0)],
+			session: [simpleDiff(created, 1, 0), simpleDiff(edited, 2, 0)],
+			turn: [simpleDiff(created, 1, 0), simpleDiff(edited, 1, 0)],
+		} : {
+			// The file keeps the path it was first recorded with.
+			firstTurn: [simpleDiff(created, 2, 0)],
+			secondTurn: [simpleDiff(created, 3, 0)],
+			session: [simpleDiff(created, 3, 0)],
+			turn: [simpleDiff(created, 2, 0)],
+		});
+	});
+
+	test('keeps a renamed file apart from one created at another spelling of its old path', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', 'tc1', '/repo/A.txt', undefined, 'moved');
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/B.txt', kind: FileEditKind.Rename, originalPath: '/repo/A.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('moved'), afterContent: encodeString('moved\nmore'),
+		});
+		addEdit(db, 't1', 'tc3', '/repo/a.txt', undefined, 'replacement');
+		const diffService = createTestDiffService();
+
+		const expected = [simpleDiff('/repo/B.txt', 2, 0), simpleDiff('/repo/a.txt', 1, 0)];
+		assert.deepStrictEqual({
+			session: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			incremental: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] })),
+			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
+		}, { session: expected, incremental: expected, turn: expected });
+	});
+
+	(isWindows ? test : test.skip)('shows a file once for every way Windows spells its path', async () => {
+		const spellings: readonly (readonly [created: string, edited: string])[] = [
+			['C:\\repo\\a.md', 'c:\\repo\\a.md'],
+			['c:\\repo\\src\\b.md', 'c:\\Repo\\Src\\b.md'],
+			['c:\\repo\\src\\c.md', 'c:/repo/src/c.md'],
+			['c:/repo/src/d.md', 'c:\\repo\\src\\d.md'],
+			['c:\\repo\\src\\e.md', 'c:/REPO/src/e.md'],
+			['c:\\repo\\alpha\\beta\\g.md', 'c:\\repo\\alpha/beta\\g.md'],
+		];
+		const db = new TestSessionDatabase();
+		for (const [index, [created, edited]] of spellings.entries()) {
+			addEdit(db, 't1', `create-${index}`, created, undefined, 'one');
+			addEdit(db, 't1', `edit-${index}`, edited, 'one', 'one\ntwo');
+		}
+
+		assert.deepStrictEqual(
+			sorted(await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService())),
+			sorted(spellings.map(([created]) => fileDiff(created, 2, 0))),
+		);
 	});
 });

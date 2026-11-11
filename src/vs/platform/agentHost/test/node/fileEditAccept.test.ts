@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -11,7 +12,7 @@ import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionS
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent } from '../../node/fileEditAccept.js';
 import { SessionDbResourceProvider } from '../../node/resourceProviders/sessionDbResourceProvider.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, computeWorkingSetFiles, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
 import { createSessionDataService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
@@ -273,6 +274,39 @@ suite('fileEditAccept', () => {
 				counts: [{ added: 1, removed: 1 }],
 				session: [{ file, before: lines(), after: lines({ 0: 'U1', 4: 'L5' }) }],
 			},
+		});
+	});
+
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('a file whose edits spell its path differently is one working set file, also when a row accepted only one spelling', async () => {
+		const alias = '/REPO/file.ts';
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const diffService = new InProcessDiffComputeService();
+		const workingSet = async () => {
+			const files = await computeWorkingSetFiles(sources, diffService);
+			return { files: await readDiffs(sources, files.map(file => file.diff)), nonces: files.map(file => file.nonce) };
+		};
+		await storeEdit(db, 't1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		// The user changes the third line before the next edit, which moves that change into the baseline.
+		await storeEdit(db, 't1', 'tc2', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3' }), lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), alias);
+		const edited = await workingSet();
+		// Accepting recorded the spelling of the file's last edit, which once left its other spelling in the working set.
+		await accept(db, alias);
+		const accepted = await workingSet();
+		await storeEdit(db, 't2', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }));
+
+		const file = 'file:///repo/file.ts';
+		assert.deepStrictEqual({
+			edited,
+			accepted,
+			editedAgain: await workingSet(),
+			session: await readDiffs(sources, await computeSessionDiffs(SESSION, db, diffService)),
+		}, {
+			edited: { files: [{ file, before: lines({ 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5' }) }], nonces: ['tc2'] },
+			accepted: { files: [], nonces: [] },
+			editedAgain: { files: [{ file, before: lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }) }], nonces: ['tc3'] },
+			session: [{ file, before: lines(), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }) }],
 		});
 	});
 
