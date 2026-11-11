@@ -57,7 +57,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, encodeModelRouterHelperEffort, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, encodeModelRouterAgentEffort, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -1854,18 +1854,18 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 });
 
-suite('encodeModelRouterHelperEffort', () => {
+suite('encodeModelRouterAgentEffort', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('encodes a helper\'s effort for the model it runs on: its own, else the chat\'s', () => {
+	test('encodes an agent\'s effort for the model it runs on: its own, else the chat\'s', () => {
 		const onDevice = 'vscode-on-device/qwen';
 		assert.deepStrictEqual({
 			// An on-device model reads a missing effort as thinking on, so Off is sent as `minimal`.
-			ownOnDevice: encodeModelRouterHelperEffort(onDevice, { id: 'claude-opus' }, 'none'),
-			inheritsOnDevice: encodeModelRouterHelperEffort(undefined, { id: onDevice }, 'none'),
-			ownCloudOverOnDeviceChat: encodeModelRouterHelperEffort('claude-haiku', { id: onDevice }, 'none'),
-			inheritsCloud: encodeModelRouterHelperEffort(undefined, { id: 'claude-opus' }, 'none'),
-			otherEffort: encodeModelRouterHelperEffort(undefined, { id: onDevice }, 'high'),
+			ownOnDevice: encodeModelRouterAgentEffort(onDevice, { id: 'claude-opus' }, 'none'),
+			inheritsOnDevice: encodeModelRouterAgentEffort(undefined, { id: onDevice }, 'none'),
+			ownCloudOverOnDeviceChat: encodeModelRouterAgentEffort('claude-haiku', { id: onDevice }, 'none'),
+			inheritsCloud: encodeModelRouterAgentEffort(undefined, { id: 'claude-opus' }, 'none'),
+			otherEffort: encodeModelRouterAgentEffort(undefined, { id: onDevice }, 'high'),
 		}, { ownOnDevice: 'minimal', inheritsOnDevice: 'minimal', ownCloudOverOnDeviceChat: 'none', inheritsCloud: 'none', otherEffort: 'high' });
 	});
 });

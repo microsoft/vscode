@@ -140,7 +140,7 @@ suite('modelRouter', () => {
 					{ name: 'tester', description: '', agent: 'Test Writer', models: [] },
 				],
 				routes: [
-					{ models: ['opus'], when: 'Building.', examples: [], name: 'feature', uses: ['reviewer', 'tester'], helperGuidance: 'Plan first.' },
+					{ models: ['opus'], when: 'Building.', examples: [], name: 'feature', uses: ['reviewer', 'tester'], mainAgentGuidance: 'Plan first.' },
 					{ models: ['haiku'], when: 'Questions.', examples: [], name: 'quick' },
 				],
 				// A playbook's guidance is for its main agent, never for the routing decision.

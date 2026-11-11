@@ -8,36 +8,37 @@ import { isRoutableModel, matchModelReference, modelRouterLabel, supportedModelE
 import { PolicyState } from './state/protocol/channels-root/state.js';
 
 /*
- * The helpers of a model router's playbook: the roles its main agent can start as subagents, each
- * on its own model, and the guidance for that agent. This layer sits beside routing and reads only
- * the playbook routing chose. A router without `roles`, `uses` or playbook `guidance` has no plan,
- * and then nothing here runs.
+ * The agents of a model router's playbook: the roles its main agent can start as subagents, each
+ * on its own model, and the guidance for the main agent. This layer sits beside routing and reads
+ * only the playbook routing chose. A router without `roles`, `uses` or playbook `guidance` has no
+ * plan, and then nothing here runs.
  */
 
-/** One helper of a playbook, matched to a model the account has. Plain data, so two plans can be compared by value. */
-export interface IModelRouterHelper {
+/** One agent of a playbook, matched to a model the account has. Plain data, so two plans can be compared by value. */
+export interface IModelRouterAgent {
 	/** The role's name in the router file. */
 	readonly name: string;
 	readonly description: string;
 	/** The custom agent the role reuses, by its authored name. */
 	readonly agent?: string;
-	/** The model the helper runs on; without one it keeps its agent's model, else the chat's. */
+	/** The model the agent runs on; without one it keeps its custom agent's model, else the chat's. */
 	readonly model?: string;
 	readonly modelName?: string;
 	readonly effort?: ModelRouterEffortLevel;
 }
 
 /** What a chat gets from the playbook its first message was routed to. */
-export interface IModelRouterHelperPlan {
+export interface IModelRouterAgentPlan {
 	/** The router's name as the model picker shows it. */
 	readonly router: string;
 	readonly playbook: string;
+	/** How the user wants the work done, for the chat's main agent. */
 	readonly guidance?: string;
-	readonly helpers: readonly IModelRouterHelper[];
+	readonly agents: readonly IModelRouterAgent[];
 }
 
-/** A helper a session really has. */
-export interface IInstalledModelRouterHelper {
+/** A playbook agent a session really has. */
+export interface IInstalledModelRouterAgent {
 	/** The name the `task` tool starts it by, which is its role's name. */
 	readonly agentType: string;
 	readonly description: string;
@@ -54,23 +55,23 @@ function resolveRoleModel(role: IModelRouterRole, routable: readonly IAgentModel
 }
 
 /**
- * The plan of one playbook, or `undefined` when the playbook brings neither helpers nor guidance.
+ * The plan of one playbook, or `undefined` when the playbook brings neither agents nor guidance.
  * Never an empty plan: callers compare plans by identity, and "no plan" has to be one value.
  */
-export function resolveModelRouterHelperPlan(router: IModelRouter, playbook: string, models: readonly IAgentModelInfo[]): IModelRouterHelperPlan | undefined {
+export function resolveModelRouterAgentPlan(router: IModelRouter, playbook: string, models: readonly IAgentModelInfo[]): IModelRouterAgentPlan | undefined {
 	const route = router.routes.find(candidate => candidate.name === playbook);
-	if (!route || (!route.uses?.length && !route.helperGuidance)) {
+	if (!route || (!route.uses?.length && !route.mainAgentGuidance)) {
 		return undefined;
 	}
 	const routable = models.filter(isRoutableModel);
-	const helpers = (route.uses ?? []).flatMap((name): IModelRouterHelper[] => {
+	const agents = (route.uses ?? []).flatMap((name): IModelRouterAgent[] => {
 		const role = router.roles?.find(candidate => candidate.name === name);
 		if (!role) {
 			return [];
 		}
 		const model = resolveRoleModel(role, routable);
-		// An effort is checked against the role's own model. A helper that keeps its agent's
-		// model, or the chat's, gets the effort as written: that model is not known here.
+		// An effort is checked against the role's own model. An agent that keeps its custom
+		// agent's model, or the chat's, gets the effort as written: that model is not known here.
 		const effort = role.effort && (!model || supportedModelEfforts(model).includes(role.effort)) ? role.effort : undefined;
 		return [{
 			name: role.name,
@@ -83,8 +84,8 @@ export function resolveModelRouterHelperPlan(router: IModelRouter, playbook: str
 	return {
 		router: modelRouterLabel(router),
 		playbook,
-		...(route.helperGuidance ? { guidance: route.helperGuidance } : {}),
-		helpers,
+		...(route.mainAgentGuidance ? { guidance: route.mainAgentGuidance } : {}),
+		agents,
 	};
 }
 
@@ -104,10 +105,10 @@ export function modelRouterRoleWarnings(router: IModelRouter, models: readonly I
 }
 
 /**
- * The note that tells a chat's main agent how the user wants the work done and which helpers it
- * has. It lists only the helpers the session really has, each by the name that starts it.
+ * The note that tells a chat's main agent how the user wants the work done and which agents it
+ * can start. It lists only the agents the session really has, each by the name that starts it.
  */
-export function modelRouterBriefing(plan: IModelRouterHelperPlan, installed: readonly IInstalledModelRouterHelper[]): string | undefined {
+export function modelRouterBriefing(plan: IModelRouterAgentPlan, installed: readonly IInstalledModelRouterAgent[]): string | undefined {
 	if (!plan.guidance && installed.length === 0) {
 		return undefined;
 	}
@@ -120,12 +121,12 @@ export function modelRouterBriefing(plan: IModelRouterHelperPlan, installed: rea
 		lines.push('', 'How the user wants the work done:', plan.guidance);
 	}
 	if (installed.length) {
-		lines.push('', 'Helpers you can start with the task tool, by passing the name as its agent_type:');
-		for (const helper of installed) {
-			const description = helper.description.replace(/\s+/g, ' ').trim();
-			lines.push(`- \`${helper.agentType}\`${description ? `: ${description}` : ''}`);
+		lines.push('', 'Agents you can start with the task tool, by passing the name as its agent_type:');
+		for (const agent of installed) {
+			const description = agent.description.replace(/\s+/g, ' ').trim();
+			lines.push(`- \`${agent.agentType}\`${description ? `: ${description}` : ''}`);
 		}
-		lines.push('', 'Start a helper whenever the guidance or the work calls for it. Each helper already runs on the model the user chose for it, so do not pass a model when you start one.');
+		lines.push('', 'Start one of these agents whenever the guidance or the work calls for it. Each already runs on the model the user chose for it, so do not pass a model when you start one.');
 	}
 	lines.push('</model_router_playbook>');
 	return lines.join('\n');

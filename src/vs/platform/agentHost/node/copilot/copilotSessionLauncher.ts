@@ -50,7 +50,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, withModelRouterHelpers, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, withModelRouterAgents, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
@@ -68,7 +68,7 @@ import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 import { isModelRouterModelId } from '../../common/modelRouter.js';
-import { modelRouterBriefing, type IModelRouterHelperPlan } from '../../common/modelRouterHelpers.js';
+import { modelRouterBriefing, type IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import type { CopilotWorkspace } from './copilotWorkspace.js';
 import type { CopilotVirtualSessionFs } from './copilotVirtualSessionFs.js';
@@ -479,8 +479,8 @@ interface ICopilotSessionLaunchBase {
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
 	readonly availableModels?: () => readonly IAgentModelInfo[];
-	/** The helpers and guidance of the model router playbook this chat was started with. The session is launched with exactly this object. */
-	readonly modelRouterHelpers?: IModelRouterHelperPlan;
+	/** The agents and guidance of the model router playbook this chat was started with. The session is launched with exactly this object. */
+	readonly modelRouterAgents?: IModelRouterAgentPlan;
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
 	readonly autoTierSupport?: () => IAutoModeTierSupport;
@@ -670,11 +670,11 @@ export function toRuntimeReasoningEffort(model: ModelSelection | undefined, effo
 }
 
 /**
- * Encodes a model router helper's effort the way the chat's own is, for the model the helper runs
- * on: its own, else the chat's, which a helper without a model of its own runs on.
+ * Encodes the effort of a model router playbook's agent the way the chat's own is, for the model
+ * the agent runs on: its own, else the chat's, which an agent without a model of its own runs on.
  */
-export function encodeModelRouterHelperEffort(helperModel: string | undefined, chatModel: ModelSelection | undefined, effort: string): string {
-	return toRuntimeReasoningEffort(helperModel ? { id: helperModel } : chatModel, effort as SessionConfig['reasoningEffort']) ?? effort;
+export function encodeModelRouterAgentEffort(agentModel: string | undefined, chatModel: ModelSelection | undefined, effort: string): string {
+	return toRuntimeReasoningEffort(agentModel ? { id: agentModel } : chatModel, effort as SessionConfig['reasoningEffort']) ?? effort;
 }
 
 /**
@@ -1615,15 +1615,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			bridgedPermissions).permissions;
 		const additionalDirectories = plan.workspace?.kind === 'virtual' ? undefined : plan.additionalDirectories?.filter(d => d.scheme === Schemas.file).map(d => d.fsPath);
 		const authoredAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.displayName ?? agent.name));
-		// An ephemeral session has no custom agents, so it gets no helpers and no briefing about them.
-		const helperPlan = plan.isEphemeral ? undefined : plan.modelRouterHelpers;
-		const helperProjection = helperPlan ? withModelRouterHelpers(authoredAgents, helperPlan.helpers, COPILOT_BUILTIN_AGENT_NAMES, (helperModel, effort) => encodeModelRouterHelperEffort(helperModel, model, effort)) : undefined;
-		const authoredCustomAgents = helperProjection?.agents ?? authoredAgents;
-		const helperBriefing = helperPlan && helperProjection ? modelRouterBriefing(helperPlan, helperProjection.installed) : undefined;
-		if (helperPlan && helperProjection) {
-			this._logService.info(`[Copilot:${plan.sessionId}] Model router playbook ${helperPlan.playbook}: helpers=${helperProjection.installed.map(helper => helper.agentType).join(', ') || 'none'}`);
-			for (const reason of helperProjection.omitted) {
-				this._logService.warn(`[Copilot:${plan.sessionId}] Model router helper left out. ${reason}`);
+		// An ephemeral session has no custom agents, so it gets no playbook agents and no briefing about them.
+		const routerPlan = plan.isEphemeral ? undefined : plan.modelRouterAgents;
+		const routerProjection = routerPlan ? withModelRouterAgents(authoredAgents, routerPlan.agents, COPILOT_BUILTIN_AGENT_NAMES, (agentModel, effort) => encodeModelRouterAgentEffort(agentModel, model, effort)) : undefined;
+		const authoredCustomAgents = routerProjection?.agents ?? authoredAgents;
+		const routerBriefing = routerPlan && routerProjection ? modelRouterBriefing(routerPlan, routerProjection.installed) : undefined;
+		if (routerPlan && routerProjection) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Model router playbook ${routerPlan.playbook}: agents=${routerProjection.installed.map(installed => installed.agentType).join(', ') || 'none'}`);
+			for (const reason of routerProjection.omitted) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Model router agent left out. ${reason}`);
 			}
 		}
 		const resolveToolConfiguration = (published: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
@@ -1642,7 +1642,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			const baseSystemMessage = promptOverrides.systemPrompt !== undefined
 				? fullSystemPrompt(promptOverrides.systemPrompt)
 				: agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
-			const systemMessage = helperBriefing ? appendSystemMessageContent(baseSystemMessage, helperBriefing) : baseSystemMessage;
+			const systemMessage = routerBriefing ? appendSystemMessageContent(baseSystemMessage, routerBriefing) : baseSystemMessage;
 			return {
 				tools: promptOverrides.tools,
 				sessionConfig: {

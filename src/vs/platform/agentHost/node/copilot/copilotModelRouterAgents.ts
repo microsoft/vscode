@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { structuralEquals } from '../../../../base/common/equals.js';
-import type { IModelRouterHelperPlan } from '../../common/modelRouterHelpers.js';
+import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 
 /**
- * Which model router helpers each chat has. A chat's helpers are decided once, by the first
- * message that starts work in it, and never change afterwards.
+ * Which model router playbook agents each chat has. They are decided once, by the first message
+ * that starts work in the chat, and never change afterwards.
  *
  * A chat is *fresh* from its creation until one of its sessions starts root work. While it is
  * fresh, the turn being sent can hold a *candidate* plan. When work starts, the plan the working
@@ -17,15 +17,15 @@ import type { IModelRouterHelperPlan } from '../../common/modelRouterHelpers.js'
  * Plans are compared by identity: a session is launched with a plan object and stays valid for as
  * long as the chat's plan is that same object. "No plan" is always `undefined`.
  *
- * Kept in memory only, so a host restart forgets every chat's helpers.
+ * Kept in memory only, so a host restart forgets every chat's plan.
  */
-export class CopilotModelRouterHelpers {
+export class CopilotModelRouterAgents {
 
 	private readonly _fresh = new Set<string>();
 	/** The turn each fresh chat is on. A candidate belongs to it. */
 	private readonly _currentTurns = new Map<string, string>();
-	private readonly _candidates = new Map<string, IModelRouterHelperPlan>();
-	private readonly _committed = new Map<string, IModelRouterHelperPlan>();
+	private readonly _candidates = new Map<string, IModelRouterAgentPlan>();
+	private readonly _committed = new Map<string, IModelRouterAgentPlan>();
 
 	/** Marks a chat that was just created new: not forked, imported or restored. */
 	markFresh(chat: string): void {
@@ -56,7 +56,7 @@ export class CopilotModelRouterHelpers {
 	 * Offers the plan a turn was routed to. It is taken only while the chat is fresh and still on
 	 * that turn; a routing call that finishes late changes nothing. Returns whether it was taken.
 	 */
-	setCandidate(chat: string, turnId: string, plan: IModelRouterHelperPlan | undefined): boolean {
+	setCandidate(chat: string, turnId: string, plan: IModelRouterAgentPlan | undefined): boolean {
 		if (!this._fresh.has(chat) || this._currentTurns.get(chat) !== turnId) {
 			return false;
 		}
@@ -69,11 +69,11 @@ export class CopilotModelRouterHelpers {
 	}
 
 	/** The plan a session of the chat launches with: the committed one, else the current turn's candidate. */
-	planFor(chat: string): IModelRouterHelperPlan | undefined {
+	planFor(chat: string): IModelRouterAgentPlan | undefined {
 		return this._fresh.has(chat) ? this._candidates.get(chat) : this._committed.get(chat);
 	}
 
-	/** Whether the chat's helpers are decided, and it has some. */
+	/** Whether the chat's plan is decided, and it has one. */
 	hasCommittedPlan(chat: string): boolean {
 		return this._committed.has(chat);
 	}
@@ -82,7 +82,7 @@ export class CopilotModelRouterHelpers {
 	 * A session of the chat started root work. The first time, the plan that session was launched
 	 * with becomes the chat's plan for good; later reports change nothing.
 	 */
-	commit(chat: string, launched: IModelRouterHelperPlan | undefined): void {
+	commit(chat: string, launched: IModelRouterAgentPlan | undefined): void {
 		if (!this._fresh.delete(chat)) {
 			return;
 		}

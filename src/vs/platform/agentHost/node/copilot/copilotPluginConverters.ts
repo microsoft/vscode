@@ -18,7 +18,7 @@ import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotC
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
-import type { IInstalledModelRouterHelper, IModelRouterHelper } from '../../common/modelRouterHelpers.js';
+import type { IInstalledModelRouterAgent, IModelRouterAgent } from '../../common/modelRouterAgents.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
@@ -259,58 +259,58 @@ export async function toSdkCustomAgents(
 	return clientToolNames ? mapCopilotCustomAgentTools(configs, clientToolNames) : configs;
 }
 
-export interface IModelRouterHelperProjection {
+export interface IModelRouterAgentProjection {
 	readonly agents: CustomAgentConfig[];
-	/** The helpers the session has, for the main agent's briefing. */
-	readonly installed: IInstalledModelRouterHelper[];
+	/** The playbook's agents the session has, for the main agent's briefing. */
+	readonly installed: IInstalledModelRouterAgent[];
 	/** Roles left out, each with the reason, for the log. */
 	readonly omitted: string[];
 }
 
 /**
- * Adds a model router playbook's helpers to a session's custom agents. Every helper is an agent
- * of its own, named after its role. A role the router describes gets the description as its
+ * Adds a model router playbook's agents to a session's custom agents. Every role is an agent of
+ * its own, named after the role. A role the router describes gets the description as its
  * instructions. A role that reuses an authored agent gets a copy of that agent, which itself is
  * left as written; it must match exactly one authored agent by name, and one another agent may
- * start. A role's model is required, so its helper fails rather than running on another model.
+ * start. A role's model is required, so its agent fails rather than running on another model.
  *
- * @param encodeEffort Encodes a helper's effort for the runtime, given the model it runs on.
+ * @param encodeEffort Encodes a role's effort for the runtime, given the model it runs on.
  */
-export function withModelRouterHelpers(agents: readonly CustomAgentConfig[], helpers: readonly IModelRouterHelper[], reservedNames: ReadonlySet<string>, encodeEffort: (model: string | undefined, effort: string) => string = (_model, effort) => effort): IModelRouterHelperProjection {
+export function withModelRouterAgents(agents: readonly CustomAgentConfig[], roles: readonly IModelRouterAgent[], reservedNames: ReadonlySet<string>, encodeEffort: (model: string | undefined, effort: string) => string = (_model, effort) => effort): IModelRouterAgentProjection {
 	const result: CustomAgentConfig[] = [...agents];
-	const installed: IInstalledModelRouterHelper[] = [];
+	const installed: IInstalledModelRouterAgent[] = [];
 	const omitted: string[] = [];
-	for (const helper of helpers) {
-		if (reservedNames.has(helper.name) || result.some(agent => agent.name === helper.name)) {
-			omitted.push(`${helper.name}: an agent with that name already exists`);
+	for (const role of roles) {
+		if (reservedNames.has(role.name) || result.some(agent => agent.name === role.name)) {
+			omitted.push(`${role.name}: an agent with that name already exists`);
 			continue;
 		}
 		let base: CustomAgentConfig;
-		let description = helper.description;
-		if (helper.agent) {
-			// Only agents the user authored are reused, never a helper added above.
-			const wanted = helper.agent.toLowerCase();
+		let description = role.description;
+		if (role.agent) {
+			// Only agents the user authored are reused, never one added above for another role.
+			const wanted = role.agent.toLowerCase();
 			const matches = agents.filter(agent => (agent.displayName ?? agent.name).toLowerCase() === wanted);
 			if (matches.length !== 1) {
-				omitted.push(`${helper.name}: ${matches.length === 0 ? 'no' : 'more than one'} custom agent is named "${helper.agent}"`);
+				omitted.push(`${role.name}: ${matches.length === 0 ? 'no' : 'more than one'} custom agent is named "${role.agent}"`);
 				continue;
 			}
 			const authored: ICopilotCustomAgentConfig = matches[0];
 			if (authored.infer === false || authored.disableModelInvocation) {
-				omitted.push(`${helper.name}: the custom agent "${helper.agent}" can't be started by another agent`);
+				omitted.push(`${role.name}: the custom agent "${role.agent}" can't be started by another agent`);
 				continue;
 			}
 			description ||= `The user's ${authored.displayName ?? authored.name} agent.`;
-			base = { ...authored, name: helper.name, displayName: helper.name, description: customAgentDescription(helper.name, description) };
+			base = { ...authored, name: role.name, displayName: role.name, description: customAgentDescription(role.name, description) };
 		} else {
-			base = { name: helper.name, displayName: helper.name, description: customAgentDescription(helper.name, description), tools: null, prompt: description };
+			base = { name: role.name, displayName: role.name, description: customAgentDescription(role.name, description), tools: null, prompt: description };
 		}
 		result.push({
 			...base,
-			...(helper.model ? { model: helper.model, modelPolicy: 'required' } : {}),
-			...(helper.effort ? { reasoningEffort: encodeEffort(helper.model ?? base.model, helper.effort) } : {}),
+			...(role.model ? { model: role.model, modelPolicy: 'required' } : {}),
+			...(role.effort ? { reasoningEffort: encodeEffort(role.model ?? base.model, role.effort) } : {}),
 		});
-		installed.push({ agentType: helper.name, description });
+		installed.push({ agentType: role.name, description });
 	}
 	return { agents: result, installed, omitted };
 }

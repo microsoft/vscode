@@ -13,7 +13,7 @@ import { readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js
 import { readAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { isRoutableModel, modelContextSizes, modelRouterNameFromFileName, ModelRouterDiagnosticSeverity, parseModelRouter, resolveModelRouter, supportedModelEfforts, type IModelRouter, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
-import { modelRouterRoleWarnings, resolveModelRouterHelperPlan } from '../../common/modelRouterHelpers.js';
+import { modelRouterRoleWarnings, resolveModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import type { IModelRouterFile } from './copilotModelRouterCatalog.js';
 
@@ -46,13 +46,13 @@ export interface IModelRouterCheck {
 	readonly path: string;
 	readonly valid: boolean;
 	readonly diagnostics: readonly ICheckedDiagnostic[];
-	readonly routes?: readonly { readonly route: number; readonly playbook?: string; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string; readonly helpers?: readonly ICheckedHelper[] }[];
+	readonly routes?: readonly { readonly route: number; readonly playbook?: string; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string; readonly agents?: readonly ICheckedAgent[] }[];
 }
 
-/** A helper of a playbook, and the model it runs on. */
-interface ICheckedHelper {
+/** An agent a playbook brings, and the model it runs on. */
+interface ICheckedAgent {
 	readonly name: string;
-	/** The custom agent the helper reuses. The check can't see whether it exists. */
+	/** The custom agent it reuses. The check can't see whether it exists. */
 	readonly agent?: string;
 	readonly matched: string;
 	readonly effort?: string;
@@ -143,21 +143,21 @@ function check(name: string, uri: URI, router: IModelRouterFile['router'], parse
 				supportedEfforts: resolved.supportedEfforts,
 				...(resolved.contextSize ? { contextSize: resolved.contextSize } : {}),
 				...(resolved.retiring ? { retiring: resolved.retiring } : {}),
-				...checkedHelpers(router, resolved.route.name, models),
+				...checkedAgents(router, resolved.route.name, models),
 			})),
 		} : {}),
 	};
 }
 
-/** The helpers a playbook brings, each with the model it would run on for this account. */
-function checkedHelpers(router: IModelRouter, playbook: string | undefined, models: readonly IAgentModelInfo[]): { readonly helpers?: readonly ICheckedHelper[] } {
-	const helpers = playbook ? resolveModelRouterHelperPlan(router, playbook, models)?.helpers : undefined;
-	return helpers?.length ? {
-		helpers: helpers.map((helper): ICheckedHelper => ({
-			name: helper.name,
-			...(helper.agent ? { agent: helper.agent } : {}),
-			matched: helper.model ?? (helper.agent ? 'the model its agent file names, else the chat\'s model' : 'the chat\'s model'),
-			...(helper.effort ? { effort: helper.effort } : {}),
+/** The agents a playbook brings, each with the model it would run on for this account. */
+function checkedAgents(router: IModelRouter, playbook: string | undefined, models: readonly IAgentModelInfo[]): { readonly agents?: readonly ICheckedAgent[] } {
+	const agents = playbook ? resolveModelRouterAgentPlan(router, playbook, models)?.agents : undefined;
+	return agents?.length ? {
+		agents: agents.map((agent): ICheckedAgent => ({
+			name: agent.name,
+			...(agent.agent ? { agent: agent.agent } : {}),
+			matched: agent.model ?? (agent.agent ? 'the model its agent file names, else the chat\'s model' : 'the chat\'s model'),
+			...(agent.effort ? { effort: agent.effort } : {}),
 		})),
 	} : {};
 }

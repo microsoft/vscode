@@ -111,14 +111,14 @@ suite('check_model_router', () => {
 		});
 	});
 
-	test('lists the helpers a playbook brings, each with the model it would run on', async () => {
+	test('lists the agents a playbook brings, each with the model it would run on', async () => {
 		const result = JSON.parse((await call({ path: '/home/.agents/model-routers/team.model-router.yaml' })).textResultForLlm);
-		assert.deepStrictEqual({ diagnostics: result.router.diagnostics, helpers: result.router.routes.map((route: { helpers?: unknown }) => route.helpers) }, {
+		assert.deepStrictEqual({ diagnostics: result.router.diagnostics, agents: result.router.routes.map((route: { agents?: unknown }) => route.agents) }, {
 			diagnostics: [
 				{ severity: 'warning', message: 'Role `tester` (gone) runs on its agent\'s model, else the chat\'s: none of its models are available on this account.' },
 				{ severity: 'warning', message: 'Role `spare` is not used by any playbook.' },
 			],
-			helpers: [
+			agents: [
 				[
 					{ name: 'reviewer', matched: 'haiku', effort: 'high' },
 					{ name: 'tester', agent: 'Test Writer', matched: 'the model its agent file names, else the chat\'s model' },

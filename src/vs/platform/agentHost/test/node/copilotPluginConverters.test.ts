@@ -16,7 +16,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, withModelRouterHelpers, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, withModelRouterAgents, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -782,11 +782,11 @@ suite('copilotPluginConverters', () => {
 		});
 	});
 
-	// ---- withModelRouterHelpers ------------------------------------------
+	// ---- withModelRouterAgents -------------------------------------------
 
-	suite('withModelRouterHelpers', () => {
+	suite('withModelRouterAgents', () => {
 
-		test('makes every helper an agent of its own, copies a reused agent, and leaves out what it cannot place', () => {
+		test('makes every role an agent of its own, copies a reused agent, and leaves out what it cannot place', () => {
 			const authored: (CustomAgentConfig & { disableModelInvocation?: true })[] = [
 				{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', model: 'own-model', reasoningEffort: 'low', tools: ['read'], prompt: 'Write tests.' },
 				{ name: 'vscode-agent-2', displayName: 'Twin', description: 'Twin', prompt: 'One.' },
@@ -794,7 +794,7 @@ suite('copilotPluginConverters', () => {
 				{ name: 'vscode-agent-4', displayName: 'reviewer', description: 'reviewer', prompt: 'Review.' },
 				{ name: 'vscode-agent-5', displayName: 'Hidden', description: 'Hidden', infer: false, disableModelInvocation: true, prompt: 'Hidden.' },
 			];
-			const result = withModelRouterHelpers(authored, [
+			const result = withModelRouterAgents(authored, [
 				{ name: 'reviewer', description: 'Reviews a\nchange.', model: 'gpt', modelName: 'GPT', effort: 'minimal' },
 				// Two roles may reuse one agent on different models; neither changes the agent itself.
 				{ name: 'tester', description: 'Writes tests.', agent: 'test writer', model: 'sonnet' },
@@ -834,9 +834,9 @@ suite('copilotPluginConverters', () => {
 			});
 		});
 
-		test('changes nothing without helpers', () => {
+		test('changes nothing without roles', () => {
 			const authored: CustomAgentConfig[] = [{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', prompt: 'Write tests.' }];
-			assert.deepStrictEqual(withModelRouterHelpers(authored, [], new Set()), { agents: authored, installed: [], omitted: [] });
+			assert.deepStrictEqual(withModelRouterAgents(authored, [], new Set()), { agents: authored, installed: [], omitted: [] });
 		});
 	});
 

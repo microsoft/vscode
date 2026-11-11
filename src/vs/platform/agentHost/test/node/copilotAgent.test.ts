@@ -21608,7 +21608,7 @@ suite('CopilotAgent', () => {
 			};
 		}
 
-		suite('model router helpers', () => {
+		suite('model router agents', () => {
 			const userHome = URI.file('/router-home');
 			const routerFile = (playbook: string[]) => [
 				'version: 1',
@@ -21639,49 +21639,49 @@ suite('CopilotAgent', () => {
 					return notices;
 				};
 				const launches = () => h.launchConfigs.map(config => ({
-					helpers: (config.customAgents ?? []).filter(agent => agent.name === 'reviewer').map(agent => ({ model: agent.model, modelPolicy: agent.modelPolicy })),
+					agents: (config.customAgents ?? []).filter(agent => agent.name === 'reviewer').map(agent => ({ model: agent.model, modelPolicy: agent.modelPolicy })),
 					briefed: config.systemMessage?.content?.includes('<model_router_playbook>') === true,
 				}));
 				return { ...h, send, launches };
 			}
 
-			test('a warm session is replaced once when the first message is routed to a playbook with helpers', async () => {
-				const h = await createRoutedAgent('router-helpers', ['    uses: [reviewer]', '    guidance: Plan first.']);
+			test('a warm session is replaced once when the first message is routed to a playbook with agents', async () => {
+				const h = await createRoutedAgent('router-agents', ['    uses: [reviewer]', '    guidance: Plan first.']);
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				const first = await h.send('turn-1');
 				const second = await h.send('turn-2');
 				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					first: ['The feature playbook brings these helpers to this chat: reviewer (Claude Sonnet).'],
-					// The chat's helpers are decided; routing it again changes and announces nothing.
+					first: ['The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).'],
+					// The chat's agents are decided; routing it again changes and announces nothing.
 					second: [],
-					prewarm: ['modelRouterHelpersChanged'],
+					prewarm: ['modelRouterAgentsChanged'],
 					launches: [
-						{ helpers: [], briefed: false },
-						{ helpers: [{ model: 'claude-sonnet', modelPolicy: 'required' }], briefed: true },
+						{ agents: [], briefed: false },
+						{ agents: [{ model: 'claude-sonnet', modelPolicy: 'required' }], briefed: true },
 					],
 					sends: [0, 2],
 				});
 			});
 
 			test('a playbook that brings nothing claims the warm session', async () => {
-				const h = await createRoutedAgent('router-no-helpers', []);
+				const h = await createRoutedAgent('router-no-agents', []);
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				const notices = await h.send('turn-1');
-				assert.deepStrictEqual({ notices, prewarm: h.state().prewarm, launches: h.launches() }, { notices: [], prewarm: ['used'], launches: [{ helpers: [], briefed: false }] });
+				assert.deepStrictEqual({ notices, prewarm: h.state().prewarm, launches: h.launches() }, { notices: [], prewarm: ['used'], launches: [{ agents: [], briefed: false }] });
 			});
 
-			test('a routed turn that is never sent gives its helpers to no other turn', async () => {
+			test('a routed turn that is never sent gives its agents to no other turn', async () => {
 				const h = await createRoutedAgent('router-cancelled', ['    uses: [reviewer]']);
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				// turn-1 is routed and then cancelled; turn-2 is sent on a hand-picked model and never routed.
 				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
 				await h.send('turn-2', false);
-				// The chat has started work without helpers, so a router picked later brings none and says so.
+				// The chat has started work without agents, so a router picked later brings none and says so.
 				const later = await h.send('turn-3');
 				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, launches: h.launches() }, {
-					later: ['The feature playbook\'s helpers are set up when a chat starts, so they are not available in this chat. Start a new chat to use them.'],
+					later: ['The feature playbook\'s agents are set up when a chat starts, so they are not available in this chat. Start a new chat to use them.'],
 					prewarm: ['used'],
-					launches: [{ helpers: [], briefed: false }],
+					launches: [{ agents: [], briefed: false }],
 				});
 			});
 		});

@@ -47,9 +47,9 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  *     main: claude-haiku-5.5
  * ```
  *
- * A playbook can also bring helpers: `uses` lists `roles` its main agent can start as subagents,
+ * A playbook can also bring agents: `uses` lists `roles` its main agent can start as subagents,
  * each on its own model, and `guidance` says how the user wants the work done. Routing never reads
- * these; `modelRouterHelpers.ts` does.
+ * these; `modelRouterAgents.ts` does.
  *
  * ```yaml
  * roles:
@@ -117,20 +117,20 @@ export interface IModelRouterRoute {
 	readonly contextSize?: ModelRouterContextSize;
 	/** The playbook's name, when the route was written as one. A playbook is identified by it, a plain route by its model. */
 	readonly name?: string;
-	/** The roles the playbook's main agent can start as helpers, by name. */
+	/** The roles the playbook's main agent can start as subagents, by name. */
 	readonly uses?: readonly string[];
 	/** How the user wants the work done, given to the playbook's main agent. */
-	readonly helperGuidance?: string;
+	readonly mainAgentGuidance?: string;
 }
 
-/** A helper a playbook's main agent can start as a subagent. */
+/** An agent a playbook's main agent can start as a subagent. */
 export interface IModelRouterRole {
 	readonly name: string;
-	/** What the helper is for: shown to the main agent, and the helper's own instructions unless it reuses an agent. */
+	/** What the agent is for: shown to the main agent, and the agent's own instructions unless it reuses a custom agent. */
 	readonly description: string;
 	/** A custom agent the role reuses, by its authored name. Its file supplies the instructions and tools. */
 	readonly agent?: string;
-	/** Model ids in preference order; empty leaves the helper on its agent's model, else the chat's. */
+	/** Model ids in preference order; empty leaves the agent on its custom agent's model, else the chat's. */
 	readonly models: readonly string[];
 	readonly effort?: ModelRouterEffortLevel;
 }
@@ -147,7 +147,7 @@ export interface IModelRouter {
 	/** Sent with every routing decision; empty when the file has none. */
 	readonly guidance: string;
 	readonly routes: readonly IModelRouterRoute[];
-	/** The helpers playbooks can use. The routing engine never reads them. */
+	/** The agents playbooks can use. The routing engine never reads them. */
 	readonly roles?: readonly IModelRouterRole[];
 }
 
@@ -187,7 +187,7 @@ const playbookKeys = new Set(['main', 'when', 'examples', 'effort', 'context-siz
 const roleKeys = new Set(['description', 'agent', 'model', 'effort']);
 /** The most guidance a playbook gives its main agent: it is part of every request of the chat. */
 const MAX_PLAYBOOK_GUIDANCE_CHARS = 4000;
-/** The most helpers one playbook can use. */
+/** The most roles one playbook can use. */
 const MAX_PLAYBOOK_ROLES = 8;
 const effortLevels: ReadonlySet<string> = new Set(reasoningEffortLevels);
 
@@ -521,15 +521,15 @@ function parseRoute({ item, label, playbook }: IRouteEntry, roles: readonly IMod
 		report.error(`${label} uses ${uses.length} roles; a playbook can use at most ${MAX_PLAYBOOK_ROLES}.`, usesProperty?.value);
 	}
 	const guidanceProperty = values.get('guidance');
-	const helperGuidance = guidanceProperty ? scalar(guidanceProperty.value)?.trim() : '';
-	if (helperGuidance === undefined) {
+	const mainAgentGuidance = guidanceProperty ? scalar(guidanceProperty.value)?.trim() : '';
+	if (mainAgentGuidance === undefined) {
 		report.error(`${label}'s \`guidance\` is text.`, guidanceProperty?.value);
 		return undefined;
 	}
-	if (helperGuidance.length > MAX_PLAYBOOK_GUIDANCE_CHARS) {
+	if (mainAgentGuidance.length > MAX_PLAYBOOK_GUIDANCE_CHARS) {
 		report.error(`${label}'s \`guidance\` is too long: at most ${MAX_PLAYBOOK_GUIDANCE_CHARS} characters.`, guidanceProperty?.value);
 	}
-	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), name: playbook.value, ...(uses.length ? { uses } : {}), ...(helperGuidance ? { helperGuidance } : {}) };
+	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), name: playbook.value, ...(uses.length ? { uses } : {}), ...(mainAgentGuidance ? { mainAgentGuidance } : {}) };
 }
 
 function parseRoles(node: YamlNode | undefined, report: IReporter): IModelRouterRole[] {
