@@ -272,9 +272,16 @@ export interface ISessionsManagementService {
 	// -- Sessions --
 
 	/**
-	 * Get all sessions from all registered providers.
+	 * Get all sessions from all registered providers, as they list them: without those a provider's listing scope hides,
+	 * such as the sessions of other folders in an editor window.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Get every session of the registered providers, also those a provider's listing scope hides. For looking a session up,
+	 * such as to open it, not for listing sessions.
+	 */
+	getAllSessions(): ISession[];
 
 	/**
 	 * Get new sessions whose first request is still being prepared or sent.
@@ -285,7 +292,7 @@ export interface ISessionsManagementService {
 	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined;
 
 	/**
-	 * Get a session by its resource URI.
+	 * Get a session by its resource URI, also one a provider's listing scope hides.
 	 */
 	getSession(resource: URI): ISession | undefined;
 
@@ -299,7 +306,7 @@ export interface ISessionsManagementService {
 	resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI>;
 
 	/**
-	 * Get the session and chat that own the given chat resource URI.
+	 * Get the session and chat that own the given chat resource URI, also of a session a provider's listing scope hides.
 	 */
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
 
@@ -373,9 +380,15 @@ export interface ISessionsManagementService {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * Fires when sessions change across any provider.
+	 * Fires when sessions change across any provider, as they list them: see {@link getSessions}.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+
+	/**
+	 * Fires when any session of any provider changes, also one a provider's listing scope hides: see {@link getAllSessions}.
+	 * A session leaving or entering that scope is no change of it. As a provider registers, its sessions are added.
+	 */
+	readonly onDidChangeAllSessions: Event<ISessionsChangeEvent>;
 	/**
 	 * Fires when a brand-new session is started by this window via
 	 * {@link sendNewChatRequest}.

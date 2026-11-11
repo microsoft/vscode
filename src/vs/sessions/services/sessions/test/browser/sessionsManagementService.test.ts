@@ -499,6 +499,22 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('lists the sessions as their providers list them, and finds by resource also those a listing scope hides', () => {
+		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
+		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
+		const scoped = new class extends TestSessionsProvider {
+			override readonly id = 'scoped';
+			override getAllSessions(): ISession[] { return [listed, hidden]; }
+		}(listed);
+		const { service } = createSessionsManagementService(listed, disposables, [scoped]);
+
+		assert.deepStrictEqual({
+			listed: service.getSessions().map(session => session.sessionId),
+			all: service.getAllSessions().map(session => session.sessionId),
+			found: service.getSession(hidden.resource)?.sessionId,
+		}, { listed: ['listed'], all: ['listed', 'hidden'], found: 'hidden' });
+	});
+
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
 			const chat: IChat = { ...stubChat, resource: URI.parse(`test:///${id}/chat`), status: constObservable(SessionStatus.Completed) };

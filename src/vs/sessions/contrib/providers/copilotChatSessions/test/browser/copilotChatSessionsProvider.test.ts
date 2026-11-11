@@ -1607,6 +1607,29 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessions().map(session => session.resource.toString()), [cloudResource.toString()]);
 	});
 
+	test('lists only the sessions of its listing scope, and still finds every session', () => {
+		const repository = (name: string) => URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/${name}` });
+		const session = (name: string) => createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Cloud, path: `/${name}` }), { title: name, metadata: { owner: 'owner', name } });
+		model.addSession(session('here'));
+		model.addSession(session('elsewhere'));
+		const provider = createProvider(disposables, model);
+		const folders = observableValue<readonly URI[]>('folders', [repository('here')]);
+		provider.setListingScope({ folders, repositories: constObservable([]) });
+		const titles = (sessions: readonly ISession[]) => sessions.map(session => session.title.get()).sort().join(',');
+		const changes: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${titles(e.added)} removed=${titles(e.removed)} changed=${titles(e.changed)}`)));
+
+		model.addSession(session('another'));
+		const scoped = { listed: titles(provider.getSessions()), all: titles(provider.getAllSessions()) };
+		folders.set([], undefined);
+
+		assert.deepStrictEqual({ scoped, unscoped: titles(provider.getSessions()), changes }, {
+			scoped: { listed: 'here', all: 'another,elsewhere,here' },
+			unscoped: 'another,elsewhere,here',
+			changes: ['added=another,elsewhere removed= changed='],
+		});
+	});
+
 	test('onDidChangeSessions fires when agent model changes', () => {
 		const provider = createProvider(disposables, model);
 		provider.getSessions(); // Initialize cache

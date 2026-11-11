@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -36,7 +35,6 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
-import { WorkspaceFolderRepositories } from './workspaceFolderRepositories.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
@@ -45,24 +43,16 @@ const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 /** The container of the Sessions view in an editor window, whose title shows the actions of the sessions header. */
 class AgentsViewPaneContainer extends ViewPaneContainer {
 
-	private _workspaceFolders: IObservable<readonly URI[]> | undefined;
+	private _scoped: IObservable<boolean> | undefined;
 
-	private _workspaceFolderRepositories: WorkspaceFolderRepositories | undefined;
-
-	/** The repositories of the window's folders, read from their `.git`, such as the main checkout of an open worktree. */
-	private get workspaceFolderRepositories(): IObservable<readonly URI[]> {
-		this._workspaceFolderRepositories ??= this._register(this.instantiationService.createInstance(WorkspaceFolderRepositories));
-		return this._workspaceFolderRepositories.repositories;
-	}
-
-	/** The folders of the window's workspace, to which the list scopes its sessions; none in an empty window. */
-	private get workspaceFolders(): IObservable<readonly URI[]> {
-		this._workspaceFolders ??= observableFromEvent(this, this.contextService.onDidChangeWorkspaceFolders, () => this.contextService.getWorkspace().folders.map(folder => folder.uri));
-		return this._workspaceFolders;
+	/** Whether the window has folders, whose sessions the providers then list only; not in an empty window. See `registerAgentsViewProviders`. */
+	private get scoped(): IObservable<boolean> {
+		this._scoped ??= observableFromEvent(this, this.contextService.onDidChangeWorkspaceFolders, () => this.contextService.getWorkspace().folders.length > 0);
+		return this._scoped;
 	}
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scopeFolders: this.workspaceFolders, scopeRepositories: this.workspaceFolderRepositories, allowWorktreeGrouping: true };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped, allowWorktreeGrouping: true };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }

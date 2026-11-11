@@ -196,23 +196,26 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
+		// The changes of the listed sessions, and of all sessions, also of those the providers' listing scope hides
 		const sessionsChanged = store.add(new Emitter<never>());
+		const allSessionsChanged = store.add(new Emitter<never>());
 		let sessionListeners = 0;
-		const countedSessionsChanged: Event<never> = (listener, thisArgs, listenerStore) => {
+		const counted = (emitter: Emitter<never>): Event<never> => (listener, thisArgs, listenerStore) => {
 			sessionListeners++;
-			const subscription = sessionsChanged.event(listener, thisArgs);
-			const counted = toDisposable(() => { sessionListeners--; subscription.dispose(); });
+			const subscription = emitter.event(listener, thisArgs);
+			const countedSubscription = toDisposable(() => { sessionListeners--; subscription.dispose(); });
 			if (listenerStore instanceof DisposableStore) {
-				listenerStore.add(counted);
+				listenerStore.add(countedSubscription);
 			} else if (Array.isArray(listenerStore)) {
-				listenerStore.push(counted);
+				listenerStore.push(countedSubscription);
 			}
-			return counted;
+			return countedSubscription;
 		};
 		let liveSlots = 0;
 		let nextSlot = 0;
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
-			onDidChangeSessions: countedSessionsChanged,
+			onDidChangeSessions: counted(sessionsChanged),
+			onDidChangeAllSessions: counted(allSessionsChanged),
 			onDidAcceptNewSessionRequest: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			getSessions: () => [],
@@ -251,7 +254,12 @@ suite('AgentsChatPartService', () => {
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
-			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => sessionsChanged.fire({ added, removed, changed: [] } as never),
+			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
+				sessionsChanged.fire({ added, removed, changed: [] } as never);
+				allSessionsChanged.fire({ added, removed, changed: [] } as never);
+			},
+			/** Changes of sessions that the providers' listing scope hides, such as of another folder: they are not listed. */
+			fireHiddenSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => allSessionsChanged.fire({ added, removed, changed: [] } as never),
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),
 			/** The tabs of each group, the active one of each, and whether the layout shows the chat part. */
 			layout: () => ({
@@ -331,6 +339,26 @@ suite('AgentsChatPartService', () => {
 			beforePeer: { session: 'original', chat: 'original', showing: true },
 			afterPeer: { session: 'replacement', chat: 'replacement' },
 		});
+	});
+
+	test('a chat of a session that the listing scope hides, such as of another folder, follows the session that replaces it', async () => {
+		const { original, peer, replacing, replacementChats, replacementLoading, replacement } = replacedPeerChat();
+		let sessions: readonly ISession[] = [original.session];
+		const { service, fireHiddenSessionsChanged } = createService({ sessions: () => sessions });
+		await service.openChat(original.session, peer);
+		const shown = () => service.activeChat.get()?.session === replacement ? 'replacement' : service.activeChat.get()?.session === original.session ? 'original' : 'none';
+
+		// Its provider goes and returns, without its sessions being listed
+		sessions = [];
+		fireHiddenSessionsChanged([]);
+		sessions = [replacement];
+		fireHiddenSessionsChanged([replacement]);
+		transaction(tx => {
+			replacementChats.set([replacing.mainChat.chat, replacing.chats.get('peer')!.chat], tx);
+			replacementLoading.set(false, tx);
+		});
+
+		assert.strictEqual(shown(), 'replacement');
 	});
 
 	test('a peer chat whose provider is registered again waits for the session that replaces its session to list it, even once that says it loaded', async () => {

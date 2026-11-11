@@ -36,7 +36,8 @@ import { ISessionsListModelService, SessionsListModelService } from '../sessions
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { SessionsManagementService } from '../sessionsManagementService.js';
 import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
+import { EditorWindowSessionsProvidersService } from './editorWindowSessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
@@ -89,7 +90,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 registerSingleton(ISessionsStorageService, AgentsProfileSessionsStorageService, InstantiationType.Delayed);
 registerSingleton(ISessionsNavigationHost, EditorWindowSessionsNavigationHost, InstantiationType.Delayed);
 registerSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
-registerSingleton(ISessionsProvidersService, SessionsProvidersService, InstantiationType.Delayed);
+registerSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
 registerSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
 registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);

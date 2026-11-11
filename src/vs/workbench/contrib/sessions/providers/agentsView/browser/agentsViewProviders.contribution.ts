@@ -24,7 +24,8 @@ import { DevContainerAgentHostService } from '../../remoteAgentHost/browser/devC
 
 /**
  * Registers the sessions providers whose sessions the Sessions view of an editor window lists: those of the local agent
- * host, on desktop, and those of Copilot Cloud.
+ * host, on desktop, and those of Copilot Cloud. As every provider of the window, they list only the sessions of its
+ * folders (see `EditorWindowSessionsProvidersService`).
  */
 function registerAgentsViewProviders(accessor: ServicesAccessor): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
