@@ -9,7 +9,10 @@ import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { sessionsListConfiguration } from '../sessionsConfiguration.js';
 import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
@@ -21,7 +24,8 @@ import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
-import { AGENTS_VIEW_CONTAINER_ID, AgentsViewWhen } from './agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AgentsViewAvailable, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
+import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
@@ -52,6 +56,11 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		}
 
 		this.registerView();
+
+		// The settings of the list and of the sessions it opens, as the Agents window has them
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration(sessionsListConfiguration);
+		this._register(toDisposable(() => configurationRegistry.deregisterConfigurations([sessionsListConfiguration])));
 		this._register(registerSessionsListActions());
 		this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
 
@@ -94,7 +103,19 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			when: AgentsViewWhen,
 			windowEnablement: WindowEnablement.Editor,
 		};
-		viewsRegistry.registerViews([view], container);
-		this._register(toDisposable(() => viewsRegistry.deregisterViews([view], container)));
+		const loadingView: IViewDescriptor = {
+			id: AGENTS_VIEW_LOADING_VIEW_ID,
+			name: AGENTS_VIEW_TITLE,
+			containerIcon: Codicon.agent,
+			containerTitle: AGENTS_VIEW_TITLE.value,
+			singleViewPaneContainerTitle: AGENTS_VIEW_TITLE.value,
+			ctorDescriptor: new SyncDescriptor(AgentsViewLoadingPane),
+			canToggleVisibility: false,
+			canMoveView: false,
+			when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewStateReadyContext.negate()),
+			windowEnablement: WindowEnablement.Editor,
+		};
+		viewsRegistry.registerViews([view, loadingView], container);
+		this._register(toDisposable(() => viewsRegistry.deregisterViews([view, loadingView], container)));
 	}
 }
