@@ -4,29 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
+import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
-import { Menus } from '../../../browser/menus.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;
 }
 
+/**
+ * The files whose feedback the overlay of an editor shows: none for an editor that shows no file, such as the empty
+ * Files editor, or a view shown as an editor, such as the chat of a chat window, which is a view of the main window.
+ */
 export function getAgentFeedbackOverlayResourceCandidates(input: Parameters<typeof getActiveResourceCandidates>[0]): ReturnType<typeof getActiveResourceCandidates> {
-	return input instanceof EmptyFileEditorInput ? [] : getActiveResourceCandidates(input);
+	return input instanceof EmptyFileEditorInput || input instanceof ViewEditorInput ? [] : getActiveResourceCandidates(input);
 }
 
 export class AgentFeedbackOverlayController {
@@ -36,6 +44,8 @@ export class AgentFeedbackOverlayController {
 
 	constructor(
 		group: IAgentFeedbackOverlayEditorGroup,
+		/** The session of the window that owns the group if it shows a session of its own, such as a chat window. */
+		hostSession: IObservable<ISession | undefined> | undefined,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -91,9 +101,11 @@ export class AgentFeedbackOverlayController {
 
 			const activeInput = group.activeEditorPane?.input;
 			const candidates = getAgentFeedbackOverlayResourceCandidates(activeInput);
+			// In a window that shows a session of its own, such as a chat window, its files are that session's, whichever is active.
+			const host = hostSession?.read(r);
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
-			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate))) {
+			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate, host))) {
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
@@ -136,6 +148,7 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 	constructor(
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
 		const editorGroups = observableFromEvent(
 			this,
@@ -161,7 +174,13 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
 					);
 
-					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group);
+					// The session of the window of the group, if it shows a session of its own, such as a chat window: not the
+					// main window, which floating editor windows belong to too.
+					const hostSession = derived(reader => {
+						const host = sessionHostService.getHostOfGroup(group, reader);
+						return host && host.kind !== SessionHostKind.MainWindow ? host.session.read(reader) : undefined;
+					});
+					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group, hostSession);
 					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
 				}
 			}

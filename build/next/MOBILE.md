@@ -1,10 +1,10 @@
 # Isolated mobile web package
 
-The opt-in mobile target packages the experimental Sessions entry without adding
+The opt-in mobile target packages the dedicated Agents entry without adding
 it to the ordinary editor, Agents, desktop or server outputs.
 
 ```sh
-npm run bundle-mobile-preview
+pnpm run bundle-mobile-preview
 ```
 
 The output is `out-mobile-preview/`, containing:
@@ -19,7 +19,7 @@ The build requires a source commit. In Git worktrees, supply it through the same
 environment variable used by CI:
 
 ```sh
-BUILD_SOURCEVERSION="$(git rev-parse HEAD)" npm run bundle-mobile-preview
+BUILD_SOURCEVERSION="$(git rev-parse HEAD)" pnpm run bundle-mobile-preview
 ```
 
 Local packages use quality `dev`. Product builds require the normal quality
@@ -35,9 +35,10 @@ compressed-size limits. The build examines transitive bundle inputs, not only
 the entry's direct imports. An unknown contribution or unpackaged dependency
 fails the build independently of the size checks.
 
-The ordinary entry's repository, list and edit presentation implementations and
-clipboard registration are also rejected. The mobile entry selects its own
-implementations; their shared contracts and behavior remain available.
+The ordinary entry's repository, list, Configure Session and edit presentation
+implementations and clipboard registration are also rejected. The mobile entry
+selects its own implementations; their shared contracts and behavior remain
+available.
 
 The size limits are experimental regression guards introduced with this target,
 not existing VS Code product requirements or hosting restrictions. Review actual
@@ -62,7 +63,7 @@ for partial output.
 
 ```sh
 node --test build/next/test/mobilePreview.test.ts build/next/test/resources.test.ts build/next/test/bundle.test.ts
-npm --prefix build run typecheck
+pnpm -C build run typecheck
 ```
 
 On macOS, use `TMPDIR=/private/tmp` for the tests so temporary file URLs have the

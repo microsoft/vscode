@@ -113,7 +113,7 @@ function getSessionsHTML(host, port, cssModules, useMock, useMobile) {
 	// The mobile entry point is a separate, allow-listed bundle with its own
 	// workbench. The mock variant swaps in the same mock services as desktop.
 	const entryModule = useMobile
-		? (useMock ? 'test/sessions.web.mobile.test.internal' : 'agents.web.mobile.main.internal')
+		? (useMock ? 'test/agents.web.mobile.test.internal' : 'agents.web.mobile.main.internal')
 		: (useMock ? 'test/sessions.web.test.internal' : 'sessions.web.main.internal');
 
 	// Expose safe-area insets without disabling browser zoom.
@@ -129,7 +129,7 @@ function getSessionsHTML(host, port, cssModules, useMock, useMobile) {
 <head>
 	<meta charset="utf-8" />
 	${viewportMeta}
-	<title>${useMobile ? 'Agents (Mobile)' : 'Sessions'}</title>
+	<title>${useMobile ? 'Agents' : 'Sessions'}</title>
 	<style id="vscode-css-modules"></style>
 	<script>
 		globalThis._VSCODE_FILE_ROOT = '${fileRoot}';
@@ -148,8 +148,8 @@ ${importMapJson}
 		import { create, URI } from '${fileRoot}/vs/sessions/${entryModule}.js';
 		create(document.body, {
 			productConfiguration: {
-				nameShort: '${useMobile ? 'Agents (Mobile)' : 'Sessions (Web)'}',
-				nameLong: '${useMobile ? 'Agents (Mobile)' : 'Sessions (Web)'}',
+				nameShort: '${useMobile ? 'Agents' : 'Sessions (Web)'}',
+				nameLong: '${useMobile ? 'Agents' : 'Sessions (Web)'}',
 				enableTelemetry: false,
 			},
 			${additionalBuiltinExtensions}

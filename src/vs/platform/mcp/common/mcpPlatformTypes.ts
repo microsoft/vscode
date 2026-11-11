@@ -35,7 +35,7 @@ export interface IMcpServerVariable {
 	readonly description: string;
 	readonly password: boolean;
 	readonly default?: string;
-	readonly options?: readonly string[];
+	readonly options?: readonly (string | { readonly value: string; readonly label?: string })[];
 	readonly serverName?: string;
 }
 

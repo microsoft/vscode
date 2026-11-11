@@ -138,8 +138,9 @@ suite('isolated mobile preview', () => {
 			'src/vs/sessions/test/web.test.ts',
 			'src/vs/workbench/contrib/newFeature/browser/newFeature.contribution.ts',
 			'src\\vs\\sessions\\contrib\\chat\\browser\\chat.desktop.contribution.ts',
-			'src/vs/sessions/services/presentation/browser/defaultSessionRepositoryPicker.ts',
-			'src/vs/sessions/services/presentation/browser/defaultSessionsListPresentation.ts',
+			'src/vs/workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.ts',
+			'src/vs/workbench/contrib/sessions/browser/defaultSessionsListPresentation.ts',
+			'src/vs/workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts',
 			'src/vs/workbench/contrib/chat/browser/chatDefaultPresentation.contribution.ts',
 			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/defaultChatEditPresentation.ts',
 		]) {
@@ -148,6 +149,7 @@ suite('isolated mobile preview', () => {
 		assert.deepStrictEqual(checkMobilePreviewDependencies([
 			'src/vs/workbench/contrib/chat/common/model/chatModel.ts',
 			'src/vs/sessions/contrib/mobile/browser/mobile.contribution.ts',
+			'src/vs/sessions/contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts',
 		]), ['src/vs/sessions/contrib/mobile/browser/mobile.contribution.ts']);
 	});
 
@@ -199,49 +201,57 @@ suite('isolated mobile preview', () => {
 		}, { code: ['github-authentication'], required: ['vscode.github-authentication', 'vscode.theme-defaults', 'vscode.vscode-theme-seti'] });
 	});
 
-	test('extension packaging builds fresh browser output and preserves explicit dependencies and licenses', async t => {
-		const { root, preview, write } = await createFixture(t);
-		await write('LICENSE.txt', 'MIT license');
-		await write('extensions/auth/package.json', JSON.stringify({
-			name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' },
-			main: './out/extension.js', browser: './dist/browser/extension.js',
-			activationEvents: [], extensionDependencies: ['vscode.grammar'], scripts: { build: 'unused' }, dependencies: { unused: '*' },
-		}));
-		await write('extensions/auth/.vscodeignore', 'esbuild.browser.mts\nout/**\n');
-		await write('extensions/auth/esbuild.browser.mts', `
+	for (const nodeLinker of ['hoisted', 'isolated']) {
+		test(`extension packaging builds fresh browser output and preserves explicit dependencies and licenses (${nodeLinker})`, async t => {
+			const { root, preview, write } = await createFixture(t);
+			await write('LICENSE.txt', 'MIT license');
+			await write('extensions/auth/package.json', JSON.stringify({
+				name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' },
+				main: './out/extension.js', browser: './dist/browser/extension.js',
+				activationEvents: [], extensionDependencies: ['vscode.grammar'], scripts: { build: 'unused' }, dependencies: { unused: '*' },
+			}));
+			await write('extensions/auth/.vscodeignore', 'esbuild.browser.mts\nout/**\n');
+			await write('extensions/auth/esbuild.browser.mts', `
 			import { mkdir, writeFile } from 'node:fs/promises';
 			import path from 'node:path';
 			const output = path.join(process.argv[process.argv.indexOf('--outputRoot') + 1], 'browser');
 			await mkdir(output, { recursive: true });
 			await writeFile(path.join(output, 'extension.js'), 'fresh browser build');
 		`);
-		await write('extensions/auth/dist/browser/extension.js', 'stale watcher output');
-		await write('extensions/auth/dist/node/extension.js', 'desktop output');
-		await write('extensions/auth/out/unrelated.js', 'old output');
-		await write('extensions/auth/ThirdPartyNotices.txt', 'Extension notices');
-		await write('extensions/auth/node_modules/unused/package.json', '{"name":"unused","version":"1.0.0","license":"MIT"}');
-		await write('extensions/auth/node_modules/unused/LICENSE', 'Dependency license text');
-		writePnpmLockfile(path.join(root, 'extensions/auth/pnpm-lock.yaml'), { unused: { version: '1.0.0' } });
-		await write('extensions/auth/node_modules/.modules.yaml', JSON.stringify({
-			nodeLinker: 'hoisted',
-			hoistedLocations: { 'unused@1.0.0': ['node_modules/unused'] },
-		}));
-		await write('extensions/grammar/package.json', '{"name":"grammar","publisher":"vscode","version":"1.0.0","license":"MIT","engines":{"vscode":"^1.0.0"}}');
-		await packageMobilePreviewExtensions(root, ['auth', 'grammar']);
-		const manifest = JSON.parse(await fs.readFile(path.join(preview, 'extensions/auth/package.json'), 'utf8'));
-		assert.deepStrictEqual({
-			manifest,
-			browser: await fs.readFile(path.join(preview, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
-			license: await fs.readFile(path.join(preview, 'extensions/auth/LICENSE.txt'), 'utf8'),
-			directories: (await fs.readdir(path.join(preview, 'extensions/auth/dist'))).sort(),
-			checkout: await fs.readFile(path.join(root, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
-			notices: await fs.readFile(path.join(preview, 'extensions/auth/ThirdPartyNotices.txt'), 'utf8'),
-		}, {
-			manifest: { name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' }, browser: './dist/browser/extension.js', activationEvents: [], extensionDependencies: ['vscode.grammar'] },
-			browser: 'fresh browser build', license: 'MIT license', directories: ['browser'], checkout: 'stale watcher output',
-			notices: 'Extension notices\n\nunused@1.0.0\nLicense: MIT\n\nDependency license text\n',
+			await write('extensions/auth/dist/browser/extension.js', 'stale watcher output');
+			await write('extensions/auth/dist/node/extension.js', 'desktop output');
+			await write('extensions/auth/out/unrelated.js', 'old output');
+			await write('extensions/auth/ThirdPartyNotices.txt', 'Extension notices');
+			const dependency = nodeLinker === 'hoisted'
+				? 'extensions/auth/node_modules/unused'
+				: 'extensions/auth/node_modules/.pnpm/unused@1.0.0/node_modules/unused';
+			await write(`${dependency}/package.json`, '{"name":"unused","version":"1.0.0","license":"MIT"}');
+			await write(`${dependency}/LICENSE`, 'Dependency license text');
+			if (nodeLinker === 'isolated') {
+				await fs.symlink(path.join(root, dependency), path.join(root, 'extensions/auth/node_modules/unused'), 'junction');
+			}
+			writePnpmLockfile(path.join(root, 'extensions/auth/pnpm-lock.yaml'), { unused: { version: '1.0.0' } });
+			await write('extensions/auth/node_modules/.modules.yaml', JSON.stringify({
+				nodeLinker,
+				hoistedLocations: nodeLinker === 'hoisted' ? { 'unused@1.0.0': ['node_modules/unused'] } : undefined,
+			}));
+			await write('extensions/grammar/package.json', '{"name":"grammar","publisher":"vscode","version":"1.0.0","license":"MIT","engines":{"vscode":"^1.0.0"}}');
+			await packageMobilePreviewExtensions(root, ['auth', 'grammar']);
+			const manifest = JSON.parse(await fs.readFile(path.join(preview, 'extensions/auth/package.json'), 'utf8'));
+			assert.deepStrictEqual({
+				manifest,
+				browser: await fs.readFile(path.join(preview, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
+				license: await fs.readFile(path.join(preview, 'extensions/auth/LICENSE.txt'), 'utf8'),
+				directories: (await fs.readdir(path.join(preview, 'extensions/auth/dist'))).sort(),
+				checkout: await fs.readFile(path.join(root, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
+				notices: await fs.readFile(path.join(preview, 'extensions/auth/ThirdPartyNotices.txt'), 'utf8'),
+			}, {
+				manifest: { name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' }, browser: './dist/browser/extension.js', activationEvents: [], extensionDependencies: ['vscode.grammar'] },
+				browser: 'fresh browser build', license: 'MIT license', directories: ['browser'], checkout: 'stale watcher output',
+				notices: 'Extension notices\n\nunused@1.0.0\nLicense: MIT\n\nDependency license text\n',
+			});
 		});
-	});
+	}
 
 	test('missing extension sources, browser build inputs and required dependencies fail explicitly', async t => {
 		const { root, write } = await createFixture(t);

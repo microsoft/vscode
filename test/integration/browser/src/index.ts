@@ -18,6 +18,9 @@ import { promises } from 'fs';
 const root = path.join(__dirname, '..', '..', '..', '..');
 const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
+// Set once the tests finished and the runner stops the server itself; any other server exit fails the run.
+let serverStopRequested = false;
+
 const args = minimist(process.argv.slice(2), {
 	string: [
 		// path to the workspace (folder or *.code-workspace file) to open in the test
@@ -117,6 +120,7 @@ async function runTestsInBrowser(browserType: BrowserType, browserChannel: Brows
 		}
 
 		try {
+			serverStopRequested = true;
 			await promisify(kill)(server.pid!);
 		} catch (error) {
 			console.error(`Error when killing server process tree (pid: ${server.pid}): ${error}`);
@@ -188,6 +192,8 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 
 	const env = {
 		VSCODE_BROWSER: browserChannel ? `${browserType}-${browserChannel}` : browserType,
+		// The server records why it exits in server-exit-diagnostics.log in its logs directory.
+		VSCODE_SERVER_EXIT_DIAGNOSTICS: '1',
 		...process.env
 	};
 
@@ -214,7 +220,10 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 	console.log(`Storing log files into '${serverLogsPath}'`);
 	serverArgs.push('--logsPath', serverLogsPath);
 
-	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+	const maxServerStderr = 8 * 1024;
+	let serverStderr = '';
+
+	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'pipe'];
 	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = cp.spawn(
 		serverLocation,
@@ -225,7 +234,34 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 	if (args.debug) {
 		serverProcess.stderr!.on('data', error => console.log(`Server stderr: ${error}`));
 		serverProcess.stdout!.on('data', data => console.log(`Server stdout: ${data}`));
+	} else {
+		serverProcess.stderr!.on('data', data => {
+			serverStderr = (serverStderr + data.toString()).slice(-maxServerStderr);
+		});
 	}
+
+	// Without this, a server that dies during a run leaves the page waiting for it until the CI step times out.
+	serverProcess.on('exit', async (code, signal) => {
+		if (!serverStopRequested) {
+			// The last stderr output can arrive after 'exit'. Wait for the pipe to close, but not for long: a process the
+			// server started can keep it open.
+			if (serverProcess.stderr && !serverProcess.stderr.closed) {
+				const stderr = serverProcess.stderr;
+				await new Promise<void>(resolve => {
+					const timer = setTimeout(resolve, 2000);
+					stderr.once('close', () => {
+						clearTimeout(timer);
+						resolve();
+					});
+				});
+			}
+			console.error(`Server exited unexpectedly (code: ${code}, signal: ${signal}). See server-exit-diagnostics.log in '${serverLogsPath}'.`);
+			if (serverStderr) {
+				console.error(`Last server stderr output:\n${serverStderr}`);
+			}
+			process.exit(1);
+		}
+	});
 
 	process.on('exit', () => serverProcess.kill());
 	process.on('SIGINT', () => {

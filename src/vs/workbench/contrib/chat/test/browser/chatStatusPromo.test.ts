@@ -9,12 +9,14 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -23,24 +25,29 @@ import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/h
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { StatusbarEntryItem } from '../../../../browser/parts/statusbar/statusbarItem.js';
 import { IView } from '../../../../common/views.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../services/policies/common/accountPolicyService.js';
 import { ToggleTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestChatWidgetService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
 import { ChatStatusPromo } from '../../browser/chatStatus/chatStatusPromo.js';
 import type { ChatWidget } from '../../browser/widget/chatWidget.js';
 import type { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
 import type { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
+import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 class PromoTelemetry extends NullTelemetryServiceShape {
 	readonly events: string[] = [];
@@ -58,6 +65,7 @@ suite('ChatStatusPromo', () => {
 	function fixture(options: {
 		metadata?: Partial<ILanguageModelChatMetadata>; configured?: ChatClosedPromoNotification;
 		treatment?: Promise<string | undefined>; visible?: boolean; chatVisible?: boolean; storedKey?: string; hoverService?: IHoverService;
+		hostEnabled?: boolean; managed?: boolean;
 	} = {}, instantiation = store.add(new TestInstantiationService())) {
 		const model: ILanguageModelChatMetadata = {
 			extension: new ExtensionIdentifier('test'), id: 'gpt-5', name: 'GPT-5', vendor: 'copilot', version: '1',
@@ -75,8 +83,24 @@ suite('ChatStatusPromo', () => {
 			storage.store(options.storedKey, '["sale"]', StorageScope.APPLICATION, StorageTarget.USER);
 		}
 		instantiation.stub(IStorageService, storage);
-		const configuration = new TestConfigurationService(options.configured === undefined ? {} : { [ChatConfiguration.ChatClosedPromoNotification]: options.configured });
+		const configuration = new TestConfigurationService({
+			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+			...(options.configured === undefined ? {} : { [ChatConfiguration.ChatClosedPromoNotification]: options.configured }),
+		});
 		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(IChatSessionsService, {
+			getChatSessionContribution: () => undefined, getAllChatSessionContributions: () => [],
+		});
+		instantiation.stub(IWorkspaceContextService, new TestContextService());
+		instantiation.stub(IAgentHostEnablementService, {
+			enabled: constObservable(options.hostEnabled ?? false), managedSandboxEnforced: constObservable(false),
+		});
+		instantiation.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return options.managed && key === 'permissions.deny' ? '["Shell"]' : undefined; }
+		}());
+		instantiation.stub(IAccountPolicyGateService, {
+			gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
+		});
 		const assignments = new NullWorkbenchAssignmentService();
 		const refetch = store.add(new Emitter<void>());
 		sinon.stub(assignments, 'onDidRefetchAssignments').value(refetch.event);
@@ -129,14 +153,14 @@ suite('ChatStatusPromo', () => {
 		const view = new class extends mock<ChatViewPane>() {
 			override get widget() { return widget; }
 			override async whenSessionRestored() { await restored; }
-			override async startNewLocalSession() { resource = LocalChatSessionUri.getNewSessionUri(); return undefined; }
+			override async loadSession(next: URI) { resource = next; return undefined; }
 			override focusInput() { }
 		}();
 		f.state.view = view;
 		f.state.widgets.push(widget);
 		f.widgetAdded.fire(widget);
 		return {
-			select, request, startLocal: sinon.spy(view, 'startNewLocalSession'),
+			select, request, load: sinon.spy(view, 'loadSession'),
 			setResource: (next: URI) => { const previousSessionResource = resource; resource = next; changed.fire({ previousSessionResource, currentSessionResource: resource }); },
 		};
 	}
@@ -261,11 +285,90 @@ suite('ChatStatusPromo', () => {
 			const action = f.entry!.tooltip.commands[0];
 			await CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
 			assert.deepStrictEqual({
-				startedLocal: view.startLocal.callCount, selected: view.select.args,
+				loaded: view.load.args.map(([resource]) => getChatSessionType(resource)), selected: view.select.args,
 				dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
-			}, { startedLocal: sessionType === 'local' ? 0 : 1, selected: [['copilot:model']], dismissed: '["sale"]' });
+			}, { loaded: sessionType === 'local' ? [] : ['local'], selected: [['copilot:model']], dismissed: '["sale"]' });
 		});
 	}
+
+	for (const sessionType of [undefined, SessionType.AgentHostCopilot, 'local']) {
+		test(`Try resolves a harness-specific model and preserves an appropriate ${sessionType ?? 'cold'} conversation`, async () => {
+			const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: true });
+			f.models.set('copilot:sdk-model', { ...f.models.get('copilot:model')!, vendor: SessionType.AgentHostCopilot, targetChatSessionType: SessionType.AgentHostCopilot });
+			f.modelChanged.fire('copilot');
+			const view = chatView(f, sessionType);
+			const action = f.entry!.tooltip.commands[0];
+			await CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
+			assert.deepStrictEqual({
+				loaded: view.load.args.map(([resource]) => getChatSessionType(resource)), selected: view.select.args,
+			}, {
+				loaded: sessionType ? [] : [SessionType.AgentHostCopilot],
+				selected: [[sessionType === 'local' ? 'copilot:model' : 'copilot:sdk-model']],
+			});
+		});
+	}
+
+	test('a previously displayed Local offer is re-resolved after the default harness changes', async () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: true });
+		await f.configuration.setUserConfiguration(ChatConfiguration.EditorPreferCopilotHarness, false);
+		f.update();
+		const action = f.entry!.tooltip.commands[0];
+		f.models.set('copilot:sdk-model', { ...f.models.get('copilot:model')!, vendor: SessionType.AgentHostCopilot, targetChatSessionType: SessionType.AgentHostCopilot });
+		await f.configuration.setUserConfiguration(ChatConfiguration.EditorPreferCopilotHarness, true);
+		const view = chatView(f);
+		await CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
+		assert.deepStrictEqual({
+			loaded: view.load.args.map(([resource]) => getChatSessionType(resource)), selected: view.select.args,
+		}, { loaded: [SessionType.AgentHostCopilot], selected: [['copilot:sdk-model']] });
+	});
+
+	test('managed runtime requirements replace Local instead of selecting its promoted model', async () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: false, managed: true });
+		f.models.set('copilot:sdk-model', { ...f.models.get('copilot:model')!, vendor: SessionType.AgentHostCopilot, targetChatSessionType: SessionType.AgentHostCopilot });
+		f.modelChanged.fire('copilot');
+		const view = chatView(f, 'local');
+		const action = f.entry!.tooltip.commands[0];
+		await CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
+		assert.deepStrictEqual({
+			loaded: view.load.args.map(([resource]) => getChatSessionType(resource)), selected: view.select.args,
+		}, { loaded: [SessionType.AgentHostCopilot], selected: [['copilot:sdk-model']] });
+	});
+
+	test('an SDK default without an eligible SDK promotion does not offer a Local model', () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: true });
+		assert.strictEqual(f.entry, undefined);
+	});
+
+	test('a withdrawn SDK promotion never falls back to the Local identifier', async () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: true });
+		f.models.set('copilot:sdk-model', { ...f.models.get('copilot:model')!, vendor: SessionType.AgentHostCopilot, targetChatSessionType: SessionType.AgentHostCopilot });
+		f.modelChanged.fire('copilot');
+		const action = f.entry!.tooltip.commands[0];
+		const view = chatView(f, 'openai-codex');
+		f.models.delete('copilot:sdk-model');
+		await assert.rejects(async () => CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!), /no longer available/);
+		assert.deepStrictEqual({
+			loaded: view.load.callCount, selected: view.select.args, requested: view.request.args,
+			dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+		}, { loaded: 0, selected: [], requested: [], dismissed: undefined });
+	});
+
+	test('Try does not select a model if session loading shows a different harness', async () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: true });
+		f.models.set('copilot:sdk-model', { ...f.models.get('copilot:model')!, vendor: SessionType.AgentHostCopilot, targetChatSessionType: SessionType.AgentHostCopilot });
+		f.modelChanged.fire('copilot');
+		const action = f.entry!.tooltip.commands[0];
+		const view = chatView(f, 'openai-codex');
+		view.load.restore();
+		sinon.stub(f.state.view as ChatViewPane, 'loadSession').callsFake(async () => {
+			view.setResource(LocalChatSessionUri.getNewSessionUri());
+			return undefined;
+		});
+		await assert.rejects(async () => CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!), /no longer available/);
+		assert.deepStrictEqual({
+			selected: view.select.args, requested: view.request.args, dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+		}, { selected: [], requested: [], dismissed: undefined });
+	});
 
 	test('Try waits for restoration instead of replacing a saved local conversation', async () => {
 		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup });
@@ -274,11 +377,11 @@ suite('ChatStatusPromo', () => {
 		const action = f.entry!.tooltip.commands[0];
 		const done = CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
 		await timeout(0);
-		const before = { started: view.startLocal.callCount, selected: view.select.callCount };
+		const before = { started: view.load.callCount, selected: view.select.callCount };
 		view.setResource(LocalChatSessionUri.getNewSessionUri());
 		await restored.complete();
 		await done;
-		assert.deepStrictEqual({ before, started: view.startLocal.callCount, selected: view.select.args }, { before: { started: 0, selected: 0 }, started: 0, selected: [['copilot:model']] });
+		assert.deepStrictEqual({ before, started: view.load.callCount, selected: view.select.args }, { before: { started: 0, selected: 0 }, started: 0, selected: [['copilot:model']] });
 	});
 
 	test('a failed selection reports an error without dismissing the sale', async () => {

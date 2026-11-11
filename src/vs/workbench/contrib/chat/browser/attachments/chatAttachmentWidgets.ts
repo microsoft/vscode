@@ -538,7 +538,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		} else if (omittedState === OmittedState.ImageLimitExceeded) {
 			ariaLabel = localize('chat.imageLimitExceededAttachment', "Image not sent due to limit: {0}", attachment.name);
 		} else if (isAutoModel) {
-			ariaLabel = localize('chat.autoImageAttachment', "Attached image, {0}. Image support depends on the model selected by Auto.", attachment.name);
+			ariaLabel = localize('chat.autoImageAttachment', "Attached image, {0}. Image support depends on the model selected by Copilot Fusion.", attachment.name);
 		} else {
 			ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 		}
@@ -841,7 +841,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		}));
 
 		if (isAutoLanguageModel(currentLanguageModel)) {
-			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
+			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Copilot Fusion.")));
 		}
 	}
 

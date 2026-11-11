@@ -31,7 +31,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { timeout } from '../../../../../../base/common/async.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILinkHoverTargetOptions } from '../../../../terminal/browser/widgets/terminalHoverWidget.js';
 import { TerminalWidgetManager } from '../../../../terminal/browser/widgets/widgetManager.js';
@@ -224,6 +225,40 @@ suite('TerminalLinkManager', () => {
 					return { dispose: () => { } };
 				});
 			});
+		}));
+
+		test('hover links to the exact URL', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover) {
+				throw new Error('Expected linkHandler with hover callback');
+			}
+			const hovers: IMarkdownString[] = [];
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = (...args: unknown[]) => {
+				hovers.push(args[1] as IMarkdownString);
+				return undefined;
+			};
+			const renderServiceRestore = mockXtermCoreRenderService();
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const urls = ['https://example.com/search?q=a>b', 'https://github.com/a/b#readme', 'https://x.y/foo_bar(1)', 'https://x.y/a\\b'];
+			try {
+				for (const url of urls) {
+					linkHandler.hover(new MouseEvent('mousemove'), url, range);
+					await timeout(0);
+				}
+			} finally {
+				renderServiceRestore.dispose();
+				testableLinkManager._showHover = originalShowHover;
+			}
+			const hrefs = hovers.map(hover => {
+				const rendered = renderMarkdown(hover);
+				const href = rendered.element.querySelector('a')?.dataset.href;
+				rendered.dispose();
+				return href;
+			});
+			deepStrictEqual(hrefs, urls);
 		}));
 	});
 

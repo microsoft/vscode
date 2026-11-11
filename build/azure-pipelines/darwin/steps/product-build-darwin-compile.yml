@@ -58,17 +58,14 @@ steps:
       vscodePlatform: darwin
       VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
-  - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX (background)
-
   - template: ../../common/mixin-vscode-capi.yml@self
 
   - script: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
+
+  - template: ../../copilot/builtin-steps.yml@self
 
   - script: node build/azure-pipelines/common/extract-telemetry.ts
     displayName: Generate lists of telemetry events
@@ -86,21 +83,21 @@ steps:
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
 
-  - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX
-
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # before gulp packages it (and before any later signing/notarization).
   # Non-fatal: falls back to legacy on any problem.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+    - script: |
+        # If the background daemon died, fetch the notice here instead of keeping the legacy one.
+        pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts || {
+          echo "##vso[task.logissue type=warning]The CG NOTICE daemon was not running; downloading the notice directly."
+          node build/azure-pipelines/common/downloadNotice.ts
+        }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
       displayName: Apply CG NOTICE
-      # deemon --attach can exit non-zero if the background daemon died; never fail for that.
+      # downloadNotice.ts never fails; keep the step non-fatal for any other problem.
       continueOnError: true
 
   - script: |

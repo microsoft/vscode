@@ -12,13 +12,13 @@ import { getResourcePaths } from '../../next/resources.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const hostPickerRoot = 'src/vs/sessions/contrib/providers/remoteAgentHost/browser/';
+const sharedHostPickerRoot = 'src/vs/workbench/contrib/sessions/providers/remoteAgentHost/browser/';
 const originalPicker = [
-	'hostFilter.contribution.ts',
 	'hostFilterActionViewItem.ts',
 	'mobileHostFilterActionViewItem.ts',
 	'media/hostFilter.css',
 	'media/hostPickerSheet.css',
-].map(file => hostPickerRoot + file);
+].map(file => sharedHostPickerRoot + file).concat(hostPickerRoot + 'hostFilter.contribution.ts');
 const experimentalPicker = [
 	'mobileHostFilter.contribution.ts',
 	'mobileHostDrawerHeaderViewItem.ts',
@@ -30,20 +30,22 @@ const experimentalPicker = [
 ].map(file => hostPickerRoot + file);
 const dependenciesByFile = new Map<string, readonly string[]>();
 const composerRoot = 'src/vs/sessions/contrib/providers/agentHost/browser/mobile/';
-const originalConfigurationPresenter = composerRoot + 'mobileChatPhoneInputPresenter.ts';
-const experimentalConfigurationPresenter = composerRoot + 'experimentalMobileChatPhoneInputPresenter.ts';
-const experimentalInputButton = composerRoot + 'experimentalMobileChatInputActionViewItem.ts';
-const defaultRepositoryPicker = 'src/vs/sessions/services/presentation/browser/defaultSessionRepositoryPicker.ts';
+const originalConfigurationPresenter = 'src/vs/workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts';
+const mobileConfigurationPresenter = composerRoot + 'mobileChatPhoneInputPresenter.ts';
+const mobileInputButton = composerRoot + 'mobileChatInputActionViewItem.ts';
+const defaultRepositoryPicker = 'src/vs/workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.ts';
 const mobileRepositoryPicker = 'src/vs/sessions/contrib/mobile/browser/mobileRepositoryPicker.ts';
 const defaultChatPresentation = 'src/vs/workbench/contrib/chat/browser/chatDefaultPresentation.contribution.ts';
 const defaultEditPresentation = 'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/defaultChatEditPresentation.ts';
-const defaultListPresentation = 'src/vs/sessions/services/presentation/browser/defaultSessionsListPresentation.ts';
+const defaultListPresentation = 'src/vs/workbench/contrib/sessions/browser/defaultSessionsListPresentation.ts';
 const mobilePresentationRoot = 'src/vs/sessions/contrib/mobile/browser/';
+const defaultSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsServices.registration.ts';
+const coreSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsCoreServices.registration.ts';
 
 suite('Sessions presentation entry isolation', () => {
 	for (const { entry, expected, configurationPresenter } of [
 		{ entry: 'src/vs/sessions/sessions.web.main.ts', expected: originalPicker, configurationPresenter: originalConfigurationPresenter },
-		{ entry: 'src/vs/sessions/agents.web.mobile.main.ts', expected: experimentalPicker, configurationPresenter: experimentalConfigurationPresenter },
+		{ entry: 'src/vs/sessions/agents.web.mobile.main.ts', expected: experimentalPicker, configurationPresenter: mobileConfigurationPresenter },
 	]) {
 		test(`${entry} reaches only its own host picker implementation and styles`, () => {
 			const dependencies = collectSourceDependencies(entry);
@@ -53,14 +55,14 @@ suite('Sessions presentation entry isolation', () => {
 
 		test(`${entry} reaches only its own Configure Session presenter`, () => {
 			const dependencies = collectSourceDependencies(entry);
-			assert.deepStrictEqual([originalConfigurationPresenter, experimentalConfigurationPresenter]
+			assert.deepStrictEqual([originalConfigurationPresenter, mobileConfigurationPresenter]
 				.filter(file => dependencies.has(file)), [configurationPresenter]);
 		});
 
 		test(`${entry} registers only its own session repository picker implementation`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
-			const registrations = getSingletonRegistrations(mobile ? 'src/vs/sessions/contrib/mobile/browser/mobile.contribution.ts' : defaultRepositoryPicker);
+			const registrations = getSingletonRegistrations(mobile ? 'src/vs/sessions/contrib/mobile/browser/mobile.contribution.ts' : defaultSessionsRegistrations);
 			assert.deepStrictEqual({
 				implementations: [defaultRepositoryPicker, mobileRepositoryPicker].filter(file => dependencies.has(file)),
 				registration: registrations.find(([service]) => service === 'ISessionRepositoryPicker'),
@@ -74,9 +76,46 @@ suite('Sessions presentation entry isolation', () => {
 			const dependencies = collectSourceDependencies(entry);
 			const services = [
 				'src/vs/workbench/services/github/browser/githubService.ts',
-				'src/vs/sessions/services/sessions/browser/sessionComparisonService.ts',
+				'src/vs/workbench/contrib/sessions/browser/sessionComparisonService.ts',
 			];
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
+		});
+
+		test(`${entry} registers shared session and host services without relying on implementation side effects`, () => {
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = dependencies.has(coreSessionsRegistrations) ? getSingletonRegistrations(coreSessionsRegistrations) : [];
+			const required = [
+				['ISessionsProvidersService', 'SessionsProvidersService'],
+				['ISessionsService', 'SessionsService'],
+				['ISessionsManagementService', 'SessionsManagementService'],
+				['ISessionHostService', 'SessionHostService'],
+				['IFocusedSessionHostService', 'FocusedSessionHostService'],
+			];
+			assert.deepStrictEqual(required.map(([id]) => registrations.find(([service]) => service === id)), required);
+		});
+
+		test(`${entry} supplies required window services without loading desktop presentation on mobile`, () => {
+			const mobile = entry.includes('.mobile.');
+			const dependencies = collectSourceDependencies(entry);
+			const modules = mobile ? [mobilePresentationRoot + 'mobile.contribution.ts'] : [
+				'src/vs/sessions/contrib/canvases/browser/windowCanvases.contribution.ts',
+				'src/vs/workbench/contrib/chatWindow/browser/chatWindow.contribution.ts',
+			];
+			const registrations = modules.filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
+			const desktopPresentation = [
+				'src/vs/sessions/contrib/canvases/browser/windowCanvasEditor.ts',
+				'src/vs/workbench/contrib/chatWindow/browser/chatWindowService.ts',
+				'src/vs/workbench/contrib/chatWindow/browser/media/chatWindow.css',
+			];
+			assert.deepStrictEqual({
+				canvas: registrations.find(([id]) => id === 'IWindowCanvasService'),
+				chatWindow: registrations.find(([id]) => id === 'IChatWindowService'),
+				presentation: desktopPresentation.filter(file => dependencies.has(file)),
+			}, {
+				canvas: ['IWindowCanvasService', 'WindowCanvasService'],
+				chatWindow: ['IChatWindowService', mobile ? 'MobileNullChatWindowService' : 'ChatWindowService'],
+				presentation: mobile ? [] : desktopPresentation,
+			});
 		});
 
 		test(`${entry} selects edit, list, clipboard and chat-view presentation without importing the other entry`, () => {
@@ -86,7 +125,7 @@ suite('Sessions presentation entry isolation', () => {
 			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileClipboardImageContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
 			const registrations = [
 				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultChatPresentation),
-				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultListPresentation),
+				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultSessionsRegistrations),
 			];
 			assert.deepStrictEqual({
 				files: [...normal, ...experimental].filter(file => dependencies.has(file)),
@@ -102,8 +141,11 @@ suite('Sessions presentation entry isolation', () => {
 		test(`${entry} loads policy-continuation and shared composer contributions`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const contributions = [
-				'src/vs/sessions/contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.ts',
+				'src/vs/sessions/contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.contribution.ts',
 				'src/vs/sessions/contrib/chat/browser/sharedChatInputComposer.contribution.ts',
+				'src/vs/sessions/browser/parts/sessionsPartContent.registration.ts',
+				'src/vs/sessions/contrib/providers/agentHost/browser/agentHostSessionConfigPicker.contribution.ts',
+				'src/vs/sessions/contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.contribution.ts',
 			];
 			assert.deepStrictEqual(contributions.filter(file => dependencies.has(file)), contributions);
 		});
@@ -116,11 +158,11 @@ suite('Sessions presentation entry isolation', () => {
 				/registerWorkbenchContribution2\('chat\.(?:mobileClipboardImageContext|clipboardImageContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
 		});
 
-		test(`${entry} includes redesigned input and edit rendering only for experimental mobile`, () => {
+		test(`${entry} includes redesigned input and edit rendering only for the mobile entry`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const mobile = entry.includes('.mobile.');
 			const implementations = [
-				experimentalInputButton,
+				mobileInputButton,
 				'src/vs/sessions/contrib/mobile/browser/mobileChatEditRow.ts',
 				'src/vs/sessions/contrib/mobile/browser/mobileSessionsListPresentation.ts',
 				hostPickerRoot + 'mobileAgentHostFilterService.ts',
@@ -132,7 +174,7 @@ suite('Sessions presentation entry isolation', () => {
 	test('mobile embedder and mock bootstrap share the Agents mobile entry', () => {
 		const entries = [
 			'src/vs/sessions/agents.web.mobile.main.internal.ts',
-			'src/vs/sessions/test/sessions.web.mobile.test.internal.ts',
+			'src/vs/sessions/test/agents.web.mobile.test.internal.ts',
 		];
 		assert.deepStrictEqual(entries.filter(entry => collectSourceDependencies(entry)
 			.has('src/vs/sessions/agents.web.mobile.main.ts')), entries);
@@ -153,17 +195,17 @@ suite('Sessions presentation entry isolation', () => {
 		'src/vs/workbench/workbench.web.main.internal.ts',
 		'src/vs/workbench/workbench.desktop.main.ts',
 	]) {
-		test(`${entry} excludes experimental mobile UI, CSS and defaults`, () => {
+		test(`${entry} excludes dedicated mobile UI, CSS and defaults`, () => {
 			const dependencies = collectSourceDependencies(entry);
-			const unexpected = [...dependencies].filter(isExperimentalMobileFile);
+			const unexpected = [...dependencies].filter(isMobileEntryFile);
 			assert.deepStrictEqual(unexpected, []);
 		});
 	}
 
 	for (const target of ['web', 'desktop', 'server-web'] as const) {
-		test(`${target} production resource copying excludes experimental mobile assets`, async () => {
+		test(`${target} production resource copying excludes dedicated mobile assets`, async () => {
 			const resources = await getResourcePaths(path.join(repositoryRoot, 'src'), target);
-			assert.deepStrictEqual(resources.map(file => `src/${file}`).filter(isExperimentalMobileFile), []);
+			assert.deepStrictEqual(resources.map(file => `src/${file}`).filter(isMobileEntryFile), []);
 		});
 	}
 
@@ -187,12 +229,17 @@ function getSingletonRegistrations(file: string): string[][] {
 	});
 }
 
-function isExperimentalMobileFile(file: string): boolean {
+function isMobileEntryFile(file: string): boolean {
 	return file.startsWith('src/vs/sessions/contrib/mobile/') ||
 		file.startsWith('src/vs/sessions/browser/mobile/') ||
 		/^src\/vs\/sessions\/sessions\.core(?:\.web)?\.main\.ts$/.test(file) ||
-		/\/experimentalMobile[^/]*\.(?:ts|css)$/.test(file) ||
-		[...experimentalPicker, hostPickerRoot + 'mobileAgentHostFilterService.ts', hostPickerRoot + 'mobileTunnelConnection.ts'].includes(file);
+		[
+			...experimentalPicker,
+			mobileConfigurationPresenter,
+			mobileInputButton,
+			hostPickerRoot + 'mobileAgentHostFilterService.ts',
+			hostPickerRoot + 'mobileTunnelConnection.ts',
+		].includes(file);
 }
 
 /** Includes type imports conservatively: neither source graph may depend on the other presentation. */

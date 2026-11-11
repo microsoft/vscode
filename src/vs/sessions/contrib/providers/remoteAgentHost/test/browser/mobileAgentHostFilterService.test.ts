@@ -15,9 +15,9 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { AgentHostFilterService } from '../../../../../services/agentHostFilter/browser/agentHostFilterService.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { AgentHostFilterService } from '../../../../../../workbench/contrib/sessions/browser/agentHostFilterService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { MobileAgentHostFilterService } from '../../browser/mobileAgentHostFilterService.js';
 
 suite('MobileAgentHostFilterService isolation', () => {

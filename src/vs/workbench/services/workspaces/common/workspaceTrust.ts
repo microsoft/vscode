@@ -7,7 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPath } from '../../../../platform/window/common/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -89,7 +89,8 @@ export class WorkspaceTrustEnablementService extends Disposable implements IWork
 			return false;
 		}
 
-		return !!this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		const enabled = this.configurationService.getValue(WORKSPACE_TRUST_ENABLED);
+		return typeof enabled === 'boolean' ? enabled : true;
 	}
 }
 
@@ -539,11 +540,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private isTrustedVirtualResource(uri: URI): boolean {
-		// `vscode-vfs` (e.g. GitHub Repositories) and `vscode-agent-host`
-		// (remote agent host folders) represent real, writable resources where
-		// code can run or files can change, so they must go through normal
-		// workspace trust rather than being auto-trusted as virtual resources.
-		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs' && uri.scheme !== AGENT_HOST_SCHEME;
+		// Network, repository, and agent host resources can carry executable workspace configuration.
+		return isVirtualResource(uri) && !matchesSomeScheme(uri, Schemas.http, Schemas.https, 'vscode-vfs', AGENT_HOST_SCHEME);
 	}
 
 	private isTrustedByRemote(uri: URI): boolean {

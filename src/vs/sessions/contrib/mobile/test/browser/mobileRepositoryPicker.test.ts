@@ -32,12 +32,14 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { CustomViewVisibleContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../../common/contextkeys.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
-import { showMobileWorkspacePickerSheet } from '../../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { SessionWorktreeCleanupEditorFocusedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../../workbench/services/sessions/common/session.js';
+import { showMobileWorkspacePickerSheet } from '../../../../../workbench/contrib/sessions/browser/chat/mobile/mobileWorkspacePickerSheet.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { MobileRepositoryPicker } from '../../browser/mobileRepositoryPicker.js';
 
@@ -170,6 +172,7 @@ suite('MobileRepositoryPicker', () => {
 		instantiationService.stub(IEnvironmentService, { isBuilt: true });
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Mobile });
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		const help = new SessionsChatAccessibilityHelp();

@@ -22,6 +22,7 @@ import { IWorkingCopyService } from '../../common/workingCopyService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { HotExitConfiguration } from '../../../../../platform/files/common/files.js';
 import { ShutdownReason, ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../lifecycle/common/unattendedRestart.js';
 import { IFileDialogService, ConfirmResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
@@ -64,8 +65,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			@IEnvironmentService environmentService: IEnvironmentService,
 			@IProgressService progressService: IProgressService,
 			@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
+			@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 		) {
-			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, environmentService, progressService, workingCopyEditorService, editorService);
+			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, environmentService, progressService, workingCopyEditorService, editorService, unattendedRestartService);
 		}
 
 		protected override getBackupScheduleDelay(): number {

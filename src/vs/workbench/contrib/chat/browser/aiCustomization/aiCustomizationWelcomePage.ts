@@ -50,8 +50,9 @@ export interface IWelcomePageCallbacks {
 	 *
 	 * @param options.newChat When true, always opens a new chat instead of
 	 * reusing the active one.
+	 * @param options.generateCustomizations Treat the query as customization preferences and select the creation prompt for the destination harness.
 	 */
-	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
+	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean; generateCustomizations?: boolean }): void;
 }
 
 export interface IInstalledCustomizationTarget {

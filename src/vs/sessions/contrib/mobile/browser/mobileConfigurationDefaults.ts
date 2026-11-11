@@ -6,7 +6,7 @@
 import { IConfigurationDefaults } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { PROMPT_TIMELINE_DISPLAY_SETTING } from '../../../../workbench/contrib/chat/common/promptTimeline.js';
 import { CloudSandboxEnabledSettingId } from '../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { NEW_SESSION_WELCOME_PHRASES_SETTING } from '../../chat/common/constants.js';
+import { NEW_SESSION_WELCOME_PHRASES_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 /** Presentation defaults owned by the mobile entry; explicit user values and policy still win. */
 export const mobileConfigurationDefaults: IConfigurationDefaults = {

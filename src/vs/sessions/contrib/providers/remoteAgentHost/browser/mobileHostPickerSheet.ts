@@ -18,11 +18,11 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelInfo, TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IMobileContentSheetApi, isMobilePickerSheetTarget, showMobileContentSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IMobileContentSheetApi, isMobilePickerSheetTarget, showMobileContentSheet } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { isImplicitlyConnectedHost } from './mobileAgentHostFilterService.js';
-import { ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
-import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
+import { ShowConnectionDiagnosticsCommandId } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { RemoteAgentHostCommandIds } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { MobileTunnelConnection } from './mobileTunnelConnection.js';
 
 const $ = dom.$;

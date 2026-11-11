@@ -9,7 +9,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRemoteTunnelService } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { localize } from '../../../../../nls.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
+import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
 
 /** Mobile picker orchestration over the existing authentication and tunnel services. */
 export class MobileTunnelConnection {

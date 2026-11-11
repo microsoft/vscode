@@ -22,6 +22,7 @@ import { IAccessibilitySignalService } from '../../../../../../../platform/acces
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -39,8 +40,9 @@ import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesServi
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ChatMode } from '../../../../common/chatModes.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -54,6 +56,7 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
+import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,6 +87,27 @@ suite('ChatInputPart', () => {
 		});
 		input.refreshToolbars();
 		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	test('announces a model once across metadata refreshes and transient loading states', () => {
+		const announcements: string[] = [];
+		const labels: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			chatModelIdKey: { set: () => { } },
+			accessibilityService: { alert: (message: string) => announcements.push(message) },
+			_inputEditor: { updateOptions: ({ ariaLabel }: { ariaLabel: string }) => labels.push(ariaLabel) },
+			_getAriaLabel: () => 'Chat input',
+		});
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
+		});
+		const update = Reflect.get(ChatInputPart.prototype, '_updateSelectedModel') as (this: ChatInputPart, model: ILanguageModelChatMetadataAndIdentifier | undefined) => void;
+		for (const selected of [undefined, model('first'), model('first'), undefined, model('first'), model('second'), model('second')]) {
+			update.call(input, selected);
+		}
+		assert.deepStrictEqual({ announcements, labelUpdates: labels.length }, {
+			announcements: ['first', 'second'], labelUpdates: 7,
+		});
 	});
 
 	for (const placement of ['primary', 'secondary'] as const) {
@@ -333,6 +357,7 @@ suite('ChatInputPart', () => {
 			_store: inputStore,
 			options: {},
 			_widget: { viewModel: { model: { sessionResource: URI.parse('remote-example-agent:/history') } } },
+			localSandboxToggleAvailable: observableValue('localSandboxToggleAvailable', false),
 			chatSessionHasTargetedModels: targetedModels,
 			chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
 			chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
@@ -372,10 +397,11 @@ suite('ChatInputPart', () => {
 			_inputModelSessionResource: sessionResource,
 			_widget: { viewModel: { model: { sessionResource } } },
 			_currentSessionTypeObservable: observableValue<string | undefined>('currentSessionType', 'agent-host-copilotcli'),
+			_currentModeObservable: observableValue('currentMode', ChatMode.Agent),
 			_modelSessionTypeOverride: observableValue<{ readonly resource: URI; readonly sessionType: string } | undefined>('override', undefined),
 			_modelSelectionController: { revalidateForSessionType: () => revalidations.push(inputPart.modelTargetSessionType) },
 			getAllMergedModels: () => [...models],
-			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true }),
+			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true, getChatSessionContribution: () => undefined }),
 			languageModelsService: upcastPartial<ILanguageModelsService>({ isModelHidden: () => false }),
 		});
 		return { inputPart, revalidations };
@@ -384,6 +410,75 @@ suite('ChatInputPart', () => {
 	function targetedModel(sessionType: string, id: string): ILanguageModelChatMetadataAndIdentifier {
 		return { identifier: `${sessionType}:${id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id, name: id, targetChatSessionType: sessionType, isUserSelectable: true }) };
 	}
+
+	test('required agents filter the model pool and reject stale manual choices before persisting them', () => {
+		const required = targetedModel('agent-host-copilotcli', 'sonnet');
+		const other = targetedModel('agent-host-copilotcli', 'other');
+		const { inputPart } = createModelPoolInput([required, other]);
+		Object.assign(inputPart, {
+			_currentModeObservable: constObservable({
+				...ChatMode.Agent, model: constObservable(['sonnet']), modelPolicy: constObservable('required'),
+			}),
+			logService: new NullLogService(),
+		});
+		assert.throws(() => inputPart.setCurrentLanguageModel(other, true), /Select one of the models required/);
+		assert.strictEqual(inputPart.switchModelByIdentifier(other.identifier), false);
+	});
+
+	test('agent preferences resolve IDs and ordered aliases and apply effort only to this input', () => {
+		const base = targetedModel('agent-host-copilotcli', 'sonnet');
+		const model: ILanguageModelChatMetadataAndIdentifier = {
+			...base, metadata: { ...base.metadata, name: 'Sonnet', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium'] } } } },
+		};
+		const { inputPart } = createModelPoolInput([model]);
+		const applied: string[] = [];
+		const configurations: object[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (selected: ILanguageModelChatMetadataAndIdentifier) => applied.push(selected.identifier) },
+			_modelConfigStore: {
+				getModelConfiguration: () => ({ contextSize: 200000 }),
+				restoreModelConfiguration: (id: string, configuration: object, persist: boolean) => configurations.push({ id, configuration, persist }),
+			},
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['missing', 'Sonnet (copilot)'], 'low'),
+			inputPart.switchModelByQualifiedName(['sonnet'], 'unsupported'),
+			inputPart.switchModelByQualifiedName(['missing']),
+		];
+		assert.deepStrictEqual({ selected, applied, configurations, warningCount: warnings.length }, {
+			selected: [true, true, false],
+			applied: [model.identifier, model.identifier],
+			configurations: [{ id: model.identifier, configuration: { reasoningEffort: 'low' }, persist: false }],
+			warningCount: 1,
+		});
+	});
+
+	test('agent aliases do not select BYOK models, but explicit IDs and vendor-qualified names do', () => {
+		const base = targetedModel('agent-host-copilotcli', 'byok');
+		const byok = { ...base, metadata: { ...base.metadata, name: 'Sonnet', vendor: 'copilot', isBYOK: true } };
+		const custom = { ...base, identifier: 'custom:model', metadata: { ...base.metadata, id: 'custom-model', name: 'Custom Model', vendor: 'custom', isBYOK: true } };
+		const { inputPart } = createModelPoolInput([byok, custom]);
+		const applied: string[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => applied.push(model.identifier) },
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['Sonnet (copilot)']),
+			inputPart.switchModelByQualifiedName(['byok']),
+			inputPart.switchModelByQualifiedName(['Custom Model (custom)']),
+		];
+		assert.deepStrictEqual({ selected, applied, warningCount: warnings.length }, {
+			selected: [false, true, true],
+			applied: [byok.identifier, custom.identifier],
+			warningCount: 1,
+		});
+	});
 
 	test('selects a chat\'s models from the session type it is answered by, never another one\'s', () => {
 		const copilot = targetedModel('agent-host-copilotcli', 'gpt');
@@ -420,6 +515,84 @@ suite('ChatInputPart', () => {
 		});
 	});
 
+	test('catalog conversations select only their acquired environment model pool', () => {
+		const first = targetedModel('remote-first-copilot', 'first-model');
+		const second = targetedModel('remote-second-copilot', 'second-model');
+		const { inputPart } = createModelPoolInput([first, second]);
+		const resource = URI.parse('cloud-sandbox-task:/first');
+		const targets = observableValue<ReadonlyMap<string, string>>('targets', new Map());
+		Object.assign(inputPart, {
+			_inputModelSessionResource: resource,
+			_currentSessionTypeObservable: observableValue('type', resource.scheme),
+			_currentSessionResourceObservable: observableValue('resource', resource),
+			_widget: { viewModel: { model: { sessionResource: resource } } },
+			chatSessionsService: upcastPartial<IChatSessionsService>({
+				requiresCustomModelsForSessionType: () => true,
+				getChatSessionContribution: type => type === resource.scheme ? {
+					type,
+					name: 'Cloud',
+					displayName: 'Cloud',
+					description: '',
+					icon: undefined,
+					modelSessionType: (resource, reader) => targets.read(reader).get(resource.path),
+				} : undefined,
+			}),
+		});
+		const read = () => ({
+			target: inputPart.modelTargetSessionType,
+			models: (inputPart as unknown as { getModels(): ILanguageModelChatMetadataAndIdentifier[] }).getModels().map(model => model.identifier),
+		});
+		const unresolved = read();
+		targets.set(new Map([['/first', 'remote-first-copilot'], ['/second', 'remote-second-copilot']]), undefined);
+		const acquired = read();
+		const nextResource = resource.with({ path: '/second' });
+		Object.assign(inputPart, {
+			_inputModelSessionResource: nextResource,
+			_widget: { viewModel: { model: { sessionResource: nextResource } } },
+		});
+		const switched = read();
+		inputPart.setModelSessionTypeOverride({ sessionType: 'remote-first-copilot' });
+		const respondent = read();
+		inputPart.setModelSessionTypeOverride(undefined);
+		assert.deepStrictEqual({ unresolved, acquired, switched, respondent, restored: read() }, {
+			unresolved: { target: resource.scheme, models: [] },
+			acquired: { target: 'remote-first-copilot', models: [first.identifier] },
+			switched: { target: 'remote-second-copilot', models: [second.identifier] },
+			respondent: { target: 'remote-first-copilot', models: [first.identifier] },
+			restored: { target: 'remote-second-copilot', models: [second.identifier] },
+		});
+	});
+
+	test('catalog model-pool revalidation preserves valid conversation choices instead of restoring profile defaults', () => {
+		const conversation = targetedModel('remote-first-copilot', 'conversation');
+		const profile = targetedModel('remote-first-copilot', 'profile');
+		const other = targetedModel('remote-second-copilot', 'other');
+		const selected = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selected', conversation);
+		let models = [conversation, profile];
+		let revalidations = 0;
+		const input: { revalidateContributedModelPool(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_currentLanguageModel: selected,
+			getModels: () => models,
+			initSelectedModel: () => selected.set(profile, undefined),
+			_modelSelectionController: {
+				revalidateForSessionType: (initialize: () => void) => {
+					revalidations++;
+					initialize();
+				},
+			},
+		});
+		input.revalidateContributedModelPool();
+		const preserved = { selected: selected.get()?.identifier, revalidations };
+		models = [other];
+		input.revalidateContributedModelPool();
+		selected.set(undefined, undefined);
+		input.revalidateContributedModelPool();
+		assert.deepStrictEqual({ preserved, revalidations }, {
+			preserved: { selected: conversation.identifier, revalidations: 0 },
+			revalidations: 2,
+		});
+	});
+
 	test('replacing or dropping the bound chat\'s pool while switching away never revalidates it against another pool', () => {
 		const claude = targetedModel('agent-host-claude', 'claude-haiku');
 		const { inputPart, revalidations } = createModelPoolInput([targetedModel('agent-host-copilotcli', 'gpt'), claude]);
@@ -444,6 +617,7 @@ suite('ChatInputPart', () => {
 				chatSessionHasTargetedModels: ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService),
 				chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
 				chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
+				localSandboxToggleAvailable: observableValue('localSandboxToggleAvailable', false),
 				chatSessionOptionsValid: optionsValid,
 				_updateInputContentContextKeys: () => { },
 				chatSessionsService: upcastPartial<IChatSessionsService>({
@@ -1063,6 +1237,36 @@ suite('ChatInputPart', () => {
 			followupsWidth: '752px',
 			editorLayouts: [{ width: 740, height: 20 }],
 		});
+	});
+
+	test('lays the input editor out one line tall while single-line, whatever its content and minimum lines', () => {
+		const editorLayouts: number[] = [];
+		let contentHeight = 120;
+		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			options: { isSessionsWindow: true },
+			inputContainer: dom.$('div'),
+			followupsContainer: dom.$('div'),
+			_inputEditor: {
+				getScrollWidth: () => 100,
+				getContentHeight: () => contentHeight,
+				layout: (dimension: { width: number; height: number }) => editorLayouts.push(dimension.height),
+			},
+			inputEditorMaxHeight: 250,
+			inputEditorTrailingSpace: 0,
+			ignoreInputEditorContentSizeChanges: false,
+			height: observableValue('height', 0),
+		}) as ChatInputPart;
+		// Getters on the part, computed from the input font size
+		Object.defineProperty(inputPart, 'inputEditorMinHeight', { value: 52 });
+		Object.defineProperty(inputPart, 'singleLineInputEditorHeight', { value: 32 });
+
+		inputPart.layout(800);
+		inputPart.setSingleLine(true);
+		contentHeight = 400;
+		inputPart.layout(800);
+		inputPart.setSingleLine(false);
+
+		assert.deepStrictEqual(editorLayouts, [120, 32, 250]);
 	});
 
 	test('working borders rotate fixed gradients inside masks at any input aspect ratio', async () => {

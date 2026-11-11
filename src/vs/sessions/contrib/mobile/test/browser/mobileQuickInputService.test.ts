@@ -17,7 +17,7 @@ import { IQuickPickItem } from '../../../../../platform/quickinput/common/quickI
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { MobileQuickInputService } from '../../browser/mobileQuickInputService.js';
 
-suite('MobileQuickInputService cancellation', () => {
+suite('MobileQuickInputService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const item: IQuickPickItem = { label: 'Choice' };
 
@@ -61,6 +61,61 @@ suite('MobileQuickInputService cancellation', () => {
 		const token = store.add(new CancellationTokenSource());
 		token.cancel();
 		assert.deepStrictEqual({ result: await service.input({}, token.token), children: container.childElementCount }, { result: undefined, children: 0 });
+	});
+
+	test('accepts the submitted value rather than an edit made during validation', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, container } = createHarness();
+			const validation = new DeferredPromise<string | undefined>();
+			const values: string[] = [];
+			const result = service.input({
+				value: 'Submitted',
+				validateInput: value => {
+					values.push(value);
+					return value === 'Submitted' ? validation.p : Promise.resolve('Invalid edit');
+				},
+			});
+			container.querySelector<HTMLButtonElement>('.mobile-quick-input-submit')!.click();
+			const input = container.querySelector<HTMLInputElement>('.mobile-quick-input-field')!;
+			input.value = 'Edited';
+			input.dispatchEvent(new Event('input'));
+			await timeout(0);
+			await validation.complete(undefined);
+			await timeout(500);
+			assert.deepStrictEqual({ values, result: await result, open: !!container.querySelector('.mobile-picker-sheet') }, {
+				values: ['Submitted', 'Edited'], result: 'Submitted', open: false,
+			});
+		});
+	});
+
+	test('only the latest validation result updates the message, even after returning to an earlier value', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, container } = createHarness();
+			const validations: DeferredPromise<string | undefined>[] = [];
+			const result = service.input({
+				validateInput: () => {
+					const validation = new DeferredPromise<string | undefined>();
+					validations.push(validation);
+					return validation.p;
+				},
+			});
+			const input = container.querySelector<HTMLInputElement>('.mobile-quick-input-field')!;
+			for (const value of ['First', 'Second', 'First']) {
+				input.value = value;
+				input.dispatchEvent(new Event('input'));
+			}
+			await validations[2].complete(undefined);
+			await validations[1].complete('Stale second value');
+			await validations[0].complete('Stale first value');
+			await timeout(0);
+			const message = container.querySelector<HTMLElement>('.mobile-quick-input-validation')!;
+			const displayed = { text: message.textContent, visible: message.classList.contains('visible') };
+			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+			await timeout(500);
+			assert.deepStrictEqual({ displayed, result: await result }, {
+				displayed: { text: '', visible: false }, result: undefined,
+			});
+		});
 	});
 
 	for (const cancelWithToken of [false, true]) {

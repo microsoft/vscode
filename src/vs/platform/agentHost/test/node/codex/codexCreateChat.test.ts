@@ -33,6 +33,7 @@ import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtil
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent, fixedChatOwnerRef } from '../../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
+import { readUsageInfoMeta } from '../../../common/meta/agentUsageMeta.js';
 import { chatTurnComplete, chatTurnStarted } from '../../common/chatActionBuilders.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -2191,6 +2192,90 @@ suite('CodexAgent createChat', () => {
 			],
 		});
 	});
+
+	suite('subagent usage model attribution', () => {
+		const CHILD_MODEL = 'gpt-child/with spaces?';
+
+		async function notify(peer: ITestPeer, message: object): Promise<void> {
+			peer.push(message);
+			await new Promise(resolve => setImmediate(resolve));
+		}
+
+		for (const scenario of [
+			{ name: 'an explicit child model', slug: 'proxy-explicit', itemModel: CHILD_MODEL, expectedModel: toCodexModelSelectionId('vscode-proxy', CHILD_MODEL), parentModel: COPILOT_TEST_MODEL, materializedModelProvider: undefined },
+			{ name: 'a missing child model', slug: 'proxy-inherit', itemModel: null, expectedModel: COPILOT_TEST_MODEL, parentModel: COPILOT_TEST_MODEL, materializedModelProvider: undefined },
+			{ name: 'a native OpenAI child model', slug: 'openai-explicit', itemModel: CHILD_MODEL, expectedModel: toCodexModelSelectionId('openai', CHILD_MODEL), parentModel: toCodexModelSelectionId('openai', 'gpt-parent'), materializedModelProvider: 'openai' },
+		] as const) {
+			test(`attributes subagent usage to ${scenario.name} without changing the parent`, async () => {
+				const agent = await createAgent(disposables);
+				const peer = disposables.add(createTestPeer());
+				connectPeer(agent, peer);
+				const session = AgentSession.uri('codex', `subagent-usage-${scenario.slug}`);
+				const chat = URI.parse(buildDefaultChatUri(session));
+				await createSessionBackedChat(agent, chat, hostChatContext(session, chat), { model: { id: COPILOT_TEST_MODEL } });
+				const parent = agent['_sessions'].get(AgentSession.id(session))!;
+				const parentThreadId = 'subagent-usage-parent-thread';
+				const childThreadId = 'subagent-usage-child-thread';
+				const spawnItemId = 'subagent-usage-spawn-item';
+				parent.threadId = parentThreadId;
+				parent.model = { id: scenario.parentModel };
+				parent.materializedModelProvider = scenario.materializedModelProvider;
+				parent.currentTurnId = 'subagent-usage-parent-turn';
+				agent['_sessionIdByThreadId'].set(parentThreadId, parent.sessionId);
+
+				const connection = agent['_connection'];
+				assert.ok(connection.kind === 'ready');
+				peer.disposables.add(connection.client.onNotification('item/started', params => agent['_dispatchByThread'](params.threadId, s => agent['_handleItemStarted'](s, params))));
+				peer.disposables.add(connection.client.onNotification('item/completed', params => agent['_dispatchItemCompleted'](params)));
+				peer.disposables.add(connection.client.onNotification('thread/tokenUsage/updated', params => agent['_dispatchTokenUsageUpdated'](params)));
+
+				const signals: AgentSignal[] = [];
+				disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+				const spawnItem = {
+					type: 'collabAgentToolCall',
+					id: spawnItemId,
+					tool: 'spawnAgent',
+					status: 'inProgress',
+					senderThreadId: parentThreadId,
+					receiverThreadIds: [childThreadId],
+					prompt: 'Inspect the child path',
+					model: scenario.itemModel,
+					reasoningEffort: null,
+					agentsStates: {},
+				};
+				await notify(peer, { method: 'item/started', params: { item: spawnItem, threadId: parentThreadId, turnId: 'parent-app-turn', startedAtMs: 0 } });
+				await notify(peer, { method: 'item/completed', params: { item: { ...spawnItem, status: 'completed' }, threadId: parentThreadId, turnId: 'parent-app-turn', completedAtMs: 1 } });
+				const tokenCounts = { inputTokens: 10, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 5, reasoningOutputTokens: 0, totalTokens: 15 };
+				await notify(peer, {
+					method: 'thread/tokenUsage/updated',
+					params: {
+						threadId: childThreadId,
+						turnId: 'child-app-turn',
+						tokenUsage: { last: tokenCounts, total: tokenCounts, modelContextWindow: 200000 },
+					},
+				});
+
+				const started = signals.find(signal => signal.kind === 'subagent_started');
+				assert.ok(started);
+				const usage = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+				assert.ok(usage?.kind === 'action' && usage.action.type === ActionType.ChatUsage);
+				const usageMeta = readUsageInfoMeta(usage.action.usage);
+				assert.deepStrictEqual({
+					parentModel: parent.model?.id,
+					parentToolCallId: usage.parentToolCallId,
+					model: usage.action.usage.model,
+					turnModels: usageMeta.turnTokenTotals?.map(total => total.model),
+					directTurnModels: usageMeta.directTurnTokenTotals?.map(total => total.model),
+				}, {
+					parentModel: scenario.parentModel,
+					parentToolCallId: started.toolCallId,
+					model: scenario.expectedModel,
+					turnModels: [scenario.expectedModel],
+					directTurnModels: [scenario.expectedModel],
+				});
+			});
+		}
+	});
 });
 
 suite('CodexAgent workspace conversion', () => {
@@ -3620,7 +3705,8 @@ suite('CodexAgent exact chat routing', () => {
 			resourceTemplates: [],
 		}]]));
 
-		const calling = agent.handleMcpRequest(chat, 'test-server', 'tools/call', { name: 'test-tool', arguments: {} });
+		const meta = { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } };
+		const calling = agent.handleMcpRequest(chat, 'test-server', 'tools/call', { name: 'test-tool', arguments: {}, _meta: meta });
 		const resume = await readNextRequest(peer.outbound);
 		peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 		const inventory = await readNextRequest(peer.outbound);
@@ -3632,11 +3718,11 @@ suite('CodexAgent exact chat routing', () => {
 		assert.deepStrictEqual([
 			{ method: resume.method, threadId: resume.params.threadId },
 			{ method: inventory.method, threadId: inventory.params.threadId },
-			{ method: toolCall.method, threadId: toolCall.params.threadId },
+			{ method: toolCall.method, params: toolCall.params },
 		], [
 			{ method: 'thread/resume', threadId: 'resume-before-mcp-thread' },
 			{ method: 'mcpServerStatus/list', threadId: 'resume-before-mcp-thread' },
-			{ method: 'mcpServer/tool/call', threadId: 'resume-before-mcp-thread' },
+			{ method: 'mcpServer/tool/call', params: { threadId: 'resume-before-mcp-thread', server: 'test-server', tool: 'test-tool', arguments: {}, _meta: meta } },
 		]);
 	});
 

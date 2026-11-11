@@ -262,7 +262,7 @@ function checkExtensionDependencies(manifests: readonly ExtensionManifest[]): vo
 
 async function packageExtensionNotices(root: string, source: string, output: string): Promise<void> {
 	const { getProductionDependencies } = await import('../lib/dependencies.ts');
-	const dependencies = new Set(getProductionDependencies(source));
+	const dependencies = new Set(getProductionDependencies(source).map(dependency => dependency.source));
 	// Source maps also reveal bundled aliases resolved outside the extension's dependency tree.
 	for (const file of await fs.readdir(path.join(output, 'dist'), { recursive: true })) {
 		if (!file.endsWith('.map')) {

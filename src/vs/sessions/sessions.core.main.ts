@@ -16,7 +16,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
-import { agentsPanelBackground } from './common/theme.js';
+import { agentsPanelBackground } from '../workbench/contrib/sessions/common/theme.js';
 import './common/sizes.js';
 import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 
@@ -133,7 +133,6 @@ import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import '../platform/agentHost/browser/agentHostEnablementService.js';
-import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';

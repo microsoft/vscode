@@ -11,9 +11,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IMobileNotificationHost, MobileBackgroundNotifier } from '../../browser/mobileBackgroundNotifier.js';
 
 class TestNotification extends EventTarget {
@@ -57,8 +57,9 @@ suite('MobileBackgroundNotifier', () => {
 	function createHarness() {
 		const host = new TestNotificationHost();
 		const changed = store.add(new Emitter<ISessionsChangeEvent>());
+		const replaced = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
-		const session = upcastPartial<ISession>({
+		let session = upcastPartial<ISession>({
 			sessionId: 'session-one', resource: URI.parse('test-session:/one'),
 			title: constObservable('Background session'), status,
 		});
@@ -68,6 +69,7 @@ suite('MobileBackgroundNotifier', () => {
 			upcastPartial<ISessionsManagementService>({
 				getSessions: () => sessions,
 				onDidChangeSessions: changed.event,
+				onDidReplaceSession: replaced.event,
 			}),
 			upcastPartial<ISessionsService>({
 				openSession: async resource => { opened.push(resource.toString()); },
@@ -75,11 +77,69 @@ suite('MobileBackgroundNotifier', () => {
 		));
 		return {
 			host, status, notifier, opened,
+			replaceSession: (keepId: boolean) => {
+				const from = session;
+				const status = observableValue<SessionStatus>('replacementStatus', SessionStatus.InProgress);
+				session = upcastPartial<ISession>({
+					sessionId: keepId ? from.sessionId : 'session-two', resource: URI.parse('test-session:/two'),
+					title: constObservable('Replacement session'), status,
+				});
+				sessions.splice(0, 1, session);
+				replaced.fire({ from, to: session });
+				changed.fire({ added: [], removed: keepId ? [] : [from], changed: [session] });
+				return status;
+			},
 			removeSession: () => {
 				sessions.splice(0);
 				changed.fire({ added: [], removed: [session], changed: [] });
 			},
 		};
+	}
+
+	for (const keepId of [false, true]) {
+		test(`replacement with ${keepId ? 'the same' : 'a different'} ID closes old notifications and tracks the new session`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				h.host.permission = 'granted';
+				h.status.set(SessionStatus.NeedsInput, undefined);
+				await timeout(0);
+				const oldNotification = h.host.notifications[0];
+				const replacementStatus = h.replaceSession(keepId);
+				oldNotification.dispatchEvent(new Event('click'));
+				h.status.set(SessionStatus.Completed, undefined);
+				replacementStatus.set(SessionStatus.NeedsInput, undefined);
+				await timeout(1500);
+				h.host.notifications[1]?.dispatchEvent(new Event('click'));
+				await timeout(0);
+				assert.deepStrictEqual({
+					notifications: h.host.notifications.map(notification => ({
+						title: notification.title, tag: notification.options.tag, closed: notification.closeCount,
+					})),
+					opened: h.opened,
+				}, {
+					notifications: [
+						{ title: 'Background session', tag: 'test-session:/one', closed: 1 },
+						{ title: 'Replacement session', tag: 'test-session:/two', closed: 1 },
+					],
+					opened: ['test-session:/two'],
+				});
+			});
+		});
+
+		test(`replacement with ${keepId ? 'the same' : 'a different'} ID invalidates a pending permission request`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createHarness();
+				h.status.set(SessionStatus.NeedsInput, undefined);
+				const replacementStatus = h.replaceSession(keepId);
+				replacementStatus.set(SessionStatus.NeedsInput, undefined);
+				await h.host.permissionResult.complete('granted');
+				await timeout(0);
+				assert.deepStrictEqual({
+					requests: h.host.permissionRequests,
+					notifications: h.host.notifications.map(notification => notification.options.tag),
+				}, { requests: 2, notifications: ['test-session:/two'] });
+			});
+		});
 	}
 
 	for (const change of ['disposed', 'visible', 'working', 'removed'] as const) {

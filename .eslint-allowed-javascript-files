@@ -56,7 +56,6 @@ extensions/microsoft-authentication/packageMocks/dpapi/dpapi.js
 extensions/microsoft-authentication/packageMocks/keytar/index.js
 extensions/objective-c/build/update-grammars.js
 extensions/php/build/update-grammar.mjs
-extensions/postinstall.mjs
 extensions/razor/build/update-grammar.mjs
 extensions/rust/build/update-grammar.mjs
 extensions/search-result/syntaxes/generateTMLanguage.js

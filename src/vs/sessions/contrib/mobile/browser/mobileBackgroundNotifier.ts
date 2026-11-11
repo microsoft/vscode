@@ -13,9 +13,9 @@ import { autorunDelta } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /** Swallows the brief idle gap between a turn ending and a queued turn starting. */
 const COMPLETED_DELAY_MS = 1_500;
@@ -52,6 +52,11 @@ export class MobileBackgroundNotifier extends Disposable {
 			for (const session of event.added) {
 				this._track(session);
 			}
+		}));
+		this._register(this._sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this._statusListeners.deleteAndDispose(from.sessionId);
+			this._close(from);
+			this._track(to);
 		}));
 	}
 

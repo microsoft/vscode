@@ -17,7 +17,7 @@ import { AgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema, readAgentMergeInjectedConfiguration, withoutAgentMergeElevation } from '../common/agentMerge.js';
 import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
@@ -183,6 +183,8 @@ export interface IAgentChatConfigurationSeed extends IDisposable {
  * malformed value in one layer transparently falls back to the next.
  */
 export interface IAgentConfigurationService {
+	/** Effective for this host lifetime; the root value remains the requested value for the next start. */
+	readonly copilotM365EnabledAtStartup: boolean;
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -370,6 +372,7 @@ export interface IAgentConfigurationService {
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
+	readonly copilotM365EnabledAtStartup: boolean;
 	private _rootConfigWrite = Promise.resolve();
 	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
@@ -439,6 +442,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		for (const registration of providerConfigurations) {
 			this.registerProviderConfiguration(registration);
 		}
+		this.copilotM365EnabledAtStartup = this.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.M365Enabled) === true;
 		this._wasChatValuesComplete = this._chatValuesComplete;
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			this._sessionSandboxPolicies.delete(session);

@@ -35,7 +35,8 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
@@ -173,33 +174,10 @@ function createOperationService(): IAgentHostChangesetOperationService {
 	};
 }
 
-/** Captures `publicLog2` telemetry events so tests can assert on emitted fields. */
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: Record<string, unknown> }[] = [];
-	private readonly _onDidLog = new Emitter<void>();
-	/** Fires after each event is added to {@link events}. */
-	readonly onDidLog: Event<void> = this._onDidLog.event;
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data: data ?? {} });
-		this._onDidLog.fire();
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<Record<string, unknown>> {
+	constructor() {
+		super({ captureErrors: true, normalizeData: data => data as Record<string, unknown> ?? {} });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data: data ?? {} });
-		this._onDidLog.fire();
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite.skip('AgentHostChangesetService', () => {

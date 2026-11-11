@@ -13,10 +13,9 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { CanvasView, ICanvasViewInput } from '../../../../workbench/contrib/canvases/electron-browser/canvasView.js';
-import { Menus } from '../../../browser/menus.js';
-import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../browser/pinnedCanvases.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 
 /** Shows the selected pinned canvas full-bleed in place of the sessions grid. */
 export class PinnedCanvasPage extends AbstractCustomView {
@@ -127,7 +126,7 @@ export class PinnedCanvasPageContribution extends Disposable implements IWorkben
 		this._register(customViewService.registerCustomView({
 			id: PINNED_CANVAS_PAGE_ID,
 			ctor: new SyncDescriptor(PinnedCanvasPage),
-			actions: { style: 'toolbar', menuId: Menus.CustomViewCanvas },
+			actions: { style: 'toolbar', menuId: AgentsWindowMenus.CustomViewCanvas },
 			// Each opening shows one pin; Back and Forward skip pins removed meanwhile.
 			acceptsState: pinId => pinnedCanvasService.entries.get().some(entry => entry.id === pinId),
 		}, { restore: false }));

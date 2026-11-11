@@ -247,18 +247,13 @@ import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
 import './browser/parts/customViewGridParts.js';
+import './browser/parts/sessionsPartContent.registration.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
-import './services/sessions/browser/sessionsService.js';
-import './services/sessions/browser/sessionsManagementService.js';
-import './services/sessions/browser/sessionsListModelService.js';
-import './services/sessions/browser/sessionGroupsService.js';
-import './services/sessions/browser/sessionComparisonService.js';
-import './services/sessions/browser/sessionSectionOrderService.js';
+import './services/sessions/browser/sessionsCoreServices.registration.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
-import './services/customView/browser/customViewService.js';
-import './services/activity/common/sessionActivityBarActivityService.js';
-import './services/agentHostFilter/browser/agentHostFilterService.js';
+import './services/customView/browser/customViewService.registration.js';
+import './services/activity/common/sessionActivityBarActivityService.registration.js';
 
 // Account
 import './contrib/accountMenu/browser/account.contribution.js';
@@ -305,12 +300,12 @@ import '../workbench/services/policies/browser/managedSettingsUpdate.contributio
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 
 // Providers: agent host (mode/model configuration, debug log export, subagents)
-import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
-import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
+import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
-import './contrib/providers/agentHost/browser/openSubagentChat.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.contribution.js';
 
 // Providers: remote agent hosts reachable from a phone (tunnels, WebSocket, cloud sandbox)
 import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
@@ -322,8 +317,8 @@ import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contri
 import './contrib/providers/remoteAgentHost/browser/mobileHostFilter.contribution.js';
 
 // Phone pickers for mode and model in the chat input
-import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.js';
-import './contrib/providers/agentHost/browser/mobile/experimentalMobileChatPhoneInputPresenter.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.contribution.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
 
 // Agent feedback is not supported on web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

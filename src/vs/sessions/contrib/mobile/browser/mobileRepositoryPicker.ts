@@ -12,8 +12,8 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { localize } from '../../../../nls.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ISessionRepositoryPicker } from '../../../services/presentation/browser/sessionRepositoryPicker.js';
-import { isMobilePickerSheetTarget, showMobileContentSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
+import { isMobilePickerSheetTarget, showMobileContentSheet } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 
 export class MobileRepositoryPicker extends Disposable implements ISessionRepositoryPicker {
 	declare readonly _serviceBrand: undefined;
