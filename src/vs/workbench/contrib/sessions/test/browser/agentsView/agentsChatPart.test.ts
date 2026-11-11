@@ -20,11 +20,12 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
-import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
@@ -200,7 +201,8 @@ suite('AgentsChatPartService', () => {
 		}));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
-		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }), getWorkbenchState: () => WorkbenchState.EMPTY }));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, getLocations: async () => [] }));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		// The changes of the listed sessions, and of all sessions, also of those the providers' listing scope hides
@@ -333,6 +335,24 @@ suite('AgentsChatPartService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ opened, picked, closed: switched() }, { opened: ['first', 'second'], picked: ['first'], closed: [] });
+	});
+
+	test('a session the user opened that comes to work elsewhere, such as in the new worktree its agent created, moves the window\'s folder there too', async () => {
+		const workspaceIn = (workingDirectory: string) => upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file('/work/vscode'), workingDirectory: URI.file(workingDirectory) })],
+		});
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
+		const moving: ISession = { ...buildTestSession({ id: 'moving', title: 'Moving' }).session, workspace };
+		const { service, switchedTo } = createService({ sessions: () => [moving] });
+		const switches = () => switchedTo.splice(0).length;
+
+		await service.openChat(moving, undefined);
+		const opened = switches();
+		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
+		const moved = switches();
+		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
+
+		assert.deepStrictEqual({ opened, moved, unchanged: switches() }, { opened: 1, moved: 1, unchanged: 0 });
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {

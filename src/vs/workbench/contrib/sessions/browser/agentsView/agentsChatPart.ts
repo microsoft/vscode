@@ -8,7 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -28,7 +28,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -37,7 +37,8 @@ import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowSe
 import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatEditorWindow, registerSessionChatViewEditor } from '../chatEditor/chatEditor.js';
-import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, IChatWindowComposerInit, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
+import { AgentsChatPartComposerFolders } from './agentsChatPartComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { INewSessionTarget } from '../parts/chatView.js';
@@ -184,6 +185,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _chats = this._register(new DisposableMap<EditorInput, AgentsChatPartChat>());
 	/** Set while tabs change other than as the user picks one: as chats restore, open or close. Only a picked tab moves the window's folder. */
 	private _restoringChats = false;
+	/** The sessions the window's folder moved to as the user opened or picked them, which it follows as they move. */
+	private readonly _movedToSessions = observableValue<ReadonlySet<string>>(this, new Set());
 	private _openingChat = false;
 	private _closingTabs = 0;
 	private _composers: ChatWindowComposers | undefined;
@@ -207,10 +210,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentsViewFolderLocationService private readonly _folderLocationService: IAgentsViewFolderLocationService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
-		this._windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
 
 		this.activeChat = derived(this, reader => {
 			const input = this._activeInput.read(reader);
@@ -220,6 +221,19 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
 			this._register(this.mainWindowHost.bindShownChat(this.activeChat));
 		}
+		// The shown session that comes to work elsewhere, such as in the new worktree its agent created, moves the window's
+		// folder there too, as opening it did: only one the user opened or picked, not one that restored
+		let followed: { readonly session: ISession; readonly workingDirectory: URI | undefined } | undefined;
+		this._register(autorun(reader => {
+			const shown = this.activeChat.read(reader)?.session;
+			const session = shown && this._movedToSessions.read(reader).has(shown.sessionId) ? shown : undefined;
+			const workingDirectory = session && getSessionPresentationWorkspace(session, reader)?.folders[0]?.workingDirectory;
+			const previous = followed;
+			followed = session && { session, workingDirectory };
+			if (session && previous?.session === session && workingDirectory && !isEqual(previous.workingDirectory, workingDirectory)) {
+				void this._folderLocationService.switchToSession(session);
+			}
+		}));
 
 		// The chats show beside the editor area, whose editors their Session Activity Bars read
 		this._window = {
@@ -252,8 +266,21 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}));
 	}
 
-	/** The folders of the window, the only ones its composers create sessions in, besides the folder each aims at. */
-	private readonly _windowFolders: IObservable<readonly URI[]>;
+	private _composerFolders: AgentsChatPartComposerFolders | undefined;
+
+	/**
+	 * The folders its composers create sessions in, besides the folder each aims at: the window's folders and the other
+	 * locations of its folder, such as its worktrees.
+	 */
+	private get composerFolders(): AgentsChatPartComposerFolders {
+		this._composerFolders ??= this._register(this._instantiationService.createInstance(AgentsChatPartComposerFolders));
+		return this._composerFolders;
+	}
+
+	private get composerFolderOptions(): Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'> {
+		const folders = this.composerFolders;
+		return { allowedFolders: folders.folders, getFolderPresentation: folderUri => folders.getPresentation(folderUri) };
+	}
 
 	private get composers(): ChatWindowComposers {
 		if (!this._composers) {
@@ -268,7 +295,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		await this._open(chat, options);
 		if (!this._restoringChats) {
 			// Opening a session moves the window's folder to where it works, when that is one of the folder's locations
-			void this._folderLocationService.switchToSession(session);
+			this._moveToSession(session);
 		}
 	}
 
@@ -280,7 +307,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
-		const composer = this.composers.create(resource, { target, allowedFolders: this._windowFolders }, session => this.openChat(session, undefined));
+		// The worktrees an agent created since show too
+		this.composerFolders.refresh();
+		const composer = this.composers.create(resource, { target, ...this.composerFolderOptions }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
 	}
 
@@ -386,7 +415,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			}
 			if (isChatWindowComposerResource(resource)) {
 				claimed.push(resource);
-				const restored = await this.composers.restore(resource, session => this.openChat(session, undefined), this._windowFolders);
+				const restored = await this.composers.restore(resource, session => this.openChat(session, undefined), this.composerFolderOptions);
 				if (restored?.kind === 'composer') {
 					chats.push(this._addChat(resource, restored.composer));
 				} else if (restored?.kind === 'session') {
@@ -531,6 +560,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		return part;
 	}
 
+	/** Moves the window's folder to where `session` works, and follows the session as it comes to work elsewhere. */
+	private _moveToSession(session: ISession): void {
+		const moved = this._movedToSessions.get();
+		if (!moved.has(session.sessionId)) {
+			this._movedToSessions.set(new Set([...moved, session.sessionId]), undefined);
+		}
+		void this._folderLocationService.switchToSession(session);
+	}
+
 	/** A tab the user picked shows its session: the window's folder moves to where that session works, as opening it does. */
 	private _onDidPickTab(group: IEditorGroup): void {
 		if (this._restoringChats || this._openingChat || this._closingTabs > 0 || !group.activeEditor) {
@@ -538,7 +576,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		const session = this._chats.get(group.activeEditor)?.shown.get()?.session;
 		if (session) {
-			void this._folderLocationService.switchToSession(session);
+			this._moveToSession(session);
 		}
 	}
 
