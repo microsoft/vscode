@@ -17,6 +17,11 @@ import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../common/chatConstants.js'
 
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
+/** The configured name; none where the setting is not registered, such as in an editor window. */
+function getConfiguredWelcomeName(configurationService: IConfigurationService): string {
+	return configurationService.getValue<string | undefined>(NEW_SESSION_WELCOME_NAME_SETTING)?.trim() ?? '';
+}
+
 /** Resolves the shared welcome name without requesting a profile while its surface is hidden. */
 export class WelcomeName extends Disposable {
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
@@ -47,13 +52,8 @@ export class WelcomeName extends Disposable {
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 	}
 
-	private _getWelcomeName(gitHubName: string | undefined, configuredName = this._getConfiguredName()): string | undefined {
+	private _getWelcomeName(gitHubName: string | undefined, configuredName = getConfiguredWelcomeName(this.configurationService)): string | undefined {
 		return configuredName.trim() || this._getFirstName(gitHubName);
-	}
-
-	/** The configured name; none where the setting is not registered, such as in an editor window. */
-	private _getConfiguredName(): string {
-		return this.configurationService.getValue<string | undefined>(NEW_SESSION_WELCOME_NAME_SETTING)?.trim() ?? '';
 	}
 
 	private _getFirstName(name: string | undefined): string | undefined {
@@ -61,14 +61,14 @@ export class WelcomeName extends Disposable {
 	}
 
 	private async _refreshGitHubProfileName(): Promise<void> {
-		if (!this.enabled.get() || this._getConfiguredName()) {
+		if (!this.enabled.get() || getConfiguredWelcomeName(this.configurationService)) {
 			this._githubProfileAccountKey = undefined;
 			this._githubProfileName.set(undefined, undefined);
 			return;
 		}
 
 		const account = this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount();
-		if (!this.enabled.get() || this._getConfiguredName()) {
+		if (!this.enabled.get() || getConfiguredWelcomeName(this.configurationService)) {
 			this._githubProfileAccountKey = undefined;
 			this._githubProfileName.set(undefined, undefined);
 			return;
@@ -98,7 +98,7 @@ export class WelcomeName extends Disposable {
 			&& currentAccount?.authenticationProvider.id === account.authenticationProvider.id
 			&& currentAccount.sessionId === account.sessionId
 			&& this.enabled.get()
-			&& !this._getConfiguredName()
+			&& !getConfiguredWelcomeName(this.configurationService)
 		) {
 			this._githubProfileName.set(resolvedProfileName, undefined);
 		}
