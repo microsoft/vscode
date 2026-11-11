@@ -1496,6 +1496,30 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ squeezed, terminals: height(), parts: heights().map(size => Math.round(size / 10)) }, { squeezed: true, terminals: 300, parts: before.map(size => Math.round(size / 10)) });
 	});
 
+	test('with parts nested deeper than a row above them, the terminals take their height back as a plain resize does', () => {
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const terminalsPart = createPartWithEditors('terminals');
+		terminalsPart.setEmpty(false);
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(terminalsPart.part) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), { createPart: () => ({ id: 'created', part: createPart('created') }) }, editorGroupsService));
+		grid.layout(1000, 800);
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Up }, { dropped: true });
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: 'created', direction: Direction.Left });
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { reference: 'created', direction: Direction.Down });
+		const arrangement = grid.partGrid!.describe();
+		drag(container, grid, ChatWindowGridCell.Terminals, 'top', 300);
+		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
+		grid.layout(1000, 400);
+		const squeezed = height() < 300;
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ arrangement, squeezed, terminals: height() }, { arrangement: 'column(titleRow, row(column(row(main, column(created, chat)), terminals), strip))', squeezed: true, terminals: 300 });
+	});
+
 	test('in Stacked, the chat and the main part keep their shares as the terminals take their height back', () => {
 		const { mode, grid, position, open, userResize } = setupWithTerminals(ChatWindowLayoutMode.ChatOnly);
 		position.set(ChatWindowTerminalPosition.FullWidth, undefined);

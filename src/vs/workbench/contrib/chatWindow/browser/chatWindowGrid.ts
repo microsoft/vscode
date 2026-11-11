@@ -715,12 +715,15 @@ export class ChatWindowGrid extends Disposable {
 	private _recoverTerminalsHeight(grid: PartGrid, height: number): void {
 		const current = grid.serializeGrid();
 		const line = current && findLineOf(current.root, current.orientation, ChatWindowGridCell.Terminals);
-		// A row beside them is one sibling, sized by any part it has: its height is the row's
-		const siblings = (line?.children ?? [])
-			.filter(child => child.visible !== false && !(child.type === 'leaf' && (child.data as { id: string }).id === ChatWindowGridCell.Terminals))
-			.map(child => collectCellIds(child).find(id => grid.isCellVisible(id)))
-			.filter((id): id is string => id !== undefined)
-			.map(id => ({ id, height: grid.getCellSize(id).height }));
+		// A row of parts beside them is one sibling, sized by any part it has: its height is the row's. Where a sibling
+		// has deeper rows or columns, no part tells its height, so the room is taken as the grid takes it
+		const visibleChildren = (line?.children ?? [])
+			.filter(child => child.visible !== false && !(child.type === 'leaf' && (child.data as { id: string }).id === ChatWindowGridCell.Terminals));
+		const isFlat = (child: ISerializedNode) => child.type === 'leaf' || (child.data as readonly ISerializedNode[]).every(part => part.type === 'leaf');
+		const representatives = visibleChildren.map(child => isFlat(child) ? collectCellIds(child).find(id => grid.isCellVisible(id)) : undefined);
+		const siblings = representatives.every(id => id !== undefined)
+			? representatives.map(id => ({ id: id!, height: grid.getCellSize(id!).height }))
+			: [];
 		const total = siblings.reduce((sum, sibling) => sum + sibling.height, 0);
 		const taken = height - grid.getCellSize(ChatWindowGridCell.Terminals).height;
 		this._resizeTerminals(grid, height);
