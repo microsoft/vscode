@@ -1664,6 +1664,14 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
+	 * The topology, sizes and visibility of the cells of the grid, without the
+	 * state of the parts in them; see {@link createState}.
+	 */
+	serializeGrid(): ISerializedGrid | undefined {
+		return this.grid?.serialize();
+	}
+
+	/**
 	 * Returns the topology, sizes and visibility of the grid and the state of
 	 * each part in it, to restore it with {@link restore}.
 	 */

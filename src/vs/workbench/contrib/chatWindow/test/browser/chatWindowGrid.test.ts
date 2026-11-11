@@ -22,7 +22,7 @@ import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../..
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
-import { ChatWindowPartSizes } from '../../common/chatWindowState.js';
+import { ChatWindowPartSizes, IChatWindowArrangement } from '../../common/chatWindowState.js';
 
 suite('Chat window grid', () => {
 
@@ -426,23 +426,141 @@ suite('Chat window grid', () => {
 		});
 	});
 
-	test('a part moved beside the terminals goes back to its place, with its size, once the layout mode changes, also to a mode that arranges the parts as the one before', () => {
-		const { mode, grid, open } = setupWithTerminals();
-		open();
-		const sizeOf = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).height;
-		const before = { shape: grid.partGrid!.describe(), main: sizeOf(ChatWindowGridCell.Main) };
-		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Terminals, direction: Direction.Up });
-		const moved = grid.partGrid!.describe();
+	test('the main part moved to the left of the chat stays there as the editor hides and shows again', () => {
+		const { mode, grid, visible } = setup();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		const swapped = grid.partGrid!.describe();
 		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		const hidden = { shape: grid.partGrid!.describe(), visible: visible() };
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
-		assert.deepStrictEqual({ moved, after: { shape: grid.partGrid!.describe(), main: sizeOf(ChatWindowGridCell.Main) } }, {
-			moved: 'column(titleRow, row(column(chat, main, terminals), strip))',
-			after: before
+		assert.deepStrictEqual({ swapped, hidden, shown: { shape: grid.partGrid!.describe(), visible: visible() } }, {
+			swapped: 'column(titleRow, row(main, chat, strip))',
+			hidden: { shape: 'column(titleRow, row(main, chat, strip))', visible: [ChatWindowGridCell.TitleRow, ChatWindowGridCell.Chat, ChatWindowGridCell.Strip] },
+			shown: { shape: 'column(titleRow, row(main, chat, strip))', visible: [ChatWindowGridCell.TitleRow, ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Strip] },
 		});
 	});
 
-	test('each layout mode arranges the parts from its own arrangement: a part moved beside the terminals, adopted as cells showed meanwhile, and the main part hidden in Chat Only come back to their places at their sizes', () => {
+	test('the parts the user moved stay where they are as the chat hides and shows again, in Editor Only, side by side or stacked; arranging them together the other way, or a reset, arranges them anew', () => {
+		const { mode, grid, visible } = setup();
+		const shape = () => grid.partGrid!.describe();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+		const chatHidden = { shape: shape(), visible: visible() };
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const chatShown = shape();
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const stacked = shape();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { reference: ChatWindowGridCell.Main, direction: Direction.Up });
+		mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const stackedChatShown = shape();
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const sideBySide = shape();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		grid.reset();
+
+		assert.deepStrictEqual({ chatHidden, chatShown, stacked, stackedChatShown, sideBySide, reset: shape() }, {
+			chatHidden: { shape: 'column(titleRow, row(main, chat, strip))', visible: [ChatWindowGridCell.TitleRow, ChatWindowGridCell.Main, ChatWindowGridCell.Strip] },
+			chatShown: 'column(titleRow, row(main, chat, strip))',
+			stacked: 'column(titleRow, row(column(main, chat), strip))',
+			stackedChatShown: 'column(titleRow, row(column(chat, main), strip))',
+			sideBySide: 'column(titleRow, row(chat, main, strip))',
+			reset: 'column(titleRow, row(chat, main, strip))',
+		});
+	});
+
+	test('the arrangement the user gave the parts, with its sizes, shows first in a new grid, such as after a reload, also exported while a part hides; the window\'s own arrangement exports none', () => {
+		const { mode, grid } = setup();
+		const untouched = grid.exportArrangement();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		const mainWidth = grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width;
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		const arrangement = grid.exportArrangement();
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), arrangement }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		restored.layout(1000, 800);
+
+		assert.deepStrictEqual({ untouched, splitLayout: arrangement?.splitLayout, shape: restored.partGrid!.describe(), mainWidth: restored.partGrid!.getCellSize(ChatWindowGridCell.Main).width, exportedAgain: !!restored.exportArrangement() }, {
+			untouched: undefined, splitLayout: ChatWindowLayoutMode.SideBySide, shape: 'column(titleRow, row(main, chat, strip))', mainWidth, exportedAgain: true,
+		});
+	});
+
+	test('a window that closes, its parts leaving the grid, still exports the arrangement the user gave them', () => {
+		const { grid } = setup();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		const arranged = grid.exportArrangement();
+		grid.willClose();
+		grid.partGrid!.removeCell(ChatWindowGridCell.Main);
+		grid.partGrid!.removeCell(ChatWindowGridCell.Chat);
+
+		assert.deepStrictEqual({ arranged: !!arranged, closing: grid.exportArrangement() === arranged }, { arranged: true, closing: true });
+	});
+
+	test('an arrangement a new grid cannot show falls back to the window\'s: of the other split layout, of other cells, such as with a strip the window no longer has, or of a cell it does not know', () => {
+		const { grid } = setup();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		const arrangement = grid.exportArrangement()!;
+		const shapeOf = (cells: { strip?: IChatWindowGridChrome; arrangement: IChatWindowArrangement }, mode = ChatWindowLayoutMode.SideBySide) => {
+			const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), ...cells }, constObservable(mode), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+			restored.layout(1000, 800);
+			return restored.partGrid!.describe();
+		};
+		const renamed = JSON.parse(JSON.stringify(arrangement).replace('"main"', '"other"'));
+
+		assert.deepStrictEqual({
+			stacked: shapeOf({ strip: createChrome(34), arrangement }, ChatWindowLayoutMode.Stacked),
+			withoutStrip: shapeOf({ arrangement }),
+			unknownCell: shapeOf({ strip: createChrome(34), arrangement: renamed }),
+		}, {
+			stacked: 'column(titleRow, row(column(main, chat), strip))',
+			withoutStrip: 'column(titleRow, row(chat, main))',
+			unknownCell: 'column(titleRow, row(chat, main, strip))',
+		});
+	});
+
+	test('the arrangement the user gave the parts is without the terminals, which join it in a new grid where their position says', () => {
+		const { grid, open } = setupWithTerminals();
+		open();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		const arrangement = grid.exportArrangement();
+		const terminalsPart = createPartWithEditors('terminals');
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals, arrangement }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.UnderEditor), undefined, editorGroupsService));
+		restored.layout(1000, 800);
+		const beforeTerminals = restored.partGrid!.describe();
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+
+		assert.deepStrictEqual({ exported: JSON.stringify(arrangement).includes('terminals'), beforeTerminals, withTerminals: restored.partGrid!.describe() }, {
+			exported: false,
+			beforeTerminals: 'column(titleRow, row(main, chat, strip))',
+			withTerminals: 'column(titleRow, row(column(main, terminals), chat, strip))',
+		});
+	});
+
+	test('a part moved beside the terminals stays there, with its size, as the editor hides and shows again; arranging the parts stacked and side by side again puts it back in its place, with its size', () => {
+		const { mode, grid, open } = setupWithTerminals();
+		open();
+		const state = () => ({ shape: grid.partGrid!.describe(), main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height });
+		const before = state();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Terminals, direction: Direction.Up });
+		const moved = state();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const editorShownAgain = state();
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ moved: moved.shape, editorShownAgain, arrangedAgain: state() }, {
+			moved: 'column(titleRow, row(column(chat, main, terminals), strip))',
+			editorShownAgain: moved,
+			arrangedAgain: before,
+		});
+	});
+
+	test('the main part hidden in Chat Only shows again where it was, at its size: beside the chat with the terminals under it, or where the user moved it, also as cells showed meanwhile', () => {
 		const roundTrip = (position: ChatWindowTerminalPosition, move: boolean) => {
 			const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
 			const titleRowVisible = observableValue('titleRowVisible', true);
@@ -457,24 +575,24 @@ suite('Chat window grid', () => {
 				const { width, height } = grid.partGrid!.getCellSize(ChatWindowGridCell.Main);
 				return { shape: grid.partGrid!.describe(), main: `${width}x${height}` };
 			};
-			const before = state();
 			if (move) {
 				// Dropped on the top edge of the terminals; the title row then shows again, as the chat no longer leads
 				grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Terminals, direction: Direction.Up });
 				titleRowVisible.set(false, undefined);
 				titleRowVisible.set(true, undefined);
 			}
+			const before = state();
 			mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
 			mode.set(ChatWindowLayoutMode.SideBySide, undefined);
-			return { back: JSON.stringify(state()) === JSON.stringify(before) };
+			return { back: JSON.stringify(state()) === JSON.stringify(before), shape: before.shape };
 		};
 
 		assert.deepStrictEqual({
 			movedAboveFullWidthTerminals: roundTrip(ChatWindowTerminalPosition.FullWidth, true),
 			terminalsUnderTheEditor: roundTrip(ChatWindowTerminalPosition.UnderEditor, false),
 		}, {
-			movedAboveFullWidthTerminals: { back: true },
-			terminalsUnderTheEditor: { back: true },
+			movedAboveFullWidthTerminals: { back: true, shape: 'column(titleRow, row(column(chat, main, terminals), strip))' },
+			terminalsUnderTheEditor: { back: true, shape: 'column(titleRow, row(chat, column(main, terminals), strip))' },
 		});
 	});
 
@@ -496,7 +614,7 @@ suite('Chat window grid', () => {
 		]);
 	});
 
-	test('a layout mode that arranges the parts again, as a part was moved or its arrangement differs, keeps the focus where it was in them', () => {
+	test('hiding the editor keeps a part the user moved, and the grid; arranging the parts the other way arranges them again and keeps the focus where it was in them', () => {
 		const { mode, grid, open, container } = setupWithTerminals();
 		open();
 		const input = container.querySelector('.chat')!.appendChild($('input'));
@@ -511,7 +629,7 @@ suite('Chat window grid', () => {
 		const otherArrangement = { rebuilt: grid.partGrid !== chatOnlyGrid, focused: mainWindow.document.activeElement === input };
 
 		assert.deepStrictEqual({ afterMove, otherArrangement }, {
-			afterMove: { rebuilt: true, shape: 'column(titleRow, row(column(row(chat, main), terminals), strip))', focused: true },
+			afterMove: { rebuilt: false, shape: 'column(titleRow, row(column(chat, main, terminals), strip))', focused: true },
 			otherArrangement: { rebuilt: true, focused: true },
 		});
 	});
@@ -670,7 +788,7 @@ suite('Chat window grid', () => {
 				'sideBySide/underEditor': 'column(titleRow, row(chat, column(main, terminals), strip))',
 				'chatOnly/fullWidth': 'column(titleRow, row(column(row(chat, main), terminals), strip))',
 				'chatOnly/underChat': 'column(titleRow, row(column(chat, terminals), main, strip))',
-				'chatOnly/underEditor': 'column(titleRow, row(column(row(chat, main), terminals), strip))',
+				'chatOnly/underEditor': 'column(titleRow, row(chat, column(main, terminals), strip))',
 				'stacked/fullWidth': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underChat': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underEditor': 'column(titleRow, row(column(main, chat, terminals), strip))',
@@ -1186,7 +1304,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ user, forced, again: roundTrip() }, { user: '476/682', forced: '505/653', again: '476/682' });
 	});
 
-	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
+	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals in their place, beside the chat, and they show as tall as they were under the editor as it shows again', () => {
 		const { mode, position, grid, open, height, userResize } = setupWithTerminals();
 		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
 		open();
@@ -1203,7 +1321,7 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
 		assert.deepStrictEqual({ editorAreaClosed, editorShownAgain: { ...read(), height: height() } }, {
-			editorAreaClosed: { topology: 'column(titleRow, row(column(row(chat, main), terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200, acrossTheWindow: true },
+			editorAreaClosed: { topology: 'column(titleRow, row(chat, column(main, terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 770, acrossTheWindow: false },
 			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200 },
 		});
 	});

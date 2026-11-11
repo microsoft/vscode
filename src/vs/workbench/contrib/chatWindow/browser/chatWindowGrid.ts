@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
-import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IPartGridPartFactory, IPartGridPartOptions, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
 import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
-import { ChatWindowPartSizes } from '../common/chatWindowState.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition, isChatWindowSplitLayout } from '../common/chatWindowLayout.js';
+import { ChatWindowArrangementNode, ChatWindowPartSizes, IChatWindowArrangement } from '../common/chatWindowState.js';
 import { moveEditorsToChatWindow } from './chatWindowParts.js';
 
 /** The cells of a chat window's grid. */
@@ -58,6 +58,13 @@ export interface IChatWindowGridCells {
 	readonly chatInputOnly?: IObservable<boolean>;
 	/** Takes the terminal position the user arranged the terminals in, such as by dropping them below the main part. */
 	readonly setTerminalPosition?: (position: ChatWindowTerminalPosition) => void;
+	/**
+	 * How the chat and the main part are arranged while both show, or will next show: the one a layout mode hides hides
+	 * in that arrangement. Without it, the arrangement of the last layout mode that showed both.
+	 */
+	readonly splitLayout?: IObservable<ChatWindowSplitLayout>;
+	/** How the user last arranged the parts, as {@link ChatWindowGrid.exportArrangement} exports it: the grid shows it first, if it can. */
+	readonly arrangement?: IChatWindowArrangement;
 }
 
 type TopologyNode = { readonly cell: ChatWindowGridCell } | { readonly orientation: Orientation; readonly children: readonly TopologyNode[] };
@@ -72,30 +79,26 @@ function branch(orientation: Orientation, ...children: TopologyNode[]): Topology
 	return flat.length === 1 ? flat[0] : { orientation, children: flat };
 }
 
-/** Where the terminals show in `mode`: without the main part beside the chat, below the chat is across the window. */
-function getEffectiveTerminalPosition(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): ChatWindowTerminalPosition {
-	return mode === ChatWindowLayoutMode.ChatOnly && position === ChatWindowTerminalPosition.UnderEditor ? ChatWindowTerminalPosition.FullWidth : position;
-}
-
 /**
- * How a chat window arranges its cells for a layout mode, below the title row, which is across the top of the window
- * while it shows, with the strip in a column of its own at the right, as the main window's Session Activity Bar column:
- * - side by side (and chat only): the chat beside the main part; the terminals below the chat, below the main part, or
- *   across the bottom of the chat and the main part, as `cells.terminals` says (below the main part is across in chat
- *   only), the strip running past them;
- * - stacked (and editor only): the main part above the chat; the terminals across the bottom of the chat and the main
- *   part, the strip running past them.
- * The cells a mode hides, the chat or the main part, stay in the grid, so that showing them is not a move.
+ * How a chat window arranges its cells while the chat and the main part show as `splitLayout`, below the title row,
+ * which is across the top of the window while it shows, with the strip in a column of its own at the right, as the main
+ * window's Session Activity Bar column:
+ * - side by side: the chat beside the main part; the terminals below the chat, below the main part, or across the bottom
+ *   of the chat and the main part, as `cells.terminals` says, the strip running past them;
+ * - stacked: the main part above the chat; the terminals across the bottom of the chat and the main part, the strip
+ *   running past them.
+ * A layout mode that shows only the chat or only the main part hides the other in the arrangement, so that showing it
+ * again is not a move.
  */
-export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
+export function getChatWindowTopology(splitLayout: ChatWindowSplitLayout, cells: { readonly titleRow: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
 	const titleRow: TopologyNode[] = cells.titleRow ? [{ cell: ChatWindowGridCell.TitleRow }] : [];
 	const strip: TopologyNode[] = cells.strip ? [{ cell: ChatWindowGridCell.Strip }] : [];
 	const terminals: TopologyNode[] = cells.terminals !== undefined ? [{ cell: ChatWindowGridCell.Terminals }] : [];
 	const chat: TopologyNode = { cell: ChatWindowGridCell.Chat };
 	const main: TopologyNode = { cell: ChatWindowGridCell.Main };
-	if (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) {
+	if (splitLayout === ChatWindowLayoutMode.SideBySide) {
 		let parts: TopologyNode;
-		switch (cells.terminals === undefined ? undefined : getEffectiveTerminalPosition(mode, cells.terminals)) {
+		switch (cells.terminals) {
 			case undefined: parts = branch(Orientation.HORIZONTAL, chat, main); break;
 			case ChatWindowTerminalPosition.UnderChat: parts = branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, chat, ...terminals), main); break;
 			case ChatWindowTerminalPosition.UnderEditor: parts = branch(Orientation.HORIZONTAL, chat, branch(Orientation.VERTICAL, main, ...terminals)); break;
@@ -106,20 +109,25 @@ export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { reado
 	return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, main, chat, ...terminals), ...strip));
 }
 
-/** Where the terminals go in the grid of `mode`, beside a cell or at the bottom edge, as {@link getChatWindowTopology} places them. */
-function getTerminalsLocation(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): PartGridLocation {
-	if (mode === ChatWindowLayoutMode.Stacked) {
+/** Where the terminals go in the arrangement of `splitLayout`, beside a cell or at the bottom edge, as {@link getChatWindowTopology} places them. */
+function getTerminalsLocation(splitLayout: ChatWindowSplitLayout, position: ChatWindowTerminalPosition): PartGridLocation {
+	if (splitLayout === ChatWindowLayoutMode.Stacked) {
 		return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
 	}
-	if (mode === ChatWindowLayoutMode.EditorOnly) {
-		// Below the main part and the hidden chat, the strip running past them
-		return { edge: Direction.Down };
-	}
-	switch (getEffectiveTerminalPosition(mode, position)) {
+	switch (position) {
 		case ChatWindowTerminalPosition.UnderChat: return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
 		case ChatWindowTerminalPosition.UnderEditor: return { reference: ChatWindowGridCell.Main, direction: Direction.Down };
 		// Across the chat and the main part, the strip running past them
 		default: return { edge: Direction.Down };
+	}
+}
+
+/** The cell `mode` hides, the chat or the main part, if it hides one. */
+function getHiddenCell(mode: ChatWindowLayoutMode): ChatWindowGridCell | undefined {
+	switch (mode) {
+		case ChatWindowLayoutMode.ChatOnly: return ChatWindowGridCell.Main;
+		case ChatWindowLayoutMode.EditorOnly: return ChatWindowGridCell.Chat;
+		default: return undefined;
 	}
 }
 
@@ -137,6 +145,77 @@ function getSizesKey(topologyKey: string, mode: ChatWindowLayoutMode): string {
 
 function describeTopology(node: TopologyNode): string {
 	return isBranch(node) ? `${node.orientation === Orientation.HORIZONTAL ? 'row' : 'column'}(${node.children.map(describeTopology).join(',')})` : node.cell;
+}
+
+/** The cells of `node`, without their sizes, as the part grid serializes them. */
+function serializeTopology(node: TopologyNode): ISerializedNode {
+	return isBranch(node) ? { type: 'branch', data: node.children.map(serializeTopology), size: 0 } : { type: 'leaf', data: { id: node.cell }, size: 0 };
+}
+
+/** What {@link PartGrid.describe} says for `cells`, the children of a branch along `orientation`. */
+function describeSerialized(cells: readonly ISerializedNode[], orientation: Orientation): string {
+	const describe = (node: ISerializedNode, along: Orientation): string => node.type === 'leaf'
+		? (node.data as { id: string }).id
+		: `${along === Orientation.HORIZONTAL ? 'row' : 'column'}(${node.data.map(child => describe(child, orthogonal(along))).join(', ')})`;
+	return cells.length === 1 ? describe(cells[0], orientation) : describe({ type: 'branch', data: [...cells], size: 0 }, orientation);
+}
+
+/**
+ * The cells of `node` that `keep` keeps, to put in place of `node` in the branch around it: a branch with one cell left is
+ * that cell, and one with a single branch left gives that branch's cells, which are along the branch around it. The room
+ * of the cells dropped goes to the cells beside them, in proportion.
+ */
+function keepCells(node: ISerializedNode, keep: (id: string) => boolean): ISerializedNode[] {
+	if (node.type === 'leaf') {
+		return keep((node.data as { id: string }).id) ? [node] : [];
+	}
+	const kept = node.data.flatMap(child => keepCells(child, keep));
+	if (!kept.length) {
+		return [];
+	}
+	if (kept.length === 1) {
+		const [only] = kept;
+		return only.type === 'branch' ? only.data : [{ ...only, size: node.size }];
+	}
+	const total = node.data.reduce((sum, child) => sum + child.size, 0);
+	const left = kept.reduce((sum, child) => sum + child.size, 0);
+	return [{ ...node, data: left > 0 ? kept.map(child => ({ ...child, size: Math.round(child.size * total / left) })) : kept }];
+}
+
+/** `grid` with only the cells `keep` keeps, or undefined without any left. */
+function withCellsOf(grid: ISerializedGrid, keep: (id: string) => boolean): ISerializedGrid | undefined {
+	const cells = keepCells(grid.root, keep);
+	if (cells.length > 1) {
+		// The root kept a single branch: its cells are along the other orientation
+		const orientation = orthogonal(grid.orientation);
+		return { ...grid, orientation, root: { type: 'branch', data: cells, size: orientation === Orientation.HORIZONTAL ? grid.height : grid.width } };
+	}
+	const [root] = cells;
+	if (!root) {
+		return undefined;
+	}
+	return { ...grid, root: root.type === 'branch' ? root : { type: 'branch', data: [root], size: grid.root.size } };
+}
+
+function collectCellIds(node: ISerializedNode | ChatWindowArrangementNode): string[] {
+	return node.type === 'leaf' ? [(node.data as { id: string }).id] : (node.data as readonly (ISerializedNode | ChatWindowArrangementNode)[]).flatMap(collectCellIds);
+}
+
+/** The row or column the cell `id` is in, under `node`, a branch along `orientation`. */
+function findLineOf(node: ISerializedNode, orientation: Orientation, id: string): { readonly children: readonly ISerializedNode[]; readonly orientation: Orientation } | undefined {
+	if (node.type === 'leaf') {
+		return undefined;
+	}
+	if (node.data.some(child => child.type === 'leaf' && (child.data as { id: string }).id === id)) {
+		return { children: node.data, orientation };
+	}
+	for (const child of node.data) {
+		const line = findLineOf(child, orthogonal(orientation), id);
+		if (line) {
+			return line;
+		}
+	}
+	return undefined;
 }
 
 /** How much of the room of a branch a cell takes until the user sizes it: the main part wider and taller than the chat. */
@@ -230,8 +309,12 @@ class TitleRowView extends ChromeView {
 
 /**
  * The grid of a chat window, on the workbench's part grid: its title row, its chat part, its main part, its strip and the
- * part that holds its terminals, arranged for its layout mode. The sizes the user gives its cells are kept per
- * arrangement, so that a mode shows with the sizes it had, and can be exported to come back for the chat after a reload.
+ * part that holds its terminals, arranged for how the chat and the main part show together, side by side or stacked. A
+ * layout mode that shows only one of them hides the other in that arrangement, so that the parts the user moved, such
+ * as the main part to the left of the chat, stay where they are as either hides and shows again; only arranging them
+ * together the other way, or a reset, arranges them anew. The sizes the user gives its cells are kept per arrangement,
+ * so that an arrangement shows with the sizes it had, and those and the arrangement the user gave the parts can be
+ * exported to come back for the chat after a reload.
  *
  * The terminals' part joins the grid where the terminal position says once it exists, and moves when the position
  * changes. Like every part, it hides while it has no editors. It keeps its height as the window is resized, and tall
@@ -260,12 +343,14 @@ export class ChatWindowGrid extends Disposable {
 	private _arranged: string | undefined;
 	/** The layout mode the grid was last arranged for. */
 	private _arrangedMode: ChatWindowLayoutMode | undefined;
-	/**
-	 * The arrangement of the part grid as the layout mode arranged it, with the parts the grid created: unlike
-	 * {@link _arranged}, it does not take in parts the user moved meanwhile, so that a mode change can tell whether they did.
-	 */
-	private _modeArrangement: string | undefined;
-	private _createdPartsChangingModeArrangement = false;
+	/** How the chat and the main part were arranged together when the grid was last arranged, which they hide in. */
+	private _arrangedSplitLayout: ChatWindowSplitLayout | undefined;
+	/** The arrangement the user gave the parts before, which the grid shows first for its split layout; see {@link exportArrangement}. */
+	private _restoredArrangement: IChatWindowArrangement | undefined;
+	/** The arrangement the grid last exported, or restored: see {@link exportArrangement}. */
+	private _exportedArrangement: IChatWindowArrangement | undefined;
+	/** What the grid showed, and its sizes, before the layout mode hid the chat or the main part, until it shows both again. */
+	private _beforeHide: { readonly shape: string; readonly grid: ISerializedGrid | undefined } | undefined;
 	private _createdPartsChanging = false;
 	/** The height the terminals take once the cells of the arrangement they moved in show. */
 	private _pendingTerminalsHeight: number | undefined;
@@ -304,6 +389,8 @@ export class ChatWindowGrid extends Disposable {
 	) {
 		super();
 		this._sizes = { ...sizes };
+		this._restoredArrangement = _cells.arrangement;
+		this._exportedArrangement = _cells.arrangement;
 		this._terminalPosition = terminalPosition ?? constObservable(ChatWindowTerminalPosition.FullWidth);
 		this._partFactory = partFactory && {
 			createPart: () => {
@@ -323,6 +410,7 @@ export class ChatWindowGrid extends Disposable {
 
 		this._register(autorun(reader => {
 			this._layoutMode.read(reader);
+			_cells.splitLayout?.read(reader);
 			_cells.strip?.visible.read(reader);
 			_cells.titleRow?.visible.read(reader);
 			_cells.terminals?.read(reader);
@@ -441,23 +529,44 @@ export class ChatWindowGrid extends Disposable {
 	}
 
 	/**
+	 * Gives the cells of the row or column of `cell` the sizes they had in `before`, in proportion to the room they have
+	 * now. Each takes its size from the last of them, so sizing all but the last, in order, gives each its own.
+	 */
+	private _restoreLineSizes(grid: PartGrid, cell: string, before: ISerializedGrid): void {
+		const line = findLineOf(before.root, before.orientation, cell);
+		if (!line) {
+			return;
+		}
+		const dimension = line.orientation === Orientation.VERTICAL ? 'height' : 'width';
+		const children = line.children.filter(child => child.visible !== false);
+		const ids = children.map(child => collectCellIds(child).find(id => grid.isCellVisible(id)));
+		if (ids.some(id => id === undefined)) {
+			return;
+		}
+		const room = ids.reduce((sum, id) => sum + grid.getCellSize(id!)[dimension], 0);
+		const total = children.reduce((sum, child) => sum + child.size, 0);
+		if (!total) {
+			return;
+		}
+		children.slice(0, -1).forEach((child, index) => {
+			const size = Math.round(child.size * room / total);
+			grid.resizeCell(ids[index]!, dimension === 'height' ? { height: size } : { width: size });
+		});
+	}
+
+	/**
 	 * A part the grid creates or closes, such as for an editor dropped on an edge of the window, is part of the window's
 	 * arrangement, which the window then still arranged, unless something else changed it, such as a part the user moved.
 	 */
 	private _willChangeCreatedParts(): void {
 		const shown = this._grid.value?.describe();
 		this._createdPartsChanging ||= shown !== undefined && shown === this._arranged;
-		this._createdPartsChangingModeArrangement ||= shown !== undefined && shown === this._modeArrangement;
 	}
 
 	private _updateFromGrid(): void {
 		if (this._createdPartsChanging) {
 			this._createdPartsChanging = false;
 			this._arranged = this._grid.value?.describe();
-		}
-		if (this._createdPartsChangingModeArrangement) {
-			this._createdPartsChangingModeArrangement = false;
-			this._modeArrangement = this._grid.value?.describe();
 		}
 		this._terminalsVisible.set(!!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals), undefined);
 		this._adoptTerminalPosition();
@@ -472,36 +581,36 @@ export class ChatWindowGrid extends Disposable {
 		const grid = this._grid.value;
 		const setTerminalPosition = this._cells.setTerminalPosition;
 		const mode = this._arrangedMode;
-		if (!grid || !setTerminalPosition || mode === undefined || this._closing || !this._terminalsInGrid) {
+		const splitLayout = this._arrangedSplitLayout;
+		if (!grid || !setTerminalPosition || mode === undefined || splitLayout === undefined || this._closing || !this._terminalsInGrid) {
 			return;
 		}
 		const shown = grid.describe();
 		const current = this._terminalPosition.get();
-		if (shown === this._describeArrangement(mode, current)) {
+		if (shown === this._describeArrangement(splitLayout, current)) {
 			return;
 		}
-		const adopted = [ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor].find(position => shown === this._describeArrangement(mode, position));
+		const adopted = [ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor].find(position => shown === this._describeArrangement(splitLayout, position));
 		if (adopted === undefined) {
 			return;
 		}
-		this._topologyKey = this._topology(mode, adopted).key;
+		this._topologyKey = this._topology(splitLayout, adopted).key;
 		this._sizesKey = getSizesKey(this._topologyKey, mode);
 		this._arranged = shown;
-		this._modeArrangement = shown;
 		setTerminalPosition(adopted);
 	}
 
-	/** What {@link PartGrid.describe} says for the arrangement of `mode` with the terminals at `position`, as {@link _arrange} builds it. */
-	private _describeArrangement(mode: ChatWindowLayoutMode, position: ChatWindowTerminalPosition): string {
-		const { topology } = this._topology(mode, position);
+	/** What {@link PartGrid.describe} says for the arrangement of `splitLayout` with the terminals at `position`, as {@link _arrange} builds it. */
+	private _describeArrangement(splitLayout: ChatWindowSplitLayout, position: ChatWindowTerminalPosition): string {
+		const { topology } = this._topology(splitLayout, position);
 		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
-		const serialize = (node: TopologyNode): ISerializedNode => isBranch(node) ? { type: 'branch', data: node.children.map(serialize), size: 0 } : { type: 'leaf', data: { id: node.cell }, size: 0 };
-		const root = serialize(topology);
-		const cells = this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, 0, 0);
-		const describe = (node: ISerializedNode, along: Orientation): string => node.type === 'leaf'
-			? (node.data as { id: string }).id
-			: `${along === Orientation.HORIZONTAL ? 'row' : 'column'}(${node.data.map(child => describe(child, along === Orientation.HORIZONTAL ? Orientation.VERTICAL : Orientation.HORIZONTAL)).join(', ')})`;
-		return cells.length === 1 ? describe(cells[0], orientation) : describe({ type: 'branch', data: cells, size: 0 }, orientation);
+		const root = serializeTopology(topology);
+		return describeSerialized(this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, 0, 0), orientation);
+	}
+
+	/** How the chat and the main part show together in `mode`, or, in a mode that hides one, as they last did. */
+	private _splitLayoutOf(mode: ChatWindowLayoutMode): ChatWindowSplitLayout {
+		return this._cells.splitLayout?.get() ?? (isChatWindowSplitLayout(mode) ? mode : this._arrangedSplitLayout ?? ChatWindowLayoutMode.SideBySide);
 	}
 
 	private _update(): void {
@@ -509,25 +618,30 @@ export class ChatWindowGrid extends Disposable {
 			return;
 		}
 		const mode = this._layoutMode.get();
-		// A layout mode arranges the parts as it does, from its own arrangement: parts the user moved go back to their
-		// places, also when the mode arranges them as the one before it, such as Side by Side and Chat Only, and a part
-		// it hid, such as the main part in Chat Only, shows again at its size rather than where the terminals moved
-		// beside it while hidden. Between modes that arrange the parts alike, with none moved, the parts only show or hide.
-		if (mode !== this._arrangedMode && this._arrangedMode !== undefined) {
-			const moved = this._grid.value?.describe() !== this._modeArrangement;
-			if (moved || this._topology(mode).key !== this._topologyKey) {
-				this._topologyKey = undefined;
-				this._baseTopologyKey = undefined;
-			}
+		const splitLayout = this._splitLayoutOf(mode);
+		// Only arranging the chat and the main part together another way arranges the parts again, from that arrangement.
+		// Showing or hiding either keeps the arrangement the grid shows, with the parts the user moved where they are.
+		if (this._arrangedSplitLayout !== undefined && splitLayout !== this._arrangedSplitLayout) {
+			this._topologyKey = undefined;
+			this._baseTopologyKey = undefined;
+			this._restoredArrangement = undefined;
+			this._beforeHide = undefined;
 		}
+		const previousMode = this._arrangedMode;
 		this._arrangedMode = mode;
-		if (this._arrange(mode, this._dimension)) {
-			this._modeArrangement = this._grid.value!.describe();
-		}
+		this._arrangedSplitLayout = splitLayout;
+		// Arranged by the user, such as a part they moved: its sizes are not those of the window's arrangement
+		const userArranged = !!this._grid.value && this._grid.value.describe() !== this._arranged;
+		const arranged = this._arrange(mode, splitLayout, this._dimension);
 		const grid = this._grid.value!;
 		// The terminals keep the height they have, or move with, as cells show and hide: a hidden cell, such as the title
 		// row, would otherwise give them its room.
 		const terminalsHeight = this._pendingTerminalsHeight ?? (grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined);
+		const hidden = getHiddenCell(mode);
+		const shown = previousMode !== undefined && !hidden ? getHiddenCell(previousMode) : undefined;
+		if (hidden && (previousMode === undefined || !getHiddenCell(previousMode))) {
+			this._beforeHide = { shape: grid.describe(), grid: grid.serializeGrid() };
+		}
 		this._pendingTerminalsHeight = undefined;
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
 		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
@@ -541,20 +655,34 @@ export class ChatWindowGrid extends Disposable {
 		if (terminalsHeight !== undefined && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height !== terminalsHeight) {
 			this._resizeTerminals(grid, terminalsHeight);
 		}
-		this._arranged = grid.describe();
+		// The part that shows again takes the room it had back from the cells beside it, unless the arrangement changed
+		// meanwhile: rather than from the last of them, such as the terminals below it, which took its room as it hid.
+		const beforeHide = this._beforeHide;
+		if (shown && beforeHide?.grid && beforeHide.shape === grid.describe()) {
+			this._restoreLineSizes(grid, shown, beforeHide.grid);
+		}
+		if (!hidden) {
+			this._beforeHide = undefined;
+		}
+		if (arranged === 'changed' && !userArranged) {
+			this._arranged = grid.describe();
+		}
 		this._sizesKey = getSizesKey(this._topologyKey!, mode);
 		this._baseSizesKey = getSizesKey(this._baseTopologyKey!, mode);
 		this._updateFromGrid();
 	}
 
 	/**
-	 * Forgets the sizes the user gave the cells and arranges them again as the mode arranges them, as in a new window:
-	 * parts moved elsewhere go back to their places, the parts it created close, their editors moving into the main part,
-	 * and the cells take their default shares.
+	 * Forgets the sizes the user gave the cells and how they arranged them, and arranges them again as the mode arranges
+	 * them, as in a new window: parts moved elsewhere go back to their places, the parts it created close, their editors
+	 * moving into the main part, and the cells take their default shares.
 	 */
 	reset(): void {
 		this._closeCreatedParts();
 		this._sizes = {};
+		this._restoredArrangement = undefined;
+		this._exportedArrangement = undefined;
+		this._beforeHide = undefined;
 		this._topologyKey = undefined;
 		this._baseTopologyKey = undefined;
 		this._sizesKey = undefined;
@@ -615,25 +743,49 @@ export class ChatWindowGrid extends Disposable {
 		}
 	}
 
-	/** The arrangement of a layout mode, with the terminals where they show, or at `position`, and its key. */
-	private _topology(mode: ChatWindowLayoutMode, position = this._terminalPosition.get()) {
+	/** The arrangement of `splitLayout`, with the terminals where they show, or at `position`, and its key. */
+	private _topology(splitLayout: ChatWindowSplitLayout, position = this._terminalPosition.get()) {
 		const terminals = this._cells.terminals?.get();
 		const chrome = { titleRow: !!this._titleRow, strip: !!this._strip };
-		const topology = getChatWindowTopology(mode, { ...chrome, terminals: terminals ? position : undefined });
+		const topology = getChatWindowTopology(splitLayout, { ...chrome, terminals: terminals ? position : undefined });
 		return { terminals, position, chrome, topology, key: describeTopology(topology) };
 	}
 
-	/** Arranges the parts as the mode does, unless the grid already shows its arrangement. Returns whether it arranged them. */
-	private _arrange(mode: ChatWindowLayoutMode, dimension: IViewSize): boolean {
-		const { terminals, position, chrome, topology, key } = this._topology(mode);
+	/**
+	 * The arrangement the user gave the parts before, for the grid of `splitLayout` to show first: only one of that split
+	 * layout, of the cells the grid has, such as without a strip, and before the grid created parts of its own.
+	 */
+	private _takeRestoredArrangement(splitLayout: ChatWindowSplitLayout): ISerializedGrid | undefined {
+		const arrangement = this._restoredArrangement;
+		this._restoredArrangement = undefined;
+		if (!arrangement || arrangement.splitLayout !== splitLayout || this._created.size) {
+			return undefined;
+		}
+		if (!this._isOfWindowCells(collectCellIds(arrangement.root))) {
+			return undefined;
+		}
+		return {
+			root: arrangement.root as ISerializedNode,
+			orientation: arrangement.orientation === 1 ? Orientation.HORIZONTAL : Orientation.VERTICAL,
+			width: arrangement.width,
+			height: arrangement.height,
+		};
+	}
+
+	/**
+	 * Arranges the parts as `splitLayout` does, unless the grid already shows its arrangement: anew (`rebuilt`), or only the
+	 * terminals joining, moving or leaving it (`changed`).
+	 */
+	private _arrange(mode: ChatWindowLayoutMode, splitLayout: ChatWindowSplitLayout, dimension: IViewSize): 'rebuilt' | 'changed' | undefined {
+		const { terminals, position, chrome, topology, key } = this._topology(splitLayout);
 		if (key === this._topologyKey) {
-			return false;
+			return undefined;
 		}
 		this._topologyKey = key;
 		const sizesKey = getSizesKey(key, mode);
 
 		// While the rest of the arrangement stays, the terminals join it, move in it or leave it, as the part grid does.
-		const baseKey = describeTopology(getChatWindowTopology(mode, chrome));
+		const baseKey = describeTopology(getChatWindowTopology(splitLayout, chrome));
 		const grid = this._grid.value;
 		if (grid && baseKey === this._baseTopologyKey) {
 			// The part grid may rebuild its grid for them, such as across the chat and the main part with the strip running past
@@ -643,38 +795,26 @@ export class ChatWindowGrid extends Disposable {
 				grid.removeCell(ChatWindowGridCell.Terminals);
 				this._terminalsInGrid = false;
 			} else if (this._terminalsInGrid) {
-				grid.moveCell(ChatWindowGridCell.Terminals, getTerminalsLocation(mode, position));
+				grid.moveCell(ChatWindowGridCell.Terminals, getTerminalsLocation(splitLayout, position));
 				this._pendingTerminalsHeight = this._terminalsHeight();
 			} else {
-				const height = this._terminalsHeight();
-				grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(mode, position), height, TERMINALS_OPTIONS);
-				this._terminalsInGrid = true;
-				this._terminalsFirstShowHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? undefined : height;
+				this._addTerminals(grid, terminals, splitLayout, position);
 			}
 			this._restoreFocus(focused);
-			return true;
+			return 'changed';
 		}
 		this._baseTopologyKey = baseKey;
 		this._terminalsInGrid = !!terminals;
 
-		// The sizes of the arrangement, else those of the chat and the main part as they showed without the terminals, else
-		// as they showed before the strip had a column of its own in every mode, which a version without it still reads.
-		const withoutStrip = { ...chrome, strip: false };
-		const legacyKeys = this._strip ? [getSizesKey(describeTopology(getChatWindowTopology(mode, withoutStrip)), mode), getSizesKey(describeTopology(getChatWindowTopology(mode, { ...withoutStrip, terminals: terminals ? position : undefined })), mode)] : [];
-		const remembered: ChatWindowPartSizes[string] = {};
-		for (const rememberedKey of [...legacyKeys, getSizesKey(baseKey, mode), sizesKey]) {
-			Object.assign(remembered, this._sizes[rememberedKey]);
-		}
-		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
 		// The grid keeps the outer insets to the edges of the window: its cells share what is inside them.
 		const insets = this._outerInsets;
 		const width = Math.max(0, dimension.width - insets.left - insets.right);
 		const height = Math.max(0, dimension.height - insets.top - insets.bottom);
-		const root = this._serialize(topology, orientation === Orientation.HORIZONTAL ? width : height, orientation, remembered, { width, height });
 		// Applied once the cells of the arrangement show or hide, such as the title row, whose room would otherwise go to them.
 		this._pendingTerminalsHeight = terminals ? Math.min(height, this._terminalsHeight()) : undefined;
-		const serializedRoot: ISerializedNode = { type: 'branch', data: this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, width, height), size: orientation === Orientation.HORIZONTAL ? height : width };
-		const serializedGrid: ISerializedGrid = { root: serializedRoot, orientation, width, height };
+		// The terminals join the arrangement the user gave the parts, which is without them, where their position says
+		const restored = this._takeRestoredArrangement(splitLayout);
+		const serializedGrid = restored ?? this._serializeArrangement(mode, splitLayout, topology, sizesKey, baseKey, terminals ? position : undefined, { width, height });
 		const state = { grid: serializedGrid, hidden: [], parts: {}, created: Array.from(this._created.keys()) };
 		// The parts move into the cells of the new grid, which takes the focus from what had it in them, such as the chat input
 		const focused = this._container.ownerDocument.activeElement;
@@ -704,11 +844,77 @@ export class ChatWindowGrid extends Disposable {
 			}
 			this._updateFromGrid();
 		}));
+		if (restored && terminals) {
+			this._addTerminals(partGrid, terminals, splitLayout, position);
+		}
 		partGrid.setGap(this._gap.get());
 		partGrid.setOuterInsets(insets);
 		partGrid.layout(dimension.width, dimension.height);
 		this._restoreFocus(focused);
-		return true;
+		// The window's arrangement, which the user's is not: its sizes are not remembered for it
+		this._arranged = restored ? this._describeArrangement(splitLayout, position) : partGrid.describe();
+		return 'rebuilt';
+	}
+
+	private _addTerminals(grid: PartGrid, terminals: IContentPart, splitLayout: ChatWindowSplitLayout, position: ChatWindowTerminalPosition): void {
+		const height = this._terminalsHeight();
+		grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(splitLayout, position), height, TERMINALS_OPTIONS);
+		this._terminalsInGrid = true;
+		this._terminalsFirstShowHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? undefined : height;
+	}
+
+	/** The grid of `topology` in `box`, its cells at the sizes the user gave them, else at their shares, with the parts the grid created. */
+	private _serializeArrangement(mode: ChatWindowLayoutMode, splitLayout: ChatWindowSplitLayout, topology: TopologyNode, sizesKey: string, baseKey: string, terminals: ChatWindowTerminalPosition | undefined, box: IViewSize): ISerializedGrid {
+		// The sizes of the arrangement, else those of the chat and the main part as they showed without the terminals, else
+		// as they showed before the strip had a column of its own in every mode, which a version without it still reads.
+		const withoutStrip = { titleRow: !!this._titleRow, strip: false };
+		const legacyKeys = this._strip ? [getSizesKey(describeTopology(getChatWindowTopology(splitLayout, withoutStrip)), mode), getSizesKey(describeTopology(getChatWindowTopology(splitLayout, { ...withoutStrip, terminals })), mode)] : [];
+		const remembered: ChatWindowPartSizes[string] = {};
+		for (const rememberedKey of [...legacyKeys, getSizesKey(baseKey, mode), sizesKey]) {
+			Object.assign(remembered, this._sizes[rememberedKey]);
+		}
+		const orientation = isBranch(topology) ? topology.orientation : Orientation.HORIZONTAL;
+		const { width, height } = box;
+		const root = this._serialize(topology, orientation === Orientation.HORIZONTAL ? width : height, orientation, remembered, box);
+		const serializedRoot: ISerializedNode = { type: 'branch', data: this._withCreatedParts(root.type === 'branch' ? root.data : [root], orientation, width, height), size: orientation === Orientation.HORIZONTAL ? height : width };
+		return { root: serializedRoot, orientation, width, height };
+	}
+
+	/**
+	 * How the user arranged the parts, such as the main part moved to the left of the chat, for the grid to show again,
+	 * such as after a reload: undefined while the grid shows the parts as the window arranges them, apart from the
+	 * terminals and the parts it created, which show where they always do.
+	 */
+	exportArrangement(): IChatWindowArrangement | undefined {
+		const grid = this._grid.value?.serializeGrid();
+		const splitLayout = this._arrangedSplitLayout;
+		// While the window closes, its chat and main part leave the grid: what it showed before is what the user arranged
+		if (this._closing || !grid || splitLayout === undefined) {
+			return this._exportedArrangement;
+		}
+		const arrangement = withCellsOf(grid, id => id !== ChatWindowGridCell.Terminals && !this._created.has(id));
+		if (!arrangement || arrangement.root.type !== 'branch' || !this._isOfWindowCells(collectCellIds(arrangement.root))) {
+			return this._exportedArrangement;
+		}
+		const windowTopology = getChatWindowTopology(splitLayout, { titleRow: !!this._titleRow, strip: !!this._strip });
+		const windowArrangement = serializeTopology(windowTopology);
+		if (describeSerialized(arrangement.root.data, arrangement.orientation) === describeSerialized(windowArrangement.type === 'branch' ? windowArrangement.data : [windowArrangement], isBranch(windowTopology) ? windowTopology.orientation : Orientation.HORIZONTAL)) {
+			return this._exportedArrangement = undefined;
+		}
+		return this._exportedArrangement = {
+			version: 1,
+			splitLayout,
+			orientation: arrangement.orientation === Orientation.HORIZONTAL ? 1 : 0,
+			width: arrangement.width,
+			height: arrangement.height,
+			root: arrangement.root as ChatWindowArrangementNode,
+		};
+	}
+
+	/** Whether `ids` are those of the cells an arrangement the user gave the parts is of: the chat, the main part and the window's chrome, each once. */
+	private _isOfWindowCells(ids: readonly string[]): boolean {
+		const expected = [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ...(this._titleRow ? [ChatWindowGridCell.TitleRow] : []), ...(this._strip ? [ChatWindowGridCell.Strip] : [])];
+		return ids.length === expected.length && expected.every(id => ids.includes(id));
 	}
 
 	/** Gives the focus back to `focused`, an element of the window that lost it as the grid arranged its cells. */
