@@ -256,6 +256,7 @@ if (import.meta.main) {
 	oxlint(process.argv.slice(2)).catch(err => {
 		console.error();
 		console.error(err);
-		process.exit(1);
+		// Not process.exit(), which would truncate output that is still being written to a pipe.
+		process.exitCode = 1;
 	});
 }
