@@ -62,6 +62,30 @@ suite('SessionsListingScopeFilter', () => {
 		});
 	});
 
+	test('reports changes of sessions only for those it lists, without matching the sessions to the scope again', () => {
+		const here = createSession('here', 'repo');
+		const elsewhere = createSession('elsewhere', 'other');
+		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
+		let reads = 0;
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/home/user/projects/repo')]), repositories: constObservable([]) }, () => { reads++; return [here, elsewhere]; }, changes.event));
+		const events: string[] = [];
+		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${e.added.length} removed=${e.removed.length} changed=${e.changed.map(session => session.sessionId).join(',')}`)));
+		const initialReads = reads;
+
+		// Such as of the sessions' status as they stream
+		changes.fire({ added: [], removed: [], changed: [here, elsewhere] });
+		changes.fire({ added: [], removed: [], changed: [elsewhere] });
+		const afterChanges = reads - initialReads;
+		// A change of what the provider lists, such as as it hides another agent's sessions, matches them again
+		changes.fire({ added: [], removed: [], changed: [] });
+
+		assert.deepStrictEqual({ afterChanges, afterRequery: reads - initialReads, events }, {
+			afterChanges: 0,
+			afterRequery: 1,
+			events: ['added=0 removed=0 changed=here'],
+		});
+	});
+
 	test('lists the sessions on GitHub of the repositories of the folders\' origin, on any branch, and every session in an empty window', () => {
 		const onGitHub = (id: string, path: string) => {
 			const root = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path });
