@@ -111,7 +111,6 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
 		content.push(localize('sessionsChat.newSessionDrag', "To move a new-session pane before sending a prompt, drag its blank top area beside another pane. The session grid movement commands also work on new-session panes."));
-		content.push(localize('sessionsChat.cloudAvailability', "Cloud creation options are hidden when your account does not allow creating cloud sessions. Existing cloud sessions remain in the Sessions list."));
 
 		if (!isWeb && configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.environmentPicker.beforeWorkspace', "Above the new-session input, Environment is before Workspace and remains visible when session options are collapsed."));

@@ -1218,9 +1218,12 @@ suite('CopilotChatSessionsProvider', () => {
 			disposables.add(provider.onDidChangeSessionTypes(() => sessionTypeChanges++));
 			disposables.add(provider.onDidChangeCapabilities(() => capabilityChanges++));
 			const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+			const workspaceProvider: ISessionsProvider = provider;
 			const availability = () => ({
 				environments: getSessionCreationEnvironments([provider]).map(environment => environment.id),
 				sessionTypes: provider.getSessionTypes(workspace).map(type => type.id),
+				advertisedTypes: provider.sessionTypes.map(type => type.id),
+				workspaceSelection: workspaceProvider.supportsWorkspaceSelection !== false,
 				quickChats: provider.supportsQuickChats,
 				history: provider.getSessions().map(session => session.sessionId),
 			});
@@ -1233,15 +1236,42 @@ suite('CopilotChatSessionsProvider', () => {
 			const available = {
 				environments: ['cloud'],
 				sessionTypes: [providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id],
+				advertisedTypes: [providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id],
+				workspaceSelection: true,
 				quickChats: true,
 				history: existing.map(session => session.sessionId),
 			};
 			assert.deepStrictEqual({
 				snapshots, sessionTypeChanges, capabilityChanges,
 			}, {
-				snapshots: [available, { environments: [], sessionTypes: [], quickChats: false, history: available.history }, available, available],
-				sessionTypeChanges: 3, capabilityChanges: 3,
+				snapshots: [available, { ...available, environments: [], sessionTypes: [], advertisedTypes: [], quickChats: false }, available, available],
+				sessionTypeChanges: 2, capabilityChanges: 2,
 			});
+		});
+
+		test(`refreshes cloud creation choices after delayed account initialization (${providerMode})`, async () => {
+			const initialization = new DeferredPromise<IDefaultAccount | null>();
+			let account: IDefaultAccount | null = null;
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override get currentDefaultAccount() { return account; }
+				override getDefaultAccount() { return initialization.p; }
+			}();
+			const provider = createProvider(disposables, model, { providerMode, defaultAccountService });
+			const before = getSessionCreationEnvironments([provider]).map(environment => environment.id);
+			const changes: string[][] = [];
+			let capabilityChanges = 0;
+			disposables.add(provider.onDidChangeSessionTypes(() => changes.push(getSessionCreationEnvironments([provider]).map(environment => environment.id))));
+			disposables.add(provider.onDidChangeCapabilities(() => capabilityChanges++));
+			account = upcastPartial<IDefaultAccount>({
+				entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: false }),
+			});
+			await initialization.complete(account);
+
+			assert.deepStrictEqual({
+				before, changes, capabilityChanges,
+				after: getSessionCreationEnvironments([provider]).map(environment => environment.id),
+			}, { before: ['cloud'], changes: [[]], capabilityChanges: 1, after: [] });
 		});
 
 		test(`disabled cloud session entitlement rejects new and stale drafts (${providerMode})`, async () => {

@@ -789,6 +789,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
+		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
+			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
+		}
 		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
 
 		if (options.background) {

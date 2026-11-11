@@ -1086,6 +1086,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly order = 0;
 
 	get sessionTypes(): readonly ISessionType[] {
+		if (!this._cloudSessionsEnabled) {
+			return [];
+		}
 		return this.providerMode === 'sandbox' ? [CopilotSandboxSessionType] : [CopilotCloudSessionType];
 	}
 
@@ -1134,7 +1137,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}>();
 	private readonly _localGitRepositoryResolutionStarted = new Set<string>();
 
-	get supportsWorkspaceSelection(): boolean {
+	private get _cloudSessionsEnabled(): boolean {
 		return this.defaultAccountService.currentDefaultAccount?.entitlementsData?.cloud_sessions_enabled !== false;
 	}
 
@@ -1143,7 +1146,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	get supportsAutomationSessionConfiguration(): boolean { return this.providerMode === 'default' && this.automations?.enabled.get() === true; }
 
 	get supportsQuickChats(): boolean {
-		return this.supportsWorkspaceSelection && isCloudSandboxEnabled(this.configurationService) && !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+		return this._cloudSessionsEnabled && isCloudSandboxEnabled(this.configurationService) && !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 	}
 
 	constructor(
@@ -1176,10 +1179,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 		}));
 		this._loadCreatedBySessions();
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+		let cloudSessionsEnabled = this._cloudSessionsEnabled;
+		const updateAvailability = () => {
+			if (this._store.isDisposed || cloudSessionsEnabled === this._cloudSessionsEnabled) {
+				return;
+			}
+			cloudSessionsEnabled = this._cloudSessionsEnabled;
 			this._onDidChangeSessionTypes.fire();
 			this._onDidChangeCapabilities.fire();
-		}));
+		};
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(updateAvailability));
+		void this.defaultAccountService.getDefaultAccount().then(updateAvailability, error => {
+			this.logService.error('[CopilotChatSessionsProvider] Failed to initialize account:', error);
+		});
 		if (providerMode === 'default') {
 			this.automations = this._register(this.instantiationService.createInstance(CloudAutomationStore, this.id, CopilotCloudSessionType.id, async uri => {
 				if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
@@ -1319,7 +1331,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	// -- Sessions --
 
 	getSessionTypes(workspaceUri: URI): ISessionType[] {
-		if (!this.supportsWorkspaceSelection) {
+		if (!this._cloudSessionsEnabled) {
 			return [];
 		}
 		if (this.providerMode === 'sandbox') {
@@ -1473,7 +1485,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	prepareNewSessionWhileComposing(sessionId: string): void {
 		const session = this._newSessions.get(sessionId);
-		if (!session || session.isNewSessionRequestInProgress.get() || !this.supportsWorkspaceSelection) {
+		if (!session || session.isNewSessionRequestInProgress.get() || !this._cloudSessionsEnabled) {
 			return;
 		}
 		const repoNwo = session.repoNwo;
@@ -1995,7 +2007,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _assertCloudSessionsEnabled(): void {
-		if (!this.supportsWorkspaceSelection) {
+		if (!this._cloudSessionsEnabled) {
 			throw new Error(localize('cloudSessions.unavailable', "Cloud session creation is not available for your account."));
 		}
 	}

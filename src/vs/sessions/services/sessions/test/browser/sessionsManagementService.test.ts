@@ -6534,6 +6534,46 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(service.getInFlightNewSessionRequests(), []);
 	});
 
+	for (const background of [false, true]) {
+		for (const quickChat of [false, true]) {
+			test(`rejects an unavailable ${quickChat ? 'quick-chat' : 'workspace'} type before consuming a ${background ? 'background' : 'foreground'} draft`, async () => {
+				const session = stubSession({
+					sessionId: 'draft', providerId: 'test',
+					status: constObservable(SessionStatus.Untitled),
+					isQuickChat: constObservable(quickChat),
+				});
+				const calls: string[] = [];
+				const provider = new class extends TestSessionsProvider {
+					override readonly sessionTypes: ISessionType[] = [{ id: 'test', label: 'Test', icon: Codicon.vm, authRequirement: SessionTypeAuthRequirement.GitHub }];
+					override readonly supportsQuickChats = true;
+					override createQuickChat() { return session; }
+					override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+						return { uri: folderUri, label: 'Workspace', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+					}
+					override async prepareNewSession(): Promise<never> {
+						calls.push('prepare');
+						throw new Error('unavailable');
+					}
+					override deleteNewSession() { calls.push('delete'); }
+					override async sendRequest() { calls.push('send'); return session; }
+				}(session);
+				const { service } = createSessionsManagementService(session, disposables, provider);
+				const draft = quickChat ? service.createQuickChat() : service.createNewSession(URI.file('/workspace'));
+				provider.sessionTypes.splice(0);
+				const draftChanges: (string | undefined)[] = [];
+				disposables.add(autorun(reader => draftChanges.push(service.newSession.read(reader)?.sessionId)));
+
+				await assert.rejects(service.sendNewChatRequest(draft, { query: 'keep my prompt', background }), /Test is no longer available for new sessions/);
+
+				assert.deepStrictEqual({
+					calls, draftChanges,
+					draft: service.newSession.get()?.sessionId,
+					inFlight: service.getInFlightNewSessionRequests(),
+				}, { calls: [], draftChanges: ['draft'], draft: 'draft', inFlight: [] });
+			});
+		}
+	}
+
 	test('sendNewChatRequest with background resolves before preparation and routes the replacement in the background', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
