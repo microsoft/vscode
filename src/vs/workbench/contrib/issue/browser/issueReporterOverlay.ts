@@ -296,7 +296,7 @@ export class IssueReporterOverlay {
 		this.previewButton = this.disposables.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
 		this.previewButton.element.classList.add('wizard-preview');
 		this.disposables.add(this.previewButton.onDidClick(() => void this.submit()));
-		this.previewConsent = append(this.formContent, $('p.wizard-subtitle'));
+		this.previewConsent = append(this.formContent, $('p.wizard-subtitle.wizard-preview-consent'));
 
 		this.registerAttachmentInput();
 		if (this.data.extensionId) {
@@ -1406,9 +1406,12 @@ export class IssueReporterOverlay {
 				: this.generatingTitleForPreview ? `$(loading~spin) ${localize('generatingPreviewTitle', "Generating title...")}`
 					: external ? localize('openExternalIssueReporter', "Open External Issue Reporter")
 						: localize('previewOnGitHub', "Preview on GitHub");
-		this.previewConsent.textContent = external
-			? localize('externalReporterConsent', "Opens the extension's issue reporter without sending this report or its attachments.")
-			: localize('previewConsent', "Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.");
+		// The simple layout leaves out what a preview on GitHub does, but still says that an external reporter does not get this report.
+		const consent = external ? localize('externalReporterConsent', "Opens the extension's issue reporter without sending this report or its attachments.")
+			: this.simpleLayout ? ''
+				: localize('previewConsent', "Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.");
+		this.previewConsent.textContent = consent;
+		this.previewConsent.hidden = !consent;
 		this.previewButton.enabled = this.canSubmit();
 		this.previewButton.element.title = this.previewButton.enabled ? this.previewButton.label
 			: waitingForData ? localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading")

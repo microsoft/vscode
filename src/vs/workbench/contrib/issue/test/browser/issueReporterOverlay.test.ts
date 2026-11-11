@@ -1325,6 +1325,7 @@ suite('IssueReporterOverlay', () => {
 				title: container.querySelector('.wizard-title-field label')?.textContent,
 				titlePlaceholder: container.querySelector<HTMLInputElement>('.wizard-title-field input')?.placeholder,
 				guidance: container.querySelector<HTMLTextAreaElement>('.wizard-description-input')?.placeholder,
+				previewNote: container.querySelector<HTMLElement>('.wizard-preview-consent:not([hidden])')?.textContent,
 			};
 		}
 
@@ -1335,20 +1336,24 @@ suite('IssueReporterOverlay', () => {
 				detailed: describeForm(createReporter().container),
 				simple: describeForm(createReporter({}, { layout: 'simple' }).container),
 				simpleExtensionReportShowsTarget: !extensionReport.container.querySelector<HTMLElement>('.wizard-classification')!.hidden,
+				simpleExternalReportNote: describeForm(createReporter({ uri: URI.parse('https://example.com/issues/new') }, { layout: 'simple' }).container).previewNote,
 			}, {
 				detailed: {
 					order: ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-preview'],
 					title: 'Title*',
 					titlePlaceholder: 'E.g. Workbench is missing problems panel',
 					guidance: 'Describe what happened, the steps to reproduce, what you expected, and what you observed instead.\nMarkdown formatting is supported.',
+					previewNote: 'Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.',
 				},
 				simple: {
 					order: ['wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-simple-diagnostics', 'wizard-simple-destination', 'wizard-preview'],
 					title: 'Title (optional)',
 					titlePlaceholder: 'Leave empty to generate a title from the description',
 					guidance: 'Describe what you saw. A sentence or two is enough.\nMarkdown formatting is supported.',
+					previewNote: undefined,
 				},
 				simpleExtensionReportShowsTarget: true,
+				simpleExternalReportNote: 'Opens the extension\'s issue reporter without sending this report or its attachments.',
 			});
 		});
 
