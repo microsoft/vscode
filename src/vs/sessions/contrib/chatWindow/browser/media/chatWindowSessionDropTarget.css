@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-window-session-drop-overlay {
-	position: absolute;
+	position: fixed;
 	z-index: 10000;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
 }
 
 .chat-window-session-drop-overlay > .chat-window-session-drop-overlay-indicator {

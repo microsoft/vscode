@@ -47,6 +47,9 @@ suite('Chat Window Session Drop Target', () => {
 		const services = workbenchInstantiationService(undefined, store);
 		services.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSession(resource: URI) { return resource.toString() === sessionResource.toString() ? createSession(archived) : undefined; }
+			override getSessionForChatResource(resource: URI) {
+				return resource.toString() === chatResource.toString() ? { session: createSession(archived), chat: createSession(archived).mainChat.get() } : undefined;
+			}
 		}());
 		services.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override getWindow() { return {} as ReturnType<IChatWindowService['getWindow']>; }
@@ -56,11 +59,17 @@ suite('Chat Window Session Drop Target', () => {
 			}
 		}());
 		const element = $('.chat-view');
-		element.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		element.style.cssText = 'width:400px;height:300px;';
 		mainWindow.document.body.appendChild(element);
 		store.add(toDisposable(() => element.remove()));
 		store.add(services.createInstance(ChatWindowSessionDropTarget, element, () => openChatResource));
 		return { element, opened };
+	}
+
+	function chatDragData(): DataTransfer {
+		const dataTransfer = new DataTransfer();
+		fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), 'session', chatResource);
+		return dataTransfer;
 	}
 
 	const overlaySelector = '.chat-window-session-drop-overlay';
@@ -112,6 +121,26 @@ suite('Chat Window Session Drop Target', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ overlay: !!element.querySelector(overlaySelector), opened }, { overlay: false, opened: [] });
+	});
+
+	test('an archived chat dragged as a tab shows where it opens, but a drop opens nothing', async () => {
+		const { element, opened } = setup(true);
+		const dataTransfer = new DataTransfer();
+		fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), 'session', chatResource);
+
+		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		element.querySelector<HTMLElement>(overlaySelector)?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual(opened, []);
+	});
+
+	test('the overlay covers exactly the chat, wherever the chat is', () => {
+		const { element } = setup();
+		element.style.cssText = 'position:fixed;left:30px;top:40px;width:400px;height:300px;';
+		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: chatDragData() }));
+		const bounds = element.querySelector<HTMLElement>(overlaySelector)?.getBoundingClientRect();
+		assert.deepStrictEqual(bounds && { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }, { left: 30, top: 40, width: 400, height: 300 });
 	});
 
 	test('files dragged over the chat show no indicator', () => {

@@ -43,6 +43,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fillSessionChatDragData } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { Verbosity } from '../../../../../workbench/common/editor.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
@@ -245,6 +246,23 @@ suite('Session chat view editor', () => {
 	test('a chat of another window dragged over a chat editor shows where it opens, and opens beside the chat of the editor on drop', async () => {
 		const { instantiationService } = createServices();
 		const opened: { chat: string; tabOf: string | undefined }[] = [];
+		const other = createTestActiveSession('other');
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionTypes = Event.None;
+			override getSessionForChatResource() {
+				const chat = new class extends mock<IChat>() {
+					override readonly resource = other.mainChat.get().resource;
+					override readonly isArchived = constObservable(false);
+				}();
+				const session = new class extends mock<ISession>() {
+					override readonly loading = constObservable(false);
+					override readonly chats = constObservable([chat]);
+					override readonly mainChat = constObservable(chat);
+				}();
+				return { session, chat };
+			}
+		}());
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override getWindow() { return {} as ReturnType<IChatWindowService['getWindow']>; }
 			override async open(chat: URI, options?: IChatWindowOpenOptions) {

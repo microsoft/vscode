@@ -43,8 +43,6 @@ export class ChatWindowSessionDropTarget extends Themable {
 		super(themeService);
 
 		this._register(addDisposableListener(this._element, EventType.DRAG_ENTER, e => this._onDragEnter(e)));
-		const window = getWindow(this._element);
-		this._register(addDisposableListener(window, EventType.DRAG_END, () => this._hideOverlay()));
 	}
 
 	private _isSessionDrag(e: DragEvent): boolean {
@@ -90,6 +88,11 @@ export class ChatWindowSessionDropTarget extends Themable {
 		const store = new DisposableStore();
 		this._overlayStore.value = store;
 		const overlay = $('.chat-window-session-drop-overlay');
+		const bounds = this._element.getBoundingClientRect();
+		overlay.style.left = `${bounds.left}px`;
+		overlay.style.top = `${bounds.top}px`;
+		overlay.style.width = `${bounds.width}px`;
+		overlay.style.height = `${bounds.height}px`;
 		overlay.style.clipPath = getChatReferenceDropClipPath(this._element, e);
 		const indicator = $('.chat-window-session-drop-overlay-indicator');
 		indicator.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
@@ -101,6 +104,7 @@ export class ChatWindowSessionDropTarget extends Themable {
 		overlay.appendChild(indicator);
 		this._element.appendChild(overlay);
 		store.add(toDisposable(() => overlay.remove()));
+		store.add(addDisposableListener(getWindow(this._element), EventType.DRAG_END, () => this._hideOverlay()));
 		store.add(new DragAndDropObserver(overlay, {
 			onDragOver: ev => {
 				if (ev.dataTransfer) {
@@ -125,7 +129,11 @@ export class ChatWindowSessionDropTarget extends Themable {
 		const chats: URI[] = [];
 		const chat = getSessionChatDragData(e);
 		if (chat) {
-			chats.push(URI.parse(chat.resource));
+			const resource = URI.parse(chat.resource);
+			const found = this._sessionsManagementService.getSessionForChatResource(resource);
+			if (found && !isChatWindowChatGone(found.session, resource, undefined)) {
+				chats.push(resource);
+			}
 		} else {
 			const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype) ?? [];
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
