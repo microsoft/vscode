@@ -443,8 +443,9 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The requestAnimationFrame function that made the pending request. A test that fakes
 	 * requestAnimationFrame and restores it before the frame fires leaves that request pending forever.
+	 * Held weakly, so a removed iframe's realm is not kept alive by a request that never fires.
 	 */
-	const animFrameRequestedWith = new Map<number /* window ID */, Window['requestAnimationFrame']>();
+	const animFrameRequestedWith = new Map<number /* window ID */, WeakRef<Window['requestAnimationFrame']>>();
 	/**
 	 * The token of the pending queue. Every request made for it carries this token: the first callback that fires runs the
 	 * queue, and callbacks of other requests for it, which can fire later or in the same frame, do nothing.
@@ -509,11 +510,11 @@ class AnimationFrameQueueItem implements IDisposable {
 		if (!animFrameRequested.get(targetWindowId)) {
 			animFrameRequested.set(targetWindowId, true);
 			animFrameRequestToken.set(targetWindowId, ++lastAnimFrameRequestToken);
-		} else if (animFrameRequestedWith.get(targetWindowId) === targetWindow.requestAnimationFrame) {
+		} else if (animFrameRequestedWith.get(targetWindowId)?.deref() === targetWindow.requestAnimationFrame) {
 			return item;
 		}
 		const token = animFrameRequestToken.get(targetWindowId)!;
-		animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
+		animFrameRequestedWith.set(targetWindowId, new WeakRef(targetWindow.requestAnimationFrame));
 		targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId, token));
 
 		return item;
