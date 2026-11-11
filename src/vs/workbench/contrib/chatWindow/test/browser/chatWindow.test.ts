@@ -107,6 +107,12 @@ suite('Chat window', () => {
 			this.onActiveEditorChange.fire({ editor: this._active });
 			return undefined;
 		}
+		override async openEditors(editors: { editor: EditorInput; options?: { inactive?: boolean } }[]) {
+			for (const [index, { editor, options }] of editors.entries()) {
+				await this.openEditor(editor, index ? { ...options, inactive: true } : options);
+			}
+			return undefined;
+		}
 		readonly immovable = new Set<EditorInput>();
 		/** Opens nothing, as a group whose open is cancelled; and closes nothing, as one whose close is vetoed. */
 		refuseOpen = false;
@@ -846,6 +852,65 @@ suite('Chat window', () => {
 			tab: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
 			beside: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a'], ['/c']] },
 			background: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
+		});
+	});
+
+	test('a chat opened in a window with editors resolved for it, such as those stashed for its session, opens them in the window\'s main part once the window takes the chat, with the active one active and one the window shows already not twice; not when the window does not take the chat', async () => {
+		const opened = async (when?: 'file in window' | 'not taken' | 'refused' | 'second active') => {
+			const { service, windows: [target] } = createService(['a']);
+			const file = editor();
+			const notes = editor();
+			target.main.group.honorsInactive = true;
+			if (when === 'file in window') {
+				target.main.group.open(file);
+			}
+			if (when === 'refused') {
+				target.main.group.refuseOpen = true;
+			}
+			if (when === 'not taken') {
+				Reflect.set(target.window.content, 'resolveChat', async () => undefined);
+			}
+			await service.open(URI.parse('test:/c'), { window: target.window, editors: { editors: [file, notes], activeEditor: when === 'second active' ? notes : file } });
+			const name = (input: EditorInput) => input === file ? 'file' : 'notes';
+			return { editors: target.main.group.testEditors.map(name), active: target.main.group.activeEditor && name(target.main.group.activeEditor) };
+		};
+
+		assert.deepStrictEqual({
+			taken: await opened(),
+			fileInWindow: await opened('file in window'),
+			notTaken: await opened('not taken'),
+			refused: await opened('refused'),
+			secondActive: await opened('second active'),
+		}, {
+			taken: { editors: ['file', 'notes'], active: 'file' },
+			fileInWindow: { editors: ['file', 'notes'], active: 'file' },
+			notTaken: { editors: [], active: null },
+			refused: { editors: [], active: null },
+			secondActive: { editors: ['file', 'notes'], active: 'notes' },
+		});
+	});
+
+	test('the editors a chat brings along into a window, the active one that is not the first included, do not count as an editor the user opens: a window showing only its chat stays so', async () => {
+		const opened = async (when: 'second active' | 'user opens after') => {
+			const { service, windows: [target] } = createService(['a']);
+			target.main.group.honorsInactive = true;
+			target.window.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+			const file = editor();
+			const notes = editor();
+			await service.open(URI.parse('test:/c'), { window: target.window, editors: { editors: [file, notes], activeEditor: when === 'second active' ? notes : file } });
+			const handedOver = target.window.layoutMode.get();
+			if (when === 'user opens after') {
+				target.main.group.open(editor());
+			}
+			return { handedOver, editors: target.main.group.testEditors.length, mode: target.window.layoutMode.get() };
+		};
+
+		assert.deepStrictEqual({
+			secondActive: await opened('second active'),
+			userOpensAfter: await opened('user opens after'),
+		}, {
+			secondActive: { handedOver: ChatWindowLayoutMode.ChatOnly, editors: 2, mode: ChatWindowLayoutMode.ChatOnly },
+			userOpensAfter: { handedOver: ChatWindowLayoutMode.ChatOnly, editors: 3, mode: ChatWindowLayoutMode.SideBySide },
 		});
 	});
 

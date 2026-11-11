@@ -902,6 +902,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 			if (added !== target) {
 				moveBack();
+			} else if (options?.editors?.editors?.length) {
+				await this._openEditors(options.editors, target.mainPart, target);
 			}
 			return added;
 		}
@@ -1314,6 +1316,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const group = part.activeGroup;
 		for (const editor of inputs) {
 			await chatWindow.restoreMainPartEditor(editor, () => group.openEditor(editor, { pinned: true, preserveFocus: true, inactive: editor !== active, index: group.count }));
+		}
+		const shown = active && group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.matches(active));
+		if (shown && group.activeEditor !== shown) {
+			await chatWindow.restoreMainPartEditor(shown, () => group.openEditor(shown, { pinned: true, preserveFocus: true }));
 		}
 	}
 
