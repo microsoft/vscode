@@ -881,6 +881,15 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/** Reads the session chat flag of the widget whose scoped instantiation service creates it. */
+class SessionsChatScope {
+	readonly isSessionsChat: boolean;
+
+	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+		this.isSessionsChat = !!ChatContextKeys.inSessionsChat.getValue(contextKeyService);
+	}
+}
+
 class EditorOpenSubagentChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.editorOpenSubagentChatActionViewItem';
 
@@ -895,7 +904,7 @@ class EditorOpenSubagentChatActionViewItemContribution extends Disposable implem
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, (action, options, instantiationService) => {
 			// A session chat opens its subagents' chats as the Agents window does, whatever window shows it
-			if (!(action instanceof MenuItemAction) || instantiationService.invokeFunction(accessor => ChatContextKeys.inSessionsChat.getValue(accessor.get(IContextKeyService)))) {
+			if (!(action instanceof MenuItemAction) || instantiationService.createInstance(SessionsChatScope).isSessionsChat) {
 				return undefined;
 			}
 			return instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
