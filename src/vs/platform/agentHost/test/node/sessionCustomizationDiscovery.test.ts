@@ -657,6 +657,25 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	});
 
+	test('marks plugins the runtime registers as built in', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({
+			hooks: ['computer-use', 'installed'].map(name => ({ id: `${name}-hook`, hookType: 'sessionStart', origin: 'plugin', source: name, enabled: true, pluginId: name })),
+			errors: [], warnings: [],
+		}));
+		client.rpc.plugins.list = async () => ({
+			plugins: [
+				{ id: 'computer-use', name: 'computer-use', marketplace: '', enabled: true, rootPath: '/plugins/computer-use', source: 'builtin' },
+				{ id: 'installed', name: 'installed', marketplace: 'public', enabled: true, rootPath: '/plugins/installed' },
+			],
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, readCustomizationDiscoveryMeta(plugin)?.source])), {
+			'computer-use': 'builtin',
+			installed: undefined,
+		});
+	});
+
 	test('marks agent instruction rule sources as always apply', async () => {
 		await seed('/workspace/AGENTS.md', 'workspace agents instructions');
 		await seed('/workspace/.github/instructions/rule.instructions.md', 'scoped instruction');

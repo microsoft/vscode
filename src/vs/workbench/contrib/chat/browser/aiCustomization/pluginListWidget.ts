@@ -30,6 +30,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
@@ -710,7 +711,8 @@ function formatContributionLabel(count: number, singular: string, plural: string
 }
 
 function getRemotePluginStatusLabel(item: ICustomizationItem): string {
-	if (item.enabled === false) {
+	const hasEnablementToggle = item.actions?.some(action => action.checked !== undefined);
+	if (item.enabled === false && !hasEnablementToggle) {
 		return getRemotePluginDisabledLabel(item);
 	}
 
@@ -718,7 +720,7 @@ function getRemotePluginStatusLabel(item: ICustomizationItem): string {
 		case 'loading':
 			return localize('remotePluginLoading', "Loading");
 		case 'loaded':
-			return localize('remotePluginLoaded', "Loaded");
+			return hasEnablementToggle ? '' : localize('remotePluginLoaded', "Loaded");
 		case 'degraded':
 			return localize('remotePluginDegraded', "Warning");
 		case 'error':
@@ -729,6 +731,9 @@ function getRemotePluginStatusLabel(item: ICustomizationItem): string {
 }
 
 function getRemotePluginStatusDescription(item: ICustomizationItem): string {
+	if (item.statusMessage && item.actions?.some(action => action.checked !== undefined)) {
+		return item.statusMessage;
+	}
 	const label = getRemotePluginStatusLabel(item);
 	return label && item.statusMessage
 		? localize('remotePluginStatusWithMessage', "{0}: {1}", label, item.statusMessage)
@@ -738,7 +743,7 @@ function getRemotePluginStatusDescription(item: ICustomizationItem): string {
 function renderRemotePluginStatusIcon(statusIcon: HTMLElement, item: ICustomizationItem, hoverService: IHoverService, disposables: DisposableStore): void {
 	statusIcon.className = 'plugin-list-item-status-icon';
 	statusIcon.style.display = 'none';
-	if (item.enabled === false) {
+	if (item.enabled === false && !item.actions?.some(action => action.checked !== undefined)) {
 		return;
 	}
 
@@ -768,7 +773,9 @@ function getRemotePluginAriaLabel(item: ICustomizationItem): string {
 	const label = statusDescription
 		? localize('pluginSessionItemAriaLabelWithStatus', "{0}. Agent host. Status: {1}", nameAndDescription, statusDescription)
 		: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
-	return withOrganizationManagedAriaLabel(label, item.organizationControl);
+	const reason = item.actions?.find(action => action.checked !== undefined && action.enabled === false)?.tooltip;
+	const enablementLabel = reason ? localize('pluginEnablementUnavailableAria', "{0}. {1}", label, reason) : label;
+	return withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl);
 }
 
 function getInstalledPluginContributionSummary(item: IInstalledPluginItem): string | undefined {
@@ -790,7 +797,7 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 
 export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
 	await setAgentPluginEnablement(plugin, model, state);
-	return model.readEnabled(plugin.uri.toString());
+	return plugin.copilotCliInstallation ? plugin.enablement.get() : model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -1478,6 +1485,7 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 		actions.style.display = '';
+		this.renderRemotePluginToggle(item, actions, disposables);
 		const more = disposables.add(new Button(actions, {
 			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
@@ -1495,6 +1503,37 @@ export class PluginListWidget extends Disposable {
 			DOM.EventHelper.stop(event, true);
 			this.showRemotePluginActions(item, more.element);
 		}));
+	}
+
+	private renderRemotePluginToggle(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore): HTMLElement | undefined {
+		const action = item.actions?.find(action => action.checked !== undefined);
+		if (!action) {
+			return undefined;
+		}
+		const label = localize('pluginEnablementAria', "Plugin enablement for {0}. {1}", item.name, action.tooltip ?? action.label);
+		const toggle = disposables.add(new CustomizationToggle({
+			ariaLabel: label,
+			checked: action.checked,
+			disabled: action.enabled === false,
+			title: false,
+		}));
+		DOM.append(actions, toggle.domNode);
+		disposables.add(this.hoverService.setupDelayedHover(toggle.domNode, {
+			content: action.tooltip ?? action.label,
+			style: HoverStyle.Pointer,
+		}));
+		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
+		disposables.add(toggle.onChange(async () => {
+			toggle.disabled = true;
+			try {
+				await action.run();
+			} catch (error) {
+				toggle.checked = action.checked ?? false;
+				toggle.disabled = action.enabled === false;
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			}
+		}));
+		return toggle.domNode;
 	}
 
 	private layoutPluginSectionLists(): void {
@@ -1901,8 +1940,13 @@ export class PluginListWidget extends Disposable {
 		const statusIcon = DOM.append(row, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		renderRemotePluginStatusIcon(statusIcon, item, this.hoverService, this.cardDisposables);
 		let more: Button | undefined;
+		const rowActions: HTMLElement[] = [];
 		if (item.actions?.length) {
 			const actions = DOM.append(row, $('.plugin-list-item-action'));
+			const toggle = this.renderRemotePluginToggle(item, actions, this.cardDisposables);
+			if (toggle) {
+				rowActions.push(toggle);
+			}
 			const moreButton = this.cardDisposables.add(new Button(actions, {
 				...getButtonStyles({
 					buttonSecondaryBackground: undefined,
@@ -1918,12 +1962,13 @@ export class PluginListWidget extends Disposable {
 			this.rememberCardFocusElement(moreButton.element);
 			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
 			more = moreButton;
+			rowActions.push(moreButton.element);
 		}
 		this.cardListControllers.get(parent)?.addItem({
 			row,
 			primaryAction: row,
 			label: item.name,
-			actions: more ? [more.element] : [],
+			actions: rowActions,
 			contextMenuAction: more?.element,
 		});
 	}
@@ -2446,16 +2491,18 @@ export class PluginListWidget extends Disposable {
 		return actions;
 	}
 
-	private getRemotePluginActions(item: ICustomizationItem): IAction[] {
-		const actions: IAction[] = [];
+	private getRemotePluginActions(item: ICustomizationItem): Action[] {
+		const actions: Action[] = [];
 		for (const itemAction of item.actions ?? []) {
-			actions.push(new Action(
+			const action = new Action(
 				itemAction.id,
 				itemAction.label,
 				itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
 				itemAction.enabled !== false,
 				() => itemAction.run(),
-			));
+			);
+			action.tooltip = itemAction.tooltip ?? '';
+			actions.push(action);
 		}
 		return actions;
 	}
@@ -2470,9 +2517,11 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private showRemotePluginActions(item: ICustomizationItem, anchor: HTMLElement): void {
+		const disposables = new DisposableStore();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this.getRemotePluginActions(item),
+			getActions: () => this.getRemotePluginActions(item).map(action => disposables.add(action)),
+			onHide: () => disposables.dispose(),
 		});
 	}
 
@@ -2485,7 +2534,7 @@ export class PluginListWidget extends Disposable {
 		const disposables = new DisposableStore();
 		const actions = entry.type === 'plugin-item'
 			? this.getInstalledPluginActions(entry.item, disposables)
-			: this.getRemotePluginActions(entry.item);
+			: this.getRemotePluginActions(entry.item).map(action => disposables.add(action));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

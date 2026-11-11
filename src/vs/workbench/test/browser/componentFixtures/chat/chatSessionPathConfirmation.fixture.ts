@@ -36,13 +36,14 @@ async function renderConfirmation(context: ComponentFixtureContext, scenario: Sc
 	const invocation = toolCallStateToInvocation({
 		toolCallId: 'session-grant', toolName: scenario === 'terminal' ? 'shell' : 'read_file',
 		displayName: scenario === 'terminal' ? 'Shell' : 'Read file', status: ToolCallStatus.PendingConfirmation,
-		confirmationTitle: 'Add to user sandbox settings and retry?',
+		confirmationTitle: 'Allow sandbox path access and retry?',
 		invocationMessage: {
-			markdown: `${display.isCurrentSession ? `Allow read access to \`${display.relativePath}\` in this session's storage.` : `Allow read access to \`${display.label}\` and retry inside the sandbox.`}\n\nAccess will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.`,
+			markdown: `${display.isCurrentSession ? `Allow read access to \`${display.relativePath}\` in this session's storage.` : `Allow read access to \`${display.label}\` and retry inside the sandbox.`}\n\nSession access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization's restrictions still apply.`,
 		},
 		toolInput: scenario === 'terminal' ? 'Get-Content notes.txt' : JSON.stringify({ path }),
 		options: [
-			{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: 'save-sandbox-path', label: 'Allow for This User', kind: ConfirmationOptionKind.Approve, group: 1 },
 			{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
 		],
 		_meta: {

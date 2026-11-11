@@ -138,7 +138,9 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import { withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
-import { SAVE_SANDBOX_PATH } from '../../common/sandboxPathGrant.js';
+import { ISessionSandboxPaths, SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, SESSION_SANDBOX_PATHS_KEY } from '../../common/sandboxPathGrant.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { ISessionSandboxPathService, SessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
@@ -1451,6 +1453,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** The chat's own config values, applied over `configValues` for this session's chat only. */
 	chatConfigValues?: Record<string, unknown>;
 	sessionDatabase?: ISessionDatabase;
+	sandboxPathStateStore?: IAgentHostSessionStateStore;
 	sessionDataService?: ISessionDataService;
 	editServices?: { readonly attribution: IAgentEditAttributionService; readonly survival: IEditSurvivalReporterFactory };
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
@@ -1548,6 +1551,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatConfigUpdates: ReadonlyArray<{ chat: string; patch: Record<string, unknown> }>;
 	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
 	sandboxResults: Array<boolean | string | undefined>;
+	sandboxPathMetadata: ReadonlyMap<string, string>;
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
 	customizationEnablementService: IAgentHostCustomizationEnablementService;
@@ -1748,6 +1752,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		fireSessionConfigChange: (config, session = sessionUri.toString()) => sessionConfigEmitter.fire({ session, config, origin: { clientId: 'test', clientSeq: 1 } }),
 	};
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
+	let sessionSandboxPaths: ISessionSandboxPaths | undefined;
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
 		copilotM365EnabledAtStartup: false,
@@ -1778,6 +1783,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
 		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => options?.sandboxPolicy,
+		getSessionSandboxPaths: () => sessionSandboxPaths,
+		setSessionSandboxPaths: (session, paths) => {
+			sessionSandboxPaths = paths;
+			sessionConfigEmitter.fire({ session, config: { [SESSION_SANDBOX_PATHS_CHANGED]: paths }, origin: undefined });
+		},
 		getSessionSandboxEnabled: () => sandboxEnabled,
 		setSessionSandboxPolicy: () => { },
 		getChatSandboxEnabled: () => sandboxEnabled,
@@ -1806,6 +1816,19 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
+	const sandboxPathMetadata = new Map<string, string>();
+	services.set(ISessionSandboxPathService, new SessionSandboxPathService(options?.sandboxPathStateStore ?? new class extends mock<IAgentHostSessionStateStore>() {
+		override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return sandboxPathMetadata; }
+		override async update(_session: URI, key: string, updater: (previous: string | undefined) => string | null): Promise<number> {
+			const value = updater(sandboxPathMetadata.get(key));
+			if (value === null) {
+				sandboxPathMetadata.delete(key);
+			} else {
+				sandboxPathMetadata.set(key, value);
+			}
+			return 1;
+		}
+	}(), fakeConfigurationService));
 	const stateManager = disposables.add(new class extends AgentHostStateManager {
 		readonly dispatchedActions: StateAction[] = [];
 		override dispatchServerAction(channel: string, action: StateAction): void {
@@ -1991,6 +2014,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		chatConfigUpdates,
 		rootConfigUpdates,
 		sandboxResults,
+		sandboxPathMetadata,
 		...configuration,
 		dispatchSessionAction: action => {
 			stateManager.dispatchServerAction(sessionUri.toString(), action);
@@ -4746,6 +4770,29 @@ suite('CopilotAgentSession', () => {
 			source: 'user',
 			status: 'unknown',
 		}]);
+		session.dispose();
+	});
+
+	test('reports a dormant extension and lists its declared canvases without waiting for it to start', async () => {
+		const { session } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:lazy', name: 'Lazy extension', source: 'user', status: 'dormant' });
+				mock.canvases.push({
+					canvasId: 'lazy',
+					extensionId: 'user:lazy',
+					displayName: 'Lazy',
+					description: 'Declared before the extension starts.',
+				});
+			},
+		});
+
+		assert.deepStrictEqual({
+			extensions: (await session.listExtensions()).map(extension => [extension.id, extension.status]),
+			canvases: (await session.listCanvases())?.map(canvas => [canvas.canvasId, canvas.extensionSource]),
+		}, {
+			extensions: [['user:lazy', 'dormant']],
+			canvases: [['lazy', 'user']],
+		});
 		session.dispose();
 	});
 
@@ -10950,6 +10997,32 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('routes a subagent permission that precedes its tool start to the subagent', async () => {
+		const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		const request = { kind: 'shell', toolCallId: 'tc-inner', fullCommandText: './run.ps1', intention: 'Run fixture' } as const;
+		// The SDK invokes the handler before synchronously dispatching the permission event.
+		const result = runtime.handlePermissionRequest(request);
+		mockSession.fire('permission.requested', {
+			requestId: 'req-1',
+			permissionRequest: request,
+		} as SessionEventPayload<'permission.requested'>['data'], { agentId: 'agent-1' });
+
+		const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+		session.respondToPermissionRequest('tc-inner', false);
+		await result;
+
+		assert.strictEqual(confirmation.kind === 'pending_confirmation' && confirmation.parentToolCallId, 'tc-subagent');
+	});
+
 	for (const executionMode of ['sync', 'background']) {
 		test(`reports a ${executionMode} subagent model before its first usage event`, async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -14668,7 +14741,7 @@ suite('CopilotAgentSession', () => {
 				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
 				assert.strictEqual(signal.kind, 'pending_confirmation');
 				if (signal.kind !== 'pending_confirmation') { throw new Error('Expected confirmation'); }
-				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [SAVE_SANDBOX_PATH, 'skip']);
+				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [SAVE_SESSION_SANDBOX_PATH, SAVE_SANDBOX_PATH, 'skip']);
 
 				setRootValue('sandbox', { ...sandbox, 'fileSystem.userConfiguredPaths': { readonlyPaths: [], readwritePaths: ['/outside'], deniedPaths: ['/secret'] } });
 				fireRootConfigChange();
@@ -14714,6 +14787,254 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({ result: (await pending).kind, errors: sandboxResults, disabled: mockSession.sandboxDisableRequests }, {
 				result: 'reject', errors: ['The path was saved to your sandbox settings, but this request could not be retried. policy changed'], disabled: [],
 			});
+		});
+
+		for (const runtimeFails of [false, true]) {
+			test(`sandbox session path grant persists only after runtime approval (runtime fails: ${runtimeFails})`, async () => {
+				const { session, runtime, mockSession, waitForSignal, sandboxPathMetadata, sandboxResults, rootConfigUpdates, sessionConfigUpdates } = await createAgentSession(disposables, {
+					rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['/upgrade'], readwritePaths: ['/inherited'] } } },
+				});
+				const request = {
+					kind: 'write' as const, path: '/upgrade/file', toolCallId: 'session-grant', requestSandboxBypass: true,
+					sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] },
+				};
+				const pending = runtime.handlePermissionRequest(request);
+				mockSession.fire('permission.requested', { requestId: 'sdk-session-grant', permissionRequest: toPermissionRequest(request) });
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				const grant = stub(mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					assert.strictEqual(sandboxPathMetadata.get(SESSION_SANDBOX_PATHS_KEY), undefined);
+					if (runtimeFails) { throw new Error('policy changed'); }
+					return { success: true };
+				});
+				try {
+					session.respondToPermissionRequest('session-grant', true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+					const result = await pending;
+					await timeout(0);
+					const config = runtime.getLaunchSandboxConfig(false);
+					assert.deepStrictEqual({
+						result: result.kind, calls: grant.callCount,
+						stored: sandboxPathMetadata.get(SESSION_SANDBOX_PATHS_KEY),
+						writable: config?.userPolicy?.filesystem?.readwritePaths,
+						readonlyUpgrade: config?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+						errors: sandboxResults.filter(value => typeof value === 'string'),
+						rootConfigUpdates, sessionConfigUpdates,
+					}, {
+						result: runtimeFails ? 'reject' : 'no-result', calls: 1,
+						stored: runtimeFails ? undefined : JSON.stringify({ readonlyPaths: [], readwritePaths: ['/upgrade'], removedReadonlyPaths: ['/upgrade'] }),
+						writable: runtimeFails ? ['/inherited'] : ['/inherited', '/upgrade'], readonlyUpgrade: runtimeFails,
+						errors: runtimeFails ? ['policy changed'] : [],
+						rootConfigUpdates: [], sessionConfigUpdates: [],
+					});
+				} finally {
+					grant.restore();
+				}
+			});
+		}
+
+		test('sandbox session path grant save failure logs and notifies without rejecting or reverting live access', async () => {
+			const writing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const logged = new DeferredPromise<void>();
+			const logService = new class extends CapturingLogService {
+				override error(message: string | Error, ...args: unknown[]): void {
+					super.error(message, ...args);
+					if (args.some(arg => typeof arg === 'string' && arg.includes('Failed to persist session sandbox path access'))) {
+						logged.complete();
+					}
+				}
+			}();
+			const { session, runtime, mockSession, waitForSignal, sandboxResults, fireRootConfigChange } = await createAgentSession(disposables, {
+				logService,
+				rootValues: { sandbox: { enabled: 'on' } },
+				sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return new Map(); }
+					override async update(): Promise<number> {
+						writing.complete();
+						await release.p;
+						throw new Error('disk full');
+					}
+				}(),
+			});
+			const request = { kind: 'read' as const, path: '/outside', toolCallId: 'failed-save', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-failed-save', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			session.respondToPermissionRequest('failed-save', true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+			try {
+				await writing.p;
+				assert.deepStrictEqual({
+					result: (await pending).kind,
+					grants: mockSession.sandboxGrantRequests.map(grant => grant.requestId),
+					readonly: runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+				}, { result: 'no-result', grants: ['sdk-failed-save'], readonly: true });
+			} finally {
+				release.complete();
+			}
+			await logged.p;
+			fireRootConfigChange();
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual({
+				errors: sandboxResults.filter(value => typeof value === 'string'),
+				logged: logService.errors.filter(entry => entry.first instanceof Error && entry.first.message === 'disk full').length,
+				readonly: runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+				applied: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+			}, {
+				errors: ['Sandbox access was granted for this session, but could not be saved. You may need to approve it again when resuming the session. disk full'],
+				logged: 1, readonly: true, applied: true,
+			});
+		});
+
+		for (const outcome of ['accepted', 'rejected', 'save-failed'] as const) {
+			test(`sandbox User upgrade cleans an earlier Session read-only grant only after acceptance: ${outcome}`, async () => {
+				const metadata = new Map<string, string>();
+				const firstSave = new DeferredPromise<void>();
+				const cleanupSave = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const logged = new DeferredPromise<void>();
+				let writes = 0;
+				const logService = new class extends CapturingLogService {
+					override error(message: string | Error, ...args: unknown[]): void {
+						super.error(message, ...args);
+						if (message instanceof Error && message.message === 'disk full') {
+							logged.complete();
+						}
+					}
+				}();
+				const stateStore = new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return metadata; }
+					override async update(_session: URI, key: string, updater: (previous: string | undefined) => string | null): Promise<number> {
+						writes++;
+						if (writes === 2) {
+							await release.p;
+							if (outcome === 'save-failed') {
+								throw new Error('disk full');
+							}
+						}
+						const value = updater(metadata.get(key));
+						if (value !== null) {
+							metadata.set(key, value);
+						}
+						(writes === 1 ? firstSave : cleanupSave).complete();
+						return writes;
+					}
+				}();
+				const rig = await createAgentSession(disposables, {
+					logService, sandboxPathStateStore: stateStore,
+					rootValues: { sandbox: { enabled: 'on' } },
+				});
+				const read = { kind: 'read' as const, path: '/upgrade', toolCallId: 'session-read', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'read' as const } };
+				const reading = rig.runtime.handlePermissionRequest(read);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-session-read', permissionRequest: toPermissionRequest(read) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === read.toolCallId);
+				rig.session.respondToPermissionRequest(read.toolCallId, true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+				await reading;
+				await firstSave.p;
+
+				const write = { kind: 'write' as const, path: '/upgrade', toolCallId: 'user-write', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] } };
+				const writing = rig.runtime.handlePermissionRequest(write);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-user-write', permissionRequest: toPermissionRequest(write) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === write.toolCallId);
+				const userSandbox = { enabled: 'on', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/upgrade'], deniedPaths: ['/secret'] } };
+				rig.setRootValue('sandbox', userSandbox);
+				rig.fireRootConfigChange();
+				const grant = stub(rig.mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					assert.deepStrictEqual({
+						readonly: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade'),
+						writes,
+					}, { readonly: true, writes: 1 });
+					return { success: outcome !== 'rejected' };
+				});
+				let result: PermissionRequestResult;
+				try {
+					rig.session.respondToPermissionRequest(write.toolCallId, true, {
+						selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', sandboxPathGrantSaved: true,
+					});
+					result = await writing;
+				} finally {
+					release.complete();
+					grant.restore();
+				}
+				if (outcome === 'accepted') {
+					await cleanupSave.p;
+				} else if (outcome === 'save-failed') {
+					await logged.p;
+				}
+				rig.fireRootConfigChange();
+				await timeout(0);
+				const config = rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
+				let resumedConfig: SandboxConfig | undefined;
+				await createAgentSession(disposables, {
+					resume: true, sandboxPathStateStore: stateStore,
+					rootValues: { sandbox: userSandbox },
+					duringLaunch: runtime => { resumedConfig = runtime.getLaunchSandboxConfig(true); },
+				});
+				assert.deepStrictEqual({
+					result: result.kind, writes,
+					refreshedReadonly: config.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+					refreshedReadwrite: config.userPolicy?.filesystem?.readwritePaths,
+					denied: config.userPolicy?.filesystem?.deniedPaths,
+					resumedReadonly: resumedConfig?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+					stored: JSON.parse(metadata.get(SESSION_SANDBOX_PATHS_KEY)!),
+					saveErrors: rig.sandboxResults.filter(value => typeof value === 'string' && value.includes('could not be saved')),
+					loggedSaveErrors: logService.errors.filter(entry => entry.first instanceof Error && entry.first.message === 'disk full').length,
+				}, {
+					result: outcome === 'rejected' ? 'reject' : 'no-result', writes: outcome === 'rejected' ? 1 : 2,
+					refreshedReadonly: outcome === 'rejected', refreshedReadwrite: outcome === 'rejected' ? undefined : ['/upgrade'], denied: ['/secret'],
+					resumedReadonly: outcome !== 'accepted',
+					stored: { readonlyPaths: outcome === 'accepted' ? [] : ['/upgrade'], readwritePaths: [], removedReadonlyPaths: [] },
+					saveErrors: outcome === 'save-failed' ? ['Sandbox access was granted, but the removal of this session\'s previous read-only access could not be saved. You may need to approve it again when resuming the session. disk full'] : [],
+					loggedSaveErrors: outcome === 'save-failed' ? 1 : 0,
+				});
+			});
+		}
+
+		test('sandbox session paths are restored before the launcher reads its config', async () => {
+			let launchConfig: SandboxConfig | undefined;
+			await createAgentSession(disposables, {
+				resume: true,
+				rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/inherited'] } } },
+				sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> {
+						await timeout(0);
+						return new Map([[SESSION_SANDBOX_PATHS_KEY, JSON.stringify({ readonlyPaths: [], readwritePaths: ['/restored'], removedReadonlyPaths: [] })]]);
+					}
+				}(),
+				duringLaunch: runtime => { launchConfig = runtime.getLaunchSandboxConfig(true); },
+			});
+			assert.deepStrictEqual(launchConfig?.userPolicy?.filesystem?.readwritePaths, ['/inherited', '/restored']);
+		});
+
+		test('sandbox session grant keeps saving after the runtime succeeds and the turn is cancelled', async () => {
+			const writing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const saved = new DeferredPromise<void>();
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return new Map(); }
+					override async update(_session: URI, _key: string, updater: (previous: string | undefined) => string | null): Promise<number> {
+						writing.complete();
+						await release.p;
+						updater(undefined);
+						saved.complete();
+						return 1;
+					}
+				}(),
+			});
+			const request = { kind: 'read' as const, path: '/outside', toolCallId: 'queued-save', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-queued-save', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			session.respondToPermissionRequest('queued-save', true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+			await writing.p;
+			let result: PermissionRequestResult;
+			try {
+				result = await pending;
+				await session.abort();
+			} finally {
+				release.complete();
+			}
+			await saved.p;
+			assert.deepStrictEqual({ result: result.kind, grants: mockSession.sandboxGrantRequests.map(grant => grant.requestId) }, { result: 'no-result', grants: ['sdk-queued-save'] });
 		});
 
 		test('sandbox path grant is not applied after cancellation', async () => {

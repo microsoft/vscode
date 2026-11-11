@@ -52,7 +52,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
-import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getSessionPathDisplay, type ISessionPathDisplay, type ISessionPathRoot } from '../../common/sessionPathDisplay.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
@@ -151,6 +151,7 @@ import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/pr
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
 import { readMcpRoutingServers, readMcpServerSource, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
+import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace } from './copilotCustomizationCommandDisplay.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
@@ -1253,7 +1254,11 @@ export class CopilotAgentSession extends Disposable {
 		return (await this._wrapper.session.rpc.plugins.marketplaces.refresh(name ? { name } : {})).results;
 	}
 
-	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins']> {
+	/** Session-effective inventory is unavailable until the SDK backing is active. */
+	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins'] | undefined> {
+		if (!this._wrapper || this._wrapper.lifecycleState !== 'active') {
+			return undefined;
+		}
 		return (await this._wrapper.session.rpc.plugins.list()).plugins;
 	}
 
@@ -1336,6 +1341,8 @@ export class CopilotAgentSession extends Disposable {
 		mcpServerName: string | undefined;
 		reported: boolean;
 	}>();
+	/** Subagent permissions can arrive before their bridged tool start, so retain their agent IDs for routing. */
+	private readonly _permissionRequestAgentIds = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
@@ -4891,6 +4898,10 @@ export class CopilotAgentSession extends Disposable {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+				await this._sandbox.prepare();
+				if (launchCancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token, reconcile => {
 					launchConnectorReconcile = reconcile;
 				}));
@@ -5299,6 +5310,7 @@ export class CopilotAgentSession extends Disposable {
 	private _extensionStatus(status: string): AgentExtensionStatus {
 		switch (status) {
 			case 'running':
+			case 'dormant':
 			case 'disabled':
 			case 'failed':
 			case 'starting':
@@ -7888,7 +7900,7 @@ export class CopilotAgentSession extends Disposable {
 			undefined,
 			this._mcpCustomizations.pluginMcpServerSources,
 		);
-		const enabledById = getSdkMcpServerEnablement(resolved);
+		const enabledById = getSdkMcpServerEnablement(resolved, { ignoreRuntimeOwnedParents: true });
 		const candidates = new Map<string, Array<{ readonly server: McpServerCustomization; readonly applied: boolean; readonly explicit: boolean }>>();
 		const result = new Map<string, boolean>();
 		for (const customization of resolved.customizations) {
@@ -7900,18 +7912,22 @@ export class CopilotAgentSession extends Disposable {
 				const source = customization.type === CustomizationType.Plugin ? customization.uri : owningPluginSource;
 				const applied = source === undefined || this._appliedPluginSources.has(URI.parse(source).toString());
 				const defaultEnabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
-				const sdkDiscovered = defaultEnabled !== undefined;
+				const runtimeOwned = readRuntimePluginEnablement(customization) !== undefined;
+				const sdkDiscovered = defaultEnabled !== undefined || runtimeOwned;
 				// Observing SDK enablement is not a host request to change the runtime.
 				const hostDecision = sdkDiscovered ? this._customizationEnablementService.resolve(this.launchOwner.toString(), {
 					...targetForMcpServer(server, source, false), defaultEnabled: undefined,
 				}) : undefined;
+				if (runtimeOwned && hostDecision?.kind !== 'resolved') {
+					continue;
+				}
 				const hasDecision = hostDecision?.kind === 'resolved' ? hostDecision.enablement.length > 0 : (server.enablement?.length ?? 0) > 0;
 				const hostApplied = this._hostMcpServerEnablement.get(server.name);
-				const needsRestore = sdkDiscovered ? hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
+				const needsRestore = sdkDiscovered ? defaultEnabled !== undefined && hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
 				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
 					|| needsRestore || hasDecision
-					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
-				if (sdkDiscovered && !explicit && hostDecision?.kind === 'resolved') {
+					|| (customization.type === CustomizationType.Plugin && !runtimeOwned && (customization.enablement?.length ?? 0) > 0);
+				if (sdkDiscovered && !explicit && (runtimeOwned || hostDecision?.kind === 'resolved')) {
 					continue;
 				}
 				let namedCandidates = candidates.get(server.name);
@@ -8553,7 +8569,9 @@ export class CopilotAgentSession extends Disposable {
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
 			// parent session, which has no matching ChatToolCallStart.
-			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			// A subagent's permission can precede its bridged tool start, so
+			// fall back to the agent that raised the permission request.
+			const parentToolCallId = trackedToolCall?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent({ agentId: this._permissionRequestAgentIds.get(toolCallId) });
 			sandboxRequestId = this._sandbox.getPendingRequestId(toolCallId);
 			const grantPathDisplay = sandboxPathGrant && sandboxRequestId ? {
 				path: this._getSessionPathDisplay(sandboxPathGrant.path),
@@ -8628,6 +8646,9 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
 		} finally {
+			if (request.toolCallId !== undefined) {
+				this._permissionRequestAgentIds.delete(request.toolCallId);
+			}
 			if (this._sandbox.finishPermissionRequest(request.toolCallId, sandboxRequestId, sandboxPathGrant) && !this._store.isDisposed) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
@@ -8762,7 +8783,7 @@ export class CopilotAgentSession extends Disposable {
 			if (event.chat !== this._chatChannelUri.toString()) {
 				return;
 			}
-			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled) || Object.hasOwn(event.config, SESSION_SANDBOX_PATHS_CHANGED)) {
 				void this._syncPermissionModeAfterConfigChange(event);
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
@@ -9267,8 +9288,9 @@ export class CopilotAgentSession extends Disposable {
 			? responseContext.userFeedback?.trim() || undefined
 			: undefined;
 		const context: IAgentPermissionResponseContext | undefined = responseContext?.userFeedback !== undefined ? { ...responseContext, userFeedback } : responseContext;
-		if (approved && (context?.selectedOptionId === SAVE_SANDBOX_PATH || metadata?.sandboxPathGrant)) {
-			if (!metadata?.sandboxPathGrant || metadata.managedApprovalRequired || context?.selectedOptionId !== SAVE_SANDBOX_PATH || context.decisionSource !== 'human_response') {
+		const sandboxPathOption = context?.selectedOptionId === SAVE_SANDBOX_PATH || context?.selectedOptionId === SAVE_SESSION_SANDBOX_PATH;
+		if (approved && (sandboxPathOption || metadata?.sandboxPathGrant)) {
+			if (!metadata?.sandboxPathGrant || metadata.managedApprovalRequired || !sandboxPathOption || context?.decisionSource !== 'human_response') {
 				this._logService.warn(`[Copilot:${this.sessionId}] Rejecting invalid sandbox path grant response: ${requestId}`);
 				const responded = this._pendingPermissions.respond(requestId, { kind: 'decision', result: { kind: 'reject' }, source: 'host_policy' });
 				if (responded) {
@@ -10360,6 +10382,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
+			if (e.agentId && !e.data.resolvedByHook) {
+				this._permissionRequestAgentIds.set(toolCallId, e.agentId);
+			}
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
 			if (permissionRequest.requestSandboxBypass && !e.data.resolvedByHook) {
@@ -10382,6 +10407,8 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
+			// A handler that settles synchronously finishes before its request event is recorded.
+			this._permissionRequestAgentIds.delete(toolCallId);
 			this._sandbox.completePendingRequest(toolCallId, e.data.requestId);
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const record = {
@@ -13755,6 +13782,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._pendingPermissions.denyAll({ kind: 'decision', result: { kind: 'reject' }, source: 'unattended_fallback' });
 		this._sandbox.clearPendingRequests();
+		this._permissionRequestAgentIds.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}
 
