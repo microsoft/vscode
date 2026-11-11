@@ -385,6 +385,35 @@ suite('Chat window contribution', () => {
 		});
 	});
 
+	test('a chat of the session the main window shows takes the session\'s editors along when the window shows another chat of it, as the main window keeps the chat it shows', async () => {
+		const run = async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			stubSessionsHostLayout(instantiationService);
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
+			const pane = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', resource: URI.parse('test:/alpha'), activeChat: constObservable(chat('shown')) as ITestSessionWithChat['activeChat'] });
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				gridShown: constObservable([pane]),
+				slotPanes: testGridPanes(constObservable([pane])),
+				mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(pane),
+			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			const mainGroups = [upcastPartial<IEditorGroup>({ id: 1 })];
+			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: mainGroups }) }));
+			let moveFrom: readonly IEditorGroup[] | undefined;
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+				open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[] } }) => {
+					moveFrom = options?.editors?.moveFrom;
+					return undefined;
+				},
+			}));
+			await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, upcastPartial<ISession>({ sessionId: 'alpha', resource: pane.resource }), chat('other').resource));
+			return moveFrom?.length;
+		};
+
+		assert.strictEqual(await run(), 1);
+	});
+
 	test('a chat opened in a window opens exactly that chat, also its session\'s main chat, which is named by the session, while a session opens the chat it shows', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		stubSessionsHostLayout(instantiationService);

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -53,8 +52,8 @@ for (const [menu, command, precondition, when] of [
 
 /**
  * Moves the chat `session` shows in the main window, or its main chat, to a chat window of its own: the main window then
- * shows the session it showed before, or a new session. The chat takes the editors it has open in the main window along,
- * to the main part beside it, but only while the main window shows that chat.
+ * shows the session it showed before, or a new session. The chat takes the editors its session has open in the main window
+ * along, to the main part beside it, whichever of the session's chats the main window shows.
  */
 export async function openChatInWindow(accessor: ServicesAccessor, session: ISession, chat?: URI, options?: IChatWindowOpenOptions): Promise<void> {
 	const chatWindowService = accessor.get(IChatWindowService);
@@ -65,10 +64,7 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	// The session's own slot, not a detached pane of one of its chats.
 	const shown = sessionsService.slotPanes.get().find(pane => pane.session.get()?.sessionId === session.sessionId);
 	const chatResource = chat ?? shown?.chat.get()?.resource;
-	// The main window's editors are the chat's while the main window is laid out for it and shows it as its active chat.
-	const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
-	const ownsEditors = mainWindowHost.session.get()?.sessionId === session.sessionId
-		&& (!chatResource || isEqual(mainWindowHost.chat.get()?.resource, chatResource));
+	const ownsEditors = getMainWindowHost(accessor.get(ISessionHostService)).session.get()?.sessionId === session.sessionId;
 	// The editors moving out empty the main window's editor part: that is not the user closing them, so the main window
 	// keeps its side pane as it is, for the session it shows next, as when it switches sessions.
 	const suppression = ownsEditors ? layoutService.suppressEditorPartAutoVisibility() : undefined;
