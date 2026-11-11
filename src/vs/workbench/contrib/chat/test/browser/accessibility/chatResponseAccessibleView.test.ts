@@ -17,7 +17,7 @@ import { createTestArtifactRequestPresentation } from '../../../../../../platfor
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatAutoModeResolutionPart, IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { Response, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
@@ -296,7 +296,7 @@ suite('ChatResponseAccessibleView', () => {
 		const named = { kind: 'autoModeResolution' as const, router: 'Workday', routeName: 'bug-fix', resolved: { id: 'opus', name: 'Claude Opus 5.5' } };
 		const item = upcastPartial<IChatResponseViewModel>({
 			isComplete: true,
-			response: upcastPartial<IResponse>({ value: [{ ...named, effort: 'medium' }, { ...named, defaulted: true }, { ...named, kept: true }, { ...named, switchedFrom: 'GPT-5.5' }, { ...named, switchedFrom: 'Claude Opus 5.5' }] }),
+			response: upcastPartial<IResponse>({ value: [{ ...named, effort: 'medium' }, { ...named, defaulted: true }, { ...named, kept: true }, { ...named, switchedFrom: 'GPT-5.5' }, { ...named, switchedFrom: 'Claude Opus 5.5' }, { ...named, routeName: undefined, playbook: 'feature' } as IChatAutoModeResolutionPart] }),
 		});
 
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true).map(part => part.text), [
@@ -307,6 +307,8 @@ suite('ChatResponseAccessibleView', () => {
 			'Workday switched from GPT-5.5 to its bug-fix route on Claude Opus 5.5',
 			// Two named routes can run on the same model.
 			'Workday moved to its bug-fix route on Claude Opus 5.5',
+			// A chat saved while named routes were written as playbooks.
+			'Workday picked its feature route on Claude Opus 5.5',
 		]);
 	});
 
