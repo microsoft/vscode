@@ -24,4 +24,18 @@ suite('Sessions - Mobile Visual Viewport', () => {
 			layoutViewport,
 		]);
 	});
+
+	test('constrains tablet layout to the visible viewport height', () => {
+		const layoutViewport = new Dimension(800, 1280);
+
+		assert.deepStrictEqual([
+			getMobileViewportDimension(layoutViewport, { height: 860 }),
+			getMobileViewportDimension(layoutViewport, { height: 1350 }),
+			getMobileViewportDimension(layoutViewport, undefined),
+		], [
+			new Dimension(800, 860),
+			new Dimension(800, 1280),
+			layoutViewport,
+		]);
+	});
 });
