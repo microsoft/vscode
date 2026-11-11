@@ -167,15 +167,6 @@
 	flex-shrink: 0;
 }
 
-.monaco-dialog-box.automation-dialog .automation-dialog-footer-actions > .monaco-button.automation-dialog-mode-switch {
-	margin-right: auto;
-}
-
-.automation-form.agent-first .automation-form-content > :not(.automation-session-section),
-.automation-form.agent-first .automation-provider-options {
-	display: none;
-}
-
 /*
  * Strip the base dialog padding on the message row and container so
  * our titlebar can full-bleed. The form pane below re-adds horizontal
@@ -225,16 +216,6 @@
 	min-height: 0;
 	overflow-x: hidden;
 	overflow-y: auto;
-}
-
-.automation-description {
-	font-size: var(--vscode-fontSize-body2, 12px);
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.4;
-}
-
-.automation-creation-guidance {
-	margin: 0 0 var(--vscode-spacing-size160);
 }
 
 .automation-form-pane {

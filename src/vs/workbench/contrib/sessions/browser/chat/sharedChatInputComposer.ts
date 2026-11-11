@@ -696,7 +696,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	saveState(): void {
 		const widget = this._widget;
-		if (widget) {
+		if (widget && this.options.persistDraft !== false) {
 			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
 		}
 	}
@@ -719,6 +719,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _restoreDraftState(): void {
+		if (this.options.persistDraft === false) {
+			return;
+		}
 		let draft: IChatDraft | undefined;
 		try {
 			draft = readNewChatDraftState(this.storageService);
@@ -1003,7 +1006,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
 			// The host can create another composer before the send completes.
-			ownsClearedDraft = writeNewChatDraftState(this.storageService, { inputText: '', attachments: [] });
+			if (this.options.persistDraft !== false) {
+				ownsClearedDraft = writeNewChatDraftState(this.storageService, { inputText: '', attachments: [] });
+			}
 			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
 			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset

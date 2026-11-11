@@ -108,6 +108,8 @@ export interface IComposerRepositoryControls extends IDisposable {
 
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
+	/** Whether this host shares the persisted New Session draft. Defaults to true. */
+	readonly persistDraft?: boolean;
 	readonly inputEditorOptions?: IChatViewOptions['inputEditorOptions'];
 	readonly session: IObservable<ISession | undefined>;
 	/**

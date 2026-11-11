@@ -24,10 +24,11 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
+import { AutomationComposer } from '../../../automations/browser/automationComposer.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
-	readonly priority = 106;
+	readonly priority = 121;
 	readonly name = 'sessions-automations-help';
 	readonly when = AutomationsCustomViewFocusContext;
 
@@ -41,7 +42,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const builtInTemplatesVisible = templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
-			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.overview', "You are in the Automations view. The creation input is at the top, followed by available automation cards and run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
@@ -52,7 +53,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			...(pluginTemplatesVisible ? [
 				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
 			] : []),
-			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
+			localize('automationsCustomView.help.sharing', "Use Import below the creation input, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
 			localize('automationsCustomView.help.cards2', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs, and Delete asks for confirmation. When the provider supports it, clear Delete Run History in that confirmation to keep previous runs. Run now requests execution from the selected provider when available."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
 			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
@@ -82,19 +83,18 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 }
 
 function getAutomationCreationHelp(): string {
-	return localize('automationsCustomView.help.creationModes', "New Automation opens an agent-first input. Choose a harness and model, and review or change the execution and permission settings offered by that provider. These controls use the provider's normal configuration; the dialog does not override your choices. Describe your idea and choose Start session to start a workspace-less Chat with the attached built-in automate skill. Enter inserts a new line. The agent asks for confirmation before creating an automation. Create manually opens the full form, including workspace and agent controls when supported. Create with agent returns to guided creation without sending or losing your manual draft. Templates and existing automations open in the full form.");
+	return localize('automationsCustomView.help.creationModes', "The creation input stays at the top even when automations exist. Choose a workspace with the normal workspace picker next to the description: The automation will use the selected workspace by default. Choose a harness and model, and review the provider's normal execution and permission controls. Describe your idea and use Send or your configured chat submit keybinding to start a session with the attached built-in automate skill. The agent asks for confirmation before creating an automation. Use Tab and Shift+Tab between controls. Create manually and Import are separate buttons on the right below the input. Create manually, templates, imports, and existing automations open the full form without sending the creation input.");
 }
 
 class AutomationsDialogAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
-	readonly priority = 121;
+	readonly priority = 122;
 	readonly name = 'sessions-automations-dialog-help';
 	readonly when = ChatContextKeys.inAutomationsDialog;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const content = [
 			localize('automationsDialog.help.overview', "You are in the New or Edit Automation dialog."),
-			getAutomationCreationHelp(),
 			localize('automationsDialog.help.configuration', "In manual creation or editing, review the name, prompt, target, trigger, and provider settings. Some target choices are fixed when editing. Create or Save saves the automation; an empty name is derived from the prompt. Validation and operation errors appear in the footer. Use Tab and Shift+Tab between controls, and Cancel or Escape to close without saving."),
 		].join('\n');
 		return new AccessibleContentProvider(
@@ -120,10 +120,11 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
+		const composer = AutomationComposer.getForElement(getActiveElement());
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
 			{ type: AccessibleViewType.View },
-			() => buildAutomationsAccessibleContent(
+			() => [composer?.getAccessibleContent(), buildAutomationsAccessibleContent(
 				automationService.automations.get(),
 				automationService.runs.get().filter(run =>
 					run.status === 'pending'
@@ -140,7 +141,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				id => automationService.getAutomationHistoryName?.(id),
 				id => automationService.getAutomationHistoryState?.(id),
 				id => automationService.canDeleteAutomationHistory?.(id) === true,
-			),
+			)].filter(Boolean).join('\n\n'),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
 		);

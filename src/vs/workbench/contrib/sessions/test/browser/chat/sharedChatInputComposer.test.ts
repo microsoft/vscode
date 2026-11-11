@@ -36,7 +36,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; persistDraft?: boolean; storageService?: IStorageService; onSend?: () => void } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -102,6 +102,7 @@ suite('SharedChatInputComposer', () => {
 				session: constObservable(undefined),
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
+				persistDraft: options.persistDraft,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					requests.push({ query: request.query, attachments: request.attachments?.map(entry => entry.range ? `${entry.id}@${entry.range.start}-${entry.range.endExclusive}` : entry.id) ?? [], background: !!request.background });
 					options.onSend?.();
@@ -151,6 +152,23 @@ suite('SharedChatInputComposer', () => {
 			draftModelState: { inputText: '', attachments: [] },
 		});
 	});
+
+	for (const sendResult of [true, false]) {
+		test(`a host-owned draft never restores or overwrites the New Session draft (${sendResult})`, async () => {
+			const storageService = store.add(new InMemoryStorageService());
+			const welcome = createComposer({ storageService, text: 'Unsent New Session idea' }).composer;
+			welcome.saveState();
+			const before = readNewChatDraftState(storageService);
+			const { composer, state } = createComposer({ storageService, text: 'Automation idea', persistDraft: false, sendResult });
+			Reflect.get(SharedChatInputComposer.prototype, '_restoreDraftState').call(composer);
+			const restored = state().input.text;
+			composer.saveState();
+			await composer.submit(true);
+			assert.deepStrictEqual({ restored, saved: readNewChatDraftState(storageService) }, {
+				restored: 'Automation idea', saved: before,
+			});
+		});
+	}
 
 	for (const sendResult of [true, false, new Error('send failed')]) {
 		for (const nextInput of ['Next request', '']) {

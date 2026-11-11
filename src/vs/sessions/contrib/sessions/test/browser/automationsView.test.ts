@@ -66,7 +66,7 @@ import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../.
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
@@ -88,6 +88,7 @@ import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { AutomationComposer } from '../../../automations/browser/automationComposer.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
@@ -782,6 +783,16 @@ suite('AutomationsCardsWidget', () => {
 			override hideCustomView() { }
 		}());
 		disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
+		const composerElement = document.createElement('div');
+		composerElement.className = 'automation-authoring-composer';
+		const composerInput = document.createElement('textarea');
+		composerInput.setAttribute('aria-label', 'Describe what you want to automate');
+		composerElement.appendChild(composerInput);
+		instantiationService.stubInstance(AutomationComposer, {
+			element: composerElement,
+			focus: () => composerInput.focus(),
+			dispose: () => { },
+		});
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
@@ -1701,7 +1712,7 @@ suite('AutomationsCardsWidget', () => {
 			emptyPersonal: {
 				title: 'No automations yet',
 				description: 'Describe what you want to automate, then choose when it runs.',
-				button: 'Create Automation',
+				button: undefined,
 				accessible: true,
 			},
 		});
@@ -2210,11 +2221,12 @@ suite('AutomationsCardsWidget', () => {
 			titles: 1,
 			descriptions: 1,
 			description: 'Describe what you want to automate, then choose when it runs.',
-			buttons: 1,
+			buttons: 0,
 			templateSections: 1,
-			chatInputs: 0,
+			chatInputs: 1,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
+
 		const hasNewAutomation = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).some(action => action.id === 'sessionsView.newAutomation' && action.enabled);
 		const empty = hasNewAutomation();
@@ -2225,7 +2237,26 @@ suite('AutomationsCardsWidget', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ empty, populated, aiDisabled, automationsDisabled: hasNewAutomation() }, {
-			empty: true, populated: true, aiDisabled: false, automationsDisabled: false,
+			empty: false, populated: false, aiDisabled: false, automationsDisabled: false,
+		});
+	});
+
+	test('the same creation input stays above saved automations without taking their focus', () => {
+		const { automationService, widget } = setup();
+		automationService.setCatalogueState('ready');
+		const composer = widget.element.querySelector<HTMLElement>('.automation-authoring-composer')!;
+		const input = composer.querySelector('textarea')!;
+		input.value = 'An unsent automation idea';
+		input.focus();
+		automationService.setAutomations([automation()]);
+		const populated = {
+			composerFirst: composer === widget.element.querySelector('.automations-cards-scroll-content')?.firstElementChild,
+			focused: document.activeElement === input,
+			cardsBelow: !!(composer.compareDocumentPosition(widget.element.querySelector('.automations-cards-grid')!) & Node.DOCUMENT_POSITION_FOLLOWING),
+		};
+		automationService.setAutomations([]);
+		assert.deepStrictEqual({ populated, retained: widget.element.querySelector('.automation-authoring-composer') === composer, input: input.value }, {
+			populated: { composerFirst: true, focused: true, cardsBelow: true }, retained: true, input: 'An unsent automation idea',
 		});
 	});
 
@@ -2690,9 +2721,9 @@ suite('AutomationsCardsWidget', () => {
 		};
 
 		assert.deepStrictEqual({ loadingState, errorState, unavailableState, readyState }, {
-			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
-			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
-			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			loadingState: { loading: '', error: 'none', createButton: undefined, templates: AUTOMATION_TEMPLATES.length },
+			errorState: { loading: 'none', error: '', createButton: undefined, description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
+			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: undefined, templates: AUTOMATION_TEMPLATES.length },
 			readyState: { loading: 'none', error: 'none', templates: AUTOMATION_TEMPLATES.length },
 		});
 	});
@@ -2743,11 +2774,9 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('create remains available after a catalogue error', async () => {
-		const { automationDialogService, automationService, widget } = setup();
+		const { automationDialogService, automationService, instantiationService } = setup();
 		automationService.setCatalogueState('error');
-
-		widget.element.querySelector<HTMLButtonElement>('.automations-cards-error .automations-cards-state-create-button')?.click();
-		await Promise.resolve();
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessionsView.newAutomation')!.handler(accessor));
 
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
@@ -3031,14 +3060,13 @@ suite('AutomationsCardsWidget', () => {
 
 	test('state transitions preserve focus within the Automations view', () => {
 		const { automationService, widget } = setup();
-		const loadingCreate = widget.element.querySelector<HTMLButtonElement>('.automations-cards-loading .automations-cards-state-create-button');
+		const loadingCreate = widget.element.querySelector<HTMLTextAreaElement>('.automation-authoring-composer textarea');
 		assert.ok(loadingCreate);
 		loadingCreate.focus();
 
 		const stateFocus = (['error', 'unavailable', 'ready'] as const).map(state => {
 			automationService.setCatalogueState(state);
-			const selector = state === 'ready' ? '.automations-cards-empty .automations-cards-create-button' : `.automations-cards-${state} .automations-cards-state-create-button`;
-			return widget.element.querySelector(selector) === document.activeElement;
+			return loadingCreate === document.activeElement;
 		});
 		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
 		assert.ok(template);
@@ -3051,7 +3079,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			stateFocus,
 			afterPopulated,
-			afterRemoval: widget.element.querySelector('.automations-cards-unavailable .automations-cards-state-create-button') === document.activeElement,
+			afterRemoval: loadingCreate === document.activeElement,
 		}, {
 			stateFocus: [true, true, true],
 			afterPopulated: 'Edit automation Daily review',
@@ -4863,7 +4891,25 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('dialog help identifies the modal and puts creation guidance before manual configuration', () => {
+	test('Automations help takes precedence over generic chat help while its composer has focus', () => {
+		const { contextKeyService } = setup();
+		const inAutomations = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
+		ChatContextKeys.inChatInput.bindTo(contextKeyService).set(true);
+		ChatContextKeys.chatModeKind.bindTo(contextKeyService).set(ChatModeKind.Agent);
+		const implementations = [
+			new AgentChatAccessibilityHelp(),
+			...AccessibleViewRegistry.getImplementations().filter(implementation => implementation.name === 'sessions-automations-help'),
+		];
+		const selected = () => implementations
+			.filter(implementation => contextKeyService.contextMatchesRules(implementation.when))
+			.sort((a, b) => b.priority - a.priority)[0]?.name;
+		inAutomations.set(true);
+		const composer = selected();
+		inAutomations.set(false);
+		assert.deepStrictEqual({ composer, otherChat: selected() }, { composer: 'sessions-automations-help', otherChat: 'agentView' });
+	});
+
+	test('dialog help describes only manual configuration', () => {
 		const { instantiationService } = setup();
 		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-dialog-help');
@@ -4874,19 +4920,16 @@ suite('AutomationsCardsWidget', () => {
 		const lines = provider.provideContent().split('\n');
 		assert.deepStrictEqual({
 			overview: lines[0],
-			creationFirst: lines[1].startsWith('New Automation opens an agent-first input.'),
-			startSession: lines[1].includes('choose Start session'),
-			newline: lines[1].includes('Enter inserts a new line.'),
-			chatSend: lines[1].includes('use Send'),
-			manualNext: lines[2].startsWith('In manual creation or editing,'),
+			manual: lines[1].startsWith('In manual creation or editing,'),
+			guidedDialog: lines.some(line => line.includes('Start session') || line.includes('Create with agent')),
 			unrelatedViewGuidance: lines.some(line => line.includes('run history') || line.includes('More Actions')),
 		}, {
 			overview: 'You are in the New or Edit Automation dialog.',
-			creationFirst: true, startSession: true, newline: true, chatSend: false, manualNext: true, unrelatedViewGuidance: false,
+			manual: true, guidedDialog: false, unrelatedViewGuidance: false,
 		});
 	});
 
-	test('accessibility help explains prompt-only automation creation', () => {
+	test('accessibility help explains the persistent composer and separate manual and import actions', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		stubSessionsHostLayout(instantiationService);
@@ -4895,7 +4938,14 @@ suite('AutomationsCardsWidget', () => {
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 		assert.ok(provider);
 		disposables.add(provider);
-		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+		const content = provider.provideContent();
+		assert.deepStrictEqual({
+			persistent: content.includes('The creation input stays at the top even when automations exist.'),
+			defaultWorkspace: content.includes('The automation will use the selected workspace by default.'),
+			send: content.includes('use Send or your configured chat submit keybinding'),
+			actions: content.includes('Create manually and Import are separate buttons on the right below the input.'),
+			obsolete: content.includes('Start session') || content.includes('Create with agent'),
+		}, { persistent: true, defaultWorkspace: true, send: true, actions: true, obsolete: false });
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {

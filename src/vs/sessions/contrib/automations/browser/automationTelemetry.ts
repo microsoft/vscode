@@ -30,10 +30,10 @@ type AutomationDialogOutcomeEvent = {
 };
 
 type AutomationDialogOutcomeClassification = {
-	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the dialog was creating or updating an Automation.' };
+	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the authoring operation was creating or updating an Automation.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded dialog, authoring session start, or post-dialog persistence outcome.' };
 	owner: 'ulugbekna';
-	comment: 'Tracks Automation dialog conversion and failures without collecting definition content or identifiers.';
+	comment: 'Tracks Automation authoring conversion and failures without collecting definition content or identifiers.';
 };
 
 export class AutomationDialogTelemetry {
@@ -51,9 +51,9 @@ export class AutomationDialogTelemetry {
 			};
 
 			type AutomationNewInitiatedClassification = {
-				surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded surface where the new Automation dialog was initiated.' };
+				surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded surface where manual creation or an Automation authoring session was initiated.' };
 				owner: 'ulugbekna';
-				comment: 'Tracks initiation of a new Automation dialog without collecting its source content.';
+				comment: 'Tracks initiation of Automation authoring without collecting its source content.';
 			};
 
 			this._telemetryService.publicLog2<AutomationNewInitiatedEvent, AutomationNewInitiatedClassification>('automation.newInitiated', { surface: 'agentsWindow' });

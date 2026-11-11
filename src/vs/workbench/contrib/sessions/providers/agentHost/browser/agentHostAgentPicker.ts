@@ -25,7 +25,7 @@ import { logChangesToStateModel } from '../../../../chat/common/model/chatModel.
 import { ChatModeKind } from '../../../../chat/common/constants.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext, AutomationDialogAgentCreationContext } from '../../../common/contextkeys.js';
+import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../services/sessions/common/session.js';
@@ -127,7 +127,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, AutomationDialogAgentCreationContext.negate(), IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}, {
 				// Running-session input bar — only inside the dedicated
 				// Agents Window. The regular VS Code chat editor uses the
