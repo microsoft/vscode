@@ -250,6 +250,11 @@ class MockCopilotSession {
 	onAbort: (() => void) | undefined;
 	modelGate: Promise<void> | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
+	readonly modelSwitchRequests: Parameters<CopilotSession['rpc']['model']['switchTo']>[0][] = [];
+	readonly modelSwitchResults: (Awaited<ReturnType<CopilotSession['rpc']['model']['switchTo']>> | Error)[] = [];
+	modelCompactionGate: Promise<void> | undefined;
+	onModelCompaction: (() => void) | undefined;
+
 	readonly modelOperations: string[] = [];
 	contextTierUpdateSuccess = true;
 	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
@@ -557,6 +562,23 @@ class MockCopilotSession {
 			},
 		},
 		model: {
+			switchTo: async (request: Parameters<CopilotSession['rpc']['model']['switchTo']>[0]): Promise<Awaited<ReturnType<CopilotSession['rpc']['model']['switchTo']>>> => {
+				this.modelSwitchRequests.push(request);
+				const { modelId, compactionDecision, ...options } = request;
+				await this.setModel(modelId, { ...options, reasoningEffort: options.reasoningEffort ?? undefined });
+				if (compactionDecision === 'compact') {
+					this.onModelCompaction?.();
+					await this.modelCompactionGate;
+				}
+				const result = this.modelSwitchResults.shift() ?? { status: 'applied', modelId };
+				if (result instanceof Error) {
+					throw result;
+				}
+				if (result.status === 'applied') {
+					this.currentModel = { ...this.currentModel, modelId: result.modelId };
+				}
+				return result;
+			},
 			list: async () => ({ list: [] }),
 			getCurrent: async () => {
 				await this.currentModelGate;
@@ -1507,7 +1529,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** BYOK providers and models the SDK session launches with. */
 	launchByokConfig?: ICopilotByokSessionConfig;
 	/** BYOK providers and models the launcher currently resolves. */
-	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
+	resolveByokSessionConfig?: () => ICopilotByokSessionConfig | Promise<ICopilotByokSessionConfig>;
 	/** The on-device model provider installed on the client, if the user opted in. */
 	localModelProvider?: ILocalModelProvider;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
@@ -3741,6 +3763,146 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	test('compacts before committing a model switch that requires confirmation', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required', modelId: 'acme/large' }, { status: 'applied', modelId: 'acme/small' });
+
+		await session.setModel('acme/small', 'low', 'default');
+
+		assert.deepStrictEqual({ requests: mockSession.modelSwitchRequests, applied: session.appliedModelSelection }, {
+			requests: [
+				{ modelId: 'acme/small', reasoningEffort: 'low', contextTier: 'default' },
+				{ modelId: 'acme/small', reasoningEffort: 'low', contextTier: 'default', compactionDecision: 'compact' },
+			],
+			applied: { id: 'acme/small' },
+		});
+	});
+
+	test('does not commit the requested model while switch compaction is pending', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		await session.setModel('acme/large');
+		const started = new DeferredPromise<void>();
+		const compacted = new DeferredPromise<void>();
+		mockSession.onModelCompaction = () => { started.complete(); };
+		mockSession.modelCompactionGate = compacted.p;
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required', modelId: 'acme/large' }, { status: 'applied', modelId: 'acme/small' });
+		let settled = false;
+		const switching = session.setModel('acme/small').finally(() => { settled = true; });
+		try {
+			await started.p;
+			assert.deepStrictEqual({ settled, applied: session.appliedModelSelection }, { settled: false, applied: { id: 'acme/large' } });
+		} finally {
+			await compacted.complete();
+			await switching;
+		}
+	});
+
+	test('preserves the previous selection when the model switch is not applied', async () => {
+		for (const result of [
+			{ status: 'deferred', deferred: true, modelId: 'acme/large' },
+			{ status: 'cancelled', modelId: 'acme/large' },
+			{ status: 'rejected', modelId: 'acme/large' },
+			{ status: 'applied', modelId: 'acme/other' },
+			{ modelId: 'acme/large' },
+		]) {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setModel('acme/large');
+			mockSession.modelSwitchResults.push(result);
+			await assert.rejects(session.setModel('acme/small'), /model change was not applied/);
+			assert.deepStrictEqual(session.appliedModelSelection, { id: 'acme/large' });
+		}
+	});
+
+	test('does not commit a model switch when required compaction fails', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		await session.setModel('acme/large');
+		const error = new Error('compaction failed');
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required' }, error);
+		await assert.rejects(session.setModel('acme/small'), error);
+		assert.deepStrictEqual(session.appliedModelSelection, { id: 'acme/large' });
+	});
+
+	test('switch compaction outlives the short control-plane timeout', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 5 });
+		const started = new DeferredPromise<void>();
+		const compacted = new DeferredPromise<void>();
+		mockSession.onModelCompaction = () => { void started.complete(); };
+		mockSession.modelCompactionGate = compacted.p;
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required' }, { status: 'applied', modelId: 'acme/small' });
+		const switching = session.setModel('acme/small');
+		try {
+			await started.p;
+			await timeout(10);
+			assert.strictEqual(session.appliedModelSelection, undefined);
+		} finally {
+			await compacted.complete();
+			await switching;
+		}
+		assert.deepStrictEqual(session.appliedModelSelection, { id: 'acme/small' });
+	}));
+
+	test('aborting switch compaction blocks selection and marks the runtime for resynchronization', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		// The prior turn can remain aborted until the next send resets its token.
+		await session.abort();
+		await session.setModel('acme/large');
+		const started = new DeferredPromise<void>();
+		const compacted = new DeferredPromise<void>();
+		mockSession.onModelCompaction = () => { void started.complete(); };
+		mockSession.modelCompactionGate = compacted.p;
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required' }, { status: 'applied', modelId: 'acme/small' });
+		const switching = session.setModel('acme/small');
+		const rejected = assert.rejects(switching, isCancellationError);
+		try {
+			await started.p;
+			await session.abort();
+			await rejected;
+			assert.deepStrictEqual({ applied: session.appliedModelSelection, desynchronized: session.requiresControlPlaneResync }, {
+				applied: { id: 'acme/large' }, desynchronized: true,
+			});
+		} finally {
+			await compacted.complete();
+			await rejected;
+		}
+	});
+
+	test('does not repeat a model switch compaction confirmation', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required' }, { status: 'confirmation_required' });
+		await assert.rejects(session.setModel('acme/small'), /model change was not applied/);
+		assert.deepStrictEqual({ count: mockSession.modelSwitchRequests.length, applied: session.appliedModelSelection }, { count: 2, applied: undefined });
+	});
+
+	test('aborting BYOK discovery never dispatches the model switch', async () => {
+		const started = new DeferredPromise<void>();
+		const discovered = new DeferredPromise<ICopilotByokSessionConfig>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			resolveByokSessionConfig: () => { void started.complete(); return discovered.p; },
+		});
+		const switching = assert.rejects(session.setModel('acme/small'), isCancellationError);
+		try {
+			await started.p;
+			await session.abort();
+			await switching;
+			assert.deepStrictEqual({ requests: mockSession.modelSwitchRequests, applied: session.appliedModelSelection, desynchronized: session.requiresControlPlaneResync }, {
+				requests: [], applied: undefined, desynchronized: false,
+			});
+		} finally {
+			await discovered.complete({});
+			await switching;
+		}
+	});
+
+	test('bounds model switch compaction and disposes its cancellation race on timeout', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.modelSwitchResults.push({ status: 'confirmation_required' });
+		mockSession.modelCompactionGate = new Promise<void>(() => { });
+		await assert.rejects(session.setModel('acme/small'), /session.model.switchTo timed out after 600000ms/);
+		assert.deepStrictEqual({ applied: session.appliedModelSelection, desynchronized: session.requiresControlPlaneResync }, {
+			applied: undefined, desynchronized: true,
+		});
+	}));
+
 	test('retains requested model intent rather than resolved overrides after a successful update', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const requested: ModelSelection = { id: 'auto', config: { tier: 'intelligence', thinkingLevel: 'medium' } };
@@ -4147,7 +4309,7 @@ suite('CopilotAgentSession', () => {
 		]);
 
 		assert.deepStrictEqual(results.map(result => result.status === 'rejected' ? (result.reason as Error).message : 'fulfilled'), [
-			'[Copilot:test-session-1] session.setModel timed out after 1ms',
+			'[Copilot:test-session-1] session.model.switchTo timed out after 1ms',
 			'[Copilot:test-session-1] rpc.agent.select timed out after 1ms',
 			'[Copilot:test-session-1] rpc.agent.deselect timed out after 1ms',
 		]);
