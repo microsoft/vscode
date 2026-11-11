@@ -20,6 +20,7 @@ import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../..
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../onboarding/common/onboardingScenario.js';
+import { IOnboardingScenarioService } from '../../onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
@@ -51,7 +52,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService
 	) {
 		super();
 
@@ -134,18 +136,28 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			this.entry.value.update(props);
 		} else {
 			this.entry.value = this.statusbarService.addEntry(props, FOLDER_LOCATION_STATUS_ENTRY_ID, StatusbarAlignment.LEFT, FOLDER_LOCATION_STATUS_ENTRY_PRIORITY);
-			this.observeIntroductionTarget();
+			if (!this.onboardingService.hasBeenShown(FOLDER_LOCATION_INTRODUCTION_ID)) {
+				this.observeIntroductionTarget();
+			}
 		}
 	}
 
 	/**
 	 * The introduction is ready only while the entry is rendered and visible, because
 	 * the onboarding engine marks a scenario as seen before it resolves its target.
+	 * Observation ends as soon as the introduction is ready, and never starts once it was shown.
 	 */
 	private observeIntroductionTarget(): void {
 		const store = new DisposableStore();
 		const scheduler = store.add(new AnimationFrameScheduler(mainWindow.document.body, () => {
-			this.introductionReady.set(!!resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID), undefined);
+			if (this.onboardingService.hasBeenShown(FOLDER_LOCATION_INTRODUCTION_ID)) {
+				this.introductionObservation.clear();
+				return;
+			}
+			if (resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID)) {
+				this.introductionReady.set(true, undefined);
+				this.introductionObservation.clear();
+			}
 		}));
 		const observer = store.add(new DisposableResizeObserver('FolderLocation.introductionTarget', () => scheduler.schedule()));
 		// eslint-disable-next-line eslint-js/no-restricted-syntax -- the status bar names each item element after its entry id
