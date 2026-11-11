@@ -7925,7 +7925,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						kind: 'autoModeResolution',
 						resolved: { id: routed.chosenModel, name: routedModel ? displayName(routedModel) : routed.chosenModel },
 						router: routed.routerLabel ?? routed.router,
-						...(routed.playbook ? { playbook: routed.playbook } : {}),
+						...(routed.routeName ? { routeName: routed.routeName } : {}),
 						preference: routed.preference,
 						effort: routed.effort,
 						...(routed.contextTokens ? { contextSize: routed.contextTokens } : {}),

@@ -216,7 +216,7 @@ export class CopilotModelRouter {
 			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
-		const current = last?.router === router.name ? routes.find(route => routeKey(route) === (last.playbook ?? last.model)) : undefined;
+		const current = last?.router === router.name ? routes.find(route => routeKey(route) === (last.routeName ?? last.model)) : undefined;
 		return current
 			? this._routeFollowUp(context, current, keptEffort(current, last?.effort))
 			: this._routeFresh(context, last?.model);
@@ -311,7 +311,7 @@ export class CopilotModelRouter {
 		if (outcome === 'stay' || !target) {
 			return decision(context, current, { kept: true }, [], effort);
 		}
-		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target.model.name)], this._effortFor(context, target, pick.effortScore));
+		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target)], this._effortFor(context, target, pick.effortScore));
 	}
 }
 
@@ -340,7 +340,7 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 			router: router.name,
 			...(router.displayName ? { routerLabel: router.displayName } : {}),
 			chosenModel: route.model.id,
-			...(route.route.name ? { playbook: route.route.name } : {}),
+			...(route.route.name ? { routeName: route.route.name } : {}),
 			...routed,
 			...(effort ? { effort } : {}),
 			...(contextSize && contextTokens ? { contextSize, contextTokens } : {}),
@@ -353,13 +353,13 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 
 const PREFERENCE_CHARS = 300;
 
-/** What a routing decision answers with, and what a chat's turns remember a pick by: the playbook's name, or a plain route's model. */
+/** What a routing decision answers with, and what a chat's turns remember a pick by: the route's name, or its model when it has none. */
 function routeKey(route: IResolvedModelRoute): string {
 	return route.route.name ?? route.model.id;
 }
 
 /**
- * The effort a chat keeps on its route. A playbook is kept by name, so its model can be another
+ * The effort a chat keeps on its route. A named route is kept by name, so its model can be another
  * one than the effort was chosen for: its `main` was edited, or a model stopped being available.
  * The chat then gets the closest level that model has.
  */
@@ -375,8 +375,11 @@ function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {
 	return { preference: line.length > PREFERENCE_CHARS ? `${line.slice(0, PREFERENCE_CHARS).trimEnd()}\u2026` : line };
 }
 
-function describeSwitch(router: IModelRouter, model: string): string {
-	return localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", modelRouterLabel(router), model);
+function describeSwitch(router: IModelRouter, { route, model }: IResolvedModelRoute): string {
+	// Two named routes can run on the same model, so the model alone would not say what changed.
+	return route.name
+		? localize('modelRouter.switchedToNamedRoute', "This request fits another route, so the model router {0} moved this chat to its {1} route on {2}.", modelRouterLabel(router), route.name, model.name)
+		: localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", modelRouterLabel(router), model.name);
 }
 
 function describeFailure(router: IModelRouter, error: unknown, model: string): string {
@@ -401,13 +404,13 @@ function finalResponseText(turn: Turn): string {
  * that router's only while no other selection came after it: a later turn that selected another
  * router but couldn't route (one with errors, say) means the next router to run routes afresh.
  */
-function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string; readonly playbook?: string } | undefined {
+function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string; readonly routeName?: string } | undefined {
 	const unroutedRouters = new Set<string>();
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
 			const ownPick = [...unroutedRouters].every(name => name === routed.router);
-			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}), ...(routed.playbook ? { playbook: routed.playbook } : {}) };
+			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}), ...(routed.routeName ? { routeName: routed.routeName } : {}) };
 		}
 		const requested = turns[i].message.model;
 		const requestedRouter = unroutedRouterOf(turns[i]);
