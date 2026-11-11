@@ -17,6 +17,7 @@ import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
 import { SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
+import { ChatAutomationsEnabledContext } from '../common/automations/automationsEnabled.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
@@ -359,6 +360,21 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			ContextKeyExpr.has('sessionSupportsSideChat'),
 		),
 		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
+	},
+	{
+		id: 'tip.automate',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.automate', "Use `/automate` to talk through an automation idea with the agent and end the conversation with one created.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			ChatContextKeys.enabled,
+			ChatAutomationsEnabledContext,
+		),
+		excludeWhenToolsInvoked: ['vscode_configureAutomation'],
 	},
 	{
 		id: 'tip.forkConversation',
