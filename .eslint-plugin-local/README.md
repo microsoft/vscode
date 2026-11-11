@@ -46,7 +46,7 @@ For example, here's a configuration that enables the no `test.only` rule in all 
 ```
 
 # Creating a new custom rule
-This walks through the steps to create a new eslint rule:
+This walks through the steps to create a new eslint rule (see [AGENTS.md](AGENTS.md) for how to keep it fast):
 
 1. Create a new rule file under `.eslint-plugin-local`. Generally you should call it `code-YOUR-RULE-NAME.ts`, for example, `.eslint-plugin-local/code-no-not-null-assertions-on-undefined-values.ts`
 
