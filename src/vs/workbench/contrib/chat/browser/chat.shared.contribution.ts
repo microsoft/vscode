@@ -1963,7 +1963,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.HtmlPreviewEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.htmlPreview.enabled.description', "Render explicit html-preview code blocks as inline HTML previews in the Agents window. When disabled, these blocks are shown as source code."),
-			default: true,
+			default: false,
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
 			type: 'boolean',

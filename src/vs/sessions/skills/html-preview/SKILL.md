@@ -14,7 +14,7 @@ This is on-demand authoring guidance bundled with the Agents window, available a
 
 Return the document in a closed Markdown code fence with the language `html-preview`. Ordinary `html` fences remain source code. The preview appears after its closing fence arrives.
 
-The `chat.htmlPreview.enabled` setting controls inline rendering in the Agents window and defaults to enabled. When disabled, these fences display as source code. Do not change the user's setting unless asked.
+The `chat.htmlPreview.enabled` setting controls inline rendering in the Agents window and is off by default. While it is off, these fences display as source code. Do not change the user's setting unless asked.
 
 - Use self-contained HTML and CSS, tables, simple inline SVG, and native `details`/`summary` disclosures.
 - Use headings, text labels, meaningful image descriptions, and readable contrast. Do not rely on color alone to convey findings or status.
