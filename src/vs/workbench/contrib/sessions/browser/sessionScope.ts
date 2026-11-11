@@ -20,10 +20,10 @@ export interface ISessionScope {
  * The sessions of the given scope folders, such as the folders of an editor window's workspace: the sessions with a
  * folder that is, or is inside, a scope folder, and the sessions of the same git repositories, such as its worktrees.
  * Only the metadata the providers already report is read, comparing whole URIs, so a session of another host never
- * matches a local folder. A repository is known only from a scope folder itself or from a session working in the
- * scope, so the main checkout of an opened worktree without sessions does not match. A worktree that VS Code created
- * (`<repository>.worktrees/<name>`) also names its repository by its path, as the Agent Host names it, for sessions
- * whose provider has not reported their repository yet. `scopeRepositories` are the repositories the scope folders are
+ * matches a local folder. A repository is known from a scope folder itself, from a session working in the scope, from
+ * `scopeRepositories`, and from the path of a worktree that VS Code created (`<repository>.worktrees/<name>`), as the
+ * Agent Host names it: for an opened worktree, also before any session works in it, and for sessions whose provider
+ * has not reported their repository yet. `scopeRepositories` are the repositories the scope folders are
  * known to be checkouts of, such as the main checkout of an open worktree. With a `reader`, the result follows the
  * sessions' workspaces.
  */

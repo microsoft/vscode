@@ -4111,8 +4111,11 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('says so when no session of the scope is listed', () => {
-			const harness = createListHarness(disposables, [createFolderSession('elsewhere', 'other', { root: 'file:///other' })]);
+		test('says so when no session of the scope is shown, also when the filters hide its sessions', () => {
+			const harness = createListHarness(disposables, [
+				createFolderSession('elsewhere', 'other', { root: 'file:///other' }),
+				createFolderSession('archived', 'vscode', { root: 'file:///work/vscode' }, undefined, { isArchived: true }),
+			]);
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
@@ -4120,12 +4123,13 @@ suite('Sessions - SessionsList', () => {
 				scopeFolders: constObservable([URI.parse('file:///work/vscode')]),
 				onSessionOpen: () => { },
 			}));
+			list.setExcludeArchived(true);
 			list.layout(1400, 400);
 
 			assert.deepStrictEqual({
 				sessions: list.getVisibleSessions().length,
-				rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions in this folder yet.'),
-			}, { sessions: 0, rows: ['No sessions in this folder yet.'] });
+				rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions to show in this folder.'),
+			}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
 		});
 
 		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);

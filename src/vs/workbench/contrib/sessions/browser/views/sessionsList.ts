@@ -6450,9 +6450,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (archivedSection) {
 			children.push(renderSection(archivedSection));
 		}
-		// A scoped list without any session of its folders says so rather than showing nothing.
+		// A scoped list that shows no session says so rather than showing nothing; its folders may have sessions the filters hide.
 		if (scope && filtered.length === 0) {
-			children.push({ element: { placeholder: true as const, sectionId: SCOPE_EMPTY_PLACEHOLDER_ID, label: localize('sessionsList.scopeEmpty', "No sessions in this folder yet.") } });
+			children.push({ element: { placeholder: true as const, sectionId: SCOPE_EMPTY_PLACEHOLDER_ID, label: localize('sessionsList.scopeEmpty', "No sessions to show in this folder.") } });
 		}
 
 		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== this.isInboxLayout();
