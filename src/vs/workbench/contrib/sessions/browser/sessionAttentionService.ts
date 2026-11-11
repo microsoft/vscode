@@ -165,28 +165,8 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		const entries = mapObservableArrayCached(this, sessions, session => {
 			const assignedPullRequests = derivedOpts<readonly string[]>({ owner: this, equalsFn: arrayEquals }, reader =>
 				pullRequestsBySession.read(reader).get(session.resource) ?? []);
-			const attention = derived(this, reader => {
-				const status = session.status.read(reader);
-				if (status === SessionStatus.Untitled) {
-					return undefined;
-				}
-				this.chatService.chatModels.read(reader);
-				const owners = new Map(assignedPullRequests.read(reader).map(key => [key, session]));
-				const notifications = this.collectSessionNotifications(session, owners, reader).sort((a, b) => a.priority - b.priority);
-				const pendingInput = notifications.find(item => item.kind === AttentionKind.NeedsInput);
-				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
-				const attentionStartTime = this._attentionStartTime.read(reader);
-				const needsAttention = notifications.some(item => item.kind !== AttentionKind.PassingCI);
-				return {
-					tab: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === AttentionKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou,
-					priority: notifications[0]?.priority ?? InboxNotificationPriority.Later,
-					notificationIds: notifications.map(item => item.id).sort(),
-					...(pendingInput?.provisionalId ? { pendingInput: { notificationId: pendingInput.id, provisionalId: pendingInput.provisionalId } } : {}),
-					isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
-						&& !notifications.some(item => item.kind !== AttentionKind.PullRequestMerged),
-				} satisfies IInboxSessionAttention;
-			});
+			const attention = derived(this, reader => this.getSessionAttention(
+				session, new Map(assignedPullRequests.read(reader).map(key => [key, session])), reader));
 			return { session, attention };
 		});
 		this.sessionAttention = derived(this, reader => {
@@ -204,6 +184,46 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 	acquireSessionAttention(): IDisposable {
 		this._attentionConsumers.set(this._attentionConsumers.get() + 1, undefined);
 		return toDisposable(() => this._attentionConsumers.set(this._attentionConsumers.get() - 1, undefined));
+	}
+
+	getSessionAttentionAfterUnarchive(sessions: readonly ISession[]): ReadonlyMap<string, IInboxSessionAttention> {
+		return derived(this, reader => {
+			const result = new Map<string, IInboxSessionAttention>();
+			if (!this._trackingEnabled.read(reader)) {
+				return result;
+			}
+			const restoring = new Set(sessions.map(session => session.sessionId));
+			const owners = this.getPullRequestNotificationSessions(this.sessionsManagementService.getSessions(), reader, restoring);
+			for (const session of sessions) {
+				const attention = this.getSessionAttention(session, owners, reader, true);
+				if (attention) {
+					result.set(session.sessionId, attention);
+				}
+			}
+			return result;
+		}).get();
+	}
+
+	private getSessionAttention(session: ISession, owners: ReadonlyMap<string, ISession>, reader: IReaderWithStore, includeArchived = false): IInboxSessionAttention | undefined {
+		const status = session.status.read(reader);
+		if (status === SessionStatus.Untitled) {
+			return undefined;
+		}
+		this.chatService.chatModels.read(reader);
+		const notifications = this.collectSessionNotifications(session, owners, reader, includeArchived).sort((a, b) => a.priority - b.priority);
+		const pendingInput = notifications.find(item => item.kind === AttentionKind.NeedsInput);
+		const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
+		const attentionStartTime = this._attentionStartTime.read(reader);
+		const needsAttention = notifications.some(item => item.kind !== AttentionKind.PassingCI);
+		return {
+			tab: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
+				: notifications.some(item => item.kind === AttentionKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou,
+			priority: notifications[0]?.priority ?? InboxNotificationPriority.Later,
+			notificationIds: notifications.map(item => item.id).sort(),
+			...(pendingInput?.provisionalId ? { pendingInput: { notificationId: pendingInput.id, provisionalId: pendingInput.provisionalId } } : {}),
+			isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
+				&& !notifications.some(item => item.kind !== AttentionKind.PullRequestMerged),
+		};
 	}
 
 	private trackAttentionStartTime(): IObservable<number> {
@@ -224,10 +244,10 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		return startTime;
 	}
 
-	private getPullRequestNotificationSessions(sessions: readonly ISession[], reader: IReader): ReadonlyMap<string, ISession> {
+	private getPullRequestNotificationSessions(sessions: readonly ISession[], reader: IReader, restoring?: ReadonlySet<string>): ReadonlyMap<string, ISession> {
 		const candidates = new Map<string, { session: ISession; owned: boolean; updatedAt: number }>();
 		for (const session of sessions) {
-			if (session.isArchived.read(reader) || session.status.read(reader) === SessionStatus.InProgress) {
+			if (session.isArchived.read(reader) && !restoring?.has(session.sessionId) || session.status.read(reader) === SessionStatus.InProgress) {
 				continue;
 			}
 			const ownedRefs = new Set(getSessionAttentionPullRequestRefs(session, reader).map(ref => getPullRequestKey(ref.owner, ref.repo, ref.number).toLowerCase()));
@@ -245,9 +265,9 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		return new Map([...candidates].map(([key, candidate]) => [key, candidate.session]));
 	}
 
-	private collectSessionNotifications(session: ISession, owners: ReadonlyMap<string, ISession>, reader: IReaderWithStore): IAttentionNotification[] {
+	private collectSessionNotifications(session: ISession, owners: ReadonlyMap<string, ISession>, reader: IReaderWithStore, includeArchived = false): IAttentionNotification[] {
 		const notifications: IAttentionNotification[] = [];
-		if (session.isArchived.read(reader)) {
+		if (session.isArchived.read(reader) && !includeArchived) {
 			return notifications;
 		}
 		const status = session.status.read(reader);

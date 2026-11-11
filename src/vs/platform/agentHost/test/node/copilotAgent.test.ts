@@ -3297,7 +3297,11 @@ suite('CopilotAgent', () => {
 	test('publishes shared content revisions through customizations and preserves them across enablement', async () => {
 		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const root = URI.file('/sdk-installed/native');
+		// The in-memory provider reports the write a few milliseconds later. Let that happen before the plugin
+		// watchers exist, or it can invalidate the content revision in the middle of the test.
+		const written = Event.toPromise(fileService.onDidFilesChange);
 		await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+		await written;
 		const client = new TestCopilotClient([]);
 		client.pluginInstallations = [{ name: 'native', marketplace: 'test', enabled: true, rootPath: root.fsPath }];
 		const agent = createTestAgent(disposables, { fileService, copilotClient: client });
