@@ -257,10 +257,13 @@ suite('CopilotModelRouter', () => {
 		const route = (previousTurns: Turn[]) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix the crash', models, previousTurns, picker });
 		const picked = await route([]);
 		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'opus', routeName: 'bug-fix' })]);
-		assert.deepStrictEqual({ candidates: picker.requests[0].candidates.map(candidate => candidate.id), picked: picked.routed, kept: kept.routed, picks: picker.requests.length }, {
+		// A chat routed while named routes were written as playbooks saved the name as `playbook`.
+		const keptFromPlaybook = await route([routedTurn({ router: 'daily', chosenModel: 'opus', playbook: 'bug-fix' } as IModelRoutedInfo)]);
+		assert.deepStrictEqual({ candidates: picker.requests[0].candidates.map(candidate => candidate.id), picked: picked.routed, kept: kept.routed, keptFromPlaybook: keptFromPlaybook.routed, picks: picker.requests.length }, {
 			candidates: ['feature', 'bug-fix'],
 			picked: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', preference: 'Fixing.', firstTurnOnly: true },
 			kept: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', kept: true, firstTurnOnly: true },
+			keptFromPlaybook: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', kept: true, firstTurnOnly: true },
 			picks: 1,
 		});
 	});
