@@ -5,6 +5,8 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -39,8 +41,17 @@ const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
 /** The container of the Sessions view in an editor window, whose title shows the actions of the sessions header. */
 class AgentsViewPaneContainer extends ViewPaneContainer {
+
+	private _workspaceFolders: IObservable<readonly URI[]> | undefined;
+
+	/** The folders of the window's workspace, to which the list scopes its sessions; none in an empty window. */
+	private get workspaceFolders(): IObservable<readonly URI[]> {
+		this._workspaceFolders ??= observableFromEvent(this, this.contextService.onDidChangeWorkspaceFolders, () => this.contextService.getWorkspace().folders.map(folder => folder.uri));
+		return this._workspaceFolders;
+	}
+
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scopeFolders: this.workspaceFolders };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }

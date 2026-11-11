@@ -22,6 +22,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
@@ -31,7 +32,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -4426,6 +4427,12 @@ interface ISessionsListControlBaseOptions {
 	readonly focusNewSessionInput?: () => void;
 	readonly findWidgetContainer?: HTMLElement;
 	readonly onDidScroll?: () => void;
+	/**
+	 * Folders the host scopes the list to, such as the folders of the window's workspace. While non-empty, only the
+	 * sections holding a session of these folders, or of their repositories, list inline; the other workspaces collapse
+	 * into the "+N more" row at the end. See {@link getSessionsInScopeFolders}.
+	 */
+	readonly scopeFolders?: IObservable<readonly URI[]>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5139,6 +5146,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pinnedCanvases = this.options.pinnedCanvases;
 		if (pinnedCanvases) {
 			this._register(runOnChange(pinnedCanvases.entries, () => this.update()));
+		}
+		const scopeFolders = this.options.scopeFolders;
+		if (scopeFolders) {
+			this._register(runOnChange(scopeFolders, () => this.update()));
 		}
 
 		const createTree = (container: HTMLElement, label: string) => treeDisposables.add(treeInstantiationService.createInstance(
@@ -6010,8 +6021,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// When the user has chosen "Show All Sessions" (uncapped), show every
 		// section inline instead of hiding some behind a "+N more" entry.
 		const partitionFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern && this.workspaceGroupCapped;
+		// A host scope (the window's workspace folders) lists only its workspaces inline, in "All" too.
+		const scopeFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern ? this.options.scopeFolders?.get() ?? [] : [];
 		const moreFolderSectionIds = new Set<string>();
-		if (partitionFolders) {
+		if (scopeFolders.length > 0) {
+			const scope = getSessionsInScopeFolders(sections.flatMap(section => section.sessions), scopeFolders);
+			for (const section of sections) {
+				if (isSessionGroupingSection(section.id) && this.getSectionParentId(section.id) === undefined
+					&& !section.sessions.some(session => scope.includes(session) || session.sessionId === onboardingSession?.sessionId)) {
+					moreFolderSectionIds.add(section.id);
+				}
+			}
+		} else if (partitionFolders) {
 			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
 			// With only two workspaces, hiding one behind a "+1 more" row saves no space.
 			if (workspaceSections.length > 2) {
@@ -9546,6 +9567,36 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 		}
 	}
 	return false;
+}
+
+/**
+ * The sessions of the given scope folders, such as the folders of an editor window's workspace: the sessions with a
+ * folder that is, or is inside, a scope folder, and the sessions of the same git repositories, such as its worktrees.
+ * Only the metadata the providers already report is read, comparing whole URIs, so a session of another host never
+ * matches a local folder. A repository is known only from a scope folder itself or from a session working in the
+ * scope, so the main checkout of an opened worktree without sessions does not match.
+ */
+export function getSessionsInScopeFolders(sessions: readonly ISession[], scopeFolders: readonly URI[]): { includes(session: ISession): boolean } {
+	const extUri = extUriBiasedIgnorePathCase;
+	const isInScope = (uri: URI | undefined) => !!uri && scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder));
+	const repositories = new ResourceSet(scopeFolders, uri => extUri.getComparisonKey(uri));
+	const included = new Set<ISession>();
+	for (const session of sessions) {
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			if (isInScope(folder.workingDirectory) || isInScope(folder.root) || isInScope(folder.gitRepository?.workTreeUri)) {
+				included.add(session);
+				if (folder.gitRepository) {
+					repositories.add(folder.gitRepository.uri);
+				}
+			}
+		}
+	}
+	for (const session of sessions) {
+		if (!included.has(session) && session.workspace.get()?.folders.some(folder => repositories.has(folder.root) || (!!folder.gitRepository && repositories.has(folder.gitRepository.uri)))) {
+			included.add(session);
+		}
+	}
+	return { includes: session => included.has(session) };
 }
 
 //#endregion

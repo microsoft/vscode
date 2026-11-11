@@ -66,6 +66,8 @@ A caller can acquire a disposable reveal of a session row or its archive action 
 
 User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
+A host can scope the list to folders (the editor window's Agents viewlet passes its workspace folders through the `scopeFolders` option; the Agents window does not). While the scope is non-empty and the grouping is not by date, only the top-level grouping sections holding a session whose folder is, or is inside, a scope folder, or that shares a git repository (such as a worktree) with one, list inline; every other section collapses behind the "+N more" row at the end, whether capping is on or off. Matching reads only the folder and repository metadata providers report.
+
 ### Repository grouping
 
 Repository grouping places sessions by the GitHub repository of their primary folder, so the sessions of one repository share a section whichever environment runs them. A cloud session names its repository through its workspace; other sessions report it through their Git metadata. Sessions without a GitHub repository keep their workspace section. A section shows its repository's name, adding the owner only when several repository sections share that name.

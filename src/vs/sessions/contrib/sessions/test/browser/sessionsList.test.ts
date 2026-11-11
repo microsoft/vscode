@@ -90,7 +90,7 @@ import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../.
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, getSessionsInScopeFolders, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -3837,6 +3837,115 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ two: render(2), three: render(3) }, {
 				two: { sessions: 2, showMore: [] },
 				three: { sessions: 1, showMore: ['+2 more workspaces'] },
+			});
+		});
+
+		function createFolderSession(id: string, label: string, folder: { readonly root: string; readonly workingDirectory?: string; readonly repository?: string; readonly worktree?: string }, createdAt?: Date): ISession {
+			const { session } = createTestSession(id, { workspaceLabel: label, createdAt });
+			const root = URI.parse(folder.root);
+			return {
+				...session,
+				workspace: constObservable({
+					...session.workspace.get()!,
+					uri: root,
+					folders: [{
+						root,
+						workingDirectory: folder.workingDirectory ? URI.parse(folder.workingDirectory) : root,
+						name: label,
+						description: undefined,
+						gitRepository: folder.repository ? {
+							uri: URI.parse(folder.repository),
+							workTreeUri: folder.worktree ? URI.parse(folder.worktree) : undefined,
+							baseBranchName: undefined,
+							gitHubInfo: constObservable(undefined),
+						} : undefined,
+					}],
+				}),
+			};
+		}
+
+		test('scopes sessions to folders, their contents and the worktrees of their repositories', () => {
+			const sessions = [
+				createFolderSession('checkout', 'repo', { root: 'file:///repo', repository: 'file:///repo' }),
+				createFolderSession('nested', 'sub', { root: 'file:///repo/sub' }),
+				// An Agent Host worktree reports the checkout as its root and repository.
+				createFolderSession('worktree', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }),
+				// A session that reports its worktree as its repository joins only through its own folder.
+				createFolderSession('ownWorktree', 'y', { root: 'file:///repo.worktrees/y', repository: 'file:///repo.worktrees/y', worktree: 'file:///repo.worktrees/y' }),
+				createFolderSession('other', 'other', { root: 'file:///other', repository: 'file:///other' }),
+				createFolderSession('remote', 'repo', { root: 'vscode-agent-host://host/repo', repository: 'vscode-agent-host://host/repo' }),
+				createTestSession('quickChat', { isQuickChat: true }).session,
+			];
+			const scoped = (...folders: string[]) => {
+				const scope = getSessionsInScopeFolders(sessions, folders.map(folder => URI.parse(folder)));
+				return sessions.filter(session => scope.includes(session)).map(session => session.sessionId);
+			};
+
+			assert.deepStrictEqual({
+				checkout: scoped('file:///repo'),
+				worktree: scoped('file:///repo.worktrees/x'),
+				ownWorktree: scoped('file:///repo.worktrees/y'),
+				multiRoot: scoped('file:///repo', 'file:///other'),
+				empty: scoped(),
+			}, {
+				checkout: ['checkout', 'nested', 'worktree'],
+				worktree: ['checkout', 'worktree'],
+				ownWorktree: ['ownWorktree'],
+				multiRoot: ['checkout', 'nested', 'worktree', 'other'],
+				empty: [],
+			});
+		});
+
+		test('lists the scope\'s workspaces and hides the others behind a more row, leaving an unscoped list unchanged', () => {
+			const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+			const harness = createListHarness(disposables, [
+				createFolderSession('repo-checkout', 'repo', { root: 'file:///repo', repository: 'file:///repo' }, hoursAgo(1)),
+				createFolderSession('repo-worktree', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }, hoursAgo(2)),
+				createFolderSession('a-session', 'a', { root: 'file:///a' }, hoursAgo(3)),
+				createFolderSession('b-session', 'b', { root: 'file:///b' }, hoursAgo(4)),
+			]);
+			const scopeFolders = observableValue<readonly URI[]>('scopeFolders', []);
+			const open = (scoped: boolean) => {
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					scopeFolders: scoped ? scopeFolders : undefined,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
+				return {
+					list,
+					snapshot: () => ({ sessions: list.getVisibleSessions().map(session => session.sessionId), showMore: showMoreLabels().map(label => label.textContent) }),
+					click: (label: string) => {
+						const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
+						assert.ok(row, `Expected a "${label}" row`);
+						clickRow(row);
+					},
+				};
+			};
+			const unscoped = open(false);
+			const scoped = open(true);
+
+			const emptyScope = { unscoped: unscoped.snapshot(), scoped: scoped.snapshot() };
+			scopeFolders.set([URI.parse('file:///repo')], undefined);
+			const repositoryScope = { unscoped: unscoped.snapshot(), scoped: scoped.snapshot() };
+			scoped.list.setWorkspaceGroupCapped(false);
+			const showAll = scoped.snapshot();
+			scoped.click('+2 more workspaces');
+			const expanded = scoped.snapshot();
+			scoped.list.setWorkspaceGroupCapped(true);
+
+			const all = ['a-session', 'b-session', 'repo-checkout', 'repo-worktree'];
+			assert.deepStrictEqual({ emptyScope, repositoryScope, showAll, expanded }, {
+				emptyScope: { unscoped: { sessions: all, showMore: [] }, scoped: { sessions: all, showMore: [] } },
+				repositoryScope: {
+					unscoped: { sessions: all, showMore: [] },
+					scoped: { sessions: ['repo-checkout', 'repo-worktree'], showMore: ['+2 more workspaces'] },
+				},
+				showAll: { sessions: ['repo-checkout', 'repo-worktree'], showMore: ['+2 more workspaces'] },
+				expanded: { sessions: ['repo-checkout', 'repo-worktree', 'a-session', 'b-session'], showMore: ['Show fewer workspaces'] },
 			});
 		});
 
