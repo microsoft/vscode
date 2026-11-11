@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SESSION_WORKTREE_ICON } from '../../common/sessionWorktreeIcon.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -13,7 +15,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../base/common/resources.js';
 import Severity from '../../../../../base/common/severity.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -188,10 +190,16 @@ export interface IAgentsViewFolderLocationService {
 	 * or with AI features disabled. A later call supersedes an earlier one that has not switched yet, also one that keeps the folder where it is.
 	 */
 	switchToSession(session: ISession): Promise<void>;
+
+	/** The session the user last picked while the folder was at `location`, its primary location or an alternate one. */
+	getLastSession(location: URI): URI | undefined;
 }
 
 const FOLDER_LOCATION_TERMINAL_STATUS_ID = 'agentsView.folderLocation';
 const CHAT_ENABLED_KEYS = new Set([ChatContextKeys.enabled.key]);
+/** The last session the user picked at each location of the window's folder, in the storage of its workspace, which is the primary's. */
+const LAST_SESSIONS_STORAGE_KEY = 'agentsView.folderLocation.lastSessions';
+const LAST_SESSIONS_LIMIT = 20;
 
 export class AgentsViewFolderLocationService extends Disposable implements IAgentsViewFolderLocationService {
 
@@ -204,6 +212,8 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	private readonly _provider: AgentsViewFolderLocationProvider;
 	/** Its provider, registered while AI features are enabled. */
 	private readonly _providerRegistration = this._register(new MutableDisposable());
+	/** The session the user last picked at each location of the folder, most recent last; see {@link getLastSession}. */
+	private readonly _lastSessions: ResourceMap<URI>;
 	/** The locations the folder has been at in this window, whose terminals started there are marked once it moves. */
 	private readonly _visitedLocations: URI[] = [];
 	/** The working directories that are no alternate location of the folder, until its folders change: opening their sessions reads nothing. */
@@ -221,9 +231,12 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._lastSessions = this._readLastSessions();
 		this._provider = instantiationService.createInstance(AgentsViewFolderLocationProvider);
 	}
 
@@ -238,6 +251,22 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 			}
 		}));
 		this._updateForChatEnablement();
+
+		// A deleted session is no location's last one
+		this._register(this._sessionsManagementService.onDidChangeAllSessions(e => {
+			let changed = false;
+			for (const removed of e.removed) {
+				for (const [location, resource] of this._lastSessions) {
+					if (extUriBiasedIgnorePathCase.isEqual(resource, removed.resource)) {
+						this._lastSessions.delete(location);
+						changed = true;
+					}
+				}
+			}
+			if (changed) {
+				this._storeLastSessions();
+			}
+		}));
 
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this._notLocations.clear();
@@ -271,14 +300,14 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		// Every decision goes to the workspace, also one that keeps the folder where it is: its latest request is the one
 		// that applies, so an earlier move still under way does not apply after it
 		if (!workingDirectory || workingDirectory.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, folder.uri)) {
-			return this._move(request, primary, current, undefined);
+			return this._move(request, session, primary, current, undefined);
 		}
 		if (extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, primary)) {
-			return this._move(request, primary, undefined, 'toPrimary');
+			return this._move(request, session, primary, undefined, 'toPrimary');
 		}
 
 		if (this._notLocations.has(workingDirectory)) {
-			return this._move(request, primary, current, undefined);
+			return this._move(request, session, primary, current, undefined);
 		}
 		let location: IFolderLocation | undefined;
 		try {
@@ -287,7 +316,7 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 					this._notificationService.info(localize('agentsViewFolderLocation.missing', "The folder {0} of this session no longer exists.", this._labelService.getUriLabel(workingDirectory, { noPrefix: true })));
 					this._log('toAlternate', 'missing');
 				}
-				return this._move(request, primary, current, undefined);
+				return this._move(request, session, primary, current, undefined);
 			}
 			location = await this._provider.resolveLocation(primary, workingDirectory, CancellationToken.None);
 			if (!location) {
@@ -301,17 +330,17 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 				this._notificationService.error(localize('agentsViewFolderLocation.readError', "Could not move the folder to {0}: {1}", this._labelService.getUriLabel(workingDirectory, { noPrefix: true }), toErrorMessage(error)));
 				this._log('toAlternate', 'failed');
 			}
-			return this._move(request, primary, current, undefined);
+			return this._move(request, session, primary, current, undefined);
 		}
 		// A session that works elsewhere opens in place
-		return this._move(request, primary, location?.uri ?? current, location ? 'toAlternate' : undefined);
+		return this._move(request, session, primary, location?.uri ?? current, location ? 'toAlternate' : undefined);
 	}
 
 	/**
 	 * Asks the workspace to move its folder to `location` of `primary`, or to keep it at `location` when that is where it
 	 * is (`direction` undefined), unless a later request of its own came meanwhile.
 	 */
-	private async _move(request: number, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection | undefined): Promise<void> {
+	private async _move(request: number, session: ISession, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection | undefined): Promise<void> {
 		// Read again right before the move: AI features may have been disabled meanwhile, which also supersedes the request
 		if (request !== this._request || !this._isChatEnabled()) {
 			if (direction) {
@@ -319,6 +348,8 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 			}
 			return;
 		}
+		// The session the user picked is the last one of the location the folder is to be at
+		this._rememberSession(location ?? primary, session.resource);
 		this._pendingMoves++;
 		try {
 			await this._workspaceEditingService.setFolderLocation(primary, location);
@@ -413,6 +444,53 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 			});
 		} else {
 			instance.statusList.remove(FOLDER_LOCATION_TERMINAL_STATUS_ID);
+		}
+	}
+
+	getLastSession(location: URI): URI | undefined {
+		return this._lastSessions.get(location);
+	}
+
+	private _rememberSession(location: URI, session: URI): void {
+		const known = this._lastSessions.get(location);
+		if (known && extUriBiasedIgnorePathCase.isEqual(known, session)) {
+			return;
+		}
+		// Most recent last, so the oldest goes first beyond the bound
+		this._lastSessions.delete(location);
+		this._lastSessions.set(location, session);
+		for (const [oldest] of this._lastSessions) {
+			if (this._lastSessions.size <= LAST_SESSIONS_LIMIT) {
+				break;
+			}
+			this._lastSessions.delete(oldest);
+		}
+		this._storeLastSessions();
+	}
+
+	private _readLastSessions(): ResourceMap<URI> {
+		const sessions = new ResourceMap<URI>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		try {
+			const stored: unknown = JSON.parse(this._storageService.get(LAST_SESSIONS_STORAGE_KEY, StorageScope.WORKSPACE, '[]'));
+			if (Array.isArray(stored)) {
+				for (const entry of stored.slice(-LAST_SESSIONS_LIMIT)) {
+					if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'string') {
+						sessions.set(URI.parse(entry[0]), URI.parse(entry[1]));
+					}
+				}
+			}
+		} catch {
+			// What it stored cannot be read: it starts without
+		}
+		return sessions;
+	}
+
+	private _storeLastSessions(): void {
+		const entries = [...this._lastSessions].map(([location, session]) => [location.toString(), session.toString()]);
+		if (entries.length) {
+			this._storageService.store(LAST_SESSIONS_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this._storageService.remove(LAST_SESSIONS_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 
