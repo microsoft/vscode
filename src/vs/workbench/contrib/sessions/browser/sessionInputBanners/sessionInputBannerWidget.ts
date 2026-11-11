@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionInputBanners.css';
+import { pauseCSSAnimationsWhenHidden } from '../../../../../base/browser/animationSync.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -99,6 +100,11 @@ export class SessionInputBannerWidget extends Disposable {
 		super();
 
 		this.domNode = dom.$('.session-input-banner');
+		this._register(pauseCSSAnimationsWhenHidden(this.domNode, {
+			pausedClass: 'session-input-banner-anim-paused',
+			subtree: true,
+			animationNames: new Set(['session-input-banner-working-border-spin']),
+		}));
 		this.domNode.setAttribute('role', 'status');
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
