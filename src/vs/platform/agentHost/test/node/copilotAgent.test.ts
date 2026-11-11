@@ -1158,6 +1158,13 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly connectorReconciliations: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	readonly rpc = {
+		model: {
+			switchTo: async (request: Parameters<CopilotSession['rpc']['model']['switchTo']>[0]): Promise<Awaited<ReturnType<CopilotSession['rpc']['model']['switchTo']>>> => {
+				const { modelId, compactionDecision, ...options } = request;
+				await this.setModel(modelId, { ...options, reasoningEffort: options.reasoningEffort ?? undefined });
+				return { status: 'applied', modelId };
+			},
+		},
 		agent: {
 			list: async () => ({ agents: [] }),
 			select: async ({ name }: { name: string }) => {
