@@ -2090,7 +2090,7 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [], usage: undefined, state: TurnState.Complete,
 				}));
 				const context = await openWireSession({ chat: { turns } });
-				const controller = disposables.add(new AgentHostSnapshotController(context.sessionResource, 'local', undefined, new NullLogService(), disposables.add(new TestFileService())));
+				const controller = disposables.add(new AgentHostSnapshotController(context.sessionResource, context.client, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
 				for (const turn of turns) {
 					controller.ensureRequestCheckpoint(turn.id);
 				}
@@ -2152,7 +2152,7 @@ suite('AgentHostChatContribution', () => {
 						}
 						const started = await starting;
 						context.echo(started);
-						context.fire({ type: ActionType.ChatTurnComplete, turnId: 'replacement', duration: 1 });
+						context.fire(chatTurnComplete('replacement', 1));
 						await result;
 						assert.deepStrictEqual(context.turnIds(), [...(keepFirstTurn ? ['turn-1'] : []), 'replacement']);
 					});
@@ -2202,7 +2202,7 @@ suite('AgentHostChatContribution', () => {
 					const starting = context.peer.nextDispatch(ActionType.ChatTurnStarted);
 					context.echo(context.dispatched[1]);
 					context.echo(await starting);
-					context.fire({ type: ActionType.ChatTurnComplete, turnId: 'retry', duration: 1 });
+					context.fire(chatTurnComplete('retry', 1));
 					await result;
 					assert.deepStrictEqual(context.turnIds(), [...(keepFirstTurn ? ['turn-1'] : []), 'retry']);
 				});
@@ -2226,7 +2226,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual(context.dispatched.map(sent => sent.action.type), [ActionType.ChatTruncated, ActionType.ChatTruncated]);
 				context.echo(retry);
 				context.echo(await starting);
-				context.fire({ type: ActionType.ChatTurnComplete, turnId: 'retry', duration: 1 });
+				context.fire(chatTurnComplete('retry', 1));
 				await result;
 				assert.deepStrictEqual(context.turnIds(), ['turn-1', 'retry']);
 			});
