@@ -165,7 +165,7 @@ suite('WebContentsViewHost', () => {
 		assert.deepStrictEqual({ disabled, enabled, cleared, notification }, { disabled: false, enabled: true, cleared: false, notification: true });
 	});
 
-	for (const [overlayClass, paused] of [['screenshot-tool-overlay', false], ['monaco-dialog-modal-block', true]] as const) {
+	for (const [overlayClass, paused] of [['screenshot-tool-overlay', false], ['monaco-dialog-modal-block', true], ['screenshot-annotation-editor', true]] as const) {
 		test(`hides the page under ${overlayClass} ${paused ? 'and shows' : 'without showing'} that it is paused, and ${paused ? 'tells' : 'does not tell'} the screenshot tool that UI covers it`, async () => {
 			const calls: boolean[] = [];
 			let visible = false;

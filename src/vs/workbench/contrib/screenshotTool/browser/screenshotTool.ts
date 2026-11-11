@@ -91,9 +91,9 @@ export interface IScreenshotToolLayer {
 	/** The element whose bounds the native content covers, or `undefined` while it shows no native content. */
 	readonly element: HTMLElement | undefined;
 	/**
-	 * Whether UI other than the screenshot tool's, such as a dialog, covers the native content. Window captures then show
-	 * that UI over the content's placeholder, as the user sees them, rather than the content, and a click there does not
-	 * capture the content alone.
+	 * Whether UI other than the screenshot tool's selection overlay, such as a dialog or the markup of a screenshot, covers
+	 * the native content. Window captures then show that UI over the content's placeholder, as the user sees them, rather
+	 * than the content, and a click there does not capture the content alone.
 	 */
 	readonly covered: boolean;
 	/** The URL of the native content, such as a browser page's. */

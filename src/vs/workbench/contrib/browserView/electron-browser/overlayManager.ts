@@ -15,7 +15,7 @@ export enum BrowserOverlayType {
 	Hover = 'hover',
 	Dialog = 'dialog',
 	Notification = 'notification',
-	/** The screenshot tool, which shows the page's last screenshot underneath without pausing it visibly. */
+	/** The screenshot tool's selection overlay, which shows the page's last screenshot underneath without pausing it visibly. */
 	ScreenshotTool = 'screenshotTool',
 	Unknown = 'unknown'
 }
@@ -33,7 +33,8 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
 	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
 	{ className: 'screenshot-tool-overlay', type: BrowserOverlayType.ScreenshotTool },
-	{ className: 'screenshot-annotation-editor', type: BrowserOverlayType.ScreenshotTool },
+	// The markup of a screenshot covers pages like a dialog, so window captures keep it over them.
+	{ className: 'screenshot-annotation-editor', type: BrowserOverlayType.Dialog },
 	{ className: 'part-grid-motion', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
