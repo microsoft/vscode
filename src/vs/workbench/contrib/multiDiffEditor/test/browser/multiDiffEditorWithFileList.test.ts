@@ -20,7 +20,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { createBinaryDocumentDiffItem } from '../../../../../editor/test/browser/widget/multiDiffEditorTestUtils.js';
+import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
@@ -95,10 +96,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	}
 
 	function createBinaryItem(original: URI | undefined, modified: URI | undefined) {
-		return disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original: original ? new DiffItemSource(original, undefined) : undefined,
-			modified: modified ? new DiffItemSource(modified, undefined) : undefined,
-		}, { dispose() { } }));
+		return disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(createBinaryDocumentDiffItem(original, modified), { dispose() { } }));
 	}
 
 	for (const enabled of [false, true]) {

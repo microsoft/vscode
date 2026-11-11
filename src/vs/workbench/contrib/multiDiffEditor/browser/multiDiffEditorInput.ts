@@ -17,7 +17,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
-import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel, IResolvedDocumentDiffItem } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -187,9 +187,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	public setLanguageId(languageId: string, source?: string | undefined): void {
 		const activeDiffItem = this._viewModel.requireValue().activeDiffItem.get();
-		const value = activeDiffItem?.documentDiffItem;
-		if (!value) { return; }
-		const target = (value.modified ?? value.original)?.textModel;
+		const value = activeDiffItem?.resolvedDocumentDiffItem;
+		if (value?.kind !== 'text') { return; }
+		const target = value.modified ?? value.original;
 		if (!target) { return; }
 		target.setLanguage(languageId, source);
 	}
@@ -223,8 +223,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const documents = mapObservableArrayCached(this, source.resources, (r, itemStore) =>
 			itemStore.add(RefCounted.createOfNonDisposable<IDocumentDiffItemWithMultiDiffEditorItem>({
 				multiDiffEditorItem: r,
-				original: r.originalUri ? new DiffItemSource(r.originalUri, undefined) : undefined,
-				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, undefined) : undefined,
+				originalUri: r.originalUri,
+				modifiedUri: r.modifiedUri,
 				contextKeys: r.contextKeys,
 				resolve: () => this._resolveDocument(r),
 			}, toDisposable(() => { }), this)),
@@ -247,7 +247,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		};
 	}
 
-	private async _resolveDocument(r: MultiDiffEditorItem): Promise<RefCounted<IDocumentDiffItemWithMultiDiffEditorItem>> {
+	private async _resolveDocument(r: MultiDiffEditorItem): Promise<IReference<IResolvedDocumentDiffItem>> {
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 		const multiDiffItemStore = new DisposableStore();
 		try {
@@ -278,17 +278,15 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 			const isBinary = errorResults.length > 0;
 			if (isBinary) {
-				multiDiffItemStore.clear();
-				original = undefined;
-				modified = undefined;
+				multiDiffItemStore.dispose();
+				return { object: { kind: 'binary' }, dispose: () => { } };
 			}
 
 			const uri = (r.modifiedUri ?? r.originalUri)!;
-			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
-				multiDiffEditorItem: r,
-				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
-				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
-				contextKeys: r.contextKeys,
+			const result: IResolvedDocumentDiffItem = {
+				kind: 'text',
+				original: original?.object.textEditorModel,
+				modified: modified?.object.textEditorModel,
 				get options() {
 					return {
 						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
@@ -301,7 +299,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					}
 				}),
 			};
-			return RefCounted.createOfNonDisposable(result, multiDiffItemStore, this);
+			return { object: result, dispose: () => multiDiffItemStore.dispose() };
 		} catch (error) {
 			multiDiffItemStore.dispose();
 			throw error;

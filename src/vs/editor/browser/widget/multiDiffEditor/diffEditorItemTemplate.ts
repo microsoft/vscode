@@ -418,7 +418,6 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			return;
 		}
 
-		const value = item.documentDiffItem;
 		const editorContentHeight = item.isBinary
 			? binaryFilePlaceholderContentHeight
 			: Math.max(0, Math.max(initialSize, item.lastTemplateData.get().expandedContentHeight) - this._outerEditorHeight);
@@ -452,7 +451,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 
 				this._dataStore.clear();
 				this._viewModel.set(item, tx);
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				this.editor.updateOptions(updateOptions(item.options ?? {}));
 				this.editor.setDiffModel(null, tx);
 			});
 		} finally {
@@ -467,10 +466,10 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			if (!item.isLoaded.read(reader)) {
 				return;
 			}
-			const value = item.documentDiffItem;
+			const resolved = item.resolvedDocumentDiffItem;
 			this._isSettingData = true;
 			try {
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				this.editor.updateOptions(updateOptions(item.options ?? {}));
 				this.editor.setDiffModel(item.diffEditorViewModelRef);
 				const selections = item.lastTemplateData.read(undefined).selections;
 				if (selections) {
@@ -479,8 +478,8 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			} finally {
 				this._isSettingData = false;
 			}
-			if (value.onOptionsDidChange) {
-				reader.store.add(value.onOptionsDidChange(() => this.editor.updateOptions(updateOptions(value.options ?? {}))));
+			if (resolved?.kind === 'text' && resolved.onOptionsDidChange) {
+				reader.store.add(resolved.onOptionsDidChange(() => this.editor.updateOptions(updateOptions(item.options ?? {}))));
 			}
 			if (item.isBinary) {
 				this._observedEditorContentHeight = binaryFilePlaceholderContentHeight;
@@ -508,7 +507,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		if (optionsOverride) {
 			this._dataStore.add(autorun(reader => {
 				optionsOverride.read(reader);
-				this.editor.updateOptions(updateOptions(item.documentDiffItem.options ?? {}));
+				this.editor.updateOptions(updateOptions(item.options ?? {}));
 			}));
 		}
 		if (item.documentDiffItem.contextKeys) {

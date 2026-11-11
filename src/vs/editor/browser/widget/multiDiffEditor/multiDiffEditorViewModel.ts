@@ -16,7 +16,7 @@ import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/e
 import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../diffEditor/utils.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel, IResolvedDocumentDiffItem } from './model.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 
 /** How many files are loaded up front; further files load once shown or navigated to. */
@@ -136,7 +136,11 @@ export class DocumentDiffItemViewModel extends Disposable {
 	});
 	public readonly isLoaded = derived(this, reader => !!this._load.cachedPromiseResult.read(reader)?.data);
 	public readonly loadError = derived(this, reader => this._load.cachedPromiseResult.read(reader)?.error);
-	private _resolvedDocument: IDocumentDiffItem | undefined;
+	private _resolvedDocument: IResolvedDocumentDiffItem | undefined;
+	/** The loaded contents; undefined until the item is loaded. */
+	public get resolvedDocumentDiffItem(): IResolvedDocumentDiffItem | undefined {
+		return this._resolvedDocument;
+	}
 	public get diffEditorViewModelRef(): RefCounted<DiffEditorViewModel> {
 		const value = this._load.cachedPromiseResult.get()?.data;
 		if (!value) {
@@ -169,15 +173,16 @@ export class DocumentDiffItemViewModel extends Disposable {
 		{ expandedContentHeight: 500, selections: undefined, }
 	);
 
-	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }
-	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modified?.uri; }
+	public get originalUri(): URI | undefined { return this.documentDiffItem.originalUri; }
+	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modifiedUri; }
+	/** Whether the loaded contents cannot be shown as text. False until the item is loaded. */
 	public get isBinary(): boolean {
-		if (!this._resolvedDocument && this.documentDiffItem.resolve) {
-			return false;
-		}
-		const { original, modified } = this.documentDiffItem;
-		return (original !== undefined && original.textModel === undefined)
-			|| (modified !== undefined && modified.textModel === undefined);
+		return this._resolvedDocument?.kind === 'binary';
+	}
+
+	/** The diff editor options of the loaded contents. */
+	public get options(): IDiffEditorOptions | undefined {
+		return this._resolvedDocument?.kind === 'text' ? this._resolvedDocument.options : undefined;
 	}
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
@@ -195,7 +200,7 @@ export class DocumentDiffItemViewModel extends Disposable {
 	}
 
 	public get documentDiffItem(): IDocumentDiffItem {
-		return this._resolvedDocument ?? this._documentDiffItemRef.object;
+		return this._documentDiffItemRef.object;
 	}
 
 	public readonly isAlive = observableValue<boolean>(this, true);
@@ -227,23 +232,21 @@ export class DocumentDiffItemViewModel extends Disposable {
 		let transferred = false;
 		try {
 			const document = resources.add(this._documentDiffItemRef.createNewRef(this));
-			const resolved = document.object.resolve
-				? resources.add(await document.object.resolve()).object
-				: document.object;
+			const resolved = resources.add(await document.object.resolve()).object;
 			if (this._store.isDisposed) {
 				return undefined;
 			}
-			const original = resolved.original?.textModel ?? resources.add(await this._textModelService.createSyntheticDocument('', null)).object.textEditorModel;
+			const original = (resolved.kind === 'text' ? resolved.original : undefined) ?? resources.add(await this._textModelService.createSyntheticDocument('', null)).object.textEditorModel;
 			if (this._store.isDisposed) {
 				return undefined;
 			}
-			const modified = resolved.modified?.textModel ?? resources.add(await this._textModelService.createSyntheticDocument('', null)).object.textEditorModel;
+			const modified = (resolved.kind === 'text' ? resolved.modified : undefined) ?? resources.add(await this._textModelService.createSyntheticDocument('', null)).object.textEditorModel;
 			if (this._store.isDisposed) {
 				return undefined;
 			}
 			this._resolvedDocument = resolved;
 			const options = this._instantiationService.createInstance(DiffEditorOptions, this._getOptions());
-			if (resolved.onOptionsDidChange) {
+			if (resolved.kind === 'text' && resolved.onOptionsDidChange) {
 				resources.add(resolved.onOptionsDidChange(() => options.updateOptions(this._getOptions())));
 			}
 			const ref = this._register(RefCounted.createWithDisposable(
@@ -261,7 +264,7 @@ export class DocumentDiffItemViewModel extends Disposable {
 	}
 
 	private _getOptions(): IDiffEditorOptions {
-		return { ...this.documentDiffItem.options, hideUnchangedRegions: { enabled: true } };
+		return { ...this.options, hideUnchangedRegions: { enabled: true } };
 	}
 
 	public getKey(): string {

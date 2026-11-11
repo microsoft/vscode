@@ -46,7 +46,8 @@ import { IUserInteractionService, MockUserInteractionService } from '../../../..
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { createBinaryDocumentDiffItem } from '../../../../../editor/test/browser/widget/multiDiffEditorTestUtils.js';
+import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
@@ -360,7 +361,7 @@ suite('SessionChangesEditor disposal', () => {
 		editor.create(parent);
 		editor.layout(new Dimension(800, 400));
 		const widget = (editor as unknown as { widget: MultiDiffEditorWidget }).widget;
-		const documents = [URI.file('/repo/added.png'), URI.file('/repo/other.png')].map(modified => store.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: undefined, modified: new DiffItemSource(modified, undefined) }, { dispose() { } })));
+		const documents = [URI.file('/repo/added.png'), URI.file('/repo/other.png')].map(modified => store.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(createBinaryDocumentDiffItem(undefined, modified), { dispose() { } })));
 		const viewModel = store.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documents) }));
 		await waitForState(viewModel.items, items => items.length === documents.length);
 		widget.setViewModel(viewModel, { preserveFocus: true });

@@ -380,7 +380,7 @@ suite('MultiDiffEditorInput', () => {
 			disposables.add(autorun(reader => {
 				const value = documents.read(reader);
 				if (value !== 'loading') {
-					publishedDocuments.push(value.map(document => document.object.modified!.uri.path));
+					publishedDocuments.push(value.map(document => document.object.modifiedUri!.path));
 				}
 			}));
 
@@ -391,7 +391,7 @@ suite('MultiDiffEditorInput', () => {
 			} else {
 				resources.set(update === 'replace' ? [current] : [], undefined);
 				await waitForState(documents, value => value !== 'loading' && (update === 'replace'
-					? value.length === 1 && value[0].object.modified?.uri.path === current.modifiedUri!.path
+					? value.length === 1 && value[0].object.modifiedUri?.path === current.modifiedUri!.path
 					: value.length === 0));
 				await viewModel.waitForDiffOr1s();
 			}
@@ -494,8 +494,15 @@ suite('MultiDiffEditorInput', () => {
 		const originalUri = URI.parse('file:///original.ts');
 		const modifiedUri = URI.parse('file:///modified.ts');
 		const textModelService = new class extends mock<ITextModelService>() {
-			override createModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
-				return Promise.reject(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
+			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				const model = disposables.add(instantiateTextModel(instantiationService, resource.path, undefined, undefined, resource));
+				return {
+					object: new class extends mock<IResolvedTextEditorModel>() {
+						override readonly textEditorModel = model;
+						override isReadonly() { return true; }
+					}(),
+					dispose: () => model.dispose(),
+				};
 			}
 		}();
 		const configurationChanged = disposables.add(new Emitter<ITextResourceConfigurationChangeEvent>());
@@ -529,9 +536,12 @@ suite('MultiDiffEditorInput', () => {
 			textFileService,
 		));
 		const viewModel = await input.getViewModel();
-		const documentItem = viewModel.items.get()[0].documentDiffItem;
-		const values = [documentItem.options?.hideOriginalLineNumbers];
-		disposables.add(documentItem.onOptionsDidChange!(() => values.push(documentItem.options?.hideOriginalLineNumbers)));
+		const item = viewModel.items.get()[0];
+		await item.load();
+		const resolved = item.resolvedDocumentDiffItem;
+		assert.strictEqual(resolved?.kind, 'text');
+		const values = [resolved.options?.hideOriginalLineNumbers];
+		disposables.add(resolved.onOptionsDidChange!(() => values.push(resolved.options?.hideOriginalLineNumbers)));
 
 		hideOriginalLineNumbers = false;
 		configurationChanged.fire({
@@ -598,20 +608,12 @@ suite('MultiDiffEditorInput', () => {
 			originalUri: item.originalUri?.toString(),
 			modifiedUri: item.modifiedUri?.toString(),
 			isBinary: item.isBinary,
-			originalSourceUri: item.documentDiffItem.original?.uri.toString(),
-			modifiedSourceUri: item.documentDiffItem.modified?.uri.toString(),
-			hasOriginalTextModel: item.documentDiffItem.original?.textModel !== undefined,
-			hasModifiedTextModel: item.documentDiffItem.modified?.textModel !== undefined,
 			saveCallCount,
 		}, {
 			itemCount: 1,
 			originalUri: originalUri.toString(),
 			modifiedUri: modifiedUri.toString(),
 			isBinary: true,
-			originalSourceUri: originalUri.toString(),
-			modifiedSourceUri: modifiedUri.toString(),
-			hasOriginalTextModel: false,
-			hasModifiedTextModel: false,
 			saveCallCount: 0,
 		});
 	});

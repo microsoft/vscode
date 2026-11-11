@@ -16,6 +16,7 @@ import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOp
 import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
 import { DocumentSymbol, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
@@ -92,8 +93,8 @@ async function renderMultiDiffVisualFixture(context: ComponentFixtureContext, op
 	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
 	widget.layout(new Dimension(width, height));
 	const documentSymbolsReady = options.waitForDocumentSymbols
-		? Promise.all(documents.map(document => document.object.modified?.textModel)
-			.filter((model): model is ITextModel => model !== undefined)
+		? Promise.all(documents.map(document => document.object.modifiedUri && instantiationService.get(IModelService).getModel(document.object.modifiedUri))
+			.filter((model): model is ITextModel => !!model)
 			.map(model => instantiationService.get(IOutlineModelService).getOrCreate(model, CancellationToken.None)))
 		: Promise.resolve([]);
 	await Promise.all([viewModel.waitForDiffOr1s(), documentSymbolsReady]);
