@@ -55,6 +55,13 @@ suite('AgentsViewFolderLocation', () => {
 		'/work/vscode/.git': true,
 		'/work/vscode.worktrees/feature/.git': 'gitdir: /work/vscode/.git/worktrees/feature\n',
 		'/work/vscode/.git/worktrees/feature/gitdir': '/work/vscode.worktrees/feature/.git\n',
+		'/work/vscode/.git/worktrees/feature/HEAD': 'ref: refs/heads/agents/feature\n',
+		// A linked checkout at a detached commit, and one without HEAD
+		'/work/vscode.worktrees/detached/.git': 'gitdir: /work/vscode/.git/worktrees/detached\n',
+		'/work/vscode/.git/worktrees/detached/gitdir': '/work/vscode.worktrees/detached/.git\n',
+		'/work/vscode/.git/worktrees/detached/HEAD': '0123456789abcdef0123456789abcdef01234567\n',
+		'/work/vscode.worktrees/headless/.git': 'gitdir: /work/vscode/.git/worktrees/headless\n',
+		'/work/vscode/.git/worktrees/headless/gitdir': '/work/vscode.worktrees/headless/.git\n',
 		// Points into the primary's worktrees, but git's entry names another folder back
 		'/work/forged/.git': 'gitdir: /work/vscode/.git/worktrees/feature\n',
 		// Points to an entry that git does not have
@@ -64,7 +71,7 @@ suite('AgentsViewFolderLocation', () => {
 		'/work/ordinary/.git': true,
 		'/work/denied/.git': false,
 	};
-	const folders = ['/work/vscode', '/work/vscode/src', '/work/vscode.worktrees/feature', '/work/forged', '/work/ghost', '/work/other.worktrees/x', '/work/ordinary', '/work/plain', '/work/denied'];
+	const folders = ['/work/vscode', '/work/vscode/src', '/work/vscode.worktrees/feature', '/work/vscode.worktrees/detached', '/work/vscode.worktrees/headless', '/work/forged', '/work/ghost', '/work/other.worktrees/x', '/work/ordinary', '/work/plain', '/work/denied'];
 	const lookup = (resource: URI) => {
 		const entry = entries[resource.path];
 		if (entry === false) {
@@ -152,15 +159,22 @@ suite('AgentsViewFolderLocation', () => {
 	}
 
 	test('a linked checkout shows with the icon of a worktree section of the Sessions list', async () => {
-		const provider = new AgentsViewFolderLocationProvider(fileService, labelService);
+		const provider = new AgentsViewFolderLocationProvider(fileService);
 
 		const location = await provider.resolveLocation(URI.file('/work/vscode'), URI.file('/work/vscode.worktrees/feature'), CancellationToken.None);
 
 		assert.strictEqual(location?.icon, SESSION_WORKTREE_ICON);
 	});
 
+	test('a linked checkout is described by its branch, the short commit of a detached HEAD, or nothing without HEAD', async () => {
+		const provider = new AgentsViewFolderLocationProvider(fileService);
+		const describe = async (name: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(`/work/vscode.worktrees/${name}`), CancellationToken.None))?.description;
+
+		assert.deepStrictEqual({ branch: await describe('feature'), detached: await describe('detached'), withoutHead: await describe('headless') }, { branch: 'agents/feature', detached: '0123456', withoutHead: undefined });
+	});
+
 	test('the alternate locations of a folder are its linked checkouts, which git links both ways', async () => {
-		const provider = new AgentsViewFolderLocationProvider(fileService, labelService);
+		const provider = new AgentsViewFolderLocationProvider(fileService);
 		const resolve = async (path: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(path), CancellationToken.None))?.label ?? 'none';
 
 		assert.deepStrictEqual({
