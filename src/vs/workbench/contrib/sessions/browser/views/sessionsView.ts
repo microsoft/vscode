@@ -340,7 +340,7 @@ export class SessionsView extends ViewPane {
 			showCustomizations: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
-			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
+			customizationsBadge: this.customizationsNavigationState.badge,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			pinnedCanvases: this.pinnedCanvasService,

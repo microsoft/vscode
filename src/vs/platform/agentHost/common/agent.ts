@@ -28,6 +28,7 @@ import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type Ch
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
+import type { IModelRouterSituation } from './modelRouterSituation.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -352,7 +353,16 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'project' | 'plugin';
-export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+/**
+ * `dormant` is enabled and settled like `running`: the runtime advertises the
+ * extension's declared tools and canvases and starts the extension on first use.
+ */
+export type AgentExtensionStatus = 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** Whether an extension is enabled and settled, so its advertised tools and canvases are authoritative even before it starts. */
+export function isAgentExtensionEnabledAndSettled(status: AgentExtensionStatus): boolean {
+	return status === 'running' || status === 'dormant';
+}
 
 /** One executable extension discovered from the provider's persisted or session-effective inventory. */
 export interface IAgentExtensionInfo {
@@ -360,7 +370,7 @@ export interface IAgentExtensionInfo {
 	readonly name: string;
 	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
-	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `dormant`, `failed`, or `starting`. */
 	readonly status: AgentExtensionStatus;
 	readonly pluginName?: string;
 }
@@ -1976,6 +1986,8 @@ export interface IAgentTurnModelRequest {
 	readonly previousTurns: readonly Turn[];
 	/** The turn's custom agent, whose own model can take the place of a router's pick. */
 	readonly agent?: AgentSelection;
+	/** Facts about the turn besides its message, such as what is attached. Never content. */
+	readonly situation?: IModelRouterSituation;
 }
 
 export interface IAgentTurnModelResolution {

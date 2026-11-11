@@ -299,6 +299,11 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		return !state.attempt && !state.input.inputText && !state.input.attachments.length;
 	}
 
+	/** Whether closing it loses nothing: its input is empty, and no foreground request of it is under way. */
+	isPristine(): boolean {
+		return !this._sending.get() && this._isIdle();
+	}
+
 	/**
 	 * Whether the draft of a foreground request that failed is still what the composer aims for, to retry it: what it
 	 * aims for did not change since it sent it. The draft's workspace is not compared with the requested folder, which

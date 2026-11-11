@@ -157,18 +157,19 @@ class CopilotCompletionsFilterProvider implements IExperimentationFilterProvider
 	}
 }
 
-class GithubAccountFilterProvider implements IExperimentationFilterProvider {
+export class GitHubAccountFilterProvider implements IExperimentationFilterProvider {
 	constructor(private _userInfoStore: UserInfoStore, private _logService: ILogService) { }
 
 	getFilters(): Map<string, string | undefined> {
 		const orgListString = this._userInfoStore.organizationList?.join(',');
-		this._logService.trace(`[GithubAccountFilterProvider]::getFilters SKU: ${this._userInfoStore.sku}, Internal Org: ${this._userInfoStore.internalOrg}, IsFcv1: ${this._userInfoStore.isFcv1}, IsSn: ${this._userInfoStore.isSn}, IsVscodeTeamMember: ${this._userInfoStore.isVscodeTeamMember}, OrganizationList: ${orgListString}`);
+		this._logService.trace(`[GitHubAccountFilterProvider]::getFilters SKU: ${this._userInfoStore.sku}, Internal Org: ${this._userInfoStore.internalOrg}, IsFcv1: ${this._userInfoStore.isFcv1}, IsSn: ${this._userInfoStore.isSn}, IsVscodeTeamMember: ${this._userInfoStore.isVscodeTeamMember}, IsProxima: ${this._userInfoStore.isProxima}, OrganizationList: ${orgListString}`);
 		const filters = new Map<string, string | undefined>();
 		filters.set('X-GitHub-Copilot-SKU', this._userInfoStore.sku);
 		filters.set('X-Microsoft-Internal-Org', this._userInfoStore.internalOrg);
 		filters.set('X-GitHub-Copilot-IsFcv1', this._userInfoStore.isFcv1 ? '1' : '0');
 		filters.set('X-GitHub-Copilot-IsSn', this._userInfoStore.isSn ? '1' : '0');
 		filters.set('X-GitHub-Copilot-IsVscodeTeamMember', this._userInfoStore.isVscodeTeamMember ? '1' : '0');
+		filters.set('X-GitHub-Copilot-IsProxima', this._userInfoStore.isProxima ? '1' : '0');
 		filters.set('X-GitHub-Copilot-OrganizationList', orgListString);
 		return filters;
 	}
@@ -323,7 +324,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 				telemetry: new RevocableExpTelemetry(telemetryService, gate),
 				memento: wrappedMemento,
 				filterProviders: [
-					new GithubAccountFilterProvider(userInfoStore, logService),
+					new GitHubAccountFilterProvider(userInfoStore, logService),
 					new RelatedExtensionsFilterProvider(logService),
 					new CopilotExtensionsFilterProvider(logService),
 					// The callback is called in super ctor. At that time, self/this is not initialized yet (but also, no filter could have been possibly set).
@@ -348,7 +349,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 
 		self = this; // This is now fully initialized.
 
-		const legacyAccountFilterProvider = new GithubAccountFilterProvider(this._userInfoStore, logService);
+		const legacyAccountFilterProvider = new GitHubAccountFilterProvider(this._userInfoStore, logService);
 		let legacyAccountFilters = legacyAccountFilterProvider.getFilters();
 		const updateAssignments = () => {
 			const next = getAssignments();

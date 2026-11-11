@@ -479,12 +479,12 @@
 			}
 		},
 		{
-			"label": "eslint",
+			"label": "oxlint",
 			"type": "shell",
-			"command": "pnpm run eslint",
+			"command": "pnpm run oxlint",
 			"problemMatcher": {
-				"source": "eslint",
-				"base": "$eslint-stylish"
+				"source": "oxlint",
+				"base": "$eslint-compact"
 			}
 		},
 		{

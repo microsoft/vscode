@@ -63,7 +63,7 @@ export type {
 } from './agent.js';
 export {
 	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
-	GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
+	GITHUB_REPO_PROTECTED_RESOURCE, isAgentExtensionEnabledAndSettled, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
 	resolveAgentChatOrigin, resolveSubagentChatParent, resolveAgentHostCustomizations, subagentChatTitle,
 	SubagentChatSignal,
 } from './agent.js';

@@ -159,7 +159,7 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		const store = new DisposableStore();
 		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
 			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, fileWidgetOptions)) {
 				return;

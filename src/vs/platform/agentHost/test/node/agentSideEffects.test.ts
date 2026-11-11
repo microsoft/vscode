@@ -40,7 +40,7 @@ import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, type CustomizationEnablement, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, withSessionGitState, type MessageAttachment, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -3952,12 +3952,12 @@ suite('AgentSideEffects', () => {
 		}
 
 		suite('model routers', () => {
-			function startRoutedTurn(): void {
+			function startRoutedTurn(attachments?: MessageAttachment[]): void {
 				const action: ChatAction = {
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' }, ...(attachments ? { attachments } : {}) },
 				};
 				// As on the server: the client's action reaches state before its side effects run.
 				stateManager.dispatchServerAction(defaultChatUri, action);
@@ -3974,6 +3974,33 @@ suite('AgentSideEffects', () => {
 				});
 				return requests;
 			}
+
+			test('tells the agent what is attached, the mode and where the work happens, and none of the content', async () => {
+				setupSession(URI.file('/work/shop-checkout').toString(), withSessionGitState(undefined, { uncommittedChanges: 12 }));
+				stateManager.setSessionConfig(sessionUri.toString(), {
+					schema: { type: 'object', properties: { mode: { type: 'string', title: 'Agent Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive', sessionMutable: true } } },
+					values: { mode: 'plan' },
+				});
+				const situations: IAgentTurnModelRequest['situation'][] = [];
+				routeWith(async request => {
+					situations.push(request.situation);
+					return { selection: undefined, notices: [] };
+				});
+				disposables.add(sideEffects.registerProgressListener(agent));
+
+				startRoutedTurn([
+					{ type: MessageAttachmentKind.Resource, uri: URI.file('/work/shop-checkout/src/cart.js').toString(), label: 'cart.js', displayKind: 'document' },
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'failure.png', data: 'c2VjcmV0', contentType: 'image/png' },
+				]);
+				await new Promise(r => setTimeout(r, 10));
+
+				assert.deepStrictEqual(situations, [{
+					workspace: 'shop-checkout',
+					uncommittedFiles: 12,
+					attachments: [{ kind: 'document', count: 1 }, { kind: 'image', count: 1 }],
+					mode: 'plan',
+				}]);
+			});
 
 			test('uses the model the agent resolves, and keeps the choice on every usage report', async () => {
 				setupSession();
@@ -9387,6 +9414,75 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-perm-1', approved: true },
 			]);
+		});
+
+		test('subagent permission before tool start stays pending when late tool actions arrive', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (hasKey(envelope.action, { toolCallId: true }) && envelope.action.toolCallId === 'inner') {
+					envelopes.push(envelope);
+				}
+			}));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: chatToolCallStart('turn-1', 'tc-parent', 'task', 'Task', { contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } }),
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: chatToolCallReady('turn-1', 'tc-parent', 'Delegating...', { toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }),
+			});
+			agent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+			});
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			await waitForState(stateManager, () => stateManager.getChatState(subagentUri)?.activeTurn);
+
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'inner', toolName: 'shell', displayName: 'Shell',
+					invocationMessage: 'Run shell command', toolInput: undefined,
+					confirmationTitle: 'Run shell command?', edits: undefined,
+				},
+				permissionKind: AgentPermissionKind.Shell,
+			});
+			await waitForState(stateManager, () => envelopes.some(envelope => envelope.action.type === ActionType.ChatToolCallReady) || undefined);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: chatToolCallStart('turn-1', 'inner', 'shell', 'Shell', { contributor: undefined }),
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: chatToolCallReady('turn-1', 'inner', 'Running shell command', { toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }),
+			});
+
+			const inner = stateManager.getChatState(subagentUri)?.activeTurn?.responseParts.find(
+				part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'inner'
+			);
+			assert.deepStrictEqual({
+				actions: envelopes.map(({ channel, action }) => ({
+					channel: channel === defaultChatUri ? 'parent' : 'subagent',
+					type: action.type,
+					...(action.type === ActionType.ChatToolCallReady && action.confirmationTitle !== undefined ? { confirmationTitle: action.confirmationTitle } : {}),
+					...(action.type === ActionType.ChatToolCallReady && action.confirmed !== undefined ? { confirmed: action.confirmed } : {}),
+				})),
+				status: inner?.kind === ResponsePartKind.ToolCall ? inner.toolCall.status : undefined,
+				responses: agent.respondToPermissionCalls,
+			}, {
+				actions: [
+					{ channel: 'subagent', type: ActionType.ChatToolCallStart },
+					{ channel: 'subagent', type: ActionType.ChatToolCallReady, confirmationTitle: 'Run shell command?' },
+				],
+				status: ToolCallStatus.PendingConfirmation,
+				responses: [],
+			});
 		});
 
 		test('permission denies reject with host_policy despite Allow All and dispatch no ready action', async () => {
