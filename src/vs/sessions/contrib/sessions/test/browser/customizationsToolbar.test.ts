@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -52,19 +52,12 @@ import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '..
 import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from '../../../../../workbench/contrib/extensions/common/extensions.js';
 import { CustomizationsNavigationState } from '../../../../../workbench/contrib/sessions/browser/customizationsNavigationState.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCustomizationsTelemetry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
-
-function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
-	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
-		override readonly showBadge = showBadge;
-	};
-}
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -294,6 +287,7 @@ suite('Customizations toolbar', () => {
 			override readonly activeHarness = constObservable('agent-host-test');
 			override readonly availableHarnesses = constObservable([harnessDescriptor]);
 			override getActiveDescriptor() { return harnessDescriptor; }
+			override findHarnessById(id: string) { return id === harnessDescriptor.id ? harnessDescriptor : undefined; }
 		};
 		const customizationsChanged = disposables.add(new Emitter<void>());
 		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
@@ -310,7 +304,8 @@ suite('Customizations toolbar', () => {
 		};
 		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
 		const storageService = disposables.add(new InMemoryStorageService());
-		const showExtensionSuggestionsBadge = observableValue(disposables, true);
+		const skillsBadge = observableValue<string | undefined>(disposables, 'Skills to review.');
+		disposables.add(aiCustomizationManagementSectionRegistry.registerBadge(AICustomizationManagementSection.Skills, () => skillsBadge));
 		const state = disposables.add(new CustomizationsNavigationState(
 			enabled,
 			focusedSessionHostServiceOf(activeSession),
@@ -325,21 +320,22 @@ suite('Customizations toolbar', () => {
 			},
 			new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly activeProjectRoot = activeProjectRoot;
+				override readonly managementSections = [AICustomizationManagementSection.Agents, AICustomizationManagementSection.Skills];
 			},
 			storageService,
 			new class extends mock<ILogService>() { },
-			createExtensionSuggestionsService(showExtensionSuggestionsBadge),
+			telemetryInstantiationService(),
 		));
 		await Promise.resolve();
 
 		const enabledState = {
 			totalCount: state.totalCount.get(),
 			migrationAvailable: state.migrationAvailable.get(),
-			extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
+			badge: state.badge.get(),
 		};
-		showExtensionSuggestionsBadge.set(false, undefined);
-		const seenSuggestionsState = state.extensionSuggestionsAvailable.get();
-		showExtensionSuggestionsBadge.set(true, undefined);
+		skillsBadge.set(undefined, undefined);
+		const clearedBadgeState = state.badge.get();
+		skillsBadge.set('Skills to review.', undefined);
 		customizationsChanged.fire();
 		const refreshingState = state.migrationAvailable.get();
 		void refreshedHint.complete(migrationHint);
@@ -369,7 +365,7 @@ suite('Customizations toolbar', () => {
 
 		assert.deepStrictEqual({
 			enabledState,
-			seenSuggestionsState,
+			clearedBadgeState,
 			refreshingState,
 			refreshedState,
 			removingState,
@@ -380,15 +376,15 @@ suite('Customizations toolbar', () => {
 			disabledState: {
 				totalCount: state.totalCount.get(),
 				migrationAvailable: state.migrationAvailable.get(),
-				extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
+				badge: state.badge.get(),
 			},
 		}, {
 			enabledState: {
 				totalCount: 9 + copilotCliToolCount,
 				migrationAvailable: true,
-				extensionSuggestionsAvailable: true,
+				badge: 'Skills to review.',
 			},
-			seenSuggestionsState: false,
+			clearedBadgeState: undefined,
 			refreshingState: true,
 			refreshedState: true,
 			removingState: true,
@@ -405,7 +401,7 @@ suite('Customizations toolbar', () => {
 			disabledState: {
 				totalCount: 0,
 				migrationAvailable: false,
-				extensionSuggestionsAvailable: false,
+				badge: undefined,
 			},
 		});
 	});
