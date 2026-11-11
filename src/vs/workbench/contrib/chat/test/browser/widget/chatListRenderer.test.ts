@@ -15347,20 +15347,28 @@ suite('ChatListRenderer', () => {
 		}
 
 		for (const carousel of [true, false]) {
-			for (const selectedOption of ['save-sandbox-path', 'skip']) {
-				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, () => {
+			for (const selectedOption of ['save-session-sandbox-path', 'save-sandbox-path', 'skip']) {
+				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, async () => {
 					const context = createConfirmationRenderer();
 					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					let menuActions: readonly IAction[] = [];
+					context.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+						override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
+							assert.ok(delegate.getActions);
+							menuActions = delegate.getActions();
+						}
+					}());
 					const resource = URI.file('/outside/new.ts').toString();
 					const tool = toolCallStateToInvocation({
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId: 'sandbox-write',
 						toolName: 'apply_patch',
 						displayName: 'Apply Patch',
-						confirmationTitle: 'Add to user sandbox settings and retry?',
+						confirmationTitle: 'Allow sandbox path access and retry?',
 						invocationMessage: 'Allow read/write access to the folder.',
 						options: [
-							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'save-sandbox-path', label: 'Allow for This User', kind: ConfirmationOptionKind.Approve, group: 1 },
 							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
 						],
 						edits: { items: [{ after: { uri: resource, content: { uri: resource } } }] },
@@ -15369,19 +15377,28 @@ suite('ChatListRenderer', () => {
 					context.render();
 
 					const container = carousel ? context.confirmationContainer : context.template.value;
-					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
-					const labels = buttons.map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					const primary = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+					const dropdown = container.querySelector<HTMLElement>('.monaco-dropdown-button');
+					const skip = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button.secondary');
+					assert.ok(primary && dropdown && skip);
+					const labels = [primary, skip].map(button => button.textContent?.replaceAll('\u00a0', ' '));
 					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
-					const button = buttons[selectedOption === 'skip' ? 1 : 0];
-					assert.ok(button);
-					button.click();
+					dropdown.click();
+					const moreActions = menuActions.filter(action => !(action instanceof Separator));
+					if (selectedOption === 'save-sandbox-path') {
+						await moreActions[0].run();
+					} else {
+						(selectedOption === 'skip' ? skip : primary).click();
+					}
 
 					assert.deepStrictEqual({
 						labels,
+						moreLabels: moreActions.map(action => action.label),
 						hasFilePreview,
 						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
 					}, {
-						labels: ['Allow', 'Skip'],
+						labels: ['Allow for This Session', 'Skip'],
+						moreLabels: ['Allow for This User'],
 						hasFilePreview: true,
 						confirmed: {
 							type: ToolConfirmKind.UserAction,
