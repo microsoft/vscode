@@ -51,6 +51,7 @@ import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test
 import { getSessionArchiveOnboardingTargetId, SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { getInboxPullRequestMergeOperation } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
@@ -408,6 +409,10 @@ suite('Sessions - View Menu', () => {
 		const harness = createListHarness(store, sessions);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
+		const closed: string[] = [];
+		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			closeSession: session => { closed.push(session!.sessionId); },
+		}));
 		const notices: ISessionsListNotice[] = [];
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
 			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
@@ -428,29 +433,38 @@ suite('Sessions - View Menu', () => {
 		await run('sessionsViewPane.inboxHold');
 		const held = states();
 		await notices[2].undo!();
-		assert.deepStrictEqual({ done, undone, resumed, restored, held, holdUndone: states(), archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown) }, {
+		assert.deepStrictEqual({ done, undone, resumed, restored, held, holdUndone: states(), archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
 			done: ['done', 'done', undefined], undone: ['untilActivity', undefined, undefined],
 			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
 			held: ['hold', 'hold', undefined], holdUndone: ['untilActivity', undefined, undefined], archived: [false, false, true],
 			countdowns: [false, true, true],
+			closed: ['first', 'second'],
 		});
 	});
 
-	test('single-session inbox hold, resume, and snooze avoid Undo banners but dismissal retains one', async () => {
+	test('last-session Inbox dismissal closes it and retains Undo while hold, resume, and snooze do not', async () => {
 		const session = buildTestSession({ id: 'session', title: 'Session' }).session;
 		const harness = createListHarness(store, [session]);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
+		const closed: string[] = [];
+		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			closeSession: session => { closed.push(session!.sessionId); },
+		}));
 		const notices: ISessionsListNotice[] = [];
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
 			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
 		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items[0]);
-		const counts: number[] = [];
+		const counts: { notices: number; closed: number }[] = [];
 		for (const action of ['inboxHold', 'inboxResume', 'inboxSnooze', 'inboxDone']) {
 			await CommandsRegistry.getCommand(`sessionsViewPane.${action}`)!.handler(harness.instantiationService, session);
-			counts.push(notices.length);
+			counts.push({ notices: notices.length, closed: closed.length });
 		}
-		assert.deepStrictEqual({ counts, archived: session.isArchived.get() }, { counts: [0, 0, 0, 1], archived: false });
+		await notices[0].undo!();
+		assert.deepStrictEqual({ counts, closed, stateAfterUndo: model.getInboxState(session)?.kind, archived: session.isArchived.get() }, {
+			counts: [{ notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 1, closed: 1 }],
+			closed: ['session'], stateAfterUndo: 'snoozed', archived: false,
+		});
 	});
 
 	test('inbox keeps the real archive toolbar target visible throughout onboarding', async () => {

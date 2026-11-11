@@ -1270,7 +1270,12 @@ registerAction2(class ClearInboxSessionAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-		triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'done');
+		const sessions = getSessionActionTargets(accessor, context).filter(session => !session.isArchived.get());
+		triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), sessions, 'done');
+		const sessionsService = accessor.get(ISessionsService);
+		for (const session of sessions) {
+			sessionsService.closeSession(session);
+		}
 	}
 });
 
