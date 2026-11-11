@@ -6381,9 +6381,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
 			if (comparisonGroupsBySectionId.size > 0) {
 				const unknownWorkspaceId = `workspace:${localize('unknown', "Unknown")}`;
-				workspaceSections.sort((a, b) => a.environment && b.environment
-					? compareSessionEnvironments(a.environment, b.environment)
-					: Number(a.id === unknownWorkspaceId) - Number(b.id === unknownWorkspaceId) || a.label.localeCompare(b.label));
+				// Worktree sections keep their own order, which the sections that only hold comparisons join.
+				workspaceSections.sort(grouping === SessionsGrouping.Worktree
+					? compareWorktreeSections
+					: (a, b) => a.environment && b.environment
+						? compareSessionEnvironments(a.environment, b.environment)
+						: Number(a.id === unknownWorkspaceId) - Number(b.id === unknownWorkspaceId) || a.label.localeCompare(b.label));
 			}
 			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
 			const primaryWorkspaceIds = workspaceSections
@@ -8310,6 +8313,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const session of this._sessionsManagementService.getSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 			ids.add(`${ENVIRONMENT_SECTION_PREFIX}${session.environment}`);
+			ids.add(getSessionWorktreeSection(session).id);
 			const repository = getSessionRepository(session);
 			if (repository) {
 				ids.add(getRepositorySectionId(repository));
@@ -10085,26 +10089,30 @@ function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
 }
 
 /**
- * Groups sessions by the local folder they work in: the main checkouts first, then the worktrees, each by their latest
- * activity, then the sessions without a local folder.
+ * Orders the sections of {@link SessionsGrouping.Worktree}: the main checkouts first, then the worktrees, each by their
+ * latest activity, then the sessions without a local folder.
  */
+function compareWorktreeSections(a: ISessionSection, b: ISessionSection): number {
+	const rank = (section: ISessionSection) => section.id === WORKTREE_OTHER_SECTION_ID
+		? 2
+		: section.sessions.length > 0 && getSessionWorktreeSection(section.sessions[0]).isMainCheckout ? 0 : 1;
+	const latest = (section: ISessionSection) => Math.max(Number.NEGATIVE_INFINITY, ...section.sessions.map(session => session.updatedAt.get().getTime()));
+	return rank(a) - rank(b) || latest(b) - latest(a);
+}
+
+/** Groups sessions by the local folder they work in, in the order of {@link compareWorktreeSections}. */
 export function groupByWorktree(sessions: ISession[]): ISessionSection[] {
-	const entries = new Map<string, { readonly section: ISessionSection; readonly rank: number; latest: number }>();
+	const sections = new Map<string, ISessionSection>();
 	for (const session of sessions) {
 		const worktree = getSessionWorktreeSection(session);
-		let entry = entries.get(worktree.id);
-		if (!entry) {
-			entry = {
-				section: { id: worktree.id, label: worktree.label, hover: worktree.hover, sessions: [] },
-				rank: worktree.id === WORKTREE_OTHER_SECTION_ID ? 2 : worktree.isMainCheckout ? 0 : 1,
-				latest: Number.NEGATIVE_INFINITY,
-			};
-			entries.set(worktree.id, entry);
+		let section = sections.get(worktree.id);
+		if (!section) {
+			section = { id: worktree.id, label: worktree.label, hover: worktree.hover, sessions: [] };
+			sections.set(worktree.id, section);
 		}
-		entry.section.sessions.push(session);
-		entry.latest = Math.max(entry.latest, session.updatedAt.get().getTime());
+		section.sessions.push(session);
 	}
-	return [...entries.values()].sort((a, b) => a.rank - b.rank || b.latest - a.latest).map(entry => entry.section);
+	return [...sections.values()].sort(compareWorktreeSections);
 }
 
 export function groupByRepository(sessions: ISession[]): ISessionSection[] {

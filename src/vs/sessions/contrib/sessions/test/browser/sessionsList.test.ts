@@ -24,6 +24,7 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -82,7 +83,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
@@ -3530,6 +3531,76 @@ suite('Sessions - SessionsList', () => {
 				// Closing find disposes its widget after its hide animation.
 				await timeout(350);
 			}
+		});
+
+		function openWorktreeList(harness: ReturnType<typeof createListHarness>) {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const sectionLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
+				.map(row => row.querySelector('.session-section-label:not(.session-group-labels *)')?.textContent)
+				.filter(isDefined);
+			return { list, sectionLabels };
+		}
+
+		test('keeps the worktree order when a comparison joins the list', () => {
+			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Picker', createdAt: 1 };
+			const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createWorktreeSession(id, { workingDirectory: 'file:///work/repo.worktrees/b', repository: 'file:///work/repo' }, 2 + index));
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: comparisonGroup.id,
+				title: 'Picker',
+				createdAt: 1,
+				workspace: URI.parse('file:///work/repo'),
+				prompt: 'Picker',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('z-checkout', { workingDirectory: 'file:///work/z' }, 5),
+				createWorktreeSession('a-worktree', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('cloud', undefined, 0),
+				...attempts,
+			], {
+				groups: [comparisonGroup],
+				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+				comparisons: [comparison],
+			});
+
+			assert.deepStrictEqual(openWorktreeList(harness).sectionLabels(), ['z', 'a', 'b', 'Other']);
+		});
+
+		test('keeps a manual order of worktree sections when groups change', () => {
+			const first: ISessionGroup = { id: 'first', name: 'First', createdAt: 1 };
+			const second: ISessionGroup = { id: 'second', name: 'Second', createdAt: 2 };
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 2),
+			], { groups: [first, second], liveGroups: true });
+			const orderService = harness.store.add(new SessionSectionOrderService(harness.instantiationService.get(IStorageService)));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			const { list } = openWorktreeList(harness);
+			const checkoutId = 'worktree:file:///work/repo';
+			const featureId = 'worktree:file:///work/repo.worktrees/feature';
+
+			list.moveHeaderTo(featureId, undefined, { siblingId: checkoutId, position: 'before' });
+			const moved = orderService.resolveOrder([checkoutId, featureId]);
+			// Nesting a group changes the groups, which forgets the order of headers that no longer exist.
+			list.moveHeaderTo(getSessionGroupSectionId(second.id), getSessionGroupSectionId(first.id), undefined);
+
+			assert.deepStrictEqual({ moved, afterGroupChange: orderService.resolveOrder([checkoutId, featureId]) }, {
+				moved: [featureId, checkoutId],
+				afterGroupChange: [featureId, checkoutId],
+			});
 		});
 	});
 
