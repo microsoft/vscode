@@ -9,6 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IExplorerService } from '../../../../../workbench/contrib/files/browser/files.js';
@@ -22,6 +23,12 @@ suite('SessionsExplorerView folder reveal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.file('/workspace/folder');
 	teardown(() => sinon.restore());
+
+	class TestSessionsExplorerView extends SessionsExplorerView {
+		setTreeForTest(tree: Partial<TestSessionsExplorerView['tree']>): void {
+			this.tree = upcastPartial<TestSessionsExplorerView['tree']>(tree);
+		}
+	}
 
 	function createView(openFiles: () => Promise<void>, calls: object[], visible = true) {
 		const instantiation = workbenchInstantiationService(undefined, store);
@@ -39,7 +46,7 @@ suite('SessionsExplorerView folder reveal', () => {
 		sinon.stub(ExplorerView.prototype, 'selectResource').callsFake(async (uri, reveal, retry) => {
 			calls.push({ select: uri, reveal, retry });
 		});
-		const view = store.add(instantiation.createInstance(SessionsExplorerView, {
+		const view = store.add(instantiation.createInstance(TestSessionsExplorerView, {
 			id: SESSIONS_FILES_VIEW_ID,
 			title: 'Files',
 			delegate: { willOpenElement: () => { }, didOpenElement: () => { } },
@@ -48,6 +55,60 @@ suite('SessionsExplorerView folder reveal', () => {
 		view.setVisible(visible);
 		return view;
 	}
+
+	test('content sizing restores the original minimum and leaves uninitialized content height unknown', () => {
+		const view = createView(async () => { }, []);
+		view.minimumBodySize = 120;
+		let changes = 0;
+		store.add(view.onDidChangeOptimalHeight(() => changes++));
+		view.setSizeToContent(true);
+		view.setSizeToContent(true);
+		const fitted = { minimum: view.minimumBodySize, optimal: view.getOptimalHeight() };
+		view.setSizeToContent(false);
+		assert.deepStrictEqual({ fitted, restored: view.minimumBodySize, changes }, {
+			fitted: { minimum: 0, optimal: undefined }, restored: 120, changes: 2,
+		});
+	});
+
+	for (const horizontalScrolling of [false, true]) {
+		test(`content fitting includes scrollbar reservation and restores docked padding (horizontal=${horizontalScrolling})`, () => {
+			const view = createView(async () => { }, []);
+			view.headerVisible = false;
+			let paddingBottom = 22;
+			view.setTreeForTest({
+				contentHeight: 44,
+				get scrollHeight() { return 44 + (horizontalScrolling ? 10 : 0) + paddingBottom; },
+				updateOptions: options => {
+					if (options.paddingBottom !== undefined) {
+						paddingBottom = options.paddingBottom;
+					}
+				},
+			});
+			view.setSizeToContent(true);
+			const floating = { contentHeight: view.getOptimalHeight(), paddingBottom };
+			view.setSizeToContent(false);
+			assert.deepStrictEqual({ floating, dockedPadding: paddingBottom }, {
+				floating: { contentHeight: horizontalScrolling ? 54 : 44, paddingBottom: 0 }, dockedPadding: 22,
+			});
+		});
+	}
+
+	test('content fitting also applies when the tree is created after the mode was selected', () => {
+		const view = createView(async () => { }, []);
+		view.setSizeToContent(true);
+		let paddingBottom = 22;
+		view.setTreeForTest({
+			contentHeight: 22,
+			scrollHeight: 22,
+			updateOptions: options => {
+				if (options.paddingBottom !== undefined) {
+					paddingBottom = options.paddingBottom;
+				}
+			},
+		});
+		view.setSizeToContent(true);
+		assert.strictEqual(paddingBottom, 0);
+	});
 
 	test('waits for Files tab activation before selecting a folder in a reopened panel', async () => {
 		const activation = new DeferredPromise<void>();

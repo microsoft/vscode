@@ -21,28 +21,16 @@
 	width: 100%;
 }
 
-/* Blend the editor into the input; the background layer must stay opaque, so paint it with the input color. */
-.chat-question-answer-editor .monaco-editor {
+/* Outrank session-surface editor colors while keeping Monaco's background layers opaque. */
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor {
 	background-color: transparent;
 }
 
-.chat-question-answer-editor .monaco-editor .monaco-editor-background {
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .margin,
+.monaco-workbench .interactive-session .chat-question-carousel-container .chat-question-answer-editor .chat-question-answer-editor-input .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background);
-}
-
-/* Idle (unfocused and empty): same frame as any input; only the placeholder reads as an action. */
-.chat-question-answer-editor.ghost {
-	cursor: text;
-}
-
-.chat-question-answer-editor.ghost .monaco-editor .editorPlaceholder {
-	color: var(--vscode-textLink-foreground);
 }
 
 .monaco-workbench:not(.monaco-reduce-motion) .chat-question-answer-editor {
 	transition: border-color 150ms ease-out;
-
-	.monaco-editor .editorPlaceholder {
-		transition: color 150ms ease-out;
-	}
 }

@@ -354,12 +354,12 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 			case StateType.CheckingForUpdates:
 				label.textContent = localize('updateIndicator.checking', "Checking...");
-				this.renderProgressState(this.content);
+				this.renderProgressState(this.content, label);
 				break;
 
 			case StateType.Overwriting:
 				label.textContent = localize('updateIndicator.overwriting', "Updating...");
-				this.renderProgressState(this.content);
+				this.renderProgressState(this.content, label);
 				break;
 
 			case StateType.AvailableForDownload:
@@ -371,22 +371,22 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 			case StateType.Downloading:
 				label.textContent = localize('updateIndicator.downloading', "Downloading...");
-				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
+				this.renderProgressState(this.content, label, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
 				label.textContent = localize('updateIndicator.installing', "Installing...");
-				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
+				this.renderProgressState(this.content, label, computeProgressPercent(state.currentProgress, state.maxProgress));
 				break;
 
 			case StateType.Restarting:
 				label.textContent = localize('updateIndicator.restarting', "Restarting...");
-				this.renderProgressState(this.content);
+				this.renderProgressState(this.content, label);
 				break;
 
 			case StateType.Cancelling:
 				label.textContent = localize('updateIndicator.cancelling', "Cancelling...");
-				this.renderProgressState(this.content);
+				this.renderProgressState(this.content, label);
 				break;
 
 			default:
@@ -397,12 +397,13 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.element?.setAttribute('aria-label', label.textContent);
 	}
 
-	private renderProgressState(content: HTMLElement, percentage?: number) {
+	private renderProgressState(content: HTMLElement, label: HTMLElement, percentage?: number) {
 		if (percentage !== undefined) {
 			content.classList.add('progress-percent');
 			content.style.setProperty('--update-progress', `${percentage}%`);
 		} else {
 			content.classList.add('progress-indefinite');
+			dom.append(label, dom.$('span.indicator-progress'));
 		}
 	}
 }

@@ -27,6 +27,11 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 	readonly previewHover?: IManagedHover;
 	/** Fires when account changes or widget disposal invalidate displayed preview details. */
 	readonly onDidChangePreview?: event.Event<void>;
+	/**
+	 * The name that the widget shows for the attachment, when it differs from
+	 * the attachment's name and can change, as the title of a linked session does.
+	 */
+	readonly displayName?: string;
 }
 
 /**
@@ -50,6 +55,11 @@ export interface IChatAttachmentWidgetRegistry {
 	 * Register a widget factory for a specific attachment kind.
 	 */
 	registerFactory(kind: string, factory: ChatAttachmentWidgetFactory): IDisposable;
+
+	/**
+	 * Whether a widget factory is registered for an attachment kind.
+	 */
+	hasFactory(kind: string): boolean;
 
 	/**
 	 * Try to create a widget for the given attachment using a registered factory.
@@ -79,6 +89,10 @@ export class ChatAttachmentWidgetRegistry implements IChatAttachmentWidgetRegist
 				}
 			}
 		};
+	}
+
+	hasFactory(kind: string): boolean {
+		return this._factories.has(kind);
 	}
 
 	createWidget(

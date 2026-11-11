@@ -121,6 +121,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 						diff: viewState.diff,
 						model: viewState.model,
 						inlineSuggestInfo: viewState.inlineSuggestInfo,
+						showInlineEditMenu: viewState.edit.inlineCompletion.showInlineEditMenuPreference,
 						nextCursorPosition: viewState.nextCursorPosition,
 						target: viewState.target,
 					} satisfies ILongDistancePreviewProps;

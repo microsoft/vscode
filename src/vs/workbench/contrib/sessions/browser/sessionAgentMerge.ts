@@ -14,7 +14,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../common/session.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../../../services/sessions/common/session.js';
 
 /** Cached per session, then per chat (`''` for the session folder). */
 const agentMergeSessionStateBySession = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
@@ -143,6 +143,20 @@ export function getAgentMergeAwarePullRequestIcon(icon: ThemeIcon, agentMerge: I
 /** Whether the pull-request icon represents blockers Agent Merge can own. */
 export function isAgentMergePullRequestIcon(icon: ThemeIcon): boolean {
 	return icon.id === Codicon.gitPullRequestError.id || icon.id === Codicon.gitPullRequestComment.id;
+}
+
+/**
+ * The icon of the completed state of `session`, such as of its pull request, with the blockers Agent Merge owns hidden:
+ * what its status icon shows once the session is done, in its row of the sessions list and wherever else its status shows.
+ */
+export function getSessionCompletedStateIcon(session: ISession, reader: IReader, agentMergeConfiguration: () => IObservable<ISessionAgentMergeConfiguration | undefined>): ThemeIcon | undefined {
+	// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+	const pullRequestIcon = session.completedStateIcon
+		? session.completedStateIcon.read(reader)
+		: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon));
+	return pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
+		? getAgentMergeAwarePullRequestIcon(pullRequestIcon, agentMergeConfiguration().read(reader))
+		: pullRequestIcon;
 }
 
 /**

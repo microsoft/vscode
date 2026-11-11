@@ -41,12 +41,15 @@ export const enum CopilotCliConfigKey {
 	RuntimePath = 'runtimePath',
 	/** Copilot runtime policy helper executable. An empty path disables it. */
 	PolicyHelper = 'policyHelper',
+	/** Requested M365 account-choice rollout value, not the startup-effective account/service mode. */
+	M365Enabled = 'm365Enabled',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	SearchSubagentGrepNudge = 'searchSubagentGrepNudge',
 	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
 	SearchSubagentModel = 'searchSubagentModel',
 	/** Offer the runtime's built-in Explore agent. On by default. */
@@ -121,6 +124,7 @@ export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPoli
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+export const CopilotSearchSubagentGrepNudgeSettingId = 'chat.copilot.searchSubagent.grepNudge.enabled';
 /** Selects the image model offered to Copilot agents, or turns image generation off. */
 export const CopilotImageGenerationModelSettingId = 'chat.copilot.imageGeneration.model';
 /** Legacy boolean setting, migrated to {@link CopilotImageGenerationModelSettingId}. */
@@ -284,6 +288,12 @@ export const copilotCliConfigSchema = createSchema({
 		},
 		required: ['path'],
 	}),
+	[CopilotCliConfigKey.M365Enabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.m365Enabled.title', "Microsoft 365 Copilot"),
+		description: localize('agentHost.config.m365Enabled.description', "Requested enablement of Microsoft 365 Copilot access and account choice for Copilot Agent Host sessions. Requires restarting VS Code; changing this value must not switch an active account or service."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
@@ -300,6 +310,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.SearchSubagentGrepNudge]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.searchSubagentGrepNudge.title', "Search Subagent Grep Nudge"),
+		description: localize('agentHost.config.searchSubagentGrepNudge.description', "During the first two user messages, defer at most one grep search per message to suggest the available search subagent. Further grep calls proceed through normal permissions. Does not affect searches inside subagents."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({

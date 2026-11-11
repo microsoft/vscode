@@ -6,7 +6,7 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { workspaceMembers, separateRoots, separateRootMembers, standaloneRoots, distroRoots } from '../npm/dirs.ts';
+import { workspaceMembers, separateRoots, separateRootMembers, distroRoots } from '../npm/dirs.ts';
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..');
 
@@ -322,7 +322,7 @@ export function getLockfileFolder(folder: string): string | undefined {
 			return installRoot;
 		}
 	}
-	if ([...separateRoots, ...standaloneRoots, ...distroRoots].includes(normalized)) {
+	if ([...separateRoots, ...distroRoots].includes(normalized)) {
 		return normalized;
 	}
 	return undefined;
@@ -356,7 +356,7 @@ export function getLockedVersion(folder: string, packageName: string, root = REP
  * repository root, in a fixed order.
  */
 export function listLockfiles(root = REPO_ROOT): string[] {
-	return ['', ...separateRoots, ...standaloneRoots, ...distroRoots]
+	return ['', ...separateRoots, ...distroRoots]
 		.map(folder => path.posix.join(folder, 'pnpm-lock.yaml'))
 		.filter(file => fs.existsSync(path.join(root, file)));
 }

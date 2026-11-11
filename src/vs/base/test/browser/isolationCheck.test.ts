@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, leftoverDomDetector, scrollDetector } from './isolationCheck.js';
+import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, getIsolationFindings, installIsolationCheck, leftoverDomDetector, scrollDetector } from './isolationCheck.js';
 
 suite('Isolation check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -133,6 +133,57 @@ suite('Isolation check', () => {
 			globalThis.setTimeout = realSetTimeout;
 		}
 		assert.deepStrictEqual(findings, ['left fake setTimeout installed']);
+	});
+
+	test('the next suite waits for an asynchronous reset, and a failed reset is reported without skipping later detectors', async () => {
+		// installIsolationCheck replaces the runner's flush function and adds to its findings, so put both back afterwards.
+		const global = globalThis as { __vscodeTestIsolationFlush?: unknown };
+		const runnerFlush = global.__vscodeTestIsolationFlush;
+		const findings = getIsolationFindings();
+		const findingsBefore = findings.length;
+		try {
+			const order: string[] = [];
+			let finishReset: () => void = () => { };
+			const root = new Mocha.Suite('');
+			installIsolationCheck(root, [
+				{
+					kind: 'async-reset', snapshot: () => undefined, check: () => [], reset: () => new Promise<void>(resolve => {
+						order.push('reset started');
+						finishReset = () => {
+							order.push('reset finished');
+							resolve();
+						};
+					})
+				},
+				{ kind: 'failing-reset', snapshot: () => undefined, check: () => [], reset: () => Promise.reject(new Error('no pointer')) },
+				{ kind: 'later-reset', snapshot: () => undefined, check: () => [], reset: () => { order.push('later reset'); } },
+			]);
+			const checkedSuite = Mocha.Suite.create(root, 'checked suite');
+			root.emit('post-require');
+			const hooks = checkedSuite as unknown as { _beforeAll: Mocha.Hook[]; _afterAll: Mocha.Hook[] };
+			const runHook = (hook: Mocha.Hook) => (hook.fn as () => void | Promise<void>)();
+			await runHook(hooks._beforeAll[0]);
+
+			let afterAllDone = false;
+			const afterAll = Promise.resolve(runHook(hooks._afterAll[0])).then(() => { afterAllDone = true; });
+			await new Promise(resolve => setTimeout(resolve, 0));
+			const doneBeforeReset = afterAllDone;
+			finishReset();
+			await afterAll;
+
+			assert.deepStrictEqual({
+				doneBeforeReset,
+				order,
+				findings: findings.slice(findingsBefore).map(({ kind, suite, details }) => ({ kind, suite, details })),
+			}, {
+				doneBeforeReset: false,
+				order: ['reset started', 'reset finished', 'later reset'],
+				findings: [{ kind: 'failing-reset', suite: 'checked suite', details: ['reset failed: Error: no pointer'] }],
+			});
+		} finally {
+			findings.splice(findingsBefore);
+			global.__vscodeTestIsolationFlush = runnerFlush;
+		}
 	});
 
 	suite('animation frame queue', () => {

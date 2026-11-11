@@ -605,12 +605,16 @@ suite('AhpJsonlLogger', () => {
 	suite('stringifyAhpLogEntry', () => {
 		test('redacts proxy authorization results without changing the live value', () => {
 			const result = { jsonrpc: '2.0', id: 1, result: { authorization: 'Negotiate private-ticket' } };
+			const credentials = { jsonrpc: '2.0', id: 2, result: { username: 'user', password: 'private-password' } };
 			assert.deepStrictEqual({
-				logged: JSON.parse(stringifyAhpLogEntry(result)),
-				live: result.result.authorization,
+				logged: [JSON.parse(stringifyAhpLogEntry(result)), JSON.parse(stringifyAhpLogEntry(credentials))],
+				live: [result.result.authorization, credentials.result.password],
 			}, {
-				logged: { jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
-				live: 'Negotiate private-ticket',
+				logged: [
+					{ jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
+					{ jsonrpc: '2.0', id: 2, result: { username: 'user', password: '<redacted>' } },
+				],
+				live: ['Negotiate private-ticket', 'private-password'],
 			});
 		});
 

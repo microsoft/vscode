@@ -18,7 +18,7 @@ import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } f
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
-import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
@@ -88,6 +88,7 @@ export const enum CopilotToolName {
 	ProposeWork = 'propose_work',
 	TaskComplete = 'task_complete',
 	Skill = 'skill',
+	ReadResource = 'read_resource',
 	Task = 'task',
 	ListAgents = 'list_agents',
 	ReadAgent = 'read_agent',
@@ -243,6 +244,12 @@ interface ICopilotSqlToolArgs {
 /** Parameters for the `web_fetch` tool. */
 interface ICopilotWebFetchToolArgs {
 	url: string;
+}
+
+/** Parameters for the `read_resource` tool. */
+interface ICopilotReadResourceToolArgs {
+	server: string;
+	uri: string;
 }
 
 /** Parameters for the network and subagent search tools. */
@@ -707,6 +714,7 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 		case CopilotToolName.TaskComplete: return localize('toolName.taskComplete', "Task Complete");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
 		case CopilotToolName.Skill: return localize('toolName.invokeSkill', "Invoke Skill");
+		case CopilotToolName.ReadResource: return localize('toolName.readResource', "Read MCP Resource");
 		case CopilotToolName.Task: return localize('toolName.task', "Delegate Task");
 		case CopilotToolName.ListAgents: return localize('toolName.listAgents', "List Agents");
 		case CopilotToolName.ReadAgent: return localize('toolName.readAgent', "Read Agent");
@@ -856,6 +864,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 				return md(localize('toolInvoke.webFetch', "Fetching {0}", formatUrlAsMarkdownLink(args.url)));
 			}
 			return localize('toolInvoke.webFetchGeneric', "Fetching URL");
+		}
+		case CopilotToolName.ReadResource: {
+			const args = parameters as ICopilotReadResourceToolArgs | undefined;
+			if (typeof args?.uri === 'string' && args.uri) {
+				return md(localize('toolInvoke.readResource', "Reading MCP resource {0}", appendEscapedMarkdownInlineCode(truncate(args.uri, 80))));
+			}
+			return localize('toolInvoke.readResourceGeneric', "Reading MCP resource");
 		}
 		case CopilotToolName.WebSearch: {
 			const args = parameters as ICopilotLongRunningSearchToolArgs | undefined;
@@ -1009,6 +1024,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 				return md(localize('toolComplete.webFetch', "Fetched {0}", formatUrlAsMarkdownLink(args.url)));
 			}
 			return localize('toolComplete.webFetchGeneric', "Fetched URL");
+		}
+		case CopilotToolName.ReadResource: {
+			const args = parameters as ICopilotReadResourceToolArgs | undefined;
+			if (typeof args?.uri === 'string' && args.uri) {
+				return md(localize('toolComplete.readResource', "Read MCP resource {0}", appendEscapedMarkdownInlineCode(truncate(args.uri, 80))));
+			}
+			return localize('toolComplete.readResourceGeneric', "Read MCP resource");
 		}
 		case CopilotToolName.WebSearch: {
 			const args = parameters as ICopilotLongRunningSearchToolArgs | undefined;
@@ -1220,7 +1242,7 @@ function isUnauthorizedPathGateRequest(request: PermissionRequest): boolean {
 	return isObject(request) && Array.isArray((request as { paths?: unknown }).paths);
 }
 
-/** Describes the actual grant scope saved to user settings. */
+/** Offers session-local access by default, with persistent User access as a secondary choice. */
 export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant): Pick<ToolCallPendingConfirmationState, 'confirmationTitle' | 'invocationMessage' | 'options'> {
 	const path = appendEscapedMarkdownInlineCode(grant.path);
 	const description = grant.removedReadonlyPaths?.length
@@ -1232,10 +1254,11 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant): Pick<
 		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover the granted path above, including its contents if it is a folder.", appendEscapedMarkdownInlineCode(grant.deniedPath))
 		: '';
 	return {
-		confirmationTitle: localize('copilot.permission.grant.title', "Add to user sandbox settings and retry?"),
-		invocationMessage: md([description, denied, localize('copilot.permission.grant.scope', "Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.")].filter(Boolean).join('\n\n')),
+		confirmationTitle: localize('copilot.permission.grant.title', "Allow sandbox path access and retry?"),
+		invocationMessage: md([description, denied, localize('copilot.permission.grant.scope', "Session access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization's restrictions still apply.")].filter(Boolean).join('\n\n')),
 		options: [
-			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: SAVE_SESSION_SANDBOX_PATH, label: localize('copilot.permission.grant.session', "Allow for This Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Allow for This User"), kind: ConfirmationOptionKind.Approve, group: 1 },
 			{ id: 'skip', label: localize('copilot.permission.grant.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
 		],
 	};

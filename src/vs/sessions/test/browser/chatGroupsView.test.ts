@@ -25,7 +25,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/a
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ColorScheme } from '../../../platform/theme/common/theme.js';
@@ -35,16 +35,16 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/ed
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { ChatGroupsView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { SessionDropTarget } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -52,16 +52,17 @@ import { agentsPanelBorder } from '../../../workbench/contrib/sessions/common/th
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
-import { ISessionPaneContent, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat, LegacyFakePaneState, testPaneContentOf } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
-import { ISessionHost, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
+import { ISessionPaneContent } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
@@ -83,6 +84,7 @@ class TestChatView extends AbstractChatView {
 	constructor(
 		readonly kind: ChatViewKind,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionHost readonly host: ISessionHost,
 	) {
 		super();
 		this._register(contextKeyService.createScoped(this.element));
@@ -247,8 +249,11 @@ class TestSessionsService extends mock<ISessionsService>() {
 		this.activeSession.set(session, undefined);
 	}
 
-	override async closeChat(_session: ISession, chat: IChat): Promise<void> {
+	override async closeChat(session: ISession, chat: IChat): Promise<void> {
 		this.closedChats.push(chat.resource.toString());
+		if (session instanceof TestActiveSession) {
+			session.visibleChatTabs.set(session.visibleChatTabs.get().filter(candidate => candidate !== chat), undefined);
+		}
 	}
 
 	override closeSession(session: ISession | undefined): void {
@@ -256,6 +261,17 @@ class TestSessionsService extends mock<ISessionsService>() {
 			this.closedSessions.push(session.sessionId);
 			this.onDidCloseSession?.(session);
 		}
+	}
+}
+
+class TestCommandService extends mock<ICommandService>() {
+	readonly calls: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+	handler: ((id: string, args: readonly unknown[]) => Promise<void>) | undefined;
+
+	override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+		this.calls.push({ id, args });
+		await this.handler?.(id, args);
+		return undefined;
 	}
 }
 
@@ -308,6 +324,7 @@ interface IChatGroupsHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly sessionsService: TestSessionsService;
 	readonly sessionsProvidersService: TestSessionsProvidersService;
+	readonly commandService: TestCommandService;
 	readonly chatViewFactory: TestChatViewFactory;
 	readonly configurationService: TestConfigurationService;
 	readonly chatHostOpenerService: ChatHostOpenerService;
@@ -335,6 +352,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 		instantiationService.stub(ISessionActivityBarActivityService, store.add(new SessionActivityBarActivityService()));
 	}
 	const sessionsService = new TestSessionsService();
+	const commandService = new TestCommandService();
 	const chatViewFactory = new TestChatViewFactory();
 	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
 	instantiationService.stub(IConfigurationService, configurationService);
@@ -347,8 +365,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
 	}());
 	instantiationService.stub(ISessionsService, sessionsService);
+	instantiationService.stub(ICommandService, commandService);
 	// The window host shows the active session, as the main window's does.
-	const windowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined, session: sessionsService.activeSession, chat: derived(reader => sessionsService.activeSession.read(reader)?.activeChat.read(reader)) });
+	const windowHost = upcastPartial<ISessionHost>({ id: 'main-window', kind: SessionHostKind.MainWindow, parent: undefined, session: sessionsService.activeSession, chat: derived(reader => sessionsService.activeSession.read(reader)?.activeChat.read(reader)), commandContext: { sessionHostId: 'main-window' } });
 	instantiationService.stub(ISessionHost, windowHost);
 	const focus = { viewWindow: true };
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -367,7 +386,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, chatHostOpenerService, view, focus };
+	return { instantiationService, sessionsService, sessionsProvidersService, commandService, chatViewFactory, configurationService, chatHostOpenerService, view, focus };
 }
 
 function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
@@ -534,7 +553,7 @@ suite('Sessions - ChatGroupsView', () => {
 	test('renders vertically split chats as independent panels', async () => {
 		const { view } = createHarness(disposables);
 		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
-		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233; --vscode-inactiveSessionView-background: #112233;';
+		workbench.style.cssText = '--vscode-agents-layout-floatingPanelGap: 4px; --agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233; --vscode-inactiveSessionView-background: #112233;';
 		const card = $('.part.sessionspart.sessions-chat-surface.agents-part-card.agents-card-surface');
 		const sessionView = $('.session-view.independent-chat-groups');
 		sessionView.appendChild(view.element);
@@ -897,6 +916,22 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('each group of a split session gives its chat view its own chat', async () => {
+		const { sessionsService, view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(paneContent(view, session), options);
+		view.layout(800, 600, 0, 0);
+		view.splitChatToSide(child.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			chatViewFactory.views.filter(v => !v.isDisposed).map(v => v.host.chat.get()?.resource.toString()),
+			[main.resource.toString(), child.resource.toString()]);
+	});
+
 	test('expands a collapsed group when its chat becomes active without taking focus', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
@@ -1204,6 +1239,59 @@ suite('Sessions - ChatGroupsView', () => {
 			groupActiveChat: secondary.resource.toString(),
 			sessionActiveChat: secondary.resource.toString(),
 			visibleChats: [main.resource.toString(), secondary.resource.toString()],
+		});
+	});
+
+	test('middle-clicking a chat header closes only that chat group', async () => {
+		const { commandService, configurationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(paneContent(view, session), options);
+		view.splitChatToSide(secondary.resource);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		commandService.handler = async (id, args) => {
+			assert.strictEqual(id, CLOSE_CHAT_COMMAND_ID);
+			const chat = args[1] as IChat;
+			await view.closeChatGroup(chat.resource);
+			await sessionsService.closeChat(session, chat);
+		};
+		const headers = view.element.querySelectorAll<HTMLElement>('.chat-composite-bar-session-title');
+		const event = new MouseEvent('auxclick', { bubbles: true, button: 1, cancelable: true });
+
+		headers[1].dispatchEvent(event);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			defaultPrevented: event.defaultPrevented,
+			command: commandService.calls.map(call => ({
+				id: call.id,
+				sessionMatches: call.args[0] === session,
+				chatMatches: call.args[1] === secondary,
+				hostContext: call.args[2],
+			})),
+			groupCount: view.groupCount.get(),
+			closedChats: sessionsService.closedChats,
+			groupChats: view['_groups'][0].resourceIds.get(),
+			visibleChats: session.visibleChatTabs.get().map(chat => chat.resource.toString()),
+		}, {
+			defaultPrevented: true,
+			command: [{
+				id: CLOSE_CHAT_COMMAND_ID,
+				sessionMatches: true,
+				chatMatches: true,
+				hostContext: { sessionHostId: 'main-window' },
+			}],
+			groupCount: 1,
+			closedChats: [secondary.resource.toString()],
+			groupChats: [main.resource.toString()],
+			visibleChats: [main.resource.toString()],
 		});
 	});
 

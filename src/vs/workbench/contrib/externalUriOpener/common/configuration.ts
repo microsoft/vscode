@@ -7,6 +7,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions } from '../../..
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import * as nls from '../../../../nls.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultExternalUriOpenerId } from '../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
@@ -65,10 +66,40 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 	}
 };
 
-export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
-	externalUriOpenerIdSchemaAddition.enum = enumValues;
-	externalUriOpenerIdSchemaAddition.enumDescriptions = enumDescriptions;
+interface IBuiltInOpener {
+	readonly description: string;
+	readonly alternateIds: readonly string[];
+}
+
+const builtInOpeners = new Map<string, IBuiltInOpener>();
+let contributedOpenerIds: string[] = [];
+let contributedOpenerDescriptions: string[] = [];
+
+function refreshOpenerSchema(): void {
+	const alternateIds = new Set([...builtInOpeners.values()].flatMap(opener => opener.alternateIds));
+	const contributed = contributedOpenerIds.map((id, i) => ({ id, description: contributedOpenerDescriptions[i] })).filter(opener => !alternateIds.has(opener.id));
+	externalUriOpenerIdSchemaAddition.enum = [...builtInOpeners.keys(), ...contributed.map(opener => opener.id)];
+	externalUriOpenerIdSchemaAddition.enumDescriptions = [...[...builtInOpeners.values()].map(opener => opener.description), ...contributed.map(opener => opener.description)];
 
 	Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		.notifyConfigurationSchemaUpdated(externalUriOpenersConfigurationNode);
+}
+
+export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
+	contributedOpenerIds = enumValues;
+	contributedOpenerDescriptions = enumDescriptions;
+	refreshOpenerSchema();
+}
+
+/**
+ * Lists a workbench opener, which is not contributed by an extension, as a value of the opener setting.
+ * Contributed openers in `alternateIds` stay usable in settings but are no longer offered, because this opener replaces them.
+ */
+export function registerBuiltInExternalUriOpener(id: string, description: string, alternateIds: readonly string[] = []): IDisposable {
+	builtInOpeners.set(id, { description, alternateIds });
+	refreshOpenerSchema();
+	return toDisposable(() => {
+		builtInOpeners.delete(id);
+		refreshOpenerSchema();
+	});
 }

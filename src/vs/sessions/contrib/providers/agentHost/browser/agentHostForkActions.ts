@@ -15,7 +15,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { ChatSessionForkError, IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { isAgentHostProviderId } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import type { IForkChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
@@ -71,7 +71,7 @@ registerAction2(class extends ForkConversationAction {
 					if (options?.toSide) {
 						await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
 					} else {
-						await sessionsService.openChat(session, newChat.resource);
+						await sessionsService.openChat(session, newChat.resource, { referenceChatResource: sourceSessionResource });
 					}
 				}
 			} catch (error) {
@@ -109,7 +109,7 @@ registerAction2(class extends ForkConversationAction {
 				if (options?.toSide) {
 					await sessionsService.openChatToSide(parentSession, forkedSessionResource, { referenceChatResource: parentSessionResource });
 				} else {
-					await sessionsService.openChat(parentSession, forkedSessionResource);
+					await sessionsService.openChat(parentSession, forkedSessionResource, { referenceChatResource: parentSessionResource });
 				}
 				return;
 			}

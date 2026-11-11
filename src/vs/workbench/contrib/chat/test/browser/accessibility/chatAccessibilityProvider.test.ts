@@ -10,8 +10,10 @@ import { marked } from '../../../../../../base/common/marked/marked.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ChatAccessibilityProvider, getToolConfirmationAlert } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { Response } from '../../../common/model/chatModel.js';
 import { IChatResponseIdentity } from '../../../browser/chat.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -106,6 +108,23 @@ suite('ChatAccessibilityProvider', () => {
 			});
 		}
 	}
+
+	test('announces where a terminal command awaiting confirmation runs', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IKeybindingService, { lookupKeybinding: () => undefined });
+		instantiationService.stub(IContextKeyService, {});
+		const confirmation = (workingDirectory: string) => new ChatToolInvocation({
+			confirmationMessages: { title: 'Run the tests', message: './test.sh' },
+			toolSpecificData: { kind: 'terminal', commandLine: { original: './test.sh' }, language: 'sh', executionTarget: { workingDirectory } },
+		}, {
+			id: 'shell', displayName: 'Run shell command', modelDescription: 'Run a shell command', source: ToolDataSource.Internal,
+		}, 'shell', undefined, {});
+
+		assert.deepStrictEqual(['/work/web', '/work/api'].map(directory => instantiationService.invokeFunction(accessor => getToolConfirmationAlert(accessor, [confirmation(directory)]))), [
+			'Chat confirmation required: Run the tests: ./test.sh (Working directory: /work/web)',
+			'Chat confirmation required: Run the tests: ./test.sh (Working directory: /work/api)',
+		]);
+	});
 
 	test('updates labels when the response content and accessibility hint change', () => {
 		const response = store.add(new Response(new MarkdownString(table)));

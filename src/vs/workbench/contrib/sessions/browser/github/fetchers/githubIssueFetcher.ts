@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Issue } from '../../../../../../platform/github/common/core/issues.js';
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
 import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubIssueFetcher {
 	constructor(readonly client: GitHubApiClient) { }

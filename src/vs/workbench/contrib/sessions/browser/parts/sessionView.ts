@@ -16,26 +16,26 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IPaneViewState, ISessionPaneContent } from '../../common/sessionsManagement.js';
-import { IChat, ISession, isSessionCreated } from '../../common/session.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
-import { ISessionGridPane, paneShownOfSession } from '../sessionGridPane.js';
+import { ISessionGridPane, paneShownOfSession } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
-import { ISessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
-import { ISessionGridView } from './sessionGridLayout.js';
-import { ISessionView } from '../sessionsPartService.js';
+import { ISessionGridView } from '../../../../browser/parts/sessions/sessionGridLayout.js';
+import { ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { IPaneViewState, ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -414,7 +414,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._headerHeight.set(barHeight, undefined);
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
-		this._standaloneSessionActivityBar?.layout(barHeight);
+		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
 		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
 		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
