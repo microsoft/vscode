@@ -104,9 +104,10 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 		this.unavailableProviders = constObservable(unavailableProviders);
 	}
 
-	override canRunAutomation(): boolean { return true; }
-	override canUpdateAutomation(): boolean { return true; }
-	override canDeleteAutomation(): boolean { return true; }
+	override getAutomation(id: string): IAutomationDescriptor | undefined { return this.automations.get().find(automation => automation.id === id); }
+	override canRunAutomation(id: string): boolean { return !this.getAutomation(id)?.availabilityError; }
+	override canUpdateAutomation(id: string): boolean { return !this.getAutomation(id)?.availabilityError; }
+	override canDeleteAutomation(id: string): boolean { return !this.getAutomation(id)?.availabilityError; }
 }
 
 class FixtureRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
@@ -224,6 +225,7 @@ interface IAutomationsFixtureOptions {
 	readonly followUp?: boolean;
 	readonly historyState?: AutomationCatalogueState;
 	readonly emptyHistory?: boolean;
+	readonly unreachable?: boolean;
 }
 
 const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
@@ -320,6 +322,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'error' }),
 	}),
+	UnreachableDefinition: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The unreachable cloud automation stays in the normal saved-automation group with dimmed content and a warning icon beside its name. No global unavailable or error banner is shown.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, unreachable: true }),
+	}),
 	Error: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'error' }),
@@ -350,7 +358,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 });
 
 function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
-	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.unreachable ? createUnreachableData() : options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 		[RemoteAgentHostsEnabledSettingId]: true,
@@ -478,6 +486,14 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			dataTransfer,
 		}));
 	}
+}
+
+function createUnreachableData(): IAutomationsFixtureData {
+	const automation = createCloudData().automations[0];
+	return {
+		automations: [{ ...automation, availabilityError: 'The request timed out.' }],
+		runs: [],
+	};
 }
 
 function createCloudData(): IAutomationsFixtureData {

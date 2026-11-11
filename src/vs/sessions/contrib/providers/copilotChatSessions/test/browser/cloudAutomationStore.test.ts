@@ -336,7 +336,7 @@ suite('CloudAutomationStore', () => {
 		api.listError = new Error('Repository offline');
 		const [failed] = await invoke(tools.list, {});
 		assert.deepStrictEqual({ state: failed.state, reason: typeof failed.unavailableReason, canCreate: failed.canCreateAutomation }, {
-			state: 'error', reason: 'string', canCreate: false,
+			state: 'ready', reason: 'undefined', canCreate: false,
 		});
 		api.listError = undefined;
 		const pending = new DeferredPromise<void>();
@@ -956,14 +956,14 @@ suite('CloudAutomationStore', () => {
 	});
 
 	for (const resolvedAccount of [null, { ...account, enterprise: true }]) {
-		test(`read refresh still rejects an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
+		test(`an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account is quietly unavailable without cached definitions`, async () => {
 			const initialAccount = new DeferredPromise<IDefaultAccount | null>();
 			const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			const refresh = provider.refresh();
 			await initialAccount.complete(resolvedAccount);
-			await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
-			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+			await refresh;
+			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'ready', calls: [] });
 		});
 	}
 
@@ -971,16 +971,25 @@ suite('CloudAutomationStore', () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
+		const id = provider.automations.get()[0].id;
 		api.listError = new Error('Definitions unavailable');
 		await assert.rejects(provider.refresh(), /Some GitHub repositories could not be refreshed/);
-		const failed = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() };
+		const failed = {
+			state: provider.catalogueState.get(),
+			writable: provider.canCreateAutomation.get(),
+			availabilityError: provider.automations.get()[0].availabilityError,
+			canRun: provider.canRunAutomation(id),
+		};
 		api.listError = undefined;
 		api.definitions = [{ ...definition, name: 'Recovered' }];
 		await provider.refresh();
 		assert.deepStrictEqual({
 			failed, state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(),
 			names: provider.automations.get().map(automation => automation.name),
-		}, { failed: { state: 'error', writable: false }, state: 'ready', writable: true, names: ['Recovered'] });
+		}, {
+			failed: { state: 'error', writable: false, availabilityError: 'Definitions unavailable', canRun: false },
+			state: 'ready', writable: true, names: ['Recovered'],
+		});
 	});
 
 	test('enablement discovers and projects definitions; hiding AI clears catalogue and cancels work', async () => {
@@ -1011,7 +1020,7 @@ suite('CloudAutomationStore', () => {
 		accounts.currentDefaultAccount = { ...account, enterprise: true };
 		changed.fire(accounts.currentDefaultAccount);
 		assert.deepStrictEqual({ automation: provider.getAutomation(old.id), canCreate: provider.canCreateAutomation.get(), state: provider.catalogueState.get() },
-			{ automation: undefined, canCreate: false, state: 'unavailable' });
+			{ automation: undefined, canCreate: false, state: 'ready' });
 	});
 
 	for (const previousDefinitionError of [false, true]) {
@@ -1056,7 +1065,13 @@ suite('CloudAutomationStore', () => {
 			canRun: provider.canRunAutomation(automations[0].id),
 			automations: provider.automations.get(),
 			historyRequested: api.calls.includes('history'),
-		}, { state: 'error', canCreate: false, canRun: false, automations, historyRequested: false });
+		}, {
+			state: 'error',
+			canCreate: false,
+			canRun: false,
+			automations: [{ ...automations[0], availabilityError: 'Definitions unavailable' }],
+			historyRequested: false,
+		});
 	});
 
 	test('hiding AI after definition refresh cancels before requesting history', async () => {
@@ -1158,7 +1173,7 @@ suite('CloudAutomationStore', () => {
 		await pending.complete();
 		await timeout(0);
 		assert.deepStrictEqual({ state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() },
-			{ state: 'error', writable: false });
+			{ state: 'ready', writable: false });
 		api.listError = undefined;
 		api.createError = undefined;
 		api.definitions = [{ ...definition, name: 'Reconciled' }];

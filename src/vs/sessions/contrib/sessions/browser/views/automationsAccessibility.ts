@@ -56,6 +56,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			] : []),
 			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
 			localize('automationsCustomView.help.cards2', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs, and Delete asks for confirmation. When the provider supports it, clear Delete Run History in that confirmation to keep previous runs. Run now requests execution from the selected provider when available."),
+			localize('automationsCustomView.help.unavailableCards', "When a saved cloud automation cannot be reached, its card stays in its ownership group with a warning and unavailable controls. The card and Accessible View include the error. More Actions remains available so you can open the automation on GitHub."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
 			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
@@ -162,7 +163,9 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			for (const automation of group.automations) {
 				lines.push('');
 				const starting = startingAutomationIds.has(automation.id);
-				lines.push(starting
+				lines.push(automation.availabilityError
+					? localize('automationsAccessibleView.automationUnavailable', "{0}, unavailable. We can't reach this automation. {1}", automation.name, automation.availabilityError)
+					: starting
 					? automation.enabled
 						? localize('automationsAccessibleView.automationRunning', "{0}, enabled, Running", automation.name)
 						: localize('automationsAccessibleView.automationDisabledRunning', "{0}, disabled, Running", automation.name)

@@ -60,11 +60,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	readonly enabled: IObservable<boolean>;
 	readonly catalogueState = derived<AutomationCatalogueState>(this, reader =>
 		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader)
-			?? (this.enabled.read(reader) && !this.accountInitialized.read(reader) ? 'loading' : 'unavailable'));
+			?? (this.enabled.read(reader) && !this.accountInitialized.read(reader) ? 'loading' : 'ready'));
 	readonly unavailableReason = this.refreshError;
 	readonly unavailableMessage = localize('cloudAutomations.unavailableMessage', "GitHub Cloud automations are unavailable.");
 	readonly canCreateAutomation = derived(this, reader =>
-		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
+		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready'
+		&& this.store.read(reader)?.canMutate.read(reader) === true
+		&& this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	private readonly catalogue = derived(this, reader => {
 		const automations: IAutomationDescriptor[] = [];
 		const itemsById = new Map<string, ICloudAutomationCatalogueItem>();
@@ -223,7 +225,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	private async refreshCatalogueAndHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		await this.accountInitialization;
-		const store = this.requireStore();
+		const store = this.store.get();
+		if (!store) {
+			return;
+		}
 		this.logService.trace('[CloudAutomations] Definition refresh started');
 		try {
 			await store.refresh(options);
@@ -315,7 +320,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	canDeleteAutomation(id: string): boolean {
 		const store = this.store.get();
 		const item = this.catalogue.get().itemsById.get(id);
-		return this.canCreateAutomation.get() && !!store && !!item && store.canManageRepository(item.entry.repository);
+		return this.canCreateAutomation.get() && !!store && !!item && !item.entry.availabilityError && store.canManageRepository(item.entry.repository);
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
@@ -529,6 +534,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				config: { ...(definition.tools ? { tools: definition.tools } : {}), ...(definition.reasoning_effort ? { reasoningEffort: definition.reasoning_effort } : {}) },
 			},
 			enabled: definition.disabled !== true, createdAt: definition.created_at, updatedAt: definition.updated_at,
+			...(entry.availabilityError ? { availabilityError: entry.availabilityError } : {}),
 		};
 	}
 

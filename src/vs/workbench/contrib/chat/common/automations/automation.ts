@@ -144,6 +144,7 @@ export interface IAutomationDescriptor {
 	/** ISO-8601 UTC timestamp; `undefined` when interval is `manual`. */
 	readonly nextRunAt?: string;
 	readonly readOnlyReason?: string;
+	readonly availabilityError?: string;
 }
 
 /**
