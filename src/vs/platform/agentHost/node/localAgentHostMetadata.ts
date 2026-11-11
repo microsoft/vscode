@@ -18,7 +18,9 @@ import {
 	getAgentHostEndpointIdentityHashInput,
 	parseAgentHostEndpointMetadataEntry,
 	parseAgentHostEndpointRegistry,
+	selectAgentHostEndpoint,
 } from '../common/agentHostEndpointRegistry.js';
+import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isPidAlive } from './agentHostLockfile.js';
 
@@ -90,7 +92,7 @@ export async function prepareLocalAgentHostEndpointSocketDirectory(userDataPath:
  * filesystem failure; callers must stay running but undiscoverable rather than
  * retrying non-atomically.
  */
-export async function publishLocalAgentHostEndpointMetadata(userDataPath: string, metadata: ILocalAgentHostEndpointMetadata, logService?: ILogService): Promise<void> {
+export async function publishLocalAgentHostEndpointMetadata(userDataPath: string, metadata: IAgentHostEndpointMetadata, logService?: ILogService): Promise<void> {
 	await prepareLocalAgentHostEndpointMetadataDirectory(userDataPath);
 	const entriesDirectory = getEntriesDirectory(userDataPath);
 	const entryPath = join(entriesDirectory, getAgentHostEndpointEntryFileName(metadata));
@@ -103,7 +105,7 @@ export async function publishLocalAgentHostEndpointMetadata(userDataPath: string
  * shared entries directory is left in place to avoid racing concurrent
  * publishers, and failures are logged, never thrown.
  */
-export function cleanupLocalAgentHostEndpointMetadataSync(userDataPath: string, owner: ILocalAgentHostEndpointMetadata, logService?: ILogService): void {
+export function cleanupLocalAgentHostEndpointMetadataSync(userDataPath: string, owner: IAgentHostEndpointMetadata, logService?: ILogService): void {
 	const entryPath = join(getEntriesDirectory(userDataPath), getAgentHostEndpointEntryFileName(owner));
 	try {
 		// eslint-disable-next-line local/code-no-sync-fs -- This cleanup runs from the process exit/disposal path; Node exit handlers cannot await I/O, so the registry entry must be removed before returning.
@@ -148,6 +150,12 @@ export async function readLocalAgentHostEndpointRegistry(userDataPath: string, l
 	}
 
 	return sortForDeterministicOrder(dedupeAgentHostEndpointMetadata(live));
+}
+
+/** Returns a live endpoint using the same location preference as remote clients. */
+export async function readLocalAgentHostEndpoint(userDataPath: string, quality: string | undefined, preference?: RemoteAgentHostLocationPreference, logService?: ILogService): Promise<IAgentHostEndpointMetadata | undefined> {
+	const entries = await readLocalAgentHostEndpointRegistry(userDataPath, logService);
+	return selectAgentHostEndpoint(entries, quality, preference);
 }
 
 function getMetadataDirectory(userDataPath: string): string {

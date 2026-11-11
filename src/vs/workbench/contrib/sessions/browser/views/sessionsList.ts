@@ -53,6 +53,10 @@ import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { listHoverBackground } from '../../../../../platform/theme/common/colors/listColors.js';
+import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
+import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
+import { agentsBackground } from '../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
@@ -2603,11 +2607,45 @@ function logDefaultSettingExperimentTrigger(configurationService: IConfiguration
 //#region Section Header Renderer
 
 interface ISessionHeaderTemplate {
+	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
+	readonly label: HTMLElement;
 	readonly collapsed: ISettableObservable<boolean>;
 	readonly toolbarContainer: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
+}
+
+class SessionHeaderLabelColor extends Themable {
+	constructor(
+		private readonly template: ISessionHeaderTemplate,
+		private readonly colorId: string,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(themeService);
+		this.updateStyles();
+	}
+
+	override updateStyles(): void {
+		const color = this.theme.getColor(this.colorId);
+		const background = this.theme.getColor(agentsBackground);
+		const hover = this.theme.getColor(listHoverBackground);
+		const hoverBackground = background && hover ? hover.flatten(background) : background;
+		// A translucent shell has no single opaque surface against which to correct contrast.
+		const preserveForeground = isHighContrast(this.theme.type) || background?.isOpaque() === false;
+		const foreground = preserveForeground ? '' : color && background ? background.ensureConstrast(color.flatten(background), 4.5).toString() : asCssVariable(this.colorId);
+		const hoverForeground = preserveForeground ? '' : color && hoverBackground ? hoverBackground.ensureConstrast(color.flatten(hoverBackground), 4.5).toString() : foreground;
+		this.template.container.classList.toggle('session-group-colored', !preserveForeground);
+		this.template.label.style.setProperty('--session-group-foreground', foreground);
+		this.template.label.style.setProperty('--session-group-hover-foreground', hoverForeground);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.template.container.classList.remove('session-group-colored');
+		this.template.label.style.removeProperty('--session-group-foreground');
+		this.template.label.style.removeProperty('--session-group-hover-foreground');
+	}
 }
 
 const enum SessionHeaderStatus {
@@ -2669,6 +2707,9 @@ function couldShowSessionHeaderStatus(sessions: readonly ISession[], reader: IRe
 }
 
 function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, statusTrigger: ISessionHeaderStatusTrigger, instantiationService: IInstantiationService, iconOverride?: IObservable<ThemeIcon | undefined>): void {
+	if (icon?.color) {
+		template.elementDisposables.add(instantiationService.createInstance(SessionHeaderLabelColor, template, icon.color.id));
+	}
 	template.elementDisposables.add(autorun(reader => {
 		if (statusTrigger.pending.read(reader) && (template.collapsed.read(reader) || statusTrigger.includeExpanded.read(reader)) && couldShowSessionHeaderStatus(sessions, reader)) {
 			statusTrigger.report();

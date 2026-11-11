@@ -150,15 +150,13 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
 
-	// The supervisor is what lets the renderer reach the agent host via
-	// the `agentHostProxy` IPC channel on the spawned VS Code server. This
-	// future is genuinely lazy, exactly like the one built in
-	// `control_server::serve()`: nothing drives it here — a
-	// `command-shell` that nobody connects to must not spawn a standalone
-	// supervisor by itself. It's only driven once `handle_serve` awaits a
-	// clone of it on demand and mixes the bridge endpoint into the
-	// per-request `code_server_args`. On failure the renderer just won't
-	// see `agentHostProxy`; editing and the extension host still work.
+	// The spawned VS Code server discovers the supervisor via the shared
+	// local agent-host endpoint registry. This future is genuinely lazy,
+	// exactly like the one built in `control_server::serve()`: nothing
+	// drives it here — a `command-shell` that nobody connects to must not
+	// spawn a standalone supervisor by itself. It's only driven once
+	// `handle_serve` awaits a clone before spawning the server. On failure,
+	// the server will start its own agent host.
 	let active_agent_host: SharedActiveAgentHost = {
 		let paths = ctx.paths.clone();
 		let log = ctx.log.clone();

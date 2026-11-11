@@ -721,6 +721,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The pointer is over the Release work group header. It shows its hover background, a chevron in place of the group icon, and New Session and Archive All actions on the right.'],
 	}),
+	SessionsList_Groups_CustomColors: defineSessionsListFixture({
+		sessions: GROUP_SESSIONS,
+		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, TRIAGE_GROUP],
+		view: { height: 440 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Release work uses its assigned blue color for both its icon and its readable group name. The uncustomized Triage and workspace headers and session names retain their normal colors. High-contrast themes retain their normal label colors.'],
+	}),
+	SessionsList_Groups_CustomColorsCompact: defineSessionsListFixture({
+		sessions: GROUP_SESSIONS,
+		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, { ...TRIAGE_GROUP, color: 'charts.orange' }],
+		view: { compact: true, height: 300 },
+		interaction: { hovered: { group: 'release' }, focused: { group: 'triage' } },
+	}, {
+		deferPaint: true,
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The keyboard-focused Triage name uses the normal focus foreground rather than its assigned orange, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
+	}),
 	SessionsList_Groups_FocusedHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
 		groups: [RELEASE_GROUP],

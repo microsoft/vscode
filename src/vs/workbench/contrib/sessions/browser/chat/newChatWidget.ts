@@ -77,7 +77,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { AgentsWindowUsage } from '../../../chat/common/agentsWindowUsage.js';
-import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
+import { INewSessionComposerService, INewSessionTargetLabels, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import { Menus } from '../menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
@@ -582,15 +582,21 @@ export class NewChatWidget extends Disposable {
 			? noSessionPickerVisibility
 			: newChatInput.pickerVisibility.visibility.read(reader));
 		const workspacePickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
+		const selectedSessionTypeChanged = observableSignalFromEvent(this, this._newChatInput.sessionTypePicker.onDidChangeSelectedPick);
 		this._newChatInput.sessionTypePicker.setSessionWorkspaceFolderSource(derived(this, reader => {
 			workspacePickerSelectionChanged.read(reader);
 			return this._isQuickChatComposer.read(reader) ? undefined : this._workspacePicker.selectedFolderUri;
+		}));
+		this._newChatInput.setTargetLabels(derived(this, reader => {
+			workspacePickerSelectionChanged.read(reader);
+			selectedSessionTypeChanged.read(reader);
+			return this._getCustomizationTargetLabels(reader);
 		}));
 		if (this.options.initialAttachments?.length) {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
 		}
 
-		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader))));
+		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader)), this._newChatInput.host));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
 		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based
@@ -1693,6 +1699,19 @@ export class NewChatWidget extends Disposable {
 	 */
 	private _takesGlobalComposerActions(reader: IReader): boolean {
 		return this._isMainWindowComposer() && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+	}
+
+	private _getCustomizationTargetLabels(reader: IReader | undefined): INewSessionTargetLabels {
+		const environment = this._environment.read(reader);
+		const workspace = this._workspacePicker.selectedResolved?.workspace;
+		const selectedType = this._newChatInput.sessionTypePicker.selectedSessionType;
+		return {
+			harness: environment?.kind === 'cloud' ? localize('environmentPicker.copilot', "Copilot") : selectedType?.sessionType.label,
+			workspace: workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name,
+			environment: environment?.label,
+			projectRoot: workspace?.folders[0]?.workingDirectory,
+			repositoryRoot: workspace?.folders[0]?.root,
+		};
 	}
 
 	/** Whether it is not a composer of a host of its own, such as a chat window's: those take neither the global composer actions nor Voice Mode. */

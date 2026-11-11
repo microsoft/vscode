@@ -14,6 +14,7 @@ import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../..
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Color } from '../../../../../base/common/color.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -59,6 +60,9 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -119,7 +123,7 @@ import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes }
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { SessionAttentionService } from '../../browser/sessionAttentionService.js';
+import { SessionAttentionService } from '../../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
@@ -2228,6 +2232,85 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('row feedback', () => {
+		for (const compact of [false, true]) {
+			test(`group label colors preserve contrast, selection and reset (${compact ? 'compact' : 'default'})`, () => {
+				const session = createTestSession('Session').session;
+				const harness = createListHarness(disposables, [session]);
+				const themeService = new TestThemeService();
+				harness.instantiationService.stub(IThemeService, themeService);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					compact: () => compact,
+					onSessionOpen: () => { },
+				}));
+				list.layout(700, 400);
+				const label = () => [...container.querySelectorAll<HTMLElement>('.session-section-label')]
+					.find(label => label.textContent === 'Workspace')!;
+				const appearance = () => ({
+					color: label().style.getPropertyValue('--session-group-foreground'),
+					colored: label().closest('.session-section')!.classList.contains('session-group-colored'),
+				});
+				const initial = appearance();
+				const groupsService = harness.instantiationService.get(ISessionGroupsService);
+				groupsService.setSectionColor('workspace:Workspace', 'terminal.ansiYellow');
+				const contrasts = [];
+				for (const background of ['#181818', '#ffffff']) {
+					for (const color of ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#ffffff', '#11a8cd66', '#ffffff00']) {
+						const theme = new TestColorTheme({
+							'agents.background': background,
+							'list.hoverBackground': '#88888822',
+							'terminal.ansiYellow': color,
+						});
+						themeService.setTheme(theme);
+						const base = Color.fromHex(background);
+						const hover = theme.getColor('list.hoverBackground')!.flatten(base);
+						contrasts.push(
+							base.getContrastRatio(Color.fromHex(label().style.getPropertyValue('--session-group-foreground'))) >= 4.5,
+							hover.getContrastRatio(Color.fromHex(label().style.getPropertyValue('--session-group-hover-foreground'))) >= 4.5,
+						);
+					}
+				}
+				const row = label().closest<HTMLElement>('.monaco-list-row')!;
+				row.classList.add('selected', 'hovered');
+				row.style.color = 'rgb(12, 34, 56)';
+				const selectedColor = mainWindow.getComputedStyle(label()).color;
+				row.classList.remove('selected', 'hovered');
+				const focusedColors = [false, true].map(hovered => {
+					row.classList.add('focused');
+					row.classList.toggle('hovered', hovered);
+					return mainWindow.getComputedStyle(label()).color;
+				});
+				row.classList.remove('focused', 'hovered');
+				const highContrast = [ColorScheme.HIGH_CONTRAST_DARK, ColorScheme.HIGH_CONTRAST_LIGHT].map(type => {
+					themeService.setTheme(new TestColorTheme({}, type));
+					return appearance();
+				});
+				const translucentBackgrounds = ['#00000000', '#ffffff00', '#18181880'].map(background => {
+					themeService.setTheme(new TestColorTheme({
+						'agents.background': background,
+						'terminal.ansiYellow': '#ffffff',
+					}));
+					return appearance();
+				});
+				themeService.setTheme(new TestColorTheme({
+					'agents.background': '#181818',
+					'terminal.ansiYellow': '#e5e510',
+				}));
+				groupsService.setSectionColor('workspace:Workspace', undefined);
+				assert.deepStrictEqual({ initial, contrasts, selectedColor, focusedColors, highContrast, translucentBackgrounds, reset: appearance() }, {
+					initial: { color: '', colored: false },
+					contrasts: Array(40).fill(true),
+					selectedColor: 'rgb(12, 34, 56)',
+					focusedColors: ['rgb(12, 34, 56)', 'rgb(12, 34, 56)'],
+					highContrast: [{ color: '', colored: false }, { color: '', colored: false }],
+					translucentBackgrounds: [{ color: '', colored: false }, { color: '', colored: false }, { color: '', colored: false }],
+					reset: { color: '', colored: false },
+				});
+			});
+		}
+
 		test('keeps custom group toolbar at the trailing edge', () => {
 			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
 			const session = createTestSession('session').session;
@@ -2390,8 +2473,10 @@ suite('Sessions - SessionsList', () => {
 				memberships: new Map([[session.sessionId, group.id]]),
 			});
 			const snapshot = () => {
-				const icon = getHeader(container, group.name).querySelector<HTMLElement>('.session-section-icon')!;
-				return { rocket: icon.classList.contains('codicon-rocket'), color: icon.style.color, unread: !!icon.querySelector('.codicon-circle-filled') };
+				const header = getHeader(container, group.name);
+				const icon = header.querySelector<HTMLElement>('.session-section-icon')!;
+				const label = header.querySelector<HTMLElement>('.session-section-label')!;
+				return { rocket: icon.classList.contains('codicon-rocket'), color: icon.style.color, unread: !!icon.querySelector('.codicon-circle-filled'), labelColor: label.style.getPropertyValue('--session-group-foreground') };
 			};
 			const expanded = snapshot();
 			list.collapseAllSections();
@@ -2399,9 +2484,9 @@ suite('Sessions - SessionsList', () => {
 			isRead.set(true, undefined);
 			const collapsedRead = snapshot();
 			assert.deepStrictEqual({ expanded, collapsedUnread, collapsedRead }, {
-				expanded: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false },
-				collapsedUnread: { rocket: false, color: '', unread: true },
-				collapsedRead: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false },
+				expanded: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false, labelColor: 'var(--vscode-charts-blue)' },
+				collapsedUnread: { rocket: false, color: '', unread: true, labelColor: 'var(--vscode-charts-blue)' },
+				collapsedRead: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false, labelColor: 'var(--vscode-charts-blue)' },
 			});
 		});
 

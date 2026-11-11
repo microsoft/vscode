@@ -11,7 +11,7 @@ import * as os from 'os';
 import { dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostEndpointIdentity, IAgentHostEndpointMetadata, getAgentHostEndpointIdentityHashInput } from '../../common/agentHostEndpointRegistry.js';
-import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry } from '../../node/localAgentHostMetadata.js';
+import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry, readLocalAgentHostEndpoint } from '../../node/localAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
 suite('Local Agent Host Endpoint Metadata', () => {
@@ -140,6 +140,35 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			filesAfterFirstRemoved: [entryFileName(identity(second))],
 			filesAfterBothRemoved: [],
 			entriesDirectoryRetained: true,
+		});
+	});
+
+	test('discovers compatible standalone hosts in deterministic order and removes only their own entries', async () => {
+		const editor = createLocalAgentHostEndpointMetadata(userDataPath);
+		const stable = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'a' }, 'stable-token'), quality: 'stable' };
+		const first = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'b' }, 'first-token'), quality: 'insider' };
+		const second = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'c' }, 'second-token'), quality: 'insider' };
+		await Promise.all([second, editor, stable, first].map(entry => publishLocalAgentHostEndpointMetadata(userDataPath, entry)));
+
+		const preferredEditor = await readLocalAgentHostEndpoint(userDataPath, 'insider', 'editor');
+		const selected = await readLocalAgentHostEndpoint(userDataPath, 'insider');
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, first);
+		const replacement = await readLocalAgentHostEndpoint(userDataPath, 'insider');
+		cleanupLocalAgentHostEndpointMetadataSync(userDataPath, second);
+		const unavailable = await readLocalAgentHostEndpoint(userDataPath, 'insider');
+
+		assert.deepStrictEqual({
+			preferredEditor: preferredEditor?.instanceId,
+			selected: selected?.instanceId,
+			replacement: replacement?.instanceId,
+			unavailable,
+			remaining: (await readLocalAgentHostEndpointRegistry(userDataPath)).map(entry => entry.instanceId),
+		}, {
+			preferredEditor: editor.instanceId,
+			selected: first.instanceId,
+			replacement: second.instanceId,
+			unavailable: undefined,
+			remaining: [stable.instanceId, editor.instanceId],
 		});
 	});
 
