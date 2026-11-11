@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
-import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal } from '../../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedBranchNode, ISerializedGrid, ISerializedNode, IViewSize, Orientation, orthogonal } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -211,36 +211,86 @@ function collectCellIds(node: ISerializedNode | ChatWindowArrangementNode): stri
 }
 
 /**
- * `shown`, a grid with the cell `id` hidden, with the row or column of that cell as it was in `before`, as both showed:
- * the cells beside it took its room meanwhile. The rows and columns elsewhere stay as they are now, with the sizes the
- * user gave them. Where its row or column is new, such as a column the terminals joined it in, it stays as it is.
+ * `shown`, a grid with the cell `id` hidden, with the row or column it hides in as it was in `before`, as both showed: the
+ * cells beside it took its room meanwhile. It hides in the row or column of its cell, or, where nothing else there shows,
+ * such as with the terminals while they have nothing to show, in the one around that. The rows and columns elsewhere
+ * stay as they are now, with the sizes the user gave them. Where that row or column is new, such as one the terminals
+ * joined it in, it stays as it is.
  */
 function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerializedGrid): ISerializedGrid {
-	const line = findLineOf(shown.root, shown.orientation, id);
-	const previousLine = findLineOf(before.root, before.orientation, id);
-	if (!line || !previousLine || line.orientation !== previousLine.orientation) {
+	const path = pathTo(shown.root, id);
+	if (!path) {
 		return shown;
 	}
-	// The cells that share the room as both show: those that show, and the hidden cell; another hidden cell keeps its size
-	const sharing = (child: ISerializedNode) => child.visible !== false || (child.type === 'leaf' && (child.data as { id: string }).id === id);
-	const room = line.children.reduce((sum, child) => child.visible === false ? sum : sum + child.size, 0);
-	const previous = line.children.map(child => {
+	let hiddenIndex = path.length - 1;
+	while (hiddenIndex > 1 && (path[hiddenIndex - 1] as ISerializedBranchNode).data.every(child => child.visible === false)) {
+		hiddenIndex--;
+	}
+	const line = path[hiddenIndex - 1] as ISerializedBranchNode | undefined;
+	const hiddenNode = path[hiddenIndex];
+	if (!line) {
+		return shown;
+	}
+	const orientation = (hiddenIndex - 1) % 2 === 0 ? shown.orientation : orthogonal(shown.orientation);
+	// The cells that share the room as both show: those that show, and the hidden one; another hidden cell keeps its size
+	const sharing = (child: ISerializedNode) => child === hiddenNode || child.visible !== false;
+	const partsOf = (node: ISerializedNode) => collectCellIds(node).filter(cell => cell !== ChatWindowGridCell.Terminals);
+	const previousLine = findLineWith(before.root, before.orientation, orientation, line.data.filter(sharing).map(partsOf).filter(parts => parts.length > 0));
+	if (!previousLine) {
+		return shown;
+	}
+	const room = line.data.reduce((sum, child) => child.visible === false ? sum : sum + child.size, 0);
+	const previous = line.data.map(child => {
 		if (!sharing(child)) {
 			return 0;
 		}
-		const ids = collectCellIds(child);
-		return previousLine.children.find(candidate => collectCellIds(candidate).some(candidateId => ids.includes(candidateId)))?.size
-			?? (ids.includes(ChatWindowGridCell.Terminals) && child.visible !== false ? child.size : undefined);
+		const parts = partsOf(child);
+		return parts.length ? previousLine.find(candidate => collectCellIds(candidate).some(cell => parts.includes(cell)))?.size : child.size;
 	});
 	const total = previous.reduce<number>((sum, size) => sum + (size ?? 0), 0);
-	if (!total || previous.some(size => size === undefined)) {
+	if (!room || !total || previous.some(size => size === undefined)) {
 		return shown;
 	}
-	const cells = line.children.map((child, index) => sharing(child) ? { ...child, size: Math.round(previous[index]! * room / total), visible: undefined } : child);
+	const showCell = (node: ISerializedNode): ISerializedNode => node.type === 'leaf'
+		? ((node.data as { id: string }).id === id ? { ...node, visible: undefined } : node)
+		: { ...node, data: node.data.map(showCell) };
+	const cells = line.data.map((child, index) => sharing(child) ? { ...(child === hiddenNode ? showCell(child) : child), size: Math.round(previous[index]! * room / total), visible: undefined } : child);
 	const replaceLine = (node: ISerializedNode): ISerializedNode => node.type === 'leaf' ? node
-		: node.data === line.children ? { ...node, data: cells }
+		: node === line ? { ...node, data: cells }
 			: { ...node, data: node.data.map(replaceLine) };
 	return { ...shown, root: replaceLine(shown.root) };
+}
+
+/** The nodes from `node` down to the cell `id`, or undefined without it. */
+function pathTo(node: ISerializedNode, id: string): ISerializedNode[] | undefined {
+	if (node.type === 'leaf') {
+		return (node.data as { id: string }).id === id ? [node] : undefined;
+	}
+	for (const child of node.data) {
+		const path = pathTo(child, id);
+		if (path) {
+			return [node, ...path];
+		}
+	}
+	return undefined;
+}
+
+/**
+ * The cells of the deepest row or column along `orientation` under `node`, a branch along `nodeOrientation`, in which each
+ * of `parts`, the cells of a row or column, is in a cell of its own.
+ */
+function findLineWith(node: ISerializedNode, nodeOrientation: Orientation, orientation: Orientation, parts: readonly (readonly string[])[]): readonly ISerializedNode[] | undefined {
+	if (node.type === 'leaf') {
+		return undefined;
+	}
+	for (const child of node.data) {
+		const deeper = findLineWith(child, orthogonal(nodeOrientation), orientation, parts);
+		if (deeper) {
+			return deeper;
+		}
+	}
+	const holders = parts.map(cells => node.data.findIndex(child => collectCellIds(child).some(cell => cells.includes(cell))));
+	return nodeOrientation === orientation && holders.every(holder => holder >= 0) && new Set(holders).size === holders.length ? node.data : undefined;
 }
 
 /** The row or column the cell `id` is in, under `node`, a branch along `orientation`. */

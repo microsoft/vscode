@@ -15,7 +15,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IPartGridPartFactory, PartGridLocation } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridPartFactory, PartGrid, PartGridLocation } from '../../../../browser/parts/partGrid/partGrid.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
@@ -1459,6 +1459,83 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ hidden: grid.partGrid!.describe(), shape: restored.partGrid!.describe(), main: restored.partGrid!.getCellSize(ChatWindowGridCell.Main).width }, {
 			hidden: 'column(titleRow, row(column(main, terminals), chat, strip))', shape: 'column(titleRow, row(main, chat, strip))', main: 300,
 		});
+	});
+
+	test('the main part hidden with the terminals under it while they have nothing to show is as wide after a reload as the user made it', () => {
+		const { mode, grid, open, position, terminalsPart, userResize } = setupWithTerminals();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		userResize(ChatWindowGridCell.Main, 'right', 400);
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		terminalsPart.setEmpty(true);
+		const arrangement = grid.exportArrangement();
+		const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), arrangement }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		restored.layout(1000, 800);
+
+		assert.deepStrictEqual({ shape: restored.partGrid!.describe(), main: restored.partGrid!.getCellSize(ChatWindowGridCell.Main).width }, { shape: 'column(titleRow, row(main, chat, strip))', main: 400 });
+	});
+
+	test('the split the user gave the chat and the main part comes back after a reload, whichever part was hidden as it saved, with the terminals beside it showing, empty or absent, with or without the chrome', () => {
+		type Case = { split: ChatWindowSplitLayout; move: 'swap' | 'nested' | 'reorder'; hide: ChatWindowLayoutMode; terminals?: { position: ChatWindowTerminalPosition; empty: boolean }; chrome?: false };
+		const run = ({ split, move, hide, terminals, chrome }: Case) => {
+			const mode = observableValue<ChatWindowLayoutMode>('mode', split);
+			const terminalsPart = createPartWithEditors('terminals');
+			const terminalsCell = observableValue<IContentPart | undefined>('terminals', undefined);
+			const cells = (arrangement?: IChatWindowArrangement) => ({ main: createPart('main'), chat: createPart('chat'), ...(chrome === false ? {} : { titleRow: createChrome(30), strip: createChrome(34) }), splitLayout: constObservable(split), arrangement });
+			const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { ...cells(), terminals: terminalsCell }, mode, constObservable(0), undefined, constObservable(terminals?.position ?? ChatWindowTerminalPosition.FullWidth), undefined, editorGroupsService));
+			grid.layout(1000, 800);
+			const partGrid = () => grid.partGrid!;
+			if (move === 'swap') {
+				partGrid().moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+			} else if (move === 'nested') {
+				partGrid().moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Up });
+			} else {
+				partGrid().moveCell(ChatWindowGridCell.Chat, { reference: ChatWindowGridCell.Main, direction: Direction.Up });
+			}
+			if (terminals) {
+				terminalsCell.set(terminalsPart.part, undefined);
+				terminalsPart.setEmpty(false);
+			}
+			// Beside each other, the chat and the main part split the width; one above the other, the height
+			const along = split === ChatWindowLayoutMode.Stacked || move === 'nested' ? 'height' : 'width';
+			const share = (target: PartGrid) => {
+				const [main, chat] = [target.getCellSize(ChatWindowGridCell.Main)[along], target.getCellSize(ChatWindowGridCell.Chat)[along]];
+				return { share: Math.round(main * 100 / (main + chat)), atMinimum: Math.min(main, chat) <= 100 };
+			};
+			partGrid().resizeCell(ChatWindowGridCell.Main, along === 'width' ? { width: 300 } : { height: 250 });
+			const before = share(partGrid());
+			mode.set(hide, undefined);
+			if (terminals?.empty) {
+				terminalsPart.setEmpty(true);
+			}
+			const arrangement = grid.exportArrangement();
+			const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), cells(arrangement), constObservable(split), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+			restored.layout(1000, 800);
+			const after = share(restored.partGrid!);
+			return !!arrangement && after.share === before.share && !after.atMinimum ? 'kept' : `${JSON.stringify(before)} -> ${JSON.stringify(after)}${arrangement ? '' : ' (not saved)'}`;
+		};
+		const [SideBySide, Stacked, ChatOnly, EditorOnly] = [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly] as const;
+		const [FullWidth, UnderChat, UnderEditor] = [ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor] as const;
+		const cases: Record<string, Case> = {
+			'swapped, main hidden': { split: SideBySide, move: 'swap', hide: ChatOnly },
+			'swapped, chat hidden': { split: SideBySide, move: 'swap', hide: EditorOnly },
+			'swapped, main hidden, without chrome': { split: SideBySide, move: 'swap', hide: ChatOnly, chrome: false },
+			'swapped, main hidden, terminals across': { split: SideBySide, move: 'swap', hide: ChatOnly, terminals: { position: FullWidth, empty: false } },
+			'swapped, main hidden, terminals across, empty': { split: SideBySide, move: 'swap', hide: ChatOnly, terminals: { position: FullWidth, empty: true } },
+			'swapped, main hidden, terminals under it': { split: SideBySide, move: 'swap', hide: ChatOnly, terminals: { position: UnderEditor, empty: false } },
+			'swapped, main hidden, terminals under it, empty': { split: SideBySide, move: 'swap', hide: ChatOnly, terminals: { position: UnderEditor, empty: true } },
+			'swapped, chat hidden, terminals under it': { split: SideBySide, move: 'swap', hide: EditorOnly, terminals: { position: UnderChat, empty: false } },
+			'swapped, chat hidden, terminals under it, empty': { split: SideBySide, move: 'swap', hide: EditorOnly, terminals: { position: UnderChat, empty: true } },
+			'nested, main hidden': { split: SideBySide, move: 'nested', hide: ChatOnly },
+			'nested, chat hidden, terminals across, empty': { split: SideBySide, move: 'nested', hide: EditorOnly, terminals: { position: FullWidth, empty: true } },
+			'stacked reordered, main hidden, terminals': { split: Stacked, move: 'reorder', hide: ChatOnly, terminals: { position: FullWidth, empty: false } },
+			'stacked reordered, chat hidden, terminals empty': { split: Stacked, move: 'reorder', hide: EditorOnly, terminals: { position: FullWidth, empty: true } },
+			'stacked reordered, main hidden, without chrome': { split: Stacked, move: 'reorder', hide: ChatOnly, chrome: false },
+		};
+
+		const results = Object.fromEntries(Object.entries(cases).map(([name, testCase]) => [name, run(testCase)]));
+		assert.deepStrictEqual(results, Object.fromEntries(Object.keys(cases).map(name => [name, 'kept'])));
 	});
 
 	test('the terminal position moves the terminals\' part in the grid, which keeps its height, and the arrangement it moves to is the one a new grid shows', () => {
