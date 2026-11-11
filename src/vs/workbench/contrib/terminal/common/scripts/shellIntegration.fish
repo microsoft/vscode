@@ -1,3 +1,4 @@
+
 # ---------------------------------------------------------------------------------------------
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
@@ -103,7 +104,7 @@ end
 
 # Handle the shell integration nonce
 if set -q VSCODE_NONCE
-	set -l __vsc_nonce $VSCODE_NONCE
+	set -g __vsc_nonce $VSCODE_NONCE
 	set -e VSCODE_NONCE
 end
 
