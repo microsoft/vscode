@@ -993,7 +993,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							disconnectTimeouts: new DisposableMap(),
 						});
 						this._handleClientDisconnected(client.clientId);
-						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+						this._onDidChangeConnectionCount.fire(this.connectedClientCount);
 					}
 					this._reportClientDisconnected(client, subscriptionCount);
 				}
@@ -1123,7 +1123,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (previousRecord?.state === 'grace') {
 				previousRecord.disconnectTimeouts.dispose();
 			}
-			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._onDidChangeConnectionCount.fire(this.connectedClientCount);
 
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
@@ -1468,7 +1468,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (existingRecord.state === 'grace') {
 				existingRecord.disconnectTimeouts.dispose();
 			}
-			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._onDidChangeConnectionCount.fire(this.connectedClientCount);
 
 			return { client, responsePromise };
 		} catch (error) {
@@ -2083,7 +2083,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/** Number of clients that currently have a live connection. */
-	private get _connectedClientCount(): number {
+	get connectedClientCount(): number {
 		let count = 0;
 		for (const record of this._clients.values()) {
 			if (record.state === 'active') {
