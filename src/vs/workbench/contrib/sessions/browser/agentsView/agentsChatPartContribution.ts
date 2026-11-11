@@ -11,6 +11,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +47,8 @@ export class AgentsChatPartContribution extends Disposable {
 			[new SyncDescriptor(SessionChangesEditorInput)]
 		));
 		this._register(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
+		// Its diffs, also of a Changes editor that the window restores
+		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver));
 
 		const visible = AgentsChatPartVisibleContext.bindTo(contextKeyService);
 		this._register(layoutService.onDidChangePartVisibility(({ partId }) => {

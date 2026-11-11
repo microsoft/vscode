@@ -25,6 +25,7 @@ import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
@@ -77,6 +78,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
 		return disposables.add(instantiationService.createInstance(AgentsViewGate));
 	}
 
