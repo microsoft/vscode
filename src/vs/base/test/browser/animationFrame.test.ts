@@ -104,6 +104,25 @@ suite('Animation frame window lifetime', () => {
 		assert.deepStrictEqual(calls, ['during fake', 'after restore']);
 	});
 
+	test('runs when requestAnimationFrame is faked and restored while a native frame is pending', async () => {
+		const { targetWindow } = createWindow();
+		const realRequestAnimationFrame = targetWindow.requestAnimationFrame;
+		const calls: string[] = [];
+		const ran = new Promise<void>(resolve => {
+			scheduleAtNextAnimationFrame(targetWindow, () => calls.push('before fake'));
+			targetWindow.requestAnimationFrame = () => 0;
+			scheduleAtNextAnimationFrame(targetWindow, () => {
+				calls.push('during fake');
+				resolve();
+			});
+			targetWindow.requestAnimationFrame = realRequestAnimationFrame;
+		});
+
+		await ran;
+
+		assert.deepStrictEqual(calls, ['before fake', 'during fake']);
+	});
+
 	test('a superseded frame request does not run the queue', () => {
 		const { targetWindow } = createWindow();
 		const firstFrames: FrameRequestCallback[] = [];

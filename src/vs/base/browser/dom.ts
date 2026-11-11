@@ -469,8 +469,24 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner.delete(vscodeWindowId);
 	}));
 
-	const animationFrameRunner = (targetWindowId: number, token: number) => {
-		if (!animFrameRequested.has(targetWindowId) || animFrameRequestToken.get(targetWindowId) !== token) {
+	const requestFrame = (targetWindow: Window, targetWindowId: number) => {
+		animFrameRequested.set(targetWindowId, true);
+		animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
+		const token = ++lastAnimFrameRequestToken;
+		animFrameRequestToken.set(targetWindowId, token);
+		targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindow, targetWindowId, token));
+	};
+
+	const animationFrameRunner = (targetWindow: Window, targetWindowId: number, token: number) => {
+		if (!animFrameRequested.has(targetWindowId)) {
+			return;
+		}
+		if (animFrameRequestToken.get(targetWindowId) !== token) {
+			// A superseded request does not run the queue. If the current request went through a requestAnimationFrame
+			// that is no longer installed, it may never fire, so request a frame through the installed one.
+			if (animFrameRequested.get(targetWindowId) && animFrameRequestedWith.get(targetWindowId) !== targetWindow.requestAnimationFrame) {
+				requestFrame(targetWindow, targetWindowId);
+			}
 			return;
 		}
 		animFrameRequested.set(targetWindowId, false);
@@ -503,11 +519,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		// Also request again when requestAnimationFrame was replaced since the pending request: its callback may never run.
 		if (!animFrameRequested.get(targetWindowId) || animFrameRequestedWith.get(targetWindowId) !== targetWindow.requestAnimationFrame) {
-			animFrameRequested.set(targetWindowId, true);
-			animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
-			const token = ++lastAnimFrameRequestToken;
-			animFrameRequestToken.set(targetWindowId, token);
-			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId, token));
+			requestFrame(targetWindow, targetWindowId);
 		}
 
 		return item;
