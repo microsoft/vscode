@@ -66,7 +66,7 @@ suite('AgentHostGitHubEndpointService', () => {
 		disposables.add(service.onDidChange(() => fires++));
 
 		// An unrelated root-config change must NOT fire.
-		configService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		configService.updateRootConfig({ [AgentHostConfigKey.DefaultShell]: 'test-shell' });
 		assert.strictEqual(fires, 0);
 
 		// Setting the enterprise URI fires once and repoints the endpoints.

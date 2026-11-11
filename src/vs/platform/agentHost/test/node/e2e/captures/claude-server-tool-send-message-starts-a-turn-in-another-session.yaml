@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -11,7 +11,7 @@ exchanges:
       content: TARGET_MATERIALIZED
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -26,7 +26,7 @@ exchanges:
             message: /rename Target Via Send
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -42,7 +42,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: Message sent (agent-host-session://claude/${uuid_0}). Reply with one short sentence confirming the message was sent; do not print the URL or mention a button.
+              content: Message sent (agent-host-session://claude/${uuid_0}).
     response:
       content: sent
       stopReason: end_turn

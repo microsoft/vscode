@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../base/common/uri.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
@@ -43,8 +42,8 @@ export interface IStaticChangesetTelemetryData {
  * turn. Conditional fields are omitted when not applicable rather than sent as
  * fabricated defaults.
  */
-export function reportAgentHostStaticChangesetComputed(telemetryService: ITelemetryService, session: string, turnId: string | undefined, data: IStaticChangesetTelemetryData, clientContext?: IAgentHostClientTelemetryContext): void {
-	reportChangesetComputed(telemetryService, session, turnId, {
+export function reportAgentHostStaticChangesetComputed(telemetryService: ITelemetryService, provider: string, session: string, turnId: string | undefined, data: IStaticChangesetTelemetryData, clientContext?: IAgentHostClientTelemetryContext): void {
+	reportChangesetComputed(telemetryService, provider, session, turnId, {
 		kind: data.kind,
 		outcome: data.outcome,
 		durationMs: data.durationMs,
@@ -92,8 +91,8 @@ export interface ITurnChangesetTelemetryData {
  * The multi-root fan-out fields are only sent for multi-root turns; `fileCount`
  * only when computed.
  */
-export function reportAgentHostTurnChangesetComputed(telemetryService: ITelemetryService, session: string, turnId: string, data: ITurnChangesetTelemetryData, clientContext?: IAgentHostClientTelemetryContext): void {
-	reportChangesetComputed(telemetryService, session, turnId, {
+export function reportAgentHostTurnChangesetComputed(telemetryService: ITelemetryService, provider: string, session: string, turnId: string, data: ITurnChangesetTelemetryData, clientContext?: IAgentHostClientTelemetryContext): void {
+	reportChangesetComputed(telemetryService, provider, session, turnId, {
 		kind: 'turn',
 		outcome: data.outcome,
 		durationMs: data.durationMs,
@@ -150,14 +149,11 @@ type ChangesetComputedClassification = IAgentHostEventClassification & {
 	comment: 'Tracks how long the agent host takes to compute a changeset (branch/session/uncommitted static slots or a per-turn diff) and its outcome, to monitor multi-root changeset performance and health.';
 };
 
-/**
- * Shared emitter for `agentHost.changesetComputed`. Correlation (`provider`,
- * `agentSessionId`) is derived from `session`; `turnId` is included when set.
- */
-function reportChangesetComputed(telemetryService: ITelemetryService, session: string, turnId: string | undefined, fields: Omit<ChangesetComputedEvent, 'provider' | 'agentSessionId' | 'turnId' | keyof IAgentHostEventTelemetry>, clientContext?: IAgentHostClientTelemetryContext): void {
+/** Emits changeset telemetry with the owning session's explicit provider. */
+function reportChangesetComputed(telemetryService: ITelemetryService, provider: string, session: string, turnId: string | undefined, fields: Omit<ChangesetComputedEvent, 'provider' | 'agentSessionId' | 'turnId' | keyof IAgentHostEventTelemetry>, clientContext?: IAgentHostClientTelemetryContext): void {
 	telemetryService.publicLog2<ChangesetComputedEvent, ChangesetComputedClassification>('agentHost.changesetComputed', {
 		...toInitiatorTelemetry(clientContext),
-		provider: URI.parse(session).scheme,
+		provider,
 		agentSessionId: AgentSession.id(session),
 		...(turnId !== undefined ? { turnId } : {}),
 		...fields,

@@ -121,7 +121,8 @@ export class ChatViewWelcomeController extends Disposable {
 export interface IChatViewWelcomeContent {
 	readonly icon?: ThemeIcon | URI;
 	readonly title: string;
-	readonly message: IMarkdownString;
+	readonly message: string | IMarkdownString;
+	readonly primaryAction?: { readonly label: string; readonly href: string };
 	readonly additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
 	readonly inputPart?: HTMLElement;
@@ -179,8 +180,12 @@ export class ChatViewWelcomePart extends Disposable {
 
 			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
-			const messageResult = this.renderMarkdownMessageContent(content.message, options);
-			dom.append(message, messageResult.element);
+			if (typeof content.message === 'string') {
+				dom.append(message, $('p', undefined, content.message));
+			} else {
+				const messageResult = this.renderMarkdownMessageContent(content.message, options);
+				dom.append(message, messageResult.element);
+			}
 
 			// Additional message
 			if (content.additionalMessage) {
@@ -199,6 +204,13 @@ export class ChatViewWelcomePart extends Disposable {
 				const tipsResult = this._register(this.markdownRendererService.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}
+
+			if (content.primaryAction) {
+				const action = content.primaryAction;
+				const button = this._register(new Button(this.element, defaultButtonStyles));
+				button.label = action.label;
+				this._register(button.onDidClick(() => this.openerService.open(action.href, { allowCommands: true })));
+			}
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
@@ -208,7 +220,9 @@ export class ChatViewWelcomePart extends Disposable {
 		// Heuristic based on content that changes between states
 		return !!(
 			this.content.title !== content.title ||
-			this.content.message.value !== content.message.value ||
+			(typeof this.content.message === 'string' ? this.content.message : this.content.message.value) !== (typeof content.message === 'string' ? content.message : content.message.value) ||
+			this.content.primaryAction?.label !== content.primaryAction?.label ||
+			this.content.primaryAction?.href !== content.primaryAction?.href ||
 			this.content.additionalMessage !== content.additionalMessage ||
 			this.content.tips?.value !== content.tips?.value);
 	}

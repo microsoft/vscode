@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener } from '../../../../browser/dom.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
@@ -11,6 +12,7 @@ import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '.
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
+import { timeout } from '../../../../common/async.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
@@ -262,6 +264,24 @@ suite('ObjectTree', function () {
 		disposeTemplate(): void { }
 	}
 
+	suite('Lifecycle', () => {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('disposing with a pending active-node update does not reject', async () => {
+			const unhandledRejections: string[] = [];
+			store.add(addDisposableListener(mainWindow, 'unhandledrejection', event => unhandledRejections.push(String(event.reason))));
+			const tree = store.add(new ObjectTree<number>('test', document.createElement('div'), new Delegate(), [new Renderer()]));
+
+			tree.setChildren(null, [{ element: 1 }, { element: 2 }]);
+			tree.setFocus([1]);
+			tree.setSelection([2]);
+			tree.dispose();
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.setTimeout(resolve, 0)));
+
+			assert.deepStrictEqual(unhandledRejections, []);
+		});
+	});
+
 	test('applies renderer row class names', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
@@ -278,6 +298,80 @@ suite('ObjectTree', function () {
 			assert.strictEqual(container.querySelectorAll('.monaco-list-row.test-tree-row').length, 2);
 		} finally {
 			tree.dispose();
+		}
+	});
+
+	test('tracks the sticky scroll DOM node across runtime toggles', function () {
+		const disabledContainer = document.createElement('div');
+		disabledContainer.style.width = '200px';
+		disabledContainer.style.height = '100px';
+		const enabledContainer = document.createElement('div');
+		enabledContainer.style.width = '200px';
+		enabledContainer.style.height = '100px';
+
+		const disabledTree = new ObjectTree<number>('disabled', disabledContainer, new Delegate(), [new Renderer()]);
+		const enabledTree = new ObjectTree<number>('enabled', enabledContainer, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		const stickyScrollDomNodeChanges: Array<HTMLElement | undefined> = [];
+		const stickyScrollDomNodeListener = enabledTree.onDidChangeStickyScrollDomNode(node => stickyScrollDomNodeChanges.push(node));
+		try {
+			disabledTree.layout(100);
+			enabledTree.layout(100);
+			enabledTree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			const stickyScrollDomNode = enabledTree.stickyScrollDomNode;
+			const stickyRowsBeforeScroll = stickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length;
+			enabledTree.scrollTop = 1;
+			const stickyRowsAfterScroll = stickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length;
+			const isRealContainer = enabledContainer.querySelector('.monaco-tree-sticky-container') === stickyScrollDomNode;
+			const stableBeforeToggle = enabledTree.stickyScrollDomNode === stickyScrollDomNode;
+			enabledTree.updateOptions({ enableStickyScroll: false });
+			const stickyScrollDomNodeWhenDisabled = enabledTree.stickyScrollDomNode;
+			const oldDomNodeRemoved = stickyScrollDomNode ? !enabledContainer.contains(stickyScrollDomNode) : false;
+			enabledTree.updateOptions({ enableStickyScroll: true });
+			const replacementStickyScrollDomNode = enabledTree.stickyScrollDomNode;
+
+			assert.deepStrictEqual({
+				disabled: disabledTree.stickyScrollDomNode,
+				isRealContainer,
+				stableBeforeToggle,
+				stickyRowsBeforeScroll,
+				stickyRowsAfterScroll,
+				stickyScrollDomNodeWhenDisabled,
+				oldDomNodeRemoved,
+				replacementIsRealContainer: enabledContainer.querySelector('.monaco-tree-sticky-container') === replacementStickyScrollDomNode,
+				replacementIsNew: replacementStickyScrollDomNode !== stickyScrollDomNode,
+				replacementStickyRows: replacementStickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length,
+				changeKinds: stickyScrollDomNodeChanges.map(node => node ? 'enabled' : 'disabled'),
+			}, {
+				disabled: undefined,
+				isRealContainer: true,
+				stableBeforeToggle: true,
+				stickyRowsBeforeScroll: 0,
+				stickyRowsAfterScroll: 1,
+				stickyScrollDomNodeWhenDisabled: undefined,
+				oldDomNodeRemoved: true,
+				replacementIsRealContainer: true,
+				replacementIsNew: true,
+				replacementStickyRows: 1,
+				changeKinds: ['disabled', 'enabled'],
+			});
+		} finally {
+			stickyScrollDomNodeListener.dispose();
+			disabledTree.dispose();
+			enabledTree.dispose();
 		}
 	});
 
@@ -485,6 +579,49 @@ suite('ObjectTree', function () {
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
 
+	test('rendered selection stays in sync with the tree selection when selected rows are spliced', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '400px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], { identityProvider: new IdentityProvider(), multipleSelectionSupport: true });
+		const getState = () => ({
+			selection: tree.getSelection(),
+			renderedSelection: [...container.querySelectorAll('.monaco-list-row.selected')]
+				.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!))
+				.map(row => Number(row.querySelector('.monaco-tl-contents')!.textContent))
+		});
+
+		try {
+			tree.layout(400);
+			tree.setChildren(null, [
+				{ element: 1, children: [{ element: 11 }, { element: 12 }] },
+				{ element: 2, children: [{ element: 21 }, { element: 22 }] },
+				{ element: 3, children: [{ element: 31 }, { element: 32 }] },
+			]);
+			tree.setSelection([11, 21, 31]);
+
+			tree.setChildren(1, [{ element: 11 }, { element: 12 }, { element: 13 }]);
+			const afterSetChildren = getState();
+
+			tree.rerender(31);
+			tree.rerender(21);
+			tree.rerender(11);
+			const afterRerender = getState();
+
+			clickElement(container.querySelector('.monaco-list-row[data-index="0"]') as HTMLElement);
+			const afterClick = getState();
+
+			assert.deepStrictEqual({ afterSetChildren, afterRerender, afterClick }, {
+				afterSetChildren: { selection: [11, 21, 31], renderedSelection: [11, 21, 31] },
+				afterRerender: { selection: [11, 21, 31], renderedSelection: [11, 21, 31] },
+				afterClick: { selection: [1], renderedSelection: [1] }
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
 	test('updateOptions preserves wrapped identity provider in view options', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
@@ -522,7 +659,7 @@ suite('ObjectTree', function () {
 		}
 	});
 
-	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', async function () {
+	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
@@ -547,21 +684,20 @@ suite('ObjectTree', function () {
 		});
 
 		try {
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				tree.layout(200);
-				tree.setChildren(null, [{ element: 0 }]);
-				tree.setFocus([0]);
-				tree.domFocus();
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }]);
+			tree.setFocus([0]);
+			tree.domFocus();
 
-				tree.updateOptions({ indent: 12 });
+			tree.updateOptions({ indent: 12 });
 
-				dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
-				await Promise.resolve();
-			});
+			dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
+			// Let the type navigation clear debounce re-announce the focused element before disposing
+			await timeout(800);
 		} finally {
 			tree.dispose();
 		}
-	});
+	}));
 });
 
 suite('CompressibleObjectTree', function () {

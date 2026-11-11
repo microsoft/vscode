@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
 set -e
 
 # Get snapcraft version
@@ -7,6 +10,13 @@ snapcraft --version
 # Configure apt to retry on transient network failures
 # This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
 sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
+
+# Abandon a stalled connection after 15s instead of apt's default 120s. snapcraft
+# fetches stage-packages one at a time, and when the mirror stalls a connection the
+# retry on a new one usually succeeds at once; with the default, 35 such stalls took
+# 70 minutes and the job hit its time limit. The timeout applies to inactivity, so
+# slow but progressing downloads are unaffected.
+sudo sh -c 'echo "Acquire::http::Timeout \"15\";" > /etc/apt/apt.conf.d/80-timeout'
 
 # Point apt at the Azure Ubuntu mirror. The build agents cannot reach
 # archive.ubuntu.com/ports.ubuntu.com (DNS resolves them to a non-routable
@@ -37,4 +47,34 @@ case $VSCODE_ARCH in
   x64) SNAPCRAFT_TARGET_ARGS="" ;;
   *) SNAPCRAFT_TARGET_ARGS="--target-arch $VSCODE_ARCH" ;;
 esac
-(cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH")
+(
+  set -o pipefail
+  cd "$SNAP_ROOT"/code-*
+  snapcraftLog=$(mktemp)
+  trap 'rm -f "$snapcraftLog"' EXIT
+
+  # Snapcraft 7.5.3 saves global state before running any part; only retry before that.
+  # Recheck this boundary when upgrading the pinned image:
+  # https://github.com/canonical/snapcraft/blob/7.5.3/snapcraft_legacy/internal/lifecycle/_runner.py#L121-L145
+  # Three backoffs with jitter, then a final attempt (0 means no more retries).
+  for delay in 30 60 120 0; do
+    if sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+      break
+    else
+      exitCodes=("${PIPESTATUS[@]}")
+    fi
+
+    (( exitCodes[1] == 0 )) || exit "${exitCodes[1]}"
+
+    if (( delay == 0 || exitCodes[0] != 1 )) ||
+      [[ -e parts/.snapcraft_global_state ]] ||
+      ! grep -Fxq 'Starting Snapcraft 7.5.3' "$snapcraftLog" ||
+      [[ "$(awk 'NF { last = $0 } END { print last }' "$snapcraftLog")" != 'Issue encountered while processing your request: [429] Too Many Requests.' ]]; then
+      exit "${exitCodes[0]}"
+    fi
+
+    delay=$((delay + RANDOM % 30))
+    echo "Snap Store HTTP 429 before any parts ran; retrying initialization in ${delay}s." >&2
+    sleep "$delay"
+  done
+)

@@ -39,7 +39,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit ?? false, type: 'success', stats: c.stats, messages: [] }),
+					c => resolve({ limitHit: c.limitHit ?? false, type: 'success', stats: c.stats, messages: c.messages }),
 					reject);
 		});
 	}

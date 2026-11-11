@@ -55,7 +55,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -248,24 +247,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
-				type: 'object',
-				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: 'boolean',
-						default: false
-					}
-				},
-				additionalProperties: false,
-				default: {},
-				defaultSnippets: [{
-					'body': {
-						'pub.name': true
-					}
-				}]
-			},
 			'extensions.experimental.affinity': {
 				type: 'object',
 				markdownDescription: localize('extensions.affinity', "Configure an extension to execute in a different extension host process."),
@@ -371,6 +352,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 'github',
 				scope: ConfigurationScope.APPLICATION,
 				included: false,
+				policy: {
+					name: 'ExtensionGalleryAuthProvider',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.137',
+					localization: {
+						description: {
+							key: 'extensions.gallery.authProvider',
+							value: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.gallery.authProvider.github',
+								value: localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+							},
+							{
+								key: 'extensions.gallery.authProvider.microsoft',
+								value: localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+							},
+						]
+					}
+				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
 				type: 'boolean',
@@ -476,7 +478,7 @@ CommandsRegistry.registerCommand({
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
-				const extension = extensionsWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id, uuid: version }));
+				const extension = (await extensionsWorkbenchService.queryLocal()).find(e => areSameExtensions(e.identifier, { id, uuid: version }));
 				if (extension?.enablementState === EnablementState.DisabledByExtensionKind) {
 					const [gallery] = await extensionGalleryService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
 					if (!gallery) {

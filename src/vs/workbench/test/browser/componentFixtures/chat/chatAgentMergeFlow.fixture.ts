@@ -63,6 +63,7 @@ const agentMergeFlow: IFixtureMessage[] = [
 	{
 		user: agentMergePrompt,
 		isSystemInitiated: true,
+		requestSource: 'agentMerge',
 		assistant: [{
 			kind: 'markdown',
 			text: 'Fixed the failing Linux unit test and pushed the updated commit. Agent Merge will wait for the new CI results.',

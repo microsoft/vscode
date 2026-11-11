@@ -9,30 +9,66 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
-import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
+import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
-import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow } from '../../../browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('only talking states glow', () => {
-		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
-		assert.deepStrictEqual(
-			states.filter(isGlowingVoiceState),
-			['listening', 'speaking']
-		);
+	test('only renders on the active owner while Voice Mode is connected', () => {
+		assert.deepStrictEqual([
+			shouldRenderVoiceInputGlow(false, true, true),
+			shouldRenderVoiceInputGlow(true, true, true),
+			shouldRenderVoiceInputGlow(true, false, true),
+			shouldRenderVoiceInputGlow(true, true, false),
+		], [false, true, false, false]);
 	});
 
-	test('only renders while Voice Mode is connected', () => {
-		assert.deepStrictEqual([
-			shouldRenderVoiceInputGlow(false, true, true, 'listening'),
-			shouldRenderVoiceInputGlow(true, true, true, 'listening'),
-			shouldRenderVoiceInputGlow(true, false, true, 'speaking'),
-			shouldRenderVoiceInputGlow(true, true, false, 'speaking'),
-			shouldRenderVoiceInputGlow(true, true, true, 'idle'),
-		], [false, true, false, false, false]);
+	test('keeps the listening rim mounted until cleared', () => {
+		const target = document.createElement('div');
+		const colors = resolveVoiceGlowColors({ getColor: () => undefined });
+		const controller = disposables.add(createVoiceGlowController(target, () => 'dark', () => colors));
+		controller.render(0.3, true);
+		const rim = target.querySelector('.voice-glow-rim-cool');
+		controller.render(0.8, true);
+		const beforeClear = {
+			sameRim: rim === target.querySelector('.voice-glow-rim-cool'),
+			active: target.classList.contains('voice-active'),
+			listening: target.classList.contains('voice-listening'),
+			warmRims: target.querySelectorAll('.voice-glow-rim-warm').length,
+			micShadow: computeVoiceMicGlowBoxShadow(0, colors),
+		};
+		controller.clear();
+		assert.deepStrictEqual({
+			...beforeClear,
+			activeAfterClear: target.classList.contains('voice-active'),
+		}, {
+			sameRim: true,
+			active: true,
+			listening: true,
+			warmRims: 0,
+			micShadow: '0 0 3px rgba(88,166,255,0.2)',
+			activeAfterClear: false,
+		});
+	});
+
+	test('clears legacy voice classes with or without an active rim', () => {
+		const snapshots = [false, true].map(active => {
+			const target = document.createElement('div');
+			target.classList.add('unrelated', 'voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
+			const controller = disposables.add(createVoiceGlowController(target));
+			if (active) {
+				controller.render(0.5, true);
+			}
+			controller.clear();
+			return { classes: target.className, accent: target.style.getPropertyValue('--voice-accent') };
+		});
+		assert.deepStrictEqual(snapshots, [
+			{ classes: 'unrelated', accent: '' },
+			{ classes: 'unrelated', accent: '' },
+		]);
 	});
 
 	test('renders in an auxiliary owner document', () => {
@@ -50,7 +86,7 @@ suite('VoiceGlow', () => {
 		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
 
 		const controller = disposables.add(createVoiceGlowController(target));
-		controller.render('listening', 0.5, false);
+		controller.render(0.5, false);
 		disposables.add(createVoiceRimLight(target, Color.fromHex('#58A6FF'), 'dark'));
 
 		assert.deepStrictEqual({
@@ -68,27 +104,34 @@ suite('VoiceGlow', () => {
 		});
 	});
 
-	test('derives the speaking accent from the theme base color', () => {
+	test('listening and speaking share the blue accent', () => {
 		const base = Color.fromHex('#58A6FF');
 		const colors = resolveVoiceGlowColors({ getColor: id => id === chatVoiceGlowBaseColor ? base : undefined });
 		assert.deepStrictEqual(
 			{
 				listening: colors.listening.toString(),
-				speakingHue: Math.round(colors.speaking.hsla.h),
+				speaking: colors.speaking.toString(),
+				fallback: DEFAULT_VOICE_GLOW_COLORS.speaking.toString(),
 			},
 			{
 				listening: base.toString(),
-				speakingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT + 360) % 360),
+				speaking: base.toString(),
+				fallback: base.toString(),
 			}
 		);
 	});
 
-	test('an explicitly themed state wins over the derived hue', () => {
-		const pinned = Color.fromHex('#FF00AA');
+	test('the listening theme override applies to speaking instead of the obsolete speaking override', () => {
+		const pinned = Color.fromHex('#007ACC');
 		const colors = resolveVoiceGlowColors({
-			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
+			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF')
+				: id === chatVoiceListeningGlow ? pinned
+					: id === chatVoiceSpeakingGlow ? Color.fromHex('#A371F7') : undefined,
 		});
-		assert.strictEqual(colors.speaking.toString(), pinned.toString());
+		assert.deepStrictEqual(
+			[colors.listening.toString(), colors.speaking.toString()],
+			[pinned.toString(), pinned.toString()],
+		);
 	});
 
 	test('the dictation microphone paints the listening rim color', () => {

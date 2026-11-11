@@ -44,25 +44,9 @@ type FetchTokenResult = {
 export const tokenErrorString = `Tests: either GITHUB_PAT, GITHUB_OAUTH_TOKEN, or GITHUB_OAUTH_TOKEN+VSCODE_COPILOT_CHAT_TOKEN must be set unless running from an IS_SCENARIO_AUTOMATION environment. Run "npm run get_token" to get credentials.`;
 
 export function createStaticGitHubTokenProvider(): (() => string) | undefined {
-	const pat = process.env.GITHUB_PAT;
-	const oauthToken = process.env.GITHUB_OAUTH_TOKEN;
-
-	// In automation scenarios, NoAuth/BYOK-only scenarios are expected to not have any tokens set.
-	if (isScenarioAutomation && !pat && !oauthToken) {
-		return undefined;
-	}
-
-	return () => {
-		if (pat) {
-			return pat;
-		}
-
-		if (oauthToken) {
-			return oauthToken;
-		}
-
-		throw new Error(tokenErrorString);
-	};
+	// An injected Copilot token manager or BYOK endpoint need not have a GitHub session.
+	const token = process.env.GITHUB_PAT || process.env.GITHUB_OAUTH_TOKEN;
+	return token ? () => token : undefined;
 }
 
 export function getOrCreateTestingCopilotTokenManager(deviceId: string): SyncDescriptor<ICopilotTokenManager & CheckCopilotToken> {

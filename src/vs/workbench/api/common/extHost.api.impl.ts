@@ -38,6 +38,7 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { ExtHostBulkEdits } from './extHostBulkEdits.js';
 import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
+import { ExtHostChatArtifactIntegrations } from './extHostChatArtifactIntegrations.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
@@ -244,6 +245,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
+	const extHostChatArtifactIntegrations = rpcProtocol.set(ExtHostContext.ExtHostChatArtifactIntegrations, new ExtHostChatArtifactIntegrations(rpcProtocol, extHostLogService));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.remote, extHostWorkspace, extHostLogService, extHostApiDeprecation));
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
@@ -343,8 +345,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.authorizationServer) {
+				if (options?.authorizationServer || options?.clientId !== undefined || options?.resource !== undefined) {
 					checkProposedApiEnabled(extension, 'authIssuers');
+				}
+				if (options?.audience !== undefined) {
+					checkProposedApiEnabled(extension, 'authSessionAudience');
 				}
 				// eslint-disable-next-line local/code-no-any-casts
 				return extHostAuthentication.getSession(extension, providerId, scopesOrChallenge, options as any);
@@ -1470,9 +1475,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'tunnelFactory');
 				return extHostTunnelService.registerTunnelProvider(tunnelProvider, information);
 			},
-			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
-				checkProposedApiEnabled(extension, 'timeline');
-				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			registerTimelineProvider: (id: string, label: string, scheme: string | readonly string[], provider: vscode.TimelineProvider) => {
+				return extHostTimeline.registerTimelineProvider(id, label, scheme, provider, extension.identifier, extHostCommands.converter);
+			},
+			registerWorkspaceTimelineProvider: (id: string, label: string, provider: vscode.WorkspaceTimelineProvider) => {
+				return extHostTimeline.registerWorkspaceTimelineProvider(id, label, provider, extension.identifier, extHostCommands.converter);
 			},
 			get isTrusted() {
 				return extHostWorkspace.trusted;
@@ -1732,6 +1739,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chatregisterMcpServerDefinitionProvider
 		const chat: typeof vscode.chat = {
+			registerArtifactIntegrationProvider(id: string, provider: vscode.ChatArtifactIntegrationProvider) {
+				checkProposedApiEnabled(extension, 'chatArtifactIntegrations');
+				return extHostChatArtifactIntegrations.registerProvider(extension, id, provider);
+			},
 			registerMappedEditsProvider(_selector: vscode.DocumentSelector, _provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				// no longer supported
@@ -1980,6 +1991,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerSpeechProvider(id: string, provider: vscode.SpeechProvider) {
 				checkProposedApiEnabled(extension, 'speech');
 				return extHostSpeech.registerProvider(extension.identifier, id, provider);
+			},
+			registerVoiceLiveSessionProvider(id: string, provider: vscode.VoiceLiveSessionProvider) {
+				checkProposedApiEnabled(extension, 'speech');
+				return extHostSpeech.registerVoiceLiveSessionProvider(extension.identifier, id, provider);
 			}
 		};
 
@@ -2169,6 +2184,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			ExtensionRuntime: extHostTypes.ExtensionRuntime,
 			TimelineItem: extHostTypes.TimelineItem,
+			TimelineTriggerKind: extHostTypes.TimelineTriggerKind,
 			NotebookRange: extHostTypes.NotebookRange,
 			NotebookCellKind: extHostTypes.NotebookCellKind,
 			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
@@ -2296,6 +2312,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			ChatRequestEditedFileEventKind: extHostTypes.ChatRequestEditedFileEventKind,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
+			LanguageModelChatApiType: extHostTypes.LanguageModelChatApiType,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,

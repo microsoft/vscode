@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as vscode from 'vscode';
 
-import { type IRegionContextProviderService, type Region, type LineRange, NullRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { type IRegionContextProviderService, type RegionResult, type LineRange, NullRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { TypeScript } from './tsService';
@@ -37,7 +37,7 @@ export class ContainerContextProviderService implements IRegionContextProviderSe
 		this.disposables.dispose();
 	}
 
-	getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined> {
+	getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<RegionResult | undefined> {
 		return this.provider.getRegions(document, languageId, ranges, requested);
 	}
 

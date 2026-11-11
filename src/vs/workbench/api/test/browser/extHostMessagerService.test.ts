@@ -9,11 +9,24 @@ import { IDialogService, IPrompt, IPromptButton } from '../../../../platform/dia
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter, IStatusHandle } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
+import { NotificationViewItem } from '../../../common/notifications.js';
+import { LinkedTextNode } from '../../../../base/common/linkedText.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
+import { NotificationService } from '../../../services/notification/common/notificationService.js';
+import { NotificationActionRunner } from '../../../browser/parts/notifications/notificationsCommands.js';
+import { logNotificationShown } from '../../../common/notificationTelemetry.js';
+import { TestNotificationTelemetryService } from '../../../test/common/testNotificationTelemetry.js';
+import { ExtHostMessageService } from '../../common/extHostMessageService.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { MainThreadMessageServiceShape } from '../../common/extHost.protocol.js';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -101,6 +114,117 @@ class EmptyNotificationService implements INotificationService {
 }
 
 suite('ExtHostMessageService', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('notification telemetry', () => {
+		test('requires the notification telemetry proposal before forwarding an ID', () => {
+			const service = new ExtHostMessageService(SingleProxyRPCProtocol(new class extends mock<MainThreadMessageServiceShape>() { }), store.add(new NullLogService()));
+			assert.throws(() => service.showMessage(nullExtensionDescription, Severity.Info, 'private message', { notificationId: 'git.parentRepository' }, []), /notificationTelemetry/);
+		});
+
+		for (const { identifier, notificationId, expected } of [
+			{ identifier: 'vscode.git', notificationId: 'git.parentRepository', expected: 'git.parentRepository' },
+			{ identifier: 'publisher.extension', notificationId: 'git.parentRepository', expected: 'extension.message' },
+			{ identifier: 'vscode.github-authentication', notificationId: 'githubAuthentication.signIn.browser', expected: 'extension.message' },
+			{ identifier: 'vscode.git', notificationId: 'private/path', expected: 'extension.message' }
+		]) {
+			test(`round-trips proposed notification IDs without changing message buttons (${identifier}, ${notificationId})`, async () => {
+				const telemetry = new TestNotificationTelemetryService();
+				const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
+				store.add(toDisposable(() => {
+					for (const item of [...notifications.model.notifications]) {
+						item.close();
+					}
+				}));
+				const mainThread = store.add(new MainThreadMessageService(null!, notifications, emptyCommandService, new TestDialogService(), new TestExtensionService()));
+				const extHost = new ExtHostMessageService(SingleProxyRPCProtocol(mainThread), store.add(new NullLogService()));
+				const extension: IExtensionDescription = { ...nullExtensionDescription, identifier: new ExtensionIdentifier(identifier), enabledApiProposals: ['notificationTelemetry'] };
+				const runner = store.add(new NotificationActionRunner(undefined, telemetry, notifications));
+				const promise = extHost.showMessage(extension, Severity.Info, 'private message', { notificationId }, ['private button']);
+				const item = notifications.model.notifications[0];
+				logNotificationShown(telemetry, item, 'toast');
+				await runner.run(item.actions!.primary![0], item);
+				item.close();
+
+				assert.deepStrictEqual({
+					selected: await promise,
+					attribution: item.telemetry,
+					shown: telemetry.shown.map(event => event.notificationId),
+					actions: telemetry.interactions.map(event => [event.notificationId, event.extensionButtonIndex]),
+					privatePayload: JSON.stringify(telemetry.events).includes('private')
+				}, {
+					selected: 'private button',
+					attribution: { origin: 'extension', notificationId: expected, extensionId: identifier },
+					shown: [expected],
+					actions: [[expected, 0]],
+					privatePayload: false
+				});
+			});
+		}
+
+		for (const identifier of ['Publisher.Extension', undefined, '/private/extension']) {
+			test(`attributes extension messages and button positions without inferring semantics (${identifier ?? 'missing'})`, async () => {
+				const telemetry = new TestNotificationTelemetryService();
+				const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
+				store.add(toDisposable(() => {
+					for (const item of [...notifications.model.notifications]) {
+						item.close();
+					}
+				}));
+				const service = store.add(new MainThreadMessageService(null!, notifications, emptyCommandService, new TestDialogService(), new TestExtensionService()));
+				const runner = store.add(new NotificationActionRunner(undefined, telemetry, notifications));
+				const promise = service.$showMessage(Severity.Warning, 'private message', {
+					source: identifier ? { identifier: new ExtensionIdentifier(identifier), label: 'private source label' } : undefined
+				}, [{ handle: 2, title: 'Sign in to private server', isCloseAffordance: true }]);
+				const item = notifications.model.notifications[0];
+				logNotificationShown(telemetry, item, 'toast');
+				if (identifier) {
+					await runner.run(item.actions!.secondary![0], item);
+				}
+				await runner.run(item.actions!.primary![0], item);
+				item.close();
+				const selected = await promise;
+				assert.deepStrictEqual({
+					selected,
+					attribution: item.telemetry,
+					actions: telemetry.interactions.map(event => [event.interaction, event.actionId, event.extensionButtonIndex]),
+					privatePayload: JSON.stringify([...telemetry.shown, ...telemetry.interactions]).includes('private')
+				}, {
+					selected: 2,
+					attribution: { origin: 'extension', notificationId: 'extension.message', extensionId: identifier === 'Publisher.Extension' ? 'publisher.extension' : 'unknown' },
+					actions: [...(identifier ? [['secondaryAction', 'manageExtension', -1]] : []), ['primaryAction', 'unknown', 2]],
+					privatePayload: false
+				});
+			});
+		}
+	});
+
+	test('preserves command and web links in extension notifications', async () => {
+		const store = new DisposableStore();
+		try {
+			let messageNodes: LinkedTextNode[] | undefined;
+			const service = store.add(new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
+				const item = NotificationViewItem.create(notification, { global: NotificationsFilter.OFF, sources: new Map() })!;
+				store.add(toDisposable(() => item.close()));
+				messageNodes = item.message.linkedText.nodes;
+				queueMicrotask(() => notification.actions!.primary![0].run());
+			}), emptyCommandService, new TestDialogService(), new TestExtensionService()));
+
+			const selected = await service.$showMessage(Severity.Warning,
+				'See [logs](command:python.viewOutput) or [documentation](https://example.com).', {},
+				[{ handle: 42, title: 'Dismiss', isCloseAffordance: true }]);
+
+			assert.deepStrictEqual({ selected, messageNodes }, {
+				selected: 42,
+				messageNodes: [
+					'See ', { label: 'logs', href: 'command:python.viewOutput' },
+					' or ', { label: 'documentation', href: 'https://example.com' }, '.'
+				]
+			});
+		} finally {
+			store.dispose();
+		}
+	});
 
 	test('propagte handle on select', async function () {
 
@@ -162,5 +286,4 @@ suite('ExtHostMessageService', function () {
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

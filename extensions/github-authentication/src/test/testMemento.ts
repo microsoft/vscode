@@ -28,6 +28,10 @@ export class TestMemento implements vscode.Memento {
 		if (this.updateError) {
 			throw this.updateError;
 		}
-		this._values.set(key, value);
+		if (value === undefined) {
+			this._values.delete(key);
+		} else {
+			this._values.set(key, value);
+		}
 	}
 }

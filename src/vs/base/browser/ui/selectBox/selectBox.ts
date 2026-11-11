@@ -7,7 +7,7 @@ import { Event } from '../../../common/event.js';
 import { IDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
 import { MarkdownActionHandler } from '../../markdownRenderer.js';
-import { IContextViewProvider } from '../contextview/contextview.js';
+import { AnchorPosition, IContextViewProvider } from '../contextview/contextview.js';
 import { IListStyles, unthemedListStyles } from '../list/listWidget.js';
 import { Widget } from '../widget.js';
 import './selectBox.css';
@@ -39,7 +39,13 @@ export interface ISelectBoxOptions {
 	ariaLabel?: string;
 	ariaDescription?: string;
 	minBottomMargin?: number;
+	/** Preferred custom dropdown position; defaults to below and flips when space is limited. Native pickers ignore this. */
+	anchorPosition?: AnchorPosition;
+	/** Maximum number of visible custom dropdown options before scrolling. */
+	maxVisibleOptions?: number;
 	optionsAsChildren?: boolean;
+	/** Context views with higher layers are rendered higher in z-index order. */
+	contextViewLayer?: number;
 	/** Hide disabled options from the custom-drawn dropdown. */
 	hideDisabledOptions?: boolean;
 	/** Show option descriptions in right-side hovers instead of the details pane. */

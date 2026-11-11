@@ -60,9 +60,9 @@ const STUB_MODELS: readonly IStubModel[] = [
 	{ id: 'claude-sonnet-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-4.7', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
-	{ id: 'claude-opus-4.8', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-sonnet-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-5.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'gemini-2.0-flash', vendor: 'Google', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1000000, maxOutputTokens: 8192, maxPromptTokens: 128000, vision: true },
 	{ id: 'gpt-5.3-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true, isChatDefault: true, isChatFallback: true },
 	{ id: 'gpt-4o', vendor: 'Azure OpenAI', supportedEndpoints: ['/chat/completions'], maxContextWindowTokens: 128000, maxOutputTokens: 4096, maxPromptTokens: 64000, vision: true },
@@ -150,8 +150,27 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 			? { status: 200, headers: JSON_HEADERS, body: utilityChatCompletionStubBody() }
 			: { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
 	}
-	if (path === '/models' && method === 'GET') {
-		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
+	if ((path === '/models' || path === '/meta') && method === 'GET') {
+		const models = { data: STUB_MODELS.map(expandModel), object: 'list' };
+		const auto = {
+			default_tier: 'balance',
+			tiers: [
+				{ id: 'balance', tier_level: 'standard', display_name: 'Standard' },
+				{ id: 'intelligence', tier_level: 'high', display_name: 'High' },
+				{ id: 'efficiency', display_name: 'Efficiency' },
+			].map(tier => ({ ...tier, description: '', type: 'auto', status: { enabled: true } })),
+		};
+		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify(path === '/meta' ? { models, auto } : models) };
+	}
+	// The runtime runs with `DYNAMIC_AUTO_TIERS`, which reads the model catalog and Auto's tiers from `/meta`.
+	// A single non-Fusion tier keeps Auto presented as Auto; these scenarios pin concrete models.
+	if (path === '/meta' && method === 'GET') {
+		return {
+			status: 200, headers: JSON_HEADERS, body: JSON.stringify({
+				models: { data: STUB_MODELS.map(expandModel), object: 'list' },
+				auto: { default_tier: 'balance', tiers: [{ id: 'balance', display_name: 'Balance', description: 'A balance of speed and capability', type: 'auto', status: { enabled: true } }] },
+			}),
+		};
 	}
 	// The SDK probes websocket support before falling back to POST /responses.
 	if (path === '/responses' && method === 'GET') {

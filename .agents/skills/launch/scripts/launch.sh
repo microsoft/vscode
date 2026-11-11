@@ -14,7 +14,8 @@
 # Usage:
 #   launch.sh [--agents] [--session-title <title>] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
 #             [--clone-extensions] [--full] [--skip-prelaunch]
-#             [--disable-workspace-trust] [-- <extra code.sh args>]
+#             [--disable-workspace-trust]
+#             [-- <extra code.sh args>]
 #
 # Flags:
 #   --clone-extensions  Copy the source extensions/ into the new profile (~10s).
@@ -67,11 +68,6 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ "$AGENTS" == "1" && -n "$SESSION_TITLE" ]]; then
-	echo "--session-title is only supported for regular editor windows; window.title is read-only in the Agents window." >&2
-	exit 2
-fi
-
 monotonic_ms() {
 	node -e 'process.stdout.write(String(process.hrtime.bigint() / 1_000_000n))'
 }
@@ -86,10 +82,24 @@ if [[ -z "$REPO" ]]; then
 		exit 2
 	fi
 fi
+if [[ ! -d "$REPO" ]]; then
+	echo "VS Code checkout does not exist: $REPO" >&2
+	exit 2
+fi
+REPO=$(cd "$REPO" && pwd -P)
 
+SOURCE_UDD=$(node -e 'process.stdout.write(require("path").resolve(process.argv[1]))' "$SOURCE_UDD")
+SOURCE_PROFILE_EXISTS=1
 if [[ ! -d "$SOURCE_UDD" ]]; then
-	echo "Source user-data-dir does not exist: $SOURCE_UDD" >&2
-	echo "Pass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR." >&2
+	SOURCE_PROFILE_EXISTS=0
+	echo "[launch.sh] no source profile at $SOURCE_UDD; launching with an empty isolated profile so the user can sign in." >&2
+else
+	SOURCE_UDD=$(cd "$SOURCE_UDD" && pwd -P)
+fi
+
+CODE_SH="$REPO/scripts/code.sh"
+if [[ ! -x "$CODE_SH" ]]; then
+	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
 	exit 2
 fi
 
@@ -152,7 +162,9 @@ EXCLUDES=(
 	'*.lock' '*.sock'
 )
 
-if [[ "$FULL" == "1" ]]; then
+if [[ "$SOURCE_PROFILE_EXISTS" == "0" ]]; then
+	echo "[launch.sh] source profile is unavailable; using empty isolated profile $DEST_UDD" >&2
+elif [[ "$FULL" == "1" ]]; then
 	echo "[launch.sh] full copy: $SOURCE_UDD -> $DEST_UDD" >&2
 	rsync -a "$SOURCE_UDD/" "$DEST_UDD/"
 else
@@ -168,7 +180,7 @@ fi
 #   default             -> fresh empty dir
 EXT_DIR="$DEST_UDD/extensions"
 mkdir -p "$EXT_DIR"
-if [[ "$FULL" != "1" && "$CLONE_EXTENSIONS" == "1" ]]; then
+if [[ "$FULL" != "1" && "$CLONE_EXTENSIONS" == "1" && "$SOURCE_PROFILE_EXISTS" == "1" ]]; then
 	echo "[launch.sh] copying extensions: $SOURCE_UDD/extensions -> $EXT_DIR" >&2
 	rsync -a "$SOURCE_UDD/extensions/" "$EXT_DIR/"
 fi
@@ -183,25 +195,27 @@ SETTINGS_FILE="$DEST_UDD/User/settings.json"
 SOURCE_SETTINGS_FILE="$SOURCE_UDD/User/settings.json"
 mkdir -p "$(dirname "$SETTINGS_FILE")"
 SETTINGS_SCRIPT="$(cd "$(dirname "$0")" && pwd)/updateSettings.ts"
-if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
+SETTINGS_SESSION_TITLE="$SESSION_TITLE"
+if [[ "$AGENTS" == "1" ]]; then
+	SETTINGS_SESSION_TITLE=""
+fi
+if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SETTINGS_SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
 	echo "[launch.sh] failed to update launch settings in $SETTINGS_FILE" >&2
 	exit 1
 fi
 echo "[launch.sh] ensured files.simpleDialog.enable=true in $SETTINGS_FILE" >&2
 if [[ -n "$SESSION_TITLE" ]]; then
-	echo "[launch.sh] set window.title for session: $SESSION_TITLE" >&2
+	if [[ "$AGENTS" == "1" ]]; then
+		echo "[launch.sh] set Agents command center title for session: $SESSION_TITLE" >&2
+	else
+		echo "[launch.sh] set window.title for session: $SESSION_TITLE" >&2
+	fi
 fi
 PROFILE_READY_MS=$(monotonic_ms)
 
-# Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
-# terminal / agent runtimes; it breaks ./scripts/code.sh.
-unset ELECTRON_RUN_AS_NODE
-
-CODE_SH="$REPO/scripts/code.sh"
-if [[ ! -x "$CODE_SH" ]]; then
-	echo "Could not find an executable Code OSS launcher at $CODE_SH. Pass --repo <vscode-repo-root>." >&2
-	exit 2
-fi
+# Strip host-only process configuration commonly inherited from VS Code's
+# integrated terminal and agent runtimes.
+unset ELECTRON_RUN_AS_NODE GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 
 ARGS=(
 	"--user-data-dir=$DEST_UDD"
@@ -217,6 +231,10 @@ if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
 fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
+	if [[ -n "$SESSION_TITLE" ]]; then
+		SESSION_TITLE_BASE64=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' -- "$SESSION_TITLE")
+		ARGS+=("--session-title-base64=$SESSION_TITLE_BASE64")
+	fi
 fi
 if (( ${#EXTRA_ARGS[@]} )); then
 	ARGS+=("${EXTRA_ARGS[@]}")

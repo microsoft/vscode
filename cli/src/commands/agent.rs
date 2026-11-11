@@ -11,6 +11,7 @@ use ahp_types::errors::ahp_error_codes;
 use ahp_types::state::ProtectedResourceMetadata;
 use ahp_types::{PROTOCOL_VERSION, ROOT_RESOURCE_URI};
 use futures::{SinkExt, StreamExt};
+use jiff::Timestamp;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex as AsyncMutex;
 use tokio_tungstenite::tungstenite::Message;
@@ -365,6 +366,7 @@ async fn authenticate_from_error(
 					channel: ROOT_RESOURCE_URI.to_string(),
 					resource: resource.resource.clone(),
 					token: credential.access_token().to_string(),
+					expires_in: credential.expires_in(Timestamp::now()),
 					scopes: None,
 					meta: None,
 				},

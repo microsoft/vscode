@@ -56,13 +56,13 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: New session created (agent-host-session://codex/${uuid_0}). Reply with one short sentence confirming the new session was created; do not print the URL or mention a link.
+              content: New session created (agent-host-session://ahp-session/${uuid_0}).
     response:
       content: created
       stopReason: end_turn
   - request:
       model: gpt-5.6-terra
-      system: ''
+      system: ${system}
       messages:
         - role: user
           content: Reply exactly CHILD_READY.

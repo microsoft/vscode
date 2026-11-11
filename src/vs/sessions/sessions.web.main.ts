@@ -181,8 +181,8 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentMergeActions.js';
-import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
-import './contrib/providers/agentHost/browser/openSubagentChat.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.contribution.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.contribution.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
@@ -192,19 +192,13 @@ import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
 // build. The desktop mode + model pickers are gated off on phone via
 // `when: IsPhoneLayoutContext.negate()`, so the two registrations are
 // mutually exclusive at the action-menu level.
-import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.contribution.js';
 
 // Phone-only presenter for the workbench `ChatInputPart`'s Mode + Model
 // pickers. Replaces the desktop popups with the same bottom-sheet
 // experience used by the empty new-chat input, applied to the
 // already-opened chat input. Web-only for the same reason as above.
-import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
-
-// Mobile-aware Copilot permission picker. Replaces the desktop
-// permission picker registration (which the shared contribution
-// skips when `isWeb`), so we get the bottom-sheet sheet on phone
-// without duplicate-registration conflicts.
-import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.contribution.js';
 
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

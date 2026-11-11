@@ -36,6 +36,8 @@ export namespace EditorContextKeys {
 	export const accessibleDiffViewerVisible = new RawContextKey<boolean>('accessibleDiffViewerVisible', false, nls.localize('accessibleDiffViewerVisible', "Whether the accessible diff viewer is visible"));
 	export const diffEditorRenderSideBySideInlineBreakpointReached = new RawContextKey<boolean>('diffEditorRenderSideBySideInlineBreakpointReached', false, nls.localize('diffEditorRenderSideBySideInlineBreakpointReached', "Whether the diff editor render side by side inline breakpoint is reached"));
 	export const diffEditorInlineMode = new RawContextKey<boolean>('diffEditorInlineMode', false, nls.localize('diffEditorInlineMode', "Whether inline mode is active"));
+	export const diffEditorTemporaryInlineMode = new RawContextKey<boolean>('diffEditorTemporaryInlineMode', false, nls.localize('diffEditorTemporaryInlineMode', "Whether inline mode is temporarily active after manually resizing the diff editor"));
+	export const diffEditorAutomaticRenderSideBySide = new RawContextKey<boolean>('diffEditorAutomaticRenderSideBySide', true, nls.localize('diffEditorAutomaticRenderSideBySide', "Whether automatic diff editor layout would render side by side"));
 
 	export const diffEditorOriginalWritable = new RawContextKey<boolean>('diffEditorOriginalWritable', false, nls.localize('diffEditorOriginalWritable', "Whether modified is writable in the diff editor"));
 	export const diffEditorModifiedWritable = new RawContextKey<boolean>('diffEditorModifiedWritable', false, nls.localize('diffEditorModifiedWritable', "Whether modified is writable in the diff editor"));

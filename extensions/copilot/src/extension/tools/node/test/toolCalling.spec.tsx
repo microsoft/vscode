@@ -229,6 +229,12 @@ suite('ChatToolCalls thinking handling', () => {
 		expect(hasThinkingPart(result)).toBe(false);
 	});
 
+	test('historical: Chat Completions opt-in does not enable budget-mode Messages replay', async () => {
+		const endpoint = Object.assign(makeEndpoint('claude-haiku-4-5', 'messages'), { supportsThinkingContentInHistory: true });
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
+		expect(hasThinkingPart(result)).toBe(false);
+	});
+
 	test('historical: drops thinking on responses API when modelId mismatches', async () => {
 		const endpoint = makeEndpoint('gpt-5', 'responses');
 		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);

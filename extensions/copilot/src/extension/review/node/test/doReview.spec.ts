@@ -218,6 +218,29 @@ suite('doReview', () => {
 	});
 
 	describe('getReviewTitle', () => {
+		test('uses generic progress for link-bearing file names without changing the review target', () => {
+			const names = [
+				'ordinary [file].ts',
+				'file-[Open](command:test.noop).ts',
+				'file-[Open](CoMmAnD:test.noop?%5B%22arg%22%5D "Title").ts',
+				'file-\\[Open\\](command:test.noop).ts',
+				'file-COMMAND:test.noop.ts',
+			];
+			const results = names.map(name => {
+				const file = URI.from({ scheme: 'file', path: `/project/${name}` });
+				return {
+					name: file.path,
+					staged: getReviewTitle({ group: 'index', file }),
+					unstaged: getReviewTitle({ group: 'workingTree', file }),
+				};
+			});
+			assert.deepStrictEqual(results, names.map((name, index) => ({
+				name: `/project/${name}`,
+				staged: index === 0 ? `Reviewing staged changes in ${name}...` : 'Reviewing staged changes...',
+				unstaged: index === 0 ? `Reviewing unstaged changes in ${name}...` : 'Reviewing unstaged changes...',
+			})));
+		});
+
 
 		test('returns title for selection group with editor', () => {
 			const mockEditor = {

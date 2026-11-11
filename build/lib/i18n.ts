@@ -12,6 +12,7 @@ import xml2js from 'xml2js';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { type l10nJsonFormat, getL10nXlf, type l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
+import { serializeNlsData } from './nlsMessages.ts';
 
 const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
 
@@ -360,8 +361,8 @@ function processCoreBundleFormat(base: string, fileHeader: string, languages: La
 
 		emitter.queue(new File({
 			contents: Buffer.from(`${fileHeader}
-globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(nlsResult)};
-globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
+globalThis._VSCODE_NLS_MESSAGES=${serializeNlsData(nlsResult)};
+globalThis._VSCODE_NLS_LANGUAGE=${serializeNlsData(language.id)};`),
 			base,
 			path: `${base}/nls.messages.${language.id}.js`
 		}));
@@ -395,6 +396,7 @@ const editorProject: string = 'vscode-editor',
 
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
+	const sessionsHome = /^(?<home>vs\/workbench\/(?:contrib\/sessions|contrib\/sessionChanges|services\/sessions|browser\/parts\/sessions))\//.exec(sourceFile)?.groups?.home;
 
 	if (/^vs\/platform/.test(sourceFile)) {
 		return { name: 'vs/platform', project: editorProject };
@@ -408,6 +410,9 @@ export function getResource(sourceFile: string): Resource {
 		return { name: 'vs/code', project: workbenchProject };
 	} else if (/^vs\/server/.test(sourceFile)) {
 		return { name: 'vs/server', project: serverProject };
+	} else if (sessionsHome) {
+		// The shared sessions code moved here from vs/sessions; its strings stay in the Agents window's project.
+		return { name: sessionsHome, project: sessionsProject };
 	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };

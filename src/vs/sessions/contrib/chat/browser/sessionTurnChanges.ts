@@ -7,16 +7,17 @@ import { constObservable, derived, derivedObservableWithCache, IObservable, IRea
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { AbstractChatResponseFileChangesService, AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getWindowHost, IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 interface ISessionTransientTurnChanges {
 	readonly id: string;
@@ -35,9 +36,11 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@IEditorService private readonly _editorService: IEditorService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
-		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 	) {
 		super();
 	}
@@ -54,21 +57,23 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		const requestChanges = this.getChangesForRequest(sessionResource, requestId);
 
 		return derivedObservableWithCache<IChatResponseFileChangesStats>(this, (reader, lastValue) => {
+			const requestDiffs = requestChanges?.read(reader) ?? [];
 			const readRequestStats = (): IChatResponseFileChangesStats => {
-				const changes = requestChanges?.read(reader) ?? [];
 				let insertions = 0, deletions = 0;
-				for (const change of changes) {
+				for (const change of requestDiffs) {
 					insertions += change.added;
 					deletions += change.removed;
 				}
-				return { files: changes.length, insertions, deletions };
+				return { files: requestDiffs.length, insertions, deletions };
 			};
 			let stats: IChatResponseFileChangesStats;
-			if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
+			if (requestDiffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES) {
+				stats = readRequestStats();
+			} else if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
 				|| !this._isMostRecentChat(owner.session, owner.chat, reader)) {
 				stats = readRequestStats();
 			} else {
-				const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
+				const changeset = owner.chat.changesets.read(reader)
 					?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 				if (!changeset) {
 					stats = readRequestStats();
@@ -97,25 +102,17 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		if (context.isLastTurn) {
 			if (requestId === undefined) {
 				if (isAgentHostProviderId(owner.session.providerId)) {
-					void this._openSessionTurnChanges(owner.session);
+					void this._openSessionTurnChanges(owner.session, owner.chat);
 				} else {
 					const changes = owner.chat.lastTurnChanges;
 					if (changes) {
-						this._openTransientLastTurnChanges(owner.session, owner.chat.resource.toString(), changes);
+						this._openTransientLastTurnChanges(owner.session, owner.chat, changes);
 					}
 				}
 				return;
 			}
 
-			if (this._isMostRecentChat(owner.session, owner.chat)) {
-				void this._openSessionTurnChanges(owner.session);
-				return;
-			}
-
-			const changes = this._getSessionFileChanges(owner.session, chatResource, requestId);
-			if (changes) {
-				this._openTransientLastTurnChanges(owner.session, requestId, changes);
-			}
+			void this._openSessionTurnChanges(owner.session, owner.chat);
 			return;
 		}
 
@@ -127,7 +124,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			this._openStandaloneChanges(chatResource, requestId);
 			return;
 		}
-		void this._openSessionTurnChanges(owner.session, {
+		void this._openSessionTurnChanges(owner.session, owner.chat, {
 			id: `${TURN_CHANGES_CHANGESET_ID}:${requestId}`,
 			label: localize('historicalTurnChanges.label', "Turn Changes"),
 			description: localize('historicalTurnChanges.description', "Changes from the selected chat turn."),
@@ -155,16 +152,19 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 	}
 
 	private _isMostRecentChat(session: ISession, chat: IChat, reader?: IReader): boolean {
-		const mostRecentChat = session.chats.read(reader).reduce<IChat | undefined>(
-			(latest, candidate) => !latest || candidate.updatedAt.read(reader).getTime() > latest.updatedAt.read(reader).getTime() ? candidate : latest,
-			undefined,
-		);
-		return isEqual(mostRecentChat?.resource ?? session.mainChat.read(reader).resource, chat.resource);
-	}
-
-	private _getSessionFileChanges(session: ISession, chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {
-		const changes = this.getChangesForRequest(chatResource, requestId);
-		return changes ? this._toSessionFileChanges(session, changes) : undefined;
+		let mostRecentChat: IChat | undefined;
+		let mostRecentTime = -Infinity;
+		for (const candidate of session.chats.read(reader)) {
+			const updatedAt = candidate.updatedAt.read(reader);
+			if (!updatedAt) {
+				return false;
+			}
+			if (updatedAt.getTime() > mostRecentTime) {
+				mostRecentChat = candidate;
+				mostRecentTime = updatedAt.getTime();
+			}
+		}
+		return isEqual(mostRecentChat?.resource, chat.resource);
 	}
 
 	private _toSessionFileChanges(session: ISession, changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {
@@ -184,17 +184,20 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		});
 	}
 
-	private _openTransientLastTurnChanges(session: ISession, id: string, changes: IObservable<readonly ISessionFileChange[]>): void {
-		void this._openSessionTurnChanges(session, {
-			id: `${TURN_CHANGES_CHANGESET_ID}:${id}`,
+	private _openTransientLastTurnChanges(session: ISession, chat: IChat, changes: IObservable<readonly ISessionFileChange[]>): void {
+		void this._openSessionTurnChanges(session, chat, {
+			id: `${TURN_CHANGES_CHANGESET_ID}:${chat.resource.toString()}`,
 			label: localize('lastTurnChanges.label', "Turn Changes"),
 			description: localize('lastTurnChanges.description', "Changes from the viewed chat's last turn."),
 			changes,
 		});
 	}
 
-	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
-		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+	private async _openSessionTurnChanges(session: ISession, chat: IChat, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
+		if (!transientTurn && (!activeSession || !isEqual(activeSession.resource, session.resource) || !isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, chat.resource))) {
+			await this._sessionsService.openChat(session, chat.resource, { preserveFocus: true });
+		} else if (!isEqual(activeSession?.resource, session.resource)) {
 			this._sessionsService.showSession(session.resource, { preserveFocus: true });
 		}
 		this._layoutService.revealEditorPartExplicitly();
@@ -218,6 +221,10 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 				} satisfies ISessionChangeset,
 			}
 			: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID };
-		await this._sessionChangesService.openChangesEditor(session.resource, { changesetSelection });
+		const chatHost = this._sessionHostService.getHostOfChat(chat.resource);
+		await this._sessionChangesService.openChangesEditor(session.resource, {
+			changesetSelection,
+			chatResource: chatHost && getWindowHost(chatHost).kind === SessionHostKind.ChatWindow ? chat.resource : undefined,
+		});
 	}
 }
