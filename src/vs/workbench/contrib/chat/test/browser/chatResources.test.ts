@@ -53,6 +53,26 @@ suite('ChatResources', () => {
 		});
 	});
 
+	test('watches a resource whose file system provider registers later', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${chatSessionId}.md' };
+		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), observableValue('ids', { chatSessionId: 'chat-1', agentSessionId: undefined }), () => { }, fileService));
+		store.add(autorun(reader => entries.sections.read(reader)));
+		const provider = store.add(new InMemoryFileSystemProvider());
+		const watched: string[] = [];
+		const watch = provider.watch.bind(provider);
+		provider.watch = (resource, options) => {
+			watched.push(resource.toString());
+			return watch(resource, options);
+		};
+
+		store.add(fileService.registerProvider('chat-status', provider));
+		await fileService.writeFile(URI.parse('chat-status:/chat-1.md'), VSBuffer.fromString('# Status'));
+		await waitForState(entries.sections, sections => sections.length > 0);
+
+		assert.deepStrictEqual(watched, ['chat-status:/chat-1.md']);
+	});
+
 	suite('embedded size', () => {
 		const automatic = (maxAutomaticHeight: number): IChatEmbeddedResourceSize => ({ fixedHeight: undefined, maxAutomaticHeight });
 

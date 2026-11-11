@@ -32,11 +32,12 @@ export interface IChatResourceContribution {
 
 /** The identifiers of a chat that a {@link IChatResourceContribution.resource} template can use. */
 export interface IChatResourceSessionIds {
-	/** `${chatSessionId}`: the workbench's identifier of the chat, the last path segment of its session resource. */
+	/** `${chatSessionId}`: the agent host's identifier of the chat, distinct for each chat of a session, such as a side chat. */
 	readonly chatSessionId: string;
 	/**
 	 * `${agentSessionId}`: the agent host's identifier of the session, the `<id>` of `ahp-session:/<id>`, shared by all its
 	 * chats. Agents get it from the `get_current_session` tool. It differs from a provider's own ID, such as the Copilot CLI's.
+	 * Only native agent hosts have it.
 	 */
 	readonly agentSessionId: string | undefined;
 }
@@ -77,7 +78,7 @@ const chatResourceSchema = {
 		},
 		resource: {
 			type: 'string',
-			description: nls.localize('chatResources.resource', "URI of the resource for a chat, such as `chat-todos:/${agentSessionId}.todo.json`. `${chatSessionId}` is the workbench's identifier of the chat, `${agentSessionId}` the agent host's identifier of the session, which agents get from the `get_current_session` tool. The chat lists the resource while it exists."),
+			description: nls.localize('chatResources.resource', "URI of the resource for a chat, such as `chat-todos:/${agentSessionId}.todo.json`. `${chatSessionId}` is the agent host's identifier of the chat, `${agentSessionId}` the agent host's identifier of the session, which agents get from the `get_current_session` tool. The chat lists the resource while it exists."),
 		},
 	},
 } as const satisfies IJSONSchema;

@@ -969,11 +969,15 @@ export class AgentHostSessionInputPills extends Disposable {
 		})));
 		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
 		// Extensions add resources to every chat whose resource exists; a subagent chat lists none.
+		// Only a native host's session URIs are known to be `ahp-session:/<id>`, whose `<id>` its agents get from `get_current_session`.
 		const contributionSessionIds = derived<IChatResourceSessionIds | undefined>(this, reader => {
-			const session = sessionResource.read(reader);
+			const chat = chatResource.read(reader);
 			const currentResolution = resolution.read(reader);
-			return session && !subagentChat.read(reader)
-				? { chatSessionId: basename(session), agentSessionId: currentResolution ? AgentSession.id(currentResolution.backendSession) : undefined }
+			return chat && currentResolution && !subagentChat.read(reader)
+				? {
+					chatSessionId: getAgentHostChatId(chat),
+					agentSessionId: isNativeAgentHost(currentResolution.connection.initializeResult.read(reader)) ? AgentSession.id(currentResolution.backendSession) : undefined,
+				}
 				: undefined;
 		});
 		const contributedResources = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)

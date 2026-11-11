@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -29,17 +29,21 @@ export function observeChatResourceExists(fileService: IFileService, resource: U
 			exists.set(result, undefined);
 		}
 	};
+	const watcher = store.add(new MutableDisposable());
+	const watch = () => watcher.value = fileService.hasProvider(resource) ? fileService.watch(resource) : undefined;
 	store.add(fileService.onDidFilesChange(e => {
 		if (e.affects(resource)) {
 			void refresh();
 		}
 	}));
+	// A provider that registers late, such as an extension's, only reports changes to resources watched through it.
 	store.add(fileService.onDidChangeFileSystemProviderRegistrations(e => {
 		if (e.scheme === resource.scheme) {
+			watch();
 			void refresh();
 		}
 	}));
-	store.add(fileService.watch(resource));
+	watch();
 	store.add(toDisposable(() => version++));
 	void refresh();
 	return exists;
