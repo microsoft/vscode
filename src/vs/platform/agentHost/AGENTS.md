@@ -180,6 +180,12 @@ A send, resume, Start preparation, or queued refresh can cancel its Connector at
 
 The runtime can restart an explicitly stopped Connector on forced or configuration-changing reconciliation. Until it supports preserving that intent, live reconciliation defers if an affected Connector runtime server is stopped, not configured, or disabled. Generic refreshes therefore remain pending while any projected Connector is in those states; a named refresh can still proceed when only unrelated Connectors are stopped. The host does not convert Stop into Disable, restart the session, or cancel unrelated authentication to work around this limitation. Runtime policy and user/workspace MCP precedence remain authoritative.
 
+### Copilot canvas extension enablement
+
+User and Plugin canvas extension preferences are saved once by the owning Copilot provider's runtime API. A process-local revision coalesces catch-up under each chat's lifetime queue: attached idle runtimes converge in the background, while detached runtimes and unclaimed warm drafts wait for attachment or an operation. Cold chats are never started for a preference change. Initialization, model turns and canvas list/open operations catch up before using runtime capabilities; disabled canvas runtimes have no extension controller to reconcile. Only a successful whole-runtime reconcile advances its applied revision, even when selected-target verification can report an enable succeeded with a warning. Readable inventory retains fresh native statuses with an explicit pending/failure diagnostic so an unconfirmed chat can still be inspected and managed; unreadable inventory still rejects. A failed chat never rolls back the preference or blocks healthy chats.
+
+At a real turn boundary, a failed idle runtime uses the existing control-plane relaunch path once, from saved preferences, rather than permanently preventing the conversation from continuing. The old SDK session must disconnect successfully before its replacement starts. Busy work, cancellation, retired runtimes and failed replacement launches still reject truthfully; canvas operations and inventory do not restart sessions to mask failures.
+
 ### Image-generation tools
 
 Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.

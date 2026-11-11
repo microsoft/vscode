@@ -1495,6 +1495,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	get isDisposed(): boolean { return this._store.isDisposed; }
+	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
 
 	/** Waits for idle, or returns false if the runtime is disposed first. */
 	async waitForIdle(token: CancellationToken = CancellationToken.None): Promise<boolean> {

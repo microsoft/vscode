@@ -2460,6 +2460,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!mode || !Array.isArray(result.extensions)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory');
 		}
+		const reconciliation = result.reconciliation;
+		if (reconciliation !== undefined && (!reconciliation || typeof reconciliation !== 'object'
+			|| reconciliation.status !== 'pending' && reconciliation.status !== 'failed'
+			|| typeof reconciliation.message !== 'string' || !reconciliation.message.trim())) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension reconciliation state');
+		}
 		const extensions = result.extensions.flatMap((extension, index) => {
 			if (!extension || typeof extension !== 'object'
 				|| typeof extension.id !== 'string' || !extension.id
@@ -2499,7 +2505,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
 			}];
 		});
-		return { mode, extensions };
+		return { mode, extensions, ...(reconciliation ? { reconciliation: { status: reconciliation.status, message: reconciliation.message } } : {}) };
 	}
 
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {

@@ -248,6 +248,10 @@ suite('CopilotCanvasesWidget', () => {
 			reveals,
 			itemCounts,
 			setContextAvailable(value: boolean) { contexts.set(value ? [context] : [], undefined); },
+			setExtensionInventory(value: IAgentExtensionInventory) {
+				extensionInventory = value;
+				definitionsChanged.fire();
+			},
 			widget,
 		};
 	}
@@ -1047,6 +1051,160 @@ suite('CopilotCanvasesWidget', () => {
 			link: 'Plugin: Diagram Plugin',
 			commands: [],
 			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
+		});
+	});
+
+	test('reopens readable inventory with a diagnostic and clears it after a data-only refresh', async () => {
+		const preview = definition();
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness({ definitions: [preview], storageService });
+		await timeout(0);
+		first.widget.dispose();
+		const message = 'Fixture preferences are waiting for the current turn.';
+		const reopened = createHarness({
+			storageService,
+			extensionInventory: { ...inventory([preview]), reconciliation: { status: 'pending', message } },
+		});
+		await timeout(0);
+		const inspect = () => {
+			const more = reopened.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			more.click();
+			const result = {
+				visible: reopened.container.textContent?.includes(message),
+				accessible: reopened.widget.getAccessibilityContent().includes(message),
+				canDisable: reopened.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+				canOpen: reopened.menuActions.find(action => action.id === 'canvas.show')?.enabled,
+			};
+			reopened.hideMenu();
+			return result;
+		};
+		const pending = inspect();
+		reopened.setExtensionInventory(inventory([preview]));
+		await timeout(0);
+
+		assert.deepStrictEqual({ pending, applied: inspect() }, {
+			pending: { visible: true, accessible: true, canDisable: true, canOpen: false },
+			applied: { visible: false, accessible: false, canDisable: true, canOpen: true },
+		});
+	});
+
+	for (const status of ['failed', 'disabled'] as const) {
+		test(`blocks a stale Canvas open after a data-only ${status} inventory update`, async () => {
+			const preview = definition();
+			const harness = createHarness({ definitions: [preview] });
+			await timeout(0);
+			const openMenu = () => {
+				const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+				assert.ok(more);
+				more.click();
+				return harness.menuActions.find(action => action.id === 'canvas.show');
+			};
+			const staleOpen = openMenu();
+			assert.ok(staleOpen);
+			const closeStarted = new DeferredPromise<void>();
+			const releaseClose = new DeferredPromise<void>();
+			harness.widget.setCloseCustomizationEditor(async () => {
+				closeStarted.complete();
+				await releaseClose.p;
+				return true;
+			});
+			const opening = Promise.resolve(staleOpen.run());
+			await closeStarted.p;
+			harness.setExtensionInventory(inventory([preview], status));
+			await timeout(0);
+			releaseClose.complete();
+			await opening;
+			harness.hideMenu();
+			const currentOpen = openMenu();
+			harness.hideMenu();
+
+			assert.deepStrictEqual({
+				initiallyEnabled: staleOpen.enabled,
+				currentOpen: currentOpen?.enabled,
+				canManage: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+				opens: harness.openCalls,
+				notifications: harness.notifications,
+			}, {
+				initiallyEnabled: true,
+				currentOpen: status === 'failed' ? false : undefined,
+				canManage: true,
+				opens: 0,
+				notifications: status === 'failed' ? ['This canvas extension failed to start.'] : [],
+			});
+		});
+	}
+
+	test('marks populated Canvas rows unconfirmed during refresh and failure without blocking corrective toggles', async () => {
+		const preview = definition();
+		const refresh = new DeferredPromise<readonly ICanvasDefinition[]>();
+		const requested = new DeferredPromise<void>();
+		let refreshing = false;
+		const harness = createHarness({
+			listCanvases: async () => {
+				if (!refreshing) {
+					return [preview];
+				}
+				requested.complete();
+				return refresh.p;
+			},
+		});
+		await timeout(0);
+		const openMenu = () => {
+			const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			more.click();
+			const open = harness.menuActions.find(action => action.id === 'canvas.show');
+			assert.ok(open);
+			return open;
+		};
+		const staleOpen = openMenu();
+		refreshing = true;
+		harness.definitionsChanged.fire();
+		await requested.p;
+		await timeout(0);
+		await staleOpen.run();
+		harness.hideMenu();
+		const pending = {
+			visibleReason: harness.container.textContent?.includes('Loading Canvases...'),
+			accessibleReason: harness.widget.getAccessibilityContent().includes('Loading Canvases...'),
+			openEnabled: openMenu().enabled,
+			canDisable: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+		};
+		harness.hideMenu();
+		refresh.error(new Error('Fixture refresh failed.'));
+		await timeout(0);
+		const failed = {
+			visibleReason: harness.container.textContent?.includes('Fixture refresh failed.'),
+			accessibleReason: harness.widget.getAccessibilityContent().includes('Fixture refresh failed.'),
+			openEnabled: openMenu().enabled,
+			canDisable: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+		};
+		harness.hideMenu();
+		refreshing = false;
+		harness.definitionsChanged.fire();
+		await timeout(0);
+		const closeStarted = new DeferredPromise<void>();
+		const releaseClose = new DeferredPromise<void>();
+		harness.widget.setCloseCustomizationEditor(async () => {
+			closeStarted.complete();
+			await releaseClose.p;
+			return true;
+		});
+		const opening = Promise.resolve(openMenu().run());
+		await closeStarted.p;
+		refreshing = true;
+		harness.definitionsChanged.fire();
+		await timeout(0);
+		releaseClose.complete();
+		await opening;
+		harness.hideMenu();
+
+		assert.deepStrictEqual({ pending, failed, opens: harness.openCalls, closes: harness.closeCalls }, {
+			pending: { visibleReason: true, accessibleReason: true, openEnabled: false, canDisable: true },
+			failed: { visibleReason: true, accessibleReason: true, openEnabled: false, canDisable: true },
+			opens: 0,
+			closes: 0,
 		});
 	});
 

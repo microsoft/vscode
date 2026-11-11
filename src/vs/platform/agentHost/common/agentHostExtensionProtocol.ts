@@ -8,7 +8,7 @@ import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultVali
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
-import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
+import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus, IAgentExtensionInventory } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
@@ -275,6 +275,7 @@ export const setAgentExtensionEnabledParamsValidator = vObj({
 
 export interface IAgentHostAgentExtensionInventoryResult {
 	readonly mode: AgentExtensionMode;
+	readonly reconciliation?: IAgentExtensionInventory['reconciliation'];
 	readonly extensions: readonly {
 		readonly id: string;
 		readonly name: string;

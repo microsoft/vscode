@@ -404,7 +404,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		templateData.currentItemKey = itemKey;
 		templateData.container.dataset.customizationKey = itemKey;
 		templateData.container.classList.toggle('disabled', !enabled);
-		templateData.container.classList.toggle('readonly', !enabled || !isOpenableExtensionCanvasDefinition(item.canvas));
+		templateData.container.classList.toggle('readonly', !enabled || !isOpenableExtensionCanvasDefinition(item.canvas) || this.getOpenUnavailableMessage(item) !== undefined);
 		templateData.label.textContent = item.canvas.displayName;
 		const detail = this.getDetail(item);
 		const isPlugin = extension.extensionSource === 'plugin';
@@ -811,27 +811,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			description,
 			...groups.flatMap(group => [
 				localize('copilotCanvases.accessibleGroup', "{0}. {1} Canvases.", group.label, group.count),
-				...group.children.flatMap(({ item: extension }) =>
-					extension.canvases.map(item => {
-						const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
-						return unavailableMessage
-							? localize(
-								'copilotCanvases.accessibleUnavailableItem',
-								"{0}. {1}. {2}. {3}",
-								item.canvas.displayName,
-								this.getCanvasDetail(item),
-								this.getCanvasStateLabel(item),
-								unavailableMessage,
-							)
-							: localize(
-								'copilotCanvases.accessibleItem',
-								"{0}. {1}. {2}.",
-								item.canvas.displayName,
-								this.getCanvasDetail(item),
-								this.getCanvasStateLabel(item),
-							);
-					})
-				),
+				...group.children.flatMap(({ item: extension }) => extension.canvases.map(item => this.getCanvasAriaLabel(item))),
 			]),
 		].join('\n\n');
 	}
@@ -1067,6 +1047,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			const inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : undefined;
 			if (isCurrent() && inventory) {
 				this.extensionInventories.set(ownerKey, inventory);
+				if (inventory.reconciliation) {
+					this.canvasErrors.set(ownerKey, inventory.reconciliation.message);
+				}
 				this.extensionInventoriesChanged.trigger(undefined);
 			}
 			if (definitionsResult.status === 'rejected') {
@@ -1327,13 +1310,13 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getCanvasActions(item: ICopilotCanvasItem, disposables: DisposableStore): IAction[] {
-		const openable = this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas);
 		const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
+		const openable = this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas) && !unavailableMessage;
 		const actions: IAction[] = [];
 		if (openable || unavailableMessage) {
 			actions.push(disposables.add(new Action(
 				'canvas.show',
-				unavailableMessage
+				unavailableMessage && item.canvas.requiresInput && !this.getCanvasRefreshMessage(item.context) && this.getCurrentCanvasExtension(item)?.status !== 'failed'
 					? localize('copilotCanvases.showCanvasRequiresInput', "Open Canvas (Requires Specific Inputs)")
 					: localize('copilotCanvases.showCanvas', "Open Canvas"),
 				undefined,
@@ -1356,8 +1339,22 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (!currentItem || !this.canvasService.enabled.get() || !this.isCanvasEnabled(currentItem) || !isOpenableExtensionCanvasDefinition(currentItem.canvas)) {
 			return;
 		}
+		const notifyIfUnavailable = () => {
+			if (!this.isCanvasEnabled(currentItem)) {
+				return true;
+			}
+			const message = this.getCanvasOpenUnavailableMessage(currentItem);
+			if (!message) {
+				return false;
+			}
+			this.notificationService.info(message);
+			return true;
+		};
+		if (notifyIfUnavailable()) {
+			return;
+		}
 		try {
-			if (!await this.closeCustomizationEditor()) {
+			if (!await this.closeCustomizationEditor() || notifyIfUnavailable()) {
 				return;
 			}
 			const instanceId = getCanvasDefinitionInstanceId(currentItem.canvas);
@@ -1368,7 +1365,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 					return;
 				}
 			}
-			await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, instanceId);
+			if (!notifyIfUnavailable()) {
+				await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, instanceId);
+			}
 		} catch (error) {
 			this.notificationService.error(localize('copilotCanvases.openFailed', "Unable to open canvas {0}. {1}", currentItem.canvas.displayName, getErrorMessage(error)));
 		}
@@ -1496,23 +1495,30 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				this.canToggleExtension(entry.item) ? '' : this.getToggleUnavailableMessage(entry.item),
 			);
 		}
-		const unavailableMessage = this.getCanvasOpenUnavailableMessage(entry.item);
-		const sourceDetail = this.getCanvasDetail(entry.item);
+		return this.getCanvasAriaLabel(entry.item);
+	}
+
+	private getCanvasAriaLabel(item: ICopilotCanvasItem): string {
+		const sourceDetail = this.getCanvasDetail(item);
+		if (this.getCanvasRefreshMessage(item.context)) {
+			return localize('copilotCanvases.unconfirmedRowAriaLabel', "{0}. {1}", item.canvas.displayName, sourceDetail);
+		}
+		const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
 		return unavailableMessage
 			? localize(
 				'copilotCanvases.unavailableRowAriaLabel',
 				"{0}. {1}. {2}. {3}",
-				entry.item.canvas.displayName,
+				item.canvas.displayName,
 				sourceDetail,
-				this.getCanvasStateLabel(entry.item),
+				this.getCanvasStateLabel(item),
 				unavailableMessage,
 			)
 			: localize(
 				'copilotCanvases.rowAriaLabel',
 				"{0}. {1}. {2}.",
-				entry.item.canvas.displayName,
+				item.canvas.displayName,
 				sourceDetail,
-				this.getCanvasStateLabel(entry.item),
+				this.getCanvasStateLabel(item),
 			);
 	}
 
@@ -1587,7 +1593,11 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private isCanvasEnabled(item: ICopilotCanvasItem): boolean {
-		return item.extension ? item.extension.status !== 'disabled' : true;
+		return this.getCurrentCanvasExtension(item)?.status !== 'disabled';
+	}
+
+	private getCurrentCanvasExtension(item: ICopilotCanvasItem): IAgentExtensionInfo | undefined {
+		return this.findCanvasExtension(this.extensionInventories.get(canvasOwnerKey(item.context.owner)), item.canvas) ?? item.extension;
 	}
 
 	private isExtensionEnabled(item: ICopilotCanvasExtensionItem): boolean {
@@ -1622,6 +1632,10 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getExtensionStateLabel(item: ICopilotCanvasExtensionItem): string {
+		const refreshMessage = this.getCanvasRefreshMessage(item.context);
+		if (refreshMessage) {
+			return refreshMessage;
+		}
 		switch (item.extension?.status) {
 			case 'disabled': return localize('copilotCanvases.disabledStatus', "Disabled");
 			case 'failed': return localize('copilotCanvases.failedStatus', "Failed");
@@ -1644,6 +1658,13 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getCanvasOpenUnavailableMessage(item: ICopilotCanvasItem): string | undefined {
+		const refreshMessage = this.getCanvasRefreshMessage(item.context);
+		if (refreshMessage) {
+			return refreshMessage;
+		}
+		if (this.getCurrentCanvasExtension(item)?.status === 'failed') {
+			return localize('copilotCanvases.extensionFailedOpenUnavailable', "This canvas extension failed to start.");
+		}
 		if (!this.isCanvasEnabled(item) || item.cached || !item.canvas.requiresInput) {
 			return undefined;
 		}
@@ -1653,11 +1674,21 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			: undefined;
 	}
 
+	private getCanvasRefreshMessage(context: ICanvasContext): string | undefined {
+		const ownerKey = canvasOwnerKey(context.owner);
+		return this.canvasErrors.get(ownerKey)
+			?? (this.loadingCanvasOwnerKeys.has(ownerKey) ? localize('copilotCanvases.loading', "Loading Canvases...") : undefined);
+	}
+
 	private getCanvasDetail(item: ICopilotCanvasItem): string {
 		const extension = this.getExtensionForCanvas(item);
 		const sourceDescription = extension.extensionSource === 'plugin'
 			? getCustomizationContributionSourceLabel('plugin', extension.extension?.pluginName ?? extension.extensionName)
 			: getCustomizationContributionSourceLabel('extension', extension.extensionName);
+		const refreshMessage = this.getCanvasRefreshMessage(item.context);
+		if (refreshMessage) {
+			return localize('copilotCanvases.sourceRefreshState', "{0} · {1}", sourceDescription, refreshMessage);
+		}
 		if (!item.cached) {
 			return sourceDescription;
 		}
@@ -1667,6 +1698,10 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getExtensionDetail(item: ICopilotCanvasExtensionItem): string {
+		const refreshMessage = this.getCanvasRefreshMessage(item.context);
+		if (refreshMessage) {
+			return refreshMessage;
+		}
 		if (item.canvases.length === 0 && this.isExtensionEnabled(item)) {
 			return localize('copilotCanvases.noCanvasesReported', "No Canvases Reported");
 		}

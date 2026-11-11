@@ -2380,6 +2380,7 @@ suite('ProtocolServerHandler', () => {
 	test('advertises and routes Copilot extension inventory', async () => {
 		agentService.agentExtensionInventory = {
 			mode: 'load_and_augment',
+			reconciliation: { status: 'failed', message: 'Fixture reconciliation failed.' },
 			extensions: [{
 				id: 'user:preview',
 				name: 'Preview',
@@ -2418,6 +2419,7 @@ suite('ProtocolServerHandler', () => {
 				id: 20,
 				result: {
 					mode: 'load_and_augment',
+					reconciliation: { status: 'failed', message: 'Fixture reconciliation failed.' },
 					extensions: [{
 						id: 'user:preview',
 						name: 'Preview',
