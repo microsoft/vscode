@@ -446,7 +446,7 @@ class AutomationCardsSection extends Disposable {
 		this.unavailableCreateButton = unavailableState.createButton;
 		this.unavailableDescription = unavailableState.description;
 		this.renderManageRemotesLink(partialStateContent);
-		this.renderManageRemotesLink(this.unavailableContainer);
+		this.renderManageRemotesLink(unavailableState.manageRemotesTarget);
 		this.errorContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-error'));
 		this.errorContainer.style.display = 'none';
 		this.errorCreateButton = this.renderErrorState();
@@ -1164,17 +1164,18 @@ class AutomationCardsSection extends Disposable {
 		return this.renderStateCreateButton(this.loadingContainer);
 	}
 
-	private renderUnavailableState(): { readonly createButton: IButton; readonly description: HTMLElement } {
+	private renderUnavailableState(): { readonly createButton: IButton; readonly description: HTMLElement; readonly manageRemotesTarget: HTMLElement } {
 		const icon = DOM.append(this.unavailableContainer, $('span.automations-cards-state-icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.debugDisconnect));
 		icon.setAttribute('aria-hidden', 'true');
 		const title = DOM.append(this.unavailableContainer, $('h3.automations-cards-state-title'));
 		title.textContent = localize('noAutomationsYet', "No automations yet");
+		const manageRemotesTarget = DOM.append(this.unavailableContainer, $('div.automations-manage-remotes-target'));
 		const emptyDescription = DOM.append(this.unavailableContainer, $('p.automations-cards-state-description'));
 		emptyDescription.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
 		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description.automations-cards-unavailable-message'));
 		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description };
+		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description, manageRemotesTarget };
 	}
 
 	private renderManageRemotesLink(parent: HTMLElement): void {
