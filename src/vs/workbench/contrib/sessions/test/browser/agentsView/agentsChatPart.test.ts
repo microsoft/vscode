@@ -149,6 +149,13 @@ const chatA = URI.parse('test:/a');
 const chatB = URI.parse('test:/b');
 const chatC = URI.parse('test:/c');
 
+/** The workspace of a session of the repository `/work/vscode` that works in `workingDirectory`, such as one of its worktrees. */
+function workspaceIn(workingDirectory: string): ISessionWorkspace {
+	return upcastPartial<ISessionWorkspace>({
+		folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file('/work/vscode'), workingDirectory: URI.file(workingDirectory) })],
+	});
+}
+
 suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -304,7 +311,7 @@ suite('AgentsChatPartService', () => {
 	test('the active chat is the session a composer created from its first send on, before that first turn ends; a draft has none', async () => {
 		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
 		const mainChat = upcastPartial<IChat>({ resource: chatA });
-		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat) });
+		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat), workspace: constObservable(undefined) });
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
 		const { service } = createService({ newSession });
 		const active = () => { const chat = service.activeChat.get(); return chat ? { session: chat.session === created, chat: chat.chat === mainChat } : 'none'; };
@@ -338,9 +345,6 @@ suite('AgentsChatPartService', () => {
 	});
 
 	test('a session the user opened that comes to work elsewhere, such as in the new worktree its agent created, moves the window\'s folder there too', async () => {
-		const workspaceIn = (workingDirectory: string) => upcastPartial<ISessionWorkspace>({
-			folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file('/work/vscode'), workingDirectory: URI.file(workingDirectory) })],
-		});
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
 		const moving: ISession = { ...buildTestSession({ id: 'moving', title: 'Moving' }).session, workspace };
 		const { service, switchedTo } = createService({ sessions: () => [moving] });
@@ -353,6 +357,45 @@ suite('AgentsChatPartService', () => {
 		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
 
 		assert.deepStrictEqual({ opened, moved, unchanged: switches() }, { opened: 1, moved: 1, unchanged: 0 });
+	});
+
+	test('a composer\'s send moves the window\'s folder to where its session works, also when that is known already, and follows the session into the new worktree its agent creates', async () => {
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode.worktrees/a'));
+		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
+		const created = upcastPartial<ISession>({ sessionId: 'created', status, mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace });
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const { service, switchedTo } = createService({ newSession });
+		const switches = () => switchedTo.splice(0).map(switched => switched === created ? 'created' : 'other');
+
+		await service.openComposer(undefined);
+		newSession.set(created, undefined);
+		const draft = switches();
+		// The send: from now on, the composer's tab shows the session it created
+		status.set(SessionStatus.InProgress, undefined);
+		const sent = switches();
+		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
+
+		assert.deepStrictEqual({ draft, sent, newWorktree: switches() }, { draft: [], sent: ['created'], newWorktree: ['created'] });
+	});
+
+	test('a restored tab neither moves the window\'s folder nor follows its session; one the user opens does, until its tab closes', async () => {
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
+		const restored: ISession = { ...buildTestSession({ id: 'restored', title: 'Restored' }).session, workspace };
+		const chat = restored.mainChat.get().resource;
+		const { service, switchedTo } = createService({ stored: JSON.stringify({ chats: [chat.toString()], active: 0 }), visible: true, sessions: () => [restored] });
+		const switches = () => switchedTo.splice(0).length;
+
+		await service.restore();
+		workspace.set(workspaceIn('/work/vscode.worktrees/a'), undefined);
+		const afterRestore = switches();
+		await service.openChat(restored, chat);
+		const opened = switches();
+		workspace.set(workspaceIn('/work/vscode.worktrees/b'), undefined);
+		const followed = switches();
+		await service.closeChat(chat);
+		workspace.set(workspaceIn('/work/vscode.worktrees/c'), undefined);
+
+		assert.deepStrictEqual({ afterRestore, opened, followed, afterClose: switches() }, { afterRestore: 0, opened: 1, followed: 1, afterClose: 0 });
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {

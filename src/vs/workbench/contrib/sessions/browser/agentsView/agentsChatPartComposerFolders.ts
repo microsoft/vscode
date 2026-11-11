@@ -27,7 +27,8 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	private readonly _folders = observableValue<readonly URI[]>(this, []);
 	readonly folders: IObservable<readonly URI[]> = this._folders;
 
-	private readonly _refresh = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** Cancels the read of the locations under way, as another starts or this is disposed. */
+	private readonly _refresh = this._register(new MutableDisposable());
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -37,9 +38,7 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		super();
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => this.refresh()));
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
-		this._register(toDisposable(() => this._refresh.value?.cancel()));
 		this._update([]);
-		this.refresh();
 	}
 
 	/** How a composer shows `folderUri` when it is another location of the window's folder: by its name and branch. */
@@ -49,13 +48,14 @@ export class AgentsChatPartComposerFolders extends Disposable {
 
 	/** Reads the locations of the window's folder again, such as a worktree an agent created since. */
 	refresh(): void {
-		this._refresh.value?.cancel();
+		this._refresh.clear();
 		const folder = this._movableFolder();
 		if (!folder) {
 			this._update([]);
 			return;
 		}
-		const source = this._refresh.value = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
+		this._refresh.value = toDisposable(() => source.dispose(true));
 		const primary = folder.primaryUri ?? folder.uri;
 		this._folderLocationService.getLocations(primary, source.token).then(locations => {
 			if (!source.token.isCancellationRequested) {
