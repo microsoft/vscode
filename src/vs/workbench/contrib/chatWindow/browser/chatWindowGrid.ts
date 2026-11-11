@@ -237,17 +237,28 @@ function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerialize
 	const kept = line.data.map(child => child.visible === false || sharing(child) ? undefined
 		: orientation === Orientation.VERTICAL && terminalsHeight !== undefined && collectCellIds(child).every(cell => cell === ChatWindowGridCell.Terminals) ? terminalsHeight : child.size);
 	const extent = line.data.reduce((sum, child) => child.visible === false ? sum : sum + child.size, 0);
-	const room = extent - kept.reduce<number>((sum, size) => sum + (size ?? 0), 0);
+	let room = extent - kept.reduce<number>((sum, size) => sum + (size ?? 0), 0);
 	const previous = line.data.map(child => {
 		if (!sharing(child)) {
 			return 0;
 		}
 		const parts = partsOf(child);
-		return alone ? 1 : previousLine?.find(candidate => collectCellIds(candidate).some(cell => parts.includes(cell)))?.size;
+		return alone ? (child.size || 1) : previousLine?.find(candidate => collectCellIds(candidate).some(cell => parts.includes(cell)))?.size;
 	});
 	const total = previous.reduce<number>((sum, size) => sum + (size ?? 0), 0);
-	if (room <= 0 || !total || previous.some(size => size === undefined)) {
+	if (!total || previous.some(size => size === undefined)) {
 		return shown;
+	}
+	// Where the cells that keep their size do not fit, such as terminals taller than the window now is, they all share it
+	// as they would be: their sizes stay what they are, and how they show as both show is still known
+	if (room <= 0) {
+		const keptTotal = kept.reduce<number>((sum, size) => sum + (size ?? 0), 0);
+		const scale = extent / (keptTotal + total);
+		kept.forEach((size, index) => kept[index] = size === undefined ? undefined : Math.round(size * scale));
+		room = extent - kept.reduce<number>((sum, size) => sum + (size ?? 0), 0);
+		if (room <= 0) {
+			return shown;
+		}
 	}
 	const showCell = (node: ISerializedNode): ISerializedNode => node.type === 'leaf'
 		? ((node.data as { id: string }).id === id ? { ...node, visible: undefined } : node)
@@ -817,8 +828,12 @@ export class ChatWindowGrid extends Disposable {
 		if (this._strip) {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
 		}
-		// Before the part hides, as both show: also in the grid arranged anew while it stays hidden, such as stacked
+		// Before the part hides, as both show: also in the grid arranged anew while it stays hidden, such as stacked. The
+		// terminals take their height first, which the chrome that showed or hid changed as it gave or took their room.
 		if (hidden && (!previousHidden || arranged === 'rebuilt')) {
+			if (terminalsHeight !== undefined && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height !== terminalsHeight) {
+				this._resizeTerminals(grid, terminalsHeight);
+			}
 			const before = grid.serializeGrid();
 			this._beforeHide = { grid: before, created: new Set(this._created.keys()), terminalsHeight: grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined };
 		}

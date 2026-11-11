@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -1638,6 +1638,51 @@ suite('Chat window grid', () => {
 			underEditor: { before: 570, switched: { part: 570, terminals: 200 }, bothShow: { part: 570, terminals: 200 } },
 			underChat: { before: 570, switched: { part: 570, terminals: 200 }, bothShow: { part: 570, terminals: 200 } },
 		});
+	});
+
+	test('the terminals keep the height the user gave them as a part hidden with the title row shows again: in a window opening so, and as the title row hides with the part', () => {
+		const run = (opening: boolean) => {
+			const mode = observableValue<ChatWindowLayoutMode>('mode', opening ? ChatWindowLayoutMode.ChatOnly : ChatWindowLayoutMode.Stacked);
+			const titleRowVisible = observableValue('titleRowVisible', !opening);
+			const terminalsPart = createPartWithEditors('terminals');
+			terminalsPart.setEmpty(false);
+			const sizes: ChatWindowPartSizes = { terminals: { [ChatWindowGridCell.Terminals]: { width: 966, height: 200 } } };
+			const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(30), visible: titleRowVisible }, strip: createChrome(34), terminals: constObservable(terminalsPart.part), splitLayout: constObservable<ChatWindowSplitLayout>(ChatWindowLayoutMode.Stacked) }, mode, constObservable(0), sizes, undefined, undefined, editorGroupsService));
+			grid.layout(1000, 800);
+			if (!opening) {
+				transaction(tx => {
+					titleRowVisible.set(false, tx);
+					mode.set(ChatWindowLayoutMode.ChatOnly, tx);
+				});
+			}
+			mode.set(ChatWindowLayoutMode.Stacked, undefined);
+			return grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
+		};
+
+		assert.deepStrictEqual({ opening: run(true), hidingWithThePart: run(false) }, { opening: 200, hidingWithThePart: 200 });
+	});
+
+	test('a width the user gives the parts while one is hidden in a window too short for the terminals\' height comes back after a reload, and so does that height: the main part above them, or the chat', () => {
+		const run = (position: ChatWindowTerminalPosition, hide: ChatWindowLayoutMode, sized: ChatWindowGridCell) => {
+			const { mode, grid, open, position: terminalPosition, userResize, container } = setupWithTerminals();
+			terminalPosition.set(position, undefined);
+			open();
+			userResize(sized, 'right', 300);
+			userResize(ChatWindowGridCell.Terminals, 'top', 600);
+			mode.set(hide, undefined);
+			grid.layout(1000, 500);
+			drag(container, grid, sized, 'right', 400);
+			const terminalsPart = createPartWithEditors('terminals');
+			terminalsPart.setEmpty(false);
+			const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(terminalsPart.part), splitLayout: constObservable<ChatWindowSplitLayout>(ChatWindowLayoutMode.SideBySide), arrangement: grid.exportArrangement() }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), grid.exportSizes(), constObservable(position), undefined, editorGroupsService));
+			restored.layout(1000, 800);
+			return { width: restored.partGrid!.getCellSize(sized).width, terminals: restored.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height };
+		};
+
+		assert.deepStrictEqual({
+			mainHidden: run(ChatWindowTerminalPosition.UnderEditor, ChatWindowLayoutMode.ChatOnly, ChatWindowGridCell.Chat),
+			chatHidden: run(ChatWindowTerminalPosition.UnderChat, ChatWindowLayoutMode.EditorOnly, ChatWindowGridCell.Terminals),
+		}, { mainHidden: { width: 400, terminals: 600 }, chatHidden: { width: 400, terminals: 600 } });
 	});
 
 	test('the main part hidden with the terminals under it while they have nothing to show is as wide after a reload as the user made it', () => {
