@@ -770,6 +770,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
 				override readonly chatModels: IObservable<Iterable<IChatModel>> = constObservable([]);
+				override readonly onDidAcceptRequest = Event.None;
+				override readonly onDidPerformUserAction = Event.None;
 			}());
 			reg.defineInstance(IFixtureAgentSessionsService, {
 				model: { observeSession: () => constObservable(undefined) },

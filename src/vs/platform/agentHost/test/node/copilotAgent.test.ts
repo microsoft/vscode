@@ -3718,9 +3718,11 @@ suite('CopilotAgent', () => {
 	test('publishes shared content revisions through customizations and preserves them across enablement', async () => {
 		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		const root = URI.file('/sdk-installed/native');
-		const seeded = Event.toPromise(fileService.onDidFilesChange);
+		// The in-memory provider reports the write a few milliseconds later. Let that happen before the plugin
+		// watchers exist, or it can invalidate the content revision in the middle of the test.
+		const written = Event.toPromise(fileService.onDidFilesChange);
 		await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
-		await seeded;
+		await written;
 		const client = new TestCopilotClient([]);
 		client.pluginInstallations = [{ name: 'native', marketplace: 'test', enabled: true, rootPath: root.fsPath }];
 		const agent = createTestAgent(disposables, { fileService, copilotClient: client });
@@ -22713,101 +22715,78 @@ suite('CopilotAgent', () => {
 			};
 		}
 
-		suite('model router agents', () => {
+		suite('model router guidance', () => {
 			const userHome = URI.file('/router-home');
-			const routerFile = (playbook: string[], roles: string[] = []) => [
+			// One route, so that it is chosen without a routing decision.
+			const routerFile = (guidance: string) => [
 				'version: 1',
 				'description: Test.',
-				'roles:',
-				'  reviewer:',
-				'    description: Reviews a change.',
+				'routes:',
+				'  - name: feature',
 				'    model: claude-sonnet',
-				...roles,
-				'playbooks:',
-				'  feature:',
 				'    when: Building.',
-				'    main: claude-sonnet',
-				...playbook,
+				`    guidance: ${guidance}`,
 				'',
 			].join('\n');
+			const notice = 'This chat does not have the guidance of the feature route. A route\'s guidance is given to a chat when it starts and is lost when VS Code restarts. Start a new chat to use it.';
 
-			async function createRoutedAgent(name: string, playbook: string[], routers: Record<string, string> = {}) {
+			async function createRoutedAgent(name: string, guidance = 'Plan first.') {
 				const fileService = createInMemoryFileService(disposables, Schemas.file);
-				for (const [router, content] of Object.entries({ team: routerFile(playbook), ...routers })) {
-					await fileService.writeFile(joinPath(userHome, '.agents', 'model-routers', `${router}.model-router.yaml`), VSBuffer.fromString(content));
-				}
+				await fileService.writeFile(joinPath(userHome, '.agents', 'model-routers', 'team.model-router.yaml'), VSBuffer.fromString(routerFile(guidance)));
 				const h = await createWarmableAgent(name, undefined, { model: { id: 'claude-sonnet' }, rootConfig: { [ModelRouterEnabledConfigKey]: true }, userHome, fileService });
 				afterTest(() => disposeAgent(h.agent));
 				/** Routes a turn as the host does, then sends it on the model the router chose. */
-				const send = async (turnId: string, routed = true, router = 'team') => {
+				const send = async (turnId: string, routed = true) => {
 					const notices = routed
-						? (await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: `model-router:${router}` }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None)).notices
+						? (await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None)).notices
 						: [];
 					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
 					return notices;
 				};
-				const launches = () => h.launchConfigs.map(config => ({
-					agents: (config.customAgents ?? []).filter(agent => agent.name === 'reviewer').map(agent => ({ model: agent.model, modelPolicy: agent.modelPolicy })),
-					briefed: config.systemMessage?.content?.includes('<model_router_playbook>') === true,
-				}));
-				return { ...h, send, launches };
+				const briefed = () => h.launchConfigs.map(config => config.systemMessage?.content?.includes('<model_router_guidance>') === true);
+				return { ...h, send, briefed };
 			}
 
-			test('a warm session is replaced once when the first message is routed to a playbook with agents', async () => {
-				const h = await createRoutedAgent('router-agents', ['    uses: [reviewer]', '    guidance: Plan first.']);
+			test('a warm session is replaced once when the first message is routed to a route with guidance', async () => {
+				const h = await createRoutedAgent('router-guidance');
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				const first = await h.send('turn-1');
 				const second = await h.send('turn-2');
-				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					first: ['The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).'],
-					// The chat's agents are decided; routing it again changes and announces nothing.
+				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, briefed: h.briefed(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					first: [],
+					// The chat's guidance is decided; routing it again changes and announces nothing.
 					second: [],
-					prewarm: ['modelRouterAgentsChanged'],
-					launches: [
-						{ agents: [], briefed: false },
-						{ agents: [{ model: 'claude-sonnet', modelPolicy: 'required' }], briefed: true },
-					],
+					prewarm: ['modelRouterGuidanceChanged'],
+					briefed: [false, true],
 					sends: [0, 2],
 				});
 			});
 
-			test('a playbook that brings nothing claims the warm session', async () => {
-				const h = await createRoutedAgent('router-no-agents', []);
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				const notices = await h.send('turn-1');
-				assert.deepStrictEqual({ notices, prewarm: h.state().prewarm, launches: h.launches() }, { notices: [], prewarm: ['used'], launches: [{ agents: [], briefed: false }] });
-			});
-
-			test('a routed turn that is never sent gives its agents to no other turn', async () => {
-				const h = await createRoutedAgent('router-cancelled', ['    uses: [reviewer]']);
+			test('a routed turn that is never sent gives its guidance to no other turn', async () => {
+				const h = await createRoutedAgent('router-cancelled');
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				// turn-1 is routed and then cancelled; turn-2 is sent on a hand-picked model and never routed.
 				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
 				await h.send('turn-2', false);
-				// The chat has started work without agents, so a router picked later brings none and says so.
+				// The chat has started work without guidance, so a router picked later brings none and says so.
 				const later = await h.send('turn-3');
-				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, launches: h.launches() }, {
-					later: ['These agents of the feature playbook are not available in this chat: reviewer. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'],
-					prewarm: ['used'],
-					launches: [{ agents: [], briefed: false }],
-				});
+				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, briefed: h.briefed() }, { later: [notice], prewarm: ['used'], briefed: [false] });
 			});
 
-			test('a chat that lost its agents is told once, also when routing keeps it on its playbook', async () => {
-				const h = await createRoutedAgent('router-restored', ['    uses: [reviewer]']);
+			test('a chat that lost its guidance is told once, also when routing keeps it on its route', async () => {
+				const h = await createRoutedAgent('router-restored');
 				await h.agent.chats.warmChat!(h.chat, h.context);
-				// As after a host restart: the chat has started work and has no agents, and its saved turn says which playbook it is on.
+				// As after a host restart: the chat has started work and has no guidance, and its saved turn says which route it is on.
 				await h.send('turn-1', false);
 				const saved: Turn = {
 					id: 'saved-turn', state: TurnState.Complete, responseParts: [],
 					message: { text: 'build it', origin: { kind: MessageKind.User }, model: { id: 'model-router:team' } },
-					usage: { _meta: { modelRouted: { router: 'team', chosenModel: 'claude-sonnet', playbook: 'feature' } } },
+					usage: { _meta: { modelRouted: { router: 'team', chosenModel: 'claude-sonnet', routeName: 'feature' } } },
 				};
 				const route = async (turnId: string, previousTurns: Turn[]) => {
 					const resolution = await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'go on', previousTurns }, h.context, CancellationToken.None);
 					return { kept: resolution.routed?.kept, notices: resolution.notices };
 				};
-				const notice = 'These agents of the feature playbook are not available in this chat: reviewer. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.';
 				const first = await route('turn-2', [saved]);
 				// That turn was cancelled before its notice was shown, so the chat's history does not have it.
 				const afterCancelled = await route('turn-3', [saved]);
@@ -22817,49 +22796,6 @@ suite('CopilotAgent', () => {
 					first: { kept: true, notices: [notice] },
 					afterCancelled: { kept: true, notices: [notice] },
 					afterShown: { kept: true, notices: [] },
-				});
-			});
-
-			test('a router picked in a chat that has agents names only the ones the chat lacks', async () => {
-				const other = routerFile(['    uses: [reviewer, tester]'], ['  tester:', '    description: Writes tests.', '    model: claude-sonnet']);
-				const h = await createRoutedAgent('router-switched', ['    uses: [reviewer]'], { other });
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				const first = await h.send('turn-1');
-				// The other router's reviewer is the one the chat already has; its tester is not.
-				const later = await h.send('turn-2', true, 'other');
-				assert.deepStrictEqual({ first, later }, {
-					first: ['The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).'],
-					later: ['These agents of the feature playbook are not available in this chat: tester. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'],
-				});
-			});
-
-			test('a chat keeps only the agents its first session really got', async () => {
-				// No custom agent is named Test Writer, so the tester is left out when the session is launched.
-				const roles = ['  tester:', '    agent: Test Writer'];
-				const team = routerFile(['    uses: [reviewer, tester]'], roles);
-				const h = await createRoutedAgent('router-installed', [], { team, other: team });
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				await h.send('turn-1');
-				// Another router asks for the same two agents. The chat has the reviewer, and never got the tester.
-				const later = await h.send('turn-2', true, 'other');
-				assert.deepStrictEqual({ later, agents: h.launchConfigs.at(-1)?.customAgents?.map(agent => agent.name).filter(name => ['reviewer', 'tester'].includes(name)) }, {
-					later: ['These agents of the feature playbook are not available in this chat: tester. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'],
-					agents: ['reviewer'],
-				});
-			});
-
-			test('a role that names only models the account lacks, or has a built-in agent\'s name, is left out and the chat says so', async () => {
-				const roles = ['  ghost:', '    description: Runs on a model nobody has.', '    model: gone', '  explore:', '    description: Has a built-in agent\'s name.'];
-				const h = await createRoutedAgent('router-left-out', [], { team: routerFile(['    uses: [reviewer, ghost, explore]'], roles) });
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				const notices = await h.send('turn-1');
-				assert.deepStrictEqual({ notices, agents: h.launchConfigs.at(-1)?.customAgents?.map(agent => agent.name).filter(name => ['reviewer', 'ghost', 'explore'].includes(name)) }, {
-					notices: [
-						'The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).',
-						'These agents of the feature playbook were left out of this chat: ghost (none of its models are available), explore (an agent with that name is built in).',
-					],
-					// Neither runs on the chat's model, and neither replaces an agent the runtime brings.
-					agents: ['reviewer'],
 				});
 			});
 		});

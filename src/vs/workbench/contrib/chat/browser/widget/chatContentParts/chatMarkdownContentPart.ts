@@ -447,7 +447,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 
 			// Make katex blocks horizontally scrollable
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
 				if (!dom.isHTMLElement(katexBlock)) {
 					continue;
@@ -503,7 +503,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 */
 	private hookUpImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
 		const store = new DisposableStore();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const image of element.querySelectorAll('img')) {
 			const source = image.dataset.src;
 			const resource = source ? URI.parse(source) : undefined;

@@ -250,26 +250,40 @@ suite('CopilotModelRouter', () => {
 		});
 	});
 
-	test('picks a playbook by name, even when two run on the same model, and keeps it for the chat', async () => {
-		const content = 'version: 1\ndescription: Test.\neffort: off\nplaybooks:\n  feature:\n    when: Building.\n    main: opus\n  bug-fix:\n    when: Fixing.\n    main: opus\n';
+	test('picks a named route by name, even when two run on the same model, and keeps it for the chat', async () => {
+		const content = 'version: 1\ndescription: Test.\neffort: off\nroutes:\n  - name: feature\n    model: opus\n    when: Building.\n  - name: bug-fix\n    model: opus\n    when: Fixing.\n';
 		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
 		const picker = new FakePicker({ model: 'bug-fix', confidence: 0.9, probabilities: { 'bug-fix': 0.9, feature: 0.1 } });
 		const route = (previousTurns: Turn[]) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix the crash', models, previousTurns, picker });
 		const picked = await route([]);
-		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'opus', playbook: 'bug-fix' })]);
-		assert.deepStrictEqual({ candidates: picker.requests[0].candidates.map(candidate => candidate.id), picked: picked.routed, kept: kept.routed, picks: picker.requests.length }, {
+		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'opus', routeName: 'bug-fix' })]);
+		// A chat routed while named routes were written as playbooks saved the name as `playbook`.
+		const keptFromPlaybook = await route([routedTurn({ router: 'daily', chosenModel: 'opus', playbook: 'bug-fix' } as IModelRoutedInfo)]);
+		assert.deepStrictEqual({ candidates: picker.requests[0].candidates.map(candidate => candidate.id), picked: picked.routed, kept: kept.routed, keptFromPlaybook: keptFromPlaybook.routed, picks: picker.requests.length }, {
 			candidates: ['feature', 'bug-fix'],
-			picked: { router: 'daily', chosenModel: 'opus', playbook: 'bug-fix', preference: 'Fixing.', firstTurnOnly: true },
-			kept: { router: 'daily', chosenModel: 'opus', playbook: 'bug-fix', kept: true, firstTurnOnly: true },
+			picked: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', preference: 'Fixing.', firstTurnOnly: true },
+			kept: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', kept: true, firstTurnOnly: true },
+			keptFromPlaybook: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', kept: true, firstTurnOnly: true },
 			picks: 1,
 		});
 	});
 
-	test('a kept playbook whose model has changed keeps an effort that model has', async () => {
-		const content = 'version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Building.\n    main: [big, haiku]\n';
+	test('with switching auto, a chat moves between named routes that run on the same model', async () => {
+		const content = 'version: 1\ndescription: Test.\neffort: off\nswitching: auto\nroutes:\n  - name: feature\n    model: opus\n    when: Building.\n  - name: bug-fix\n    model: opus\n    when: Fixing.\n';
+		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+		const picker = new FakePicker({ model: 'bug-fix', confidence: 0.9, probabilities: { 'bug-fix': 0.9, feature: 0.1 } });
+		const moved = await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix the crash', models, previousTurns: [routedTurn({ router: 'daily', chosenModel: 'opus', routeName: 'feature' })], picker });
+		assert.deepStrictEqual({ routed: moved.routed, notices: moved.notices }, {
+			routed: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', switchedFrom: 'opus', preference: 'Fixing.' },
+			notices: ['This request fits another route, so the model router daily moved this chat to its bug-fix route on OPUS.'],
+		});
+	});
+
+	test('a kept named route whose model has changed keeps an effort that model has', async () => {
+		const content = 'version: 1\ndescription: Test.\nroutes:\n  - name: feature\n    model: [big, haiku]\n    when: Building.\n    guidance: Plan first.\n';
 		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
 		// The chat's first turn ran on `big` at an effort only that model has.
-		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'big', playbook: 'feature', effort: 'xhigh' })];
+		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'big', routeName: 'feature', effort: 'xhigh' })];
 		const selectionWith = async (available: IAgentModelInfo[]) => (await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'go on', models: available, previousTurns, picker: undefined })).selection;
 		assert.deepStrictEqual({
 			sameModel: await selectionWith([model('big', ['low', 'high', 'xhigh']), ...models]),
