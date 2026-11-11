@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -23,7 +23,7 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
@@ -147,7 +147,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[] }) {
+	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined> }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -233,7 +233,7 @@ suite('AgentsChatPartService', () => {
 			},
 			createNewSessionSlot: () => {
 				liveSlots++;
-				return upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: constObservable(undefined), dispose: () => { liveSlots--; } });
+				return upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: options?.newSession ?? constObservable(undefined), dispose: () => { liveSlots--; } });
 			},
 		}));
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
@@ -287,6 +287,23 @@ suite('AgentsChatPartService', () => {
 			afterFirst: { tabs: 1, liveSlots: 1, sessionListeners: afterFirst.sessionListeners, visible: true },
 			afterCycles: { tabs: 1, liveSlots: 1, sessionListeners: afterFirst.sessionListeners, visible: true },
 		});
+	});
+
+	test('the active chat is the session a composer created from its first send on, before that first turn ends; a draft has none', async () => {
+		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
+		const mainChat = upcastPartial<IChat>({ resource: chatA });
+		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat) });
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const { service } = createService({ newSession });
+		const active = () => { const chat = service.activeChat.get(); return chat ? { session: chat.session === created, chat: chat.chat === mainChat } : 'none'; };
+
+		await service.openComposer(undefined);
+		const draft = active();
+		newSession.set(created, undefined);
+		const untitled = active();
+		status.set(SessionStatus.InProgress, undefined);
+
+		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {
