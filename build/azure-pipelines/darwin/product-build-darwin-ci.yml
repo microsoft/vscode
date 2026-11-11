@@ -43,7 +43,8 @@ jobs:
           displayName: Publish Log Files
           sbomEnabled: false
           isProduction: false
-          condition: succeededOrFailed()
+          # 1ES PT runs its binary analysis for every published output, so only publish when the logs are needed
+          condition: failed()
     steps:
       - template: ./steps/product-build-darwin-compile.yml@self
         parameters:
