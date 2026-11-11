@@ -920,8 +920,8 @@ export class BrowserView extends Disposable {
 			}
 			throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
 		})();
-		// A docked DevTools panel is a separate web contents, so add it to a capture of the whole view.
-		const image = options?.screenRect ? pageImage : await this._withDevTools(pageImage);
+		// A docked DevTools panel is a separate web contents, so add it to a capture of the whole view, for placeholders only.
+		const image = options?.includeDevTools && !options.screenRect ? await this._withDevTools(pageImage) : pageImage;
 		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view

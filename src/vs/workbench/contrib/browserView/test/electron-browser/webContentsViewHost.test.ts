@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IBrowserViewCaptureScreenshotOptions } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { WebContentsViewHost } from '../../electron-browser/webContentsViewHost.js';
 
@@ -98,5 +99,34 @@ suite('WebContentsViewHost', () => {
 			beforeFrame: [true, false],
 			visibleAfterFrame: false,
 		});
+	});
+
+	test('requests DevTools in the placeholder screenshot', () => {
+		const requests: (IBrowserViewCaptureScreenshotOptions | undefined)[] = [];
+		const model = upcastPartial<IBrowserViewModel>({
+			url: 'https://example.test',
+			error: undefined,
+			screenshot: undefined,
+			focused: false,
+			visible: true,
+			onDidChangeVisibility: Event.None,
+			onDidKeyCommand: Event.None,
+			onDidNavigate: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onWillDispose: Event.None,
+			setVisible: async () => { },
+			captureScreenshot: (options?: IBrowserViewCaptureScreenshotOptions) => {
+				requests.push(options);
+				return new Promise<VSBuffer>(() => { });
+			},
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
+
+		host.setModel(model);
+
+		assert.deepStrictEqual({ captured: requests.length > 0, allIncludeDevTools: requests.every(options => options?.includeDevTools) }, { captured: true, allIncludeDevTools: true });
 	});
 });
