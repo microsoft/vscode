@@ -65,7 +65,7 @@ import { IIssueFormService, IssueReporterData, IssueSource } from '../../common/
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
 import { ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID, IssueReporterOpenStateContribution } from '../../electron-browser/issueReporterKeybindings.js';
-import { NativeIssueFormService } from '../../electron-browser/nativeIssueFormService.js';
+import { getReporterWindowBounds, NativeIssueFormService } from '../../electron-browser/nativeIssueFormService.js';
 import { issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import '../../electron-browser/issue.contribution.js';
 
@@ -409,6 +409,16 @@ suite('NativeIssueFormService reporter windows', () => {
 		]);
 	});
 
+	test('places a reporter window at the bottom right of the window it reports on, or at the top left of a smaller one', () => {
+		assert.deepStrictEqual([
+			getReporterWindowBounds({ screenX: 100, screenY: 50, outerWidth: 1600, outerHeight: 1000 }),
+			getReporterWindowBounds({ screenX: 100, screenY: 50, outerWidth: 600, outerHeight: 500 }),
+		], [
+			{ x: 900, y: 150, width: 800, height: 900 },
+			{ x: 100, y: 50, width: 800, height: 900 },
+		]);
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`hosts ${isSessionsWindow ? 'Agents' : 'Editor'} reports without any editor part or editor`, async () => {
 			const { service, opens, windows, windowOptions, source, editorParts, osReads, main } = createService();
@@ -423,8 +433,8 @@ suite('NativeIssueFormService reporter windows', () => {
 				reporterCaptureBar: windows[0].container.querySelectorAll('.issue-reporter-floating-bar').length,
 			}, {
 				editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true,
-				// The reporter opens at the top right of the window it reports on.
-				bounds: { x: mainWindow.screenX + mainWindow.outerWidth - 800, y: mainWindow.screenY, width: 800, height: 900 },
+				// The reporter opens at the bottom right of the window it reports on.
+				bounds: getReporterWindowBounds(mainWindow),
 				form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0,
 			});
 		});

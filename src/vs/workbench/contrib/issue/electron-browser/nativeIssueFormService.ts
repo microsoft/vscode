@@ -51,13 +51,14 @@ const REPORTER_WINDOW_WIDTH = 800;
 const REPORTER_WINDOW_HEIGHT = 900;
 
 /**
- * Places a reporter window at the top right of the window it reports on, which keeps that window's center visible.
- * The main process moves a window that would leave its display.
+ * Places a reporter window at the bottom right of the window it reports on, which keeps that window's center visible.
+ * In a window smaller than the reporter, the reporter starts at that window's top left corner instead, so that it
+ * does not reach above or left of it. The main process moves a window that would leave its display.
  */
-function getReporterWindowBounds(sourceWindow: CodeWindow): IRectangle {
+export function getReporterWindowBounds(sourceWindow: Pick<CodeWindow, 'screenX' | 'screenY' | 'outerWidth' | 'outerHeight'>): IRectangle {
 	return {
-		x: sourceWindow.screenX + sourceWindow.outerWidth - REPORTER_WINDOW_WIDTH,
-		y: sourceWindow.screenY,
+		x: Math.max(sourceWindow.screenX, sourceWindow.screenX + sourceWindow.outerWidth - REPORTER_WINDOW_WIDTH),
+		y: Math.max(sourceWindow.screenY, sourceWindow.screenY + sourceWindow.outerHeight - REPORTER_WINDOW_HEIGHT),
 		width: REPORTER_WINDOW_WIDTH,
 		height: REPORTER_WINDOW_HEIGHT,
 	};
