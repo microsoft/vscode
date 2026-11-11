@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { realpath } from 'fs/promises';
 import { raceTimeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
 import { isObject, isStringArray } from '../../base/common/types.js';
@@ -41,9 +42,14 @@ export interface IServerAgentHostManager {
 
 export interface IServerAgentHostManagerOptions {
 	readonly startMode?: 'eager' | 'lazy';
-	readonly githubEnvironment?: IMissionControlOptions;
+	readonly githubEnvironment?: IServerGithubEnvironmentOptions;
 	readonly onGithubEnvironmentReady?: (environmentId: string) => void;
 	readonly onRestartLimitReached?: () => void;
+}
+
+interface IServerGithubEnvironmentOptions extends IMissionControlOptions {
+	/** Automatically discovered grants that may be omitted when unavailable. */
+	readonly optionalRoots?: readonly string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,7 +57,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Consumes the CLI's trusted bootstrap credential before spawning child processes. */
-export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IMissionControlOptions | undefined {
+export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IServerGithubEnvironmentOptions | undefined {
 	const value = env.VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS;
 	delete env.VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS;
 	if (value === undefined) {
@@ -70,18 +76,31 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IMissionCo
 		throw new Error('Invalid GitHub environment bootstrap options');
 	}
 	const name = options.name;
+	const projects = options.projects;
+	const defaultDirectory = options.defaultDirectory;
+	const roots = options.roots;
+	const optionalRoots = options.optionalRoots;
 	if (options.baseUrl !== 'https://api.github.com' || options.live !== true
 		|| typeof options.accountId !== 'string' || !/^\d+$/.test(options.accountId)
 		|| typeof options.credential !== 'string' || !options.credential.trim()
-		|| !isStringArray(options.roots) || options.roots.length === 0 || options.roots.some(root => !root)
+		|| !isStringArray(roots) || roots.length === 0 || roots.some(root => !root)
+		|| (optionalRoots !== undefined && (!isStringArray(optionalRoots) || optionalRoots.some(root => !root)))
+		|| (projects !== undefined && (!isStringArray(projects) || projects.some(project => !project)))
+		|| (defaultDirectory !== undefined && (typeof defaultDirectory !== 'string' || !defaultDirectory))
 		|| (name !== undefined && (typeof name !== 'string' || !name.trim()))) {
 		throw new Error('Invalid GitHub environment bootstrap options');
+	}
+	if (optionalRoots?.some(root => !roots.includes(root) || projects?.includes(root) || root === defaultDirectory)) {
+		throw new Error('Invalid optional GitHub environment roots');
 	}
 	return {
 		baseUrl: options.baseUrl,
 		accountId: options.accountId,
 		credential: options.credential,
-		roots: options.roots,
+		roots,
+		...(optionalRoots !== undefined ? { optionalRoots } : {}),
+		...(projects !== undefined ? { projects } : {}),
+		...(defaultDirectory !== undefined ? { defaultDirectory } : {}),
 		name,
 		live: true,
 	};
@@ -210,7 +229,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			await this._trackClientConnections(connection);
 			if (this._options.githubEnvironment) {
 				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
-				const result = await management.configureMissionControl(this._options.githubEnvironment);
+				const result = await management.configureMissionControl(await this._getGithubEnvironmentOptions(this._options.githubEnvironment));
 				if (result) {
 					throw reviveConnectionDiagnosticError(result.error);
 				}
@@ -242,6 +261,23 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 		this._connection = connection;
 		this._connectionStore.value = connection.store;
+	}
+
+	private async _getGithubEnvironmentOptions(options: IServerGithubEnvironmentOptions): Promise<IMissionControlOptions> {
+		const { optionalRoots, ...configuration } = options;
+		const roots: string[] = [];
+		for (const root of configuration.roots) {
+			if (optionalRoots?.includes(root)) {
+				try {
+					await realpath(root);
+				} catch (error) {
+					this._logService.warn('ServerAgentHostManager: skipping unavailable automatic GitHub environment root', root, error);
+					continue;
+				}
+			}
+			roots.push(root);
+		}
+		return { ...configuration, roots };
 	}
 
 	private _handleUnexpectedExit(connection: IAgentHostConnection, e: IAgentHostProcessExitEvent): void {
