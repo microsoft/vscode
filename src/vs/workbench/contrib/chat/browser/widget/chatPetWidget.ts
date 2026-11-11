@@ -216,6 +216,7 @@ interface ChatPetSpriteElement {
 
 interface ChatPetSubagent {
 	readonly element: HTMLElement;
+	readonly width: number;
 	readonly canvas: HTMLCanvasElement;
 	readonly image: HTMLImageElement;
 	readonly accessoryImage: HTMLImageElement | undefined;
@@ -2900,8 +2901,7 @@ export class ChatPetWidget extends Disposable {
 				: petLeft - miniWidth * (slot + 1);
 			while ([...this._subagentPets.values()].some(pet => {
 				const otherLeft = Number.parseFloat(pet.element.style.left);
-				const otherWidth = 48 * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
-				return getLeft() < otherLeft + otherWidth && getLeft() + miniWidth > otherLeft;
+				return getLeft() < otherLeft + pet.width && getLeft() + miniWidth > otherLeft;
 			})) {
 				slot++;
 			}
@@ -2910,13 +2910,8 @@ export class ChatPetWidget extends Disposable {
 			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, this._getPlatforms(), this.movementBounds.getBoundingClientRect().bottom);
 			element.style.left = `${left}px`;
 			element.style.top = `${landing.top - overlayBounds.top}px`;
-			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
+			element.style.transform = `scale(${miniScale})`;
 			const distance = Math.max(0, landing.top + miniWidth);
-			element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
-			element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
-			if (!this._motionReduced) {
-				element.classList.add('arriving');
-			}
 			const canvas = dom.append(element, dom.$('canvas.chat-pet-subagent-canvas')) as HTMLCanvasElement;
 			canvas.width = CHAT_PET_SOURCE_SIZE;
 			canvas.height = CHAT_PET_SOURCE_SIZE;
@@ -2927,6 +2922,7 @@ export class ChatPetWidget extends Disposable {
 				(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
 			}
 			const disposables = this._subagentEffects.add(new DisposableStore());
+			const arrival = disposables.add(new MutableDisposable<DisposableStore>());
 			let state: 'idle' | 'splat' = 'idle';
 			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
 			const updateBlink = () => blink.setEnabled(state === 'idle' && this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
@@ -2989,14 +2985,6 @@ export class ChatPetWidget extends Disposable {
 					}
 				});
 			}));
-			disposables.add(dom.addDisposableListener(element, 'animationend', event => {
-				if (event.target === element && (event as AnimationEvent).animationName === 'chat-pet-subagent-fall') {
-					element.classList.remove('arriving');
-					if (!this._motionReduced) {
-						setState('splat');
-					}
-				}
-			}));
 			const updateAppearance = (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => {
 				sprite.color = this._color;
 				eyes.style.color = getChatPetEyeColor(this._color);
@@ -3005,7 +2993,7 @@ export class ChatPetWidget extends Disposable {
 				}
 				if (motionChanged || variantChanged) {
 					if (this._motionReduced) {
-						element.classList.remove('arriving');
+						arrival.clear();
 					}
 					setState(this._motionReduced ? 'idle' : state);
 				} else {
@@ -3013,7 +3001,23 @@ export class ChatPetWidget extends Disposable {
 				}
 			};
 			setState('idle');
-			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance });
+			if (!this._motionReduced) {
+				const effects = arrival.value = new DisposableStore();
+				element.classList.add('arriving');
+				const fall = element.animate([
+					{ transform: `translateY(${-distance}px) scale(${miniScale})` },
+					{ transform: `translateY(0) scale(${miniScale})` },
+				], { duration: getChatPetFallDuration(distance), easing: 'cubic-bezier(0.42, 0, 1, 1)', fill: 'both' });
+				effects.add(toDisposable(() => {
+					fall.cancel();
+					element.classList.remove('arriving');
+				}));
+				effects.add(dom.addDisposableListener(fall, 'finish', () => {
+					arrival.clear();
+					setState('splat');
+				}));
+			}
+			this._subagentPets.set(id, { element, width: miniWidth, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance });
 		}
 	}
 
