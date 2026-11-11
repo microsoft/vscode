@@ -409,11 +409,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
 					const share = entry.remote.gitHubEnvironment;
-					template.gitHubEnvironment.label = localize('remotes.shareAsGitHubEnvironment', "Share {0} as GitHub Environment", entry.remote.name);
-					template.gitHubEnvironment.checked = showGitHubEnvironment ? !!share && share.state !== 'connecting' : undefined;
+					template.gitHubEnvironment.label = share?.state === 'connecting'
+						? getGitHubEnvironmentLabel(entry.remote) ?? ''
+						: share
+							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing {0} as GitHub Environment", entry.remote.name)
+							: localize('remotes.shareAsGitHubEnvironment', "Share {0} as GitHub Environment", entry.remote.name);
 					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting';
 					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
-					template.gitHubEnvironment.tooltip = share?.state === 'error' ? getGitHubEnvironmentLabel(entry.remote) ?? '' : '';
 					template.delete.label = localize('remotes.delete', "Delete {0}", entry.remote.name);
 					template.delete.enabled = showDelete && !entry.busy;
 					template.updateServer.label = localize('remotes.updateServer', "Update Server for {0}", entry.remote.name);
