@@ -891,7 +891,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
 			const scopesWithVariables = await Promise.all(scopes.map(async scope =>
-				({ scope, variables: await scope.getChildren() })));
+			({ scope, variables: await scope.getChildren() })));
 
 			// Map of inline values per line that's populated in scope order, from
 			// narrowest to widest. This is done to avoid duplicating values if

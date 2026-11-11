@@ -378,9 +378,43 @@ app.on('ready', async () => {
 		throw new Error('Remote resource test server did not bind to a TCP port');
 	}
 	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	ipcMain.handle('vscode:test-platform-request', async (_event, options, cancelOnRedirect = false) => {
+		const [{ nodeRequest }, { CancellationTokenSource }, { streamToBuffer }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/request/node/requestService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/cancellation.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/buffer.js`)).href),
+		]);
+		const source = new CancellationTokenSource();
+		/** @type {string[]} */
+		const redirectModes = [];
+		try {
+			if (options.headers) {
+				Object.freeze(options.headers);
+			}
+			const context = await nodeRequest({
+				...options,
+				isChromiumNetwork: true,
+				getRawRequest: () => (requestOptions, callback) => {
+					redirectModes.push(requestOptions.redirect ?? 'follow');
+					const request = electronNet.request(requestOptions, callback);
+					if (cancelOnRedirect) {
+						request.once('redirect', () => queueMicrotask(() => source.cancel()));
+					}
+					return request;
+				},
+			}, source.token);
+			return { statusCode: context.res.statusCode, body: (await streamToBuffer(context.stream)).toString(), redirectModes };
+		} finally {
+			source.dispose();
+		}
+	});
 	// A second view lets tests blur the page without stealing desktop focus.
 	/** @type {Map<number, import('electron').WebContentsView>} */
 	const focusTestViews = new Map();
+	// Moves the page's pointer off the window, so `:hover` from a real pointer does not carry over between suites.
+	ipcMain.handle('vscode:test-pointer-leave', event => {
+		event.sender.sendInputEvent({ type: 'mouseLeave', x: -1, y: -1 });
+	});
 	ipcMain.handle('vscode:test-set-web-contents-focus', async (event, focused) => {
 		const window = BrowserWindow.fromWebContents(event.sender);
 		if (!window) {

@@ -87,6 +87,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
 			this.windowControlsContainer
 		) {
+			this.rootContainer.classList.add('custom-window-controls');
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -272,7 +273,7 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 export class NativeTitleService extends TitleService {
 
 	protected override createMainTitlebarPart(): MainNativeTitlebarPart {
-		return this.instantiationService.createInstance(MainNativeTitlebarPart);
+		return this.mainWindowInstantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {

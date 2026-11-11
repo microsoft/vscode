@@ -2707,7 +2707,7 @@ suite('ChatListWidget', () => {
 			session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			session.style.setProperty('--vscode-strokeThickness', '1px');
 			session.style.setProperty('--vscode-chat-list-background', '#202020');
-			for (const size of [2, 4, 6, 8, 12, 16, 24, 40]) {
+			for (const size of [2, 4, 6, 8, 12, 16, 24, 32, 40]) {
 				session.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
 			}
 			session.classList.toggle('chat-floating-persistent-content', floating);
@@ -3047,12 +3047,14 @@ suite('ChatListWidget', () => {
 			widget.layout(300, 240);
 			await waitForStableLayout(widget);
 			const bounds = progress.getBoundingClientRect();
+			const backgroundStyle = dom.getWindow(sticky).getComputedStyle(sticky, '::before');
 			assert.deepStrictEqual({
 				text: progress.querySelector('.progress-step')?.textContent,
 				pinned: progress.parentElement === sticky,
 				visible: bounds.height > 0 && bounds.top >= container.getBoundingClientRect().top && bounds.bottom + 2 === sticky.getBoundingClientRect().bottom,
 				contained: bounds.left >= container.getBoundingClientRect().left && bounds.right <= container.getBoundingClientRect().right,
-				background: dom.getWindow(sticky).getComputedStyle(sticky).backgroundColor,
+				background: backgroundStyle.backgroundColor,
+				backgroundVisible: backgroundStyle.content !== 'none' && parseFloat(backgroundStyle.width) > 0 && parseFloat(backgroundStyle.height) > 0,
 				copies: session.querySelectorAll('.chat-working-progress').length,
 			}, {
 				text: message,
@@ -3060,6 +3062,7 @@ suite('ChatListWidget', () => {
 				visible: true,
 				contained: true,
 				background: 'rgb(32, 32, 32)',
+				backgroundVisible: true,
 				copies: 1,
 			});
 		});

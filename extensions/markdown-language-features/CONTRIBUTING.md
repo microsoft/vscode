@@ -197,7 +197,7 @@ npm run compile
 
 
 # And finally in vscode, link in the server (this adds a `link:` override to
-# pnpm-workspace.yaml; undo it with `pnpm unlink vscode-markdown-languageserver`)
+# the root pnpm-workspace.yaml; undo it with `pnpm unlink vscode-markdown-languageserver`)
 cd extensions/markdown-language-features
 pnpm link <path to your vscode-markdown-languageserver checkout>
 ```

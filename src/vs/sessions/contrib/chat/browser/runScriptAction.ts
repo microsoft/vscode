@@ -26,16 +26,15 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
+import { logSessionsInteraction } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
@@ -133,7 +132,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
@@ -145,15 +144,15 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this._activeRunState = this._createRunState(this._sessionsService.activeSession);
+		this._activeRunState = this._createRunState(getFocusedSessionChatSource(focusedSessionHostService));
 		this._activeRunState.recomputeInitiallyAndOnChange(this._store);
 
 		this._registerActionViewItemProvider();
 		this._registerActions();
 	}
 
-	/** What the Run actions act on for the session `session` shows. */
-	private _createRunState(session: IObservable<IActiveSession | undefined>): IObservable<IRunScriptActionContext | undefined> {
+	/** What the Run actions act on for the session and chat `source` shows. */
+	private _createRunState(source: ISessionChatSource): IObservable<IRunScriptActionContext | undefined> {
 		return derivedOpts<IRunScriptActionContext | undefined>({
 			owner: this,
 			equalsFn: (a, b) => {
@@ -171,12 +170,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = session.read(reader);
+			const activeSession = source.session.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
 
-			const activeChat = activeSession.activeChat.read(reader);
+			const activeChat = source.chat.read(reader) ?? activeSession.mainChat.read(reader);
 			const tasks = this._sessionsConfigService.getSessionTasks(activeChat).read(reader);
 			const folder = activeChat.workspace.read(reader)?.folders[0];
 			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
@@ -189,19 +188,19 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private _registerActionViewItemProvider(): void {
 		const that = this;
 		this._register(this._actionViewItemService.register(
-			Menus.TitleBarCenterRight,
+			AgentsWindowMenus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
 			(action, options, instantiationService) => {
 				if (!(action instanceof SubmenuItemAction)) {
 					return undefined;
 				}
-				// The session of the title bar it shows in, such as that of a chat window, whether or not it is active.
-				const session = instantiationService.invokeFunction(accessor => accessor.get(ISessionScope)).session;
+				// The session and chat of the window whose title bar it shows in, such as a chat window, whether or not it has focus.
+				const windowHost = instantiationService.invokeFunction(accessor => getWindowHost(accessor.get(ISessionHost)));
 				return instantiationService.createInstance(
 					RunScriptActionViewItem,
 					action,
 					options,
-					that._createRunState(session),
+					that._createRunState(windowHost),
 					state => that._runPrimary(state),
 					(session: ISession, chat: IChat) => that._showConfigureQuickPick(session, chat),
 					(session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, chat, existingTask, mode),
@@ -849,7 +848,7 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 
 // Register the Run split button submenu on the workbench title bar (background sessions only).
 // Placed in the center-right toolbar, immediately before the "Open in VS Code" action (order 7).
-MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarCenterRight, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
@@ -869,7 +868,7 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarCenterRight,
+				id: AgentsWindowMenus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 6,
 				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
@@ -884,10 +883,12 @@ registerAction2(RunScriptNotAvailableAction);
 
 // Register F5 keybinding at module level to ensure it's in the registry
 // before the keybinding resolver is cached. The command handler is
-// registered later by RunScriptContribution.
+// registered later by RunScriptContribution. It applies wherever the Run
+// button shows: the main window and chat windows, which run for the session
+// they show as it is the active session while they have focus.
 KeybindingsRegistry.registerKeybindingRule({
 	id: RUN_SCRIPT_ACTION_PRIMARY_ID,
 	primary: KeyCode.F5,
 	weight: KeybindingWeight.WorkbenchContrib + 100,
-	when: IsAuxiliaryWindowContext.toNegated()
+	when: ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)
 });

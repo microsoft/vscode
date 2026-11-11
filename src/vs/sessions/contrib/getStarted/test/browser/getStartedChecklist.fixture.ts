@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { renderSessionsListFixture } from '../../../sessions/test/browser/sessionsListFixtureUtils.js';
 import { GET_STARTED_ITEM_IDS, GetStartedChecklistMode, GetStartedItemId } from '../../common/getStartedChecklist.js';
 import { GetStartedChecklistWidget } from '../../browser/getStartedChecklistWidget.js';

@@ -22,6 +22,7 @@ import {
 	CloudSandboxConnectionHealthClassification,
 	CloudSandboxConnectionOutcomeClassification,
 	CloudSandboxDiscoveryClassification,
+	CloudSandboxSessionFeedClassification,
 	CloudSandboxFirstSessionRequestClassification,
 	CloudSandboxProvisioningOutcomeClassification,
 	CloudSandboxTelemetryService,
@@ -32,11 +33,12 @@ import {
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 const connectionDetails = {
+	suspendCount: 0, suspendedMs: 0,
 	environmentOperation: 'resume', provisioningMs: 0, reservationWaitMs: 0, readinessMs: 0,
 	preparationMs: 0, connectionMs: 0,
 	environmentKind: 'cloud',
 	taskCreationPath: 'unknown',
-	surface: 'unknown', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
+	surface: 'unknown', source: 'existing', credentialRequests: undefined, credentialOperations: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
 	firstFailurePhase: undefined, firstFailureCode: undefined,
 	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
@@ -67,7 +69,14 @@ suite('cloudSandbox telemetry', () => {
 		const data = {
 			trigger: 'feedRenewal', requestedMode: 'incremental', mode: 'full', outcome: 'partial',
 			durationMs: 150, pageCount: 4, listRequestCount: 5, taskCount: 30, sandboxTaskCount: 2,
+			listOperationCount: 2, listOperationFailureCount: 1,
+			taskBatchOperationCount: 2, taskBatchOperationFailureCount: 1,
 			changedSandboxTaskCount: 1, checkpointAdvanced: false,
+			intentMode: 'incremental', fullScanReason: 'reconciliationDue',
+			previousInventoryAgeMs: 480_000, lastFullAgeMs: 960_000, queued: true, coalescedRequestCount: 2, coalescedTrigger: 'feedRenewal',
+			checkpointAvailable: true, checkpointSource: 'serverDate',
+			listPageFailureCount: 1, taskDetailFailureCount: 2, repositoryEnrichmentMissCount: 3,
+			unresolvedTaskCount: 2, unreadPageScopeCount: 1, generationInvalidated: false,
 		} satisfies ICloudSandboxDiscoveryTelemetryData;
 		const classified: ClassifiedSample = data;
 		const telemetry = new TestTelemetryService();
@@ -80,16 +89,42 @@ suite('cloudSandbox telemetry', () => {
 		const data: ICloudSandboxDiscoveryTelemetryData = {
 			trigger: 'manual', requestedMode: 'full', mode: 'full', outcome: 'complete',
 			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0, sandboxTaskCount: 0,
+			listOperationCount: undefined, listOperationFailureCount: undefined,
+			taskBatchOperationCount: undefined, taskBatchOperationFailureCount: undefined,
 			changedSandboxTaskCount: 0, checkpointAdvanced: false,
+			intentMode: 'incremental', fullScanReason: 'noCheckpoint', checkpointSource: 'unavailable',
+			previousInventoryAgeMs: undefined, lastFullAgeMs: undefined, queued: undefined, coalescedRequestCount: undefined,
+			checkpointAvailable: undefined, listPageFailureCount: undefined, taskDetailFailureCount: undefined,
+			repositoryEnrichmentMissCount: undefined, unresolvedTaskCount: undefined, unreadPageScopeCount: undefined, generationInvalidated: undefined,
 		};
-		Object.assign(data, { trigger: 'private-trigger', requestedMode: 'private-mode', mode: 'private-mode', outcome: 'private-outcome' });
+		Object.assign(data, { trigger: 'private-trigger', requestedMode: 'private-mode', mode: 'private-mode', outcome: 'private-outcome', intentMode: 'private-intent', fullScanReason: 'private-reason', checkpointSource: 'private-source', coalescedTrigger: 'private-trigger' });
 		const telemetry = new TestTelemetryService();
 		const service = store.add(new CloudSandboxTelemetryService(telemetry));
 		service.reportDiscovery(data);
 		assert.deepStrictEqual(telemetry.events, [{
 			eventName: 'cloudSandboxDiscovery',
-			data: { ...data, trigger: 'unknown', requestedMode: 'unknown', mode: 'unknown', outcome: 'unknown' },
+			data: { ...data, trigger: 'unknown', requestedMode: 'unknown', mode: 'unknown', outcome: 'unknown', intentMode: 'unknown', fullScanReason: 'unknown', checkpointSource: 'unknown', coalescedTrigger: 'unknown' },
 		}]);
+	});
+
+	test('feed diagnostics classify every measure and exclude raw close text and credentials', () => {
+		type ClassifiedSample = {
+			[K in keyof Omit<CloudSandboxSessionFeedClassification, 'owner' | 'comment'>]:
+			CloudSandboxSessionFeedClassification[K] extends { isMeasurement: true } ? number | boolean : string
+		};
+		const data = {
+			outcome: 'disconnected', reason: 'abnormalClose', consecutiveFailures: 1, retryDelayMs: 800, statusCode: undefined,
+			connectionDurationMs: 20_000, lastMessageAgeMs: 5_000, gapDurationMs: undefined,
+		} as const;
+		const classified: { [K in keyof ClassifiedSample]: ClassifiedSample[K] | undefined } = data;
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		service.reportSessionFeed({ ...data, ...{ closeReason: 'private-close', url: 'wss://private-token' } });
+		service.reportSessionFeed({ ...data, ...JSON.parse('{"reason":"private-reason","outcome":"private-outcome"}') });
+		assert.deepStrictEqual(telemetry.events, [
+			{ eventName: 'cloudSandboxSessionFeed', data: classified },
+			{ eventName: 'cloudSandboxSessionFeed', data: { ...classified, reason: 'unknown', outcome: 'unknown' } },
+		]);
 	});
 
 	test('discovery keeps initial, automatic and manual attribution distinct', () => {
@@ -433,7 +468,7 @@ suite('cloudSandbox telemetry', () => {
 					operation: 'connect', outcome: 'success', stage: 'restoration', durationMs: 255, surface: 'agentsWeb', source: 'created',
 					environmentOperation: 'provision', provisioningMs: 100, reservationWaitMs: undefined, readinessMs: 355,
 					preparationMs: 70, connectionMs: 185,
-					credentialRequests: 3, wakingResponses: 1, transportAttempts: 2,
+					credentialOperations: 3, wakingResponses: 1, transportAttempts: 2,
 					credentialsMs: 70, relayMs: 25, protocolMs: 30, authenticationMs: 40, restorationMs: 50,
 					firstFailurePhase: 'transport.connect', firstFailureCategory: 'unknown', relayFailures: 1,
 				},
@@ -443,7 +478,7 @@ suite('cloudSandbox telemetry', () => {
 					...connectionDetails, operation: 'recover', outcome: 'failure', stage: 'credentials', durationMs: 25,
 					environmentOperation: 'recover', readinessMs: 25,
 					preparationMs: 25,
-					surface: 'agentsWeb', source: 'created', credentialRequests: 1, credentialsMs: 25,
+					surface: 'agentsWeb', source: 'created', credentialOperations: 1, credentialsMs: 25,
 				},
 			},
 		]);
@@ -659,8 +694,8 @@ suite('cloudSandbox telemetry', () => {
 		second.completeConnect('cancelled');
 		service.dispose();
 		assert.deepStrictEqual(telemetry.events.map(event => event.data), [
-			{ ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 10, readinessMs: 10, preparationMs: 10, credentialsMs: 10, credentialRequests: 2, wakingResponses: 1 },
-			{ ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 20, readinessMs: 20, preparationMs: 20, credentialsMs: 20, credentialRequests: 1 },
+			{ ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 10, readinessMs: 10, preparationMs: 10, credentialsMs: 10, credentialOperations: 2, wakingResponses: 1 },
+			{ ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 20, readinessMs: 20, preparationMs: 20, credentialsMs: 20, credentialOperations: 1 },
 		]);
 	}));
 
@@ -700,9 +735,36 @@ suite('cloudSandbox telemetry', () => {
 		connection.onConnectionStateChange('failed');
 		service.dispose();
 		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => event.data), [
-			{ ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 },
-			{ ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 0, credentialRequests: 1, wakingResponses: 1 },
+			{ ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialOperations: 1 },
+			{ ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 0, credentialOperations: 1, wakingResponses: 1 },
 		]);
+	}));
+
+	test('recovery reports overlapping sleep time and the source-owned stop reason without diagnostic content', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
+		connection.onConnectionStateChange('connected');
+		const diagnostic = (phase: string) => connection.recordConnectionDiagnostic({
+			operationId: 'private-id', phase, outcome: 'info', timestamp: Date.now(), detail: 'private diagnostic',
+		});
+		diagnostic('power.suspend');
+		await timeout(1000);
+		connection.onConnectionStateChange('reconnecting');
+		await timeout(600_000);
+		diagnostic('power.resume');
+		await timeout(2000);
+		diagnostic('reconnect.timedOut');
+		connection.onConnectionStateChange('failed');
+		const event = telemetry.events.find(event => event.eventName === 'userLocalRelayConnectionOutcome' && event.data?.operation === 'recover');
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number | undefined : string | undefined };
+		const expected: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
+			...connectionDetails, environmentKind: 'user-local', environmentOperation: 'recover',
+			surface: 'agentsDesktop', operation: 'recover', outcome: 'failure', stage: 'connection',
+			durationMs: 602_000, connectionMs: 602_000, readinessMs: 602_000,
+			suspendCount: 1, suspendedMs: 600_000, recoveryStopReason: 'timeout',
+		};
+		assert.deepStrictEqual(event, { eventName: 'userLocalRelayConnectionOutcome', data: expected });
 	}));
 
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
@@ -1119,7 +1181,7 @@ suite('cloudSandbox telemetry', () => {
 
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
 		test(`${environmentKind} classification marks every numeric payload field, and no string field, as a measurement`, () => runWithFakedTimers({}, async () => {
-			type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
+			type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number | undefined : string };
 			const outcome: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
 				...connectionDetails, environmentKind, environmentOperation: environmentKind === 'user-local' ? 'attach' : 'resume',
 				operation: 'connect', outcome: 'success', stage: 'protocol', durationMs: 2000, readinessMs: 2000, connectionMs: 2000,

@@ -61,7 +61,6 @@ export enum ChatConfiguration {
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
-	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
@@ -124,6 +123,7 @@ export enum ChatConfiguration {
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
+	TitleBarOpenInAgentsWindowRichHoverOnClick = 'chat.titleBar.openInAgentsWindow.richHoverOnClick',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -133,6 +133,7 @@ export enum ChatConfiguration {
 	HarnessSwitchFeedbackSurveyEnabled = 'chat.harnessSwitchFeedbackSurvey.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	ChatCustomizationsLocation = 'chat.customizations.location',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
@@ -161,6 +162,7 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	SendInBackgroundTipEnabled = 'chat.sendInBackgroundTip.enabled',
 	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
@@ -468,8 +470,7 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * Returns the effective default session type for a new chat in the VS Code
  * editor window.
  *
- * Virtual workspaces always default to {@link localChatSessionType}. Otherwise,
- * when the agent host is enabled and either `chat.defaultToCopilotHarness` is enabled or the
+ * When the agent host is enabled and either `chat.defaultToCopilotHarness` is enabled or the
  * agent sandbox is enforced by policy, Agent Host Copilot CLI is the default. It falls back to
  * the local harness when enabled, or to the first visible non-local provider.
  */
@@ -483,9 +484,6 @@ export function getComputedDefaultSessionType(
 ): string {
 	if (managedPolicyRequiresAgentHost) {
 		return SessionType.AgentHostCopilot;
-	}
-	if (isVirtualWorkspace(workspace)) {
-		return localChatSessionType;
 	}
 
 	if (agentHostEnabled && isCopilotHarnessDefault(configurationService, managedSandboxEnforced)) {
@@ -531,7 +529,9 @@ export function isNewChatSessionTypeUsable(
 		// Remote agent hosts are per-window; require that this window registered the host's contribution.
 		return agentHostEnabled
 			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
-			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService);
+			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
+			// Of the local harnesses, only Copilot can work on a virtual workspace's files.
+			&& (!isVirtualWorkspace(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
@@ -550,8 +550,6 @@ export function isLocalAgentHostSessionTypeDisabledByPolicy(sessionType: string,
 export type SessionTypeSelectionReason =
 	/** A caller explicitly chose the session type. */
 	| 'explicitOverride'
-	/** The session type was automatically set to Local in a virtual workspace. */
-	| 'virtualWorkspace'
 	/** The user's last usable session type was restored. */
 	| 'rememberedSelection'
 	/** The current session's usable type was preserved. */
@@ -602,17 +600,14 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	managedPolicyRequiresAgentHost = false
 ): IResolvedNewChatSessionType {
 	// A harness disabled by policy can only show saved chats read-only, so an explicit request for
-	// it falls through to the regular resolution instead of opening an unusable new chat.
-	const explicitOverride = options?.explicitOverride && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
+	// it falls through to the regular resolution instead of opening an unusable new chat. So does
+	// the retired extension-host Copilot CLI, which can no longer start a chat.
+	const explicitOverride = options?.explicitOverride && options.explicitOverride !== SessionType.CopilotCLI && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
 	if (managedPolicyRequiresAgentHost && (!explicitOverride || explicitOverride === localChatSessionType)) {
 		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
 	}
 	if (explicitOverride) {
 		return { sessionType: explicitOverride, selectionReason: 'explicitOverride' };
-	}
-
-	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
 	}
 
 	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);

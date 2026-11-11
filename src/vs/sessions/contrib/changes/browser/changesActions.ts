@@ -26,22 +26,23 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IEditorPane, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus } from '../../../browser/menus.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
-import { ISessionChangesService } from './sessionChangesService.js';
-import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from './sessionChangesEditor.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
-import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
-import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from './sessionActionContextKeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
+import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessionChanges/browser/changesMultiDiffSourceResolver.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesViewRenderer.js';
+import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -64,12 +65,12 @@ class ViewAllChangesAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(ISessionsHostLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
 		// active session when invoked without an explicit argument.
-		const sessionResource = resolveSessionActionTarget(accessor, sessionArg)?.resource;
+		const sessionResource = resolveSessionCommandTarget(accessor, [sessionArg])?.session?.resource;
 		if (!sessionResource) {
 			return;
 		}
@@ -122,11 +123,12 @@ class OpenChangedFileAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
-		const session = resolveSessionActionTarget(accessor, args[1]);
+		const target = resolveSessionCommandTarget(accessor, [args[1]]);
+		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
+		const changes = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
 		// From a chat window's Changes editor, in its group, not by focus; in the main window, as ever.
 		const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
 		const group = editor instanceof SessionChangesEditor && !accessor.get(IEditorGroupsService).mainPart.groups.includes(editor.group) ? editor.group : undefined;
@@ -263,10 +265,10 @@ class SessionChangesStatsCacheContribution extends Disposable implements IWorkbe
 		super();
 
 		this._register(autorun(reader => {
-			for (const session of sessionsService.visibleSessions.read(reader)) {
+			for (const session of readPaneSessions(sessionsService.slotPanes, reader)) {
 				// While the worktree is pending the reported changes belong to the
 				// checkout the session was started from, not to the session.
-				if (!session || session.worktreePending?.read(reader)) {
+				if (session.worktreePending?.read(reader)) {
 					continue;
 				}
 				const stats = readSessionChangesStats(session, reader);
@@ -342,7 +344,7 @@ function isChangesetOperationBusy(operation: ISessionChangesetOperation): boolea
  * of its uncommitted changes (except Sync and Checkout), and for an existing session the Commit operation of the
  * changeset selected in its Changes view; the title bar's button bar omits Commit, so that it always lives here.
  */
-export function getChangesetOperations(session: IActiveSession | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
+export function getChangesetOperations(session: ISession | undefined, chat: IChat | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
 	const entries: IChangesetOperationEntry[] = [];
 	const changeset = changes.changesetObs.read(reader);
 	for (const operation of changeset?.operations.read(reader) ?? []) {
@@ -358,7 +360,7 @@ export function getChangesetOperations(session: IActiveSession | undefined, chan
 	let operations: readonly ISessionChangesetOperation[];
 	let hasUncommittedChanges = true;
 	if (session.status.read(reader) === SessionStatus.Untitled) {
-		titleChangeset = (session.activeChat.read(reader) ?? session.mainChat.read(reader)).changesets.read(reader)
+		titleChangeset = (chat ?? session.mainChat.read(reader)).changesets.read(reader)
 			?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 		operations = titleChangeset?.operations.read(reader)
 			.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
@@ -389,18 +391,20 @@ function listHas(key: RawContextKey<string[]>, entry: string): ContextKeyExpress
 }
 
 /** The Changes of the Changes editor whose file toolbar or title an action is invoked from, else those of the main window's session. */
-function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: IActiveSession | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
+function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: ISession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
 	const fileContext = args[1] as Partial<IChangesEditorFileActionContext> | undefined;
 	const editorContext = args.find(isEditorCommandsContext);
 	const editor = fileContext?.editor instanceof SessionChangesEditor
 		? fileContext.editor
 		: editorContext ? accessor.get(IEditorGroupsService).getGroup(editorContext.groupId)?.activeEditorPane : undefined;
 	if (editor instanceof SessionChangesEditor) {
-		return { session: editor.changesScope.session.get(), changes: editor.changesScope.changes };
+		return { session: editor.changesScope.session.get(), chat: editor.changesScope.chat.get(), changes: editor.changesScope.changes };
 	}
 	const changesViewService = accessor.get(IChangesViewService);
+	const owner = mainWindowChangesOwner(accessor);
 	return {
-		session: accessor.get(ISessionsService).mainWindowActiveSession.get(),
+		session: owner.session,
+		chat: owner.chat,
 		changes: {
 			changesObs: changesViewService.activeSessionChangesObs,
 			changesetObs: changesViewService.activeSessionChangesetObs,
@@ -472,8 +476,8 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			const { session, changes } = getInvokingChangesScope(accessor, args);
-			await getChangesetOperations(session, changes, undefined).titleChangeset?.invokeOperation(operation.id);
+			const { session, chat, changes } = getInvokingChangesScope(accessor, args);
+			await getChangesetOperations(session, chat, changes, undefined).titleChangeset?.invokeOperation(operation.id);
 		}
 	});
 }
@@ -511,11 +515,11 @@ const changesetOperationActions = new class {
  * Binds on `contextKeyService` the changeset operations that the Changes of the session of `source` show, and keeps their
  * actions registered meanwhile. The main window binds those of its session, a chat window those of the session it shows.
  */
-export function bindChangesetOperations(source: Pick<ISessionActionContextKeysSource, 'session'> & { readonly changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'> }, contextKeyService: IContextKeyService): IDisposable {
+export function bindChangesetOperations(source: Pick<ISessionActionContextKeysSource, 'session'> & { readonly chat?: ISessionActionContextKeysSource['chat']; readonly changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'> }, contextKeyService: IContextKeyService): IDisposable {
 	const shown = SessionChangesetOperationsContext.bindTo(contextKeyService);
 	const enabled = SessionEnabledChangesetOperationsContext.bindTo(contextKeyService);
 	return autorun(reader => {
-		const { entries } = getChangesetOperations(source.session.read(reader), source.changes, reader);
+		const { entries } = getChangesetOperations(source.session.read(reader), source.chat?.read(reader), source.changes, reader);
 		contextKeyService.bufferChangeEvents(() => {
 			shown.set(entries.map(entry => entry.key));
 			enabled.set(entries.filter(entry => entry.enabled).map(entry => entry.key));

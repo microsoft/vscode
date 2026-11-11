@@ -8,8 +8,11 @@ import * as vscode from 'vscode';
 import { getExperimentationServiceFromConfig, IExperimentationFilterProvider, TargetPopulation } from 'vscode-tas-client';
 import { platform, PlatformToString } from '../../../util/vs/base/common/platform';
 import { isObject } from '../../../util/vs/base/common/types';
+import { CancellationError } from '../../../util/vs/base/common/errors';
+import { mapsStrictEqualIgnoreOrder } from '../../../util/vs/base/common/map';
+import { runOnChange } from '../../../util/vs/base/common/observable';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
-import { IConfigurationService } from '../../configuration/common/configurationService';
+import { AuthProviderId, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { packageJson } from '../../env/common/packagejson';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
@@ -18,7 +21,7 @@ import { IFetcherService } from '../../networking/common/fetcherService';
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
 import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
 import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
-import { createTasFetch } from './tasFetch';
+import { createSignedOutAssignmentsFetch, createTasFetch, SIGNED_OUT_ASSIGNMENTS_ENDPOINTS } from './tasFetch';
 
 function getTargetPopulation(isPreRelease: boolean): TargetPopulation {
 	if (isPreRelease) {
@@ -238,7 +241,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 	}
 
 	getFilters(): Map<string, string | undefined> {
-		const token = this._copilotTokenStore.copilotToken;
+		const token = this._copilotTokenStore.authenticationState === 'signedIn' ? this._copilotTokenStore.copilotToken : undefined;
 		const internalOrg = token
 			? (token.isVscodeTeamMember ? 'vscode' : token.isGitHubInternal ? 'github' : token.isMicrosoftInternal ? 'microsoft' : undefined)
 			: undefined;
@@ -267,6 +270,9 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 }
 
 export class MicrosoftExperimentationService extends BaseExperimentationService {
+	// Token updates replace the delegate atomically, rather than refreshing the old endpoint with a new identity.
+	protected override readonly refreshOnUserInfoChange = false;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IVSCodeExtensionContext context: IVSCodeExtensionContext,
@@ -280,11 +286,31 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		const id = context.extension.id;
 		const version = context.extension.packageJSON['version'];
 		const targetPopulation = getTargetPopulation(envService.isPreRelease());
+		const assignmentsFilterProvider = new CopilotAssignmentsFilterProvider(copilotTokenStore, logService);
+		const signedOutFetch = createSignedOutAssignmentsFetch(fetcherService, logService);
+		const getAssignments = () => {
+			const token = copilotTokenStore.copilotToken;
+			const state = copilotTokenStore.authenticationState;
+			let exp = state === 'signedIn' ? token?.endpoints?.exp : undefined;
+			const publicGitHub = configurationService.getConfig(ConfigKey.Shared.AuthProvider) !== AuthProviderId.GitHubEnterprise && !copilotTokenStore.githubEnterpriseUri;
+			const plan = token?.rawCopilotPlan;
+			const individual = token?.isIndividual && (plan === 'free' || plan === 'individual' || plan?.startsWith('individual_'));
+			if (!exp && publicGitHub && state === 'signedIn' && individual) {
+				exp = 'https://exp.individual.githubcopilot.com';
+			}
+			const signedOut = state === 'signedOut';
+			const endpoint = signedOut ? SIGNED_OUT_ASSIGNMENTS_ENDPOINTS[0] : exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
+			return {
+				endpoint,
+				signedOut,
+				filters: endpoint ? assignmentsFilterProvider.getFilters() : new Map<string, string | undefined>(),
+			};
+		};
+		let assignments = getAssignments();
 		let self: MicrosoftExperimentationService | undefined = undefined;
 		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
 			const wrappedMemento = new ExpMementoWrapper(memento, envService);
-			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
-			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
+			const snapshot = assignments;
 			// Route both the legacy (GET) and assignments (POST) requests through the extension's
 			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
 			const tasFetch = createTasFetch(fetcherService);
@@ -306,9 +332,15 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 					new PlatformAndReleaseDateFilterProvider(logService),
 					new WindowKindFilterProvider(logService),
 				],
-				fetch: tasFetch,
-				assignmentsEndpoint,
-				assignmentsFilterProviders: assignmentsEndpoint ? [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)] : undefined,
+				fetch: (url, init) => {
+					if (gate.isRevoked) {
+						throw new CancellationError();
+					}
+					return tasFetch(url, init);
+				},
+				assignmentsEndpoint: snapshot.endpoint,
+				assignmentsFetch: snapshot.signedOut ? (_url, init) => signedOutFetch(init, () => gate.isRevoked) : undefined,
+				assignmentsFilterProviders: snapshot.endpoint ? [{ getFilters: () => snapshot.filters }] : undefined,
 			});
 		};
 
@@ -316,17 +348,22 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 
 		self = this; // This is now fully initialized.
 
-		// The assignments endpoint is sourced from the Copilot token, which may arrive after
-		// this service is created. Recreate the delegate when its `exp` endpoint changes.
-		let currentExp = copilotTokenStore.copilotToken?.endpoints?.exp;
-		this._register(copilotTokenStore.onDidStoreUpdate(() => {
-			const token = copilotTokenStore.copilotToken;
-			const newExp = token?.endpoints?.exp;
-			if (newExp !== currentExp) {
-				currentExp = newExp;
+		const legacyAccountFilterProvider = new GithubAccountFilterProvider(this._userInfoStore, logService);
+		let legacyAccountFilters = legacyAccountFilterProvider.getFilters();
+		const updateAssignments = () => {
+			const next = getAssignments();
+			const nextLegacyAccountFilters = legacyAccountFilterProvider.getFilters();
+			if (next.endpoint !== assignments.endpoint || next.signedOut !== assignments.signedOut || !mapsStrictEqualIgnoreOrder(next.filters, assignments.filters)
+				|| !mapsStrictEqualIgnoreOrder(nextLegacyAccountFilters, legacyAccountFilters)) {
+				assignments = next;
+				legacyAccountFilters = nextLegacyAccountFilters;
 				this.recreateDelegate();
 			}
-		}));
+		};
+		this._register(copilotTokenStore.onDidChangeTokenData(updateAssignments));
+		this._register(copilotTokenStore.onDidChangeAuthenticationState(updateAssignments));
+		this._register(copilotTokenStore.onDidChangeGitHubEnterpriseUri(updateAssignments));
+		this._register(runOnChange(configurationService.getConfigObservable(ConfigKey.Shared.AuthProvider), updateAssignments));
 
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setExperimentationService(this);

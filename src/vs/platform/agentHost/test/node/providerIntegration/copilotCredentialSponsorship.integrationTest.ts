@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { execFileSync } from 'child_process';
+import { writeFileSync } from 'fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
@@ -27,6 +28,7 @@ import { buildDefaultChatUri, ChatOriginKind, MessageKind, ToolResultContentType
 import { AgentHostAuthenticationScope } from '../../../node/agentHostAuthenticationScope.js';
 import { getAppNodeModulesUri } from '../../../node/appNodeModules.js';
 import { resolveCopilotRuntimePaths } from '../../../node/copilot/copilotRuntimePaths.js';
+import { preserveAgentHostE2ELogs } from '../e2e/harness/agentHostE2EDiagnostics.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createLocalEndpointCopilotAgent } from './copilotAgentIntegrationTestHarness.js';
@@ -54,6 +56,8 @@ suite('Copilot Agent credential sponsorship', function () {
 
 	const resource = 'https://api.github.com';
 	const metadata = [{ resource }];
+	// Trace runtime logs stay in the isolated home, which only a failed test keeps (see preserveFailureDiagnostics).
+	const rootConfiguration = { [AgentHostMcpConnectorsEnabledConfigKey]: true, [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' };
 	let server: Server;
 	let directory: string;
 	let endpoint: string;
@@ -222,11 +226,12 @@ suite('Copilot Agent credential sponsorship', function () {
 		const address = server.address();
 		assert.ok(address && typeof address !== 'string');
 		endpoint = `http://127.0.0.1:${address.port}`;
-		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, rootConfiguration);
 		store.add(agent.onDidChatProgress(onProgress));
 	});
 
-	teardown(async () => {
+	teardown(async function () {
+		const failedTest = this.currentTest?.state === 'failed' ? this.currentTest.fullTitle() : undefined;
 		try {
 			try {
 				await agent?.shutdown();
@@ -237,7 +242,13 @@ suite('Copilot Agent credential sponsorship', function () {
 					await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 				}
 				if (directory) {
-					await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+					try {
+						if (failedTest) {
+							preserveFailureDiagnostics(failedTest);
+						}
+					} finally {
+						await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+					}
 				}
 			}
 		} finally {
@@ -253,6 +264,19 @@ suite('Copilot Agent credential sponsorship', function () {
 			}
 		}
 	});
+
+	/**
+	 * Keeps what a failure needs once the isolated home is removed: the runtime logs, and which
+	 * prompt context each model request had, in order, so a context missing only on a chat's first turn shows as such.
+	 */
+	function preserveFailureDiagnostics(title: string): void {
+		// One directory per test, since setup resets the recorded traffic and several tests can fail in one run.
+		const testDirectory = title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 80);
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`, testDirectory);
+		preserveAgentHostE2ELogs(directory, directory, destination, title);
+		writeFileSync(join(destination, 'prompt-contexts.json'), JSON.stringify(modelTraffic.map(({ probe, instructions, environment, ancestorInstructions, workspaceSkill }) =>
+		({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
+	}
 
 	async function createScope(token: string): Promise<AgentHostAuthenticationScope> {
 		const scope = store.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: resource, userId: '1' }));
@@ -326,7 +350,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		})}`);
 		await agent.chats.releaseChat(chat, original);
 		await agent.shutdown();
-		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, rootConfiguration);
 		store.add(agent.onDidChatProgress(onProgress));
 		const observing = {
 			...original,

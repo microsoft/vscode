@@ -27,15 +27,27 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
-import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The command context of the window host of the bar's session. */
+	const barHostContext = { sessionHostId: 'bar-window' };
+
+	function describeArg(arg: unknown, session: ITestSessionWithChat): unknown {
+		return Array.isArray(arg) ? arg.map(item => describeArg(item, session))
+			: arg === session ? 'session'
+				: arg === session.resource ? 'resource'
+					: arg === barHostContext ? 'bar window host'
+						: arg;
+	}
 
 	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[] } = {}) {
 		const menus: MenuId[] = [];
@@ -44,7 +56,7 @@ suite('ChangesActionsBar', () => {
 		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
 			createMenu: (id: MenuId) => {
 				menus.push(id);
-				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.arg); } return []; }, dispose: () => { } });
+				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.args ?? options?.arg); } return []; }, dispose: () => { } });
 			},
 		}));
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService())));
@@ -60,19 +72,21 @@ suite('ChangesActionsBar', () => {
 		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({ onDidLayoutContainer: Event.None, mainContainer: document.createElement('div'), getContainer: () => document.createElement('div') }));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		// A created session whose folder, a worktree, is not the mounted workspace: that of the main window's session.
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			providerId,
 			resource: URI.parse('session:/bar'),
-			status: constObservable(SessionStatus.Completed),
+			status: constObservable(operations.length > 0 ? SessionStatus.Completed : SessionStatus.Untitled),
 			isCreated: constObservable(operations.length > 0),
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ workingDirectory: URI.file('/worktree') })] })) })),
 		});
 		const sessionObs = constObservable(session);
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ mainWindowActiveSession: isMainWindowSession ? sessionObs : constObservable(undefined) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => ({ folders: [] }) as never }));
 
 		const source: IChangesSessionScope = {
 			session: sessionObs,
+			chat: constObservable(session.activeChat.get()),
+			isMainWindow: isMainWindowSession,
+			hostCommandContext: barHostContext,
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
 				resourceObs: constObservable(undefined),
@@ -101,9 +115,9 @@ suite('ChangesActionsBar', () => {
 
 		assert.deepStrictEqual({
 			// The session itself, for its own actions, and its resource, for those of extensions.
-			otherSession: toolbarArgs.map(arg => arg === session ? 'session' : arg === session.resource ? 'resource' : arg),
+			otherSession: toolbarArgs.map(arg => describeArg(arg, session)),
 			mainWindow: ofMainWindowSession.get(MenuId.AgentsChangesToolbar),
-		}, { otherSession: ['session', 'resource'], mainWindow: { shouldForwardArgs: true } });
+		}, { otherSession: [['session', undefined, 'bar window host'], 'resource'], mainWindow: { shouldForwardArgs: true } });
 	});
 
 	test('its own actions get the session, which names it whichever window has focus, and those of extensions its resource, as the API gives them', () => {
@@ -133,28 +147,33 @@ suite('ChangesActionsBar', () => {
 		const { session } = createBar('local-agent-host', getActionsOptions);
 		const options = getActionsOptions.get(Menus.ChangesOperationsDropdown);
 
-		assert.deepStrictEqual({ argIsBarSession: options?.arg === session, shouldForwardArgs: options?.shouldForwardArgs }, { argIsBarSession: true, shouldForwardArgs: true });
+		assert.deepStrictEqual({ args: describeArg(options?.args, session), shouldForwardArgs: options?.shouldForwardArgs }, { args: ['session', undefined, 'bar window host'], shouldForwardArgs: true });
 	});
 
-	test('creates the scope from the active session observables only for the active session', () => {
-		const active = constObservable<IActiveSession | undefined>(undefined);
-		const other = constObservable<IActiveSession | undefined>(undefined);
+	test('creates the scope from the active session observables only for the main window, from the window host of a pane', () => {
 		const activeChanges = upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable(undefined) });
 		const otherChanges = upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable(undefined) });
+		const requested: unknown[] = [];
 		const changesViewService = upcastPartial<IChangesViewService>({
 			activeSessionResourceObs: activeChanges.resourceObs,
-			getSessionChanges: () => otherChanges,
+			getSessionChanges: (session, chat) => { requested.push(session, chat); return otherChanges; },
 		});
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession: active, mainWindowActiveSession: active });
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const pane = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<ITestSessionWithChat | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
 
-		const activeScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: active });
-		const otherScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: other });
+		const mainScope = createChangesSessionScope(changesViewService, pane);
+		const windowScope = createChangesSessionScope(changesViewService, chatWindowHost);
 
 		assert.deepStrictEqual({
-			activeSession: activeScope.session === active,
-			activeResource: activeScope.changes.resourceObs === activeChanges.resourceObs,
-			otherSession: otherScope.session === other,
-			otherChanges: otherScope.changes === otherChanges,
-		}, { activeSession: true, activeResource: true, otherSession: true, otherChanges: true });
+			mainWindow: mainScope.isMainWindow,
+			mainSession: mainScope.session === mainHost.session,
+			mainResource: mainScope.changes.resourceObs === activeChanges.resourceObs,
+			chatWindow: windowScope.isMainWindow,
+			windowSession: windowScope.session === chatWindowHost.session,
+			windowChanges: windowScope.changes === otherChanges,
+			requested: requested[0] === chatWindowHost.session && requested[1] === chatWindowHost.chat,
+		}, { mainWindow: true, mainSession: true, mainResource: true, chatWindow: false, windowSession: true, windowChanges: true, requested: true });
 	});
 });

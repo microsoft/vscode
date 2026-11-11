@@ -21,11 +21,11 @@ import { BrowserRemoteProxyEnabledSettingId, IBrowserViewNetworkStatus, IBrowser
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { resolveBrowserOwnerSession } from './sessionBrowserView.js';
 
 /** A browser tab opened from the new-session composer, and the draft it follows (`undefined` until the composer has one). */
@@ -68,7 +68,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
@@ -135,7 +135,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	/** Whether the new-session composer is shown: no session is active, or the active one is still the draft. */
 	private _isComposerShown(): boolean {
-		const active = this._sessionsService.activeSession.get();
+		const active = this._focusedSessionHostService.focusedHost.get().session.get();
 		return !active || active.sessionId === this._sessionsManagementService.newSession.get()?.sessionId;
 	}
 
@@ -152,7 +152,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			const authority = this._agentHostConnectionsService.resolveSessionResourceIdentity(owning.resource)?.connectionAuthority;
 			return authority !== undefined ? { authority, session: undefined } : undefined;
 		}
-		const session = this._sessionsService.activeSession.get() ?? this._sessionsManagementService.newSession.get();
+		const session = this._focusedSessionHostService.focusedHost.get().session.get() ?? this._sessionsManagementService.newSession.get();
 		return session && { authority: this._getSessionAuthority(session), session };
 	}
 
@@ -162,7 +162,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			return identity.connectionAuthority;
 		}
 		// Drafts are not yet known to the host; use their provider's host.
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider)) {
 			return provider.remoteAddress ? agentHostAuthority(provider.remoteAddress) : AMBIENT_AGENT_HOST_AUTHORITY;
 		}

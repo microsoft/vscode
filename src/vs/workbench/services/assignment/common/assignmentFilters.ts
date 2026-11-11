@@ -6,7 +6,8 @@
 import type { IExperimentationFilterProvider } from 'tas-client';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
+import { getInternalOrg, isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -246,9 +247,6 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	/** Maps the core-available Copilot filters to new TAS userParams without forwarding legacy headers. */
 	getAssignmentsFilters(): Map<string, string | null> {
 		return new Map([
-			['github_core_copilotsku', this.getFilterValue(ExtensionsFilter.CopilotSku)],
-			['github_core_issn', this.getFilterValue(ExtensionsFilter.CopilotIsSn)],
-			['github_core_isfcv1', this.getFilterValue(ExtensionsFilter.CopilotIsFcv1)],
 			['vscode_core_copilotchatextensionversion', this.getFilterValue(ExtensionsFilter.CopilotChatExtensionVersion)],
 		]);
 	}
@@ -264,6 +262,9 @@ export enum GitHubAssignmentsFilter {
 	/** Whether the account is staff or belongs to a recognized internal organization. */
 	IsGhOrMsftStaff = 'github_core_isghormsftstaff',
 	GhMsftOrExternal = 'github_core_ghmsftorexternal',
+	CopilotSku = 'github_core_copilotsku',
+	CopilotIsSn = 'github_core_issn',
+	CopilotIsFcv1 = 'github_core_isfcv1',
 }
 
 /**
@@ -271,55 +272,47 @@ export enum GitHubAssignmentsFilter {
  * the new userParam key names.
  */
 export class GitHubCoreAssignmentsFilterProvider extends Disposable implements IExperimentationFilterProvider {
-	private copilotTrackingId: string | undefined;
-	private internalOrg: 'vscode' | 'github' | 'microsoft' | undefined;
-	private isInternal = false;
+	private filters: Map<string, string | null>;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
 
 	constructor(
-		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
-		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this.update()));
-		this.update();
+		this.filters = this.getFilters();
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this.update()));
+		this._register(this._defaultAccountService.onDidChangeCopilotTokenInfo(() => this.update()));
 	}
 
 	private update(): void {
-		const newTrackingId = this._chatEntitlementService.copilotTrackingId ?? this.copilotTrackingId;
-		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
-		const newIsInternal = this._chatEntitlementService.isInternal;
-
-		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg && this.isInternal === newIsInternal) {
+		const filters = this.getFilters();
+		if (mapsStrictEqualIgnoreOrder(this.filters, filters)) {
 			return;
 		}
-
-		this.copilotTrackingId = newTrackingId;
-		this.internalOrg = newInternalOrg;
-		this.isInternal = newIsInternal;
-
+		this.filters = filters;
 		this._onDidChangeFilters.fire();
 	}
 
 	getFilterValue(filter: string): string | null {
-		// copilotTrackingId is the stable user id (it never changes) but can be unavailable
-		// during sign-in delays. Latch the first known value and fall back to it so the
-		// filter is not dropped from later requests once we have seen it.
-		const liveTrackingId = this._chatEntitlementService.copilotTrackingId;
-		if (liveTrackingId) {
-			this.copilotTrackingId = liveTrackingId;
-		}
-		const copilotTrackingId = liveTrackingId ?? this.copilotTrackingId;
-		const internalOrg = getInternalOrg(this._chatEntitlementService.organisations) ?? this.internalOrg;
+		const account = this._defaultAccountService.currentDefaultAccount;
+		const entitlements = account?.entitlementsData;
+		const tokenInfo = account ? this._defaultAccountService.copilotTokenInfo : null;
 		switch (filter) {
 			case GitHubAssignmentsFilter.CopilotTrackingId:
-				return copilotTrackingId ?? null;
+				return entitlements?.analytics_tracking_id ?? null;
 			case GitHubAssignmentsFilter.IsGhOrMsftStaff:
-				return this._chatEntitlementService.isInternal ? '1' : '0';
+				return isInternalAccount(entitlements?.is_staff, entitlements?.organization_login_list) ? '1' : '0';
 			case GitHubAssignmentsFilter.GhMsftOrExternal:
-				return internalOrg ?? 'external';
+				return getInternalOrg(entitlements?.organization_login_list) ?? 'external';
+			case GitHubAssignmentsFilter.CopilotSku:
+				return entitlements?.access_type_sku ?? null;
+			case GitHubAssignmentsFilter.CopilotIsSn:
+				return tokenInfo?.sn === '1' ? '1' : '0';
+			case GitHubAssignmentsFilter.CopilotIsFcv1:
+				return tokenInfo?.fcv1 === '1' ? '1' : '0';
 			default:
 				return null;
 		}

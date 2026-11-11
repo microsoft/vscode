@@ -29,14 +29,14 @@ import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/wid
 import { IChatProgressMessage } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IChatResponseModel } from '../../../../contrib/chat/common/model/chatModel.js';
-import { ISessionChatPillVisibilityService, type IChatBackgroundShell } from '../../../../contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { createSessionSubagentsPillData } from '../../../../contrib/chat/browser/sessionSubagentsPill.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
-// eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/media/style.css';
+import { type IChatBackgroundShell } from '../../../../common/chatBackgroundShell.js';
 
 function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: boolean }): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {

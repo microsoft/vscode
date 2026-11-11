@@ -14,12 +14,12 @@ import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentH
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -116,7 +116,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
 		const presentation = this._getPresentation(task);
 		const shouldReuse = !(typeof presentation?.panel === 'string' && presentation.panel.toLowerCase() === 'new');
-		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address) : undefined;
+		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address, session) : undefined;
 		const isReused = !!taskTerminal;
 		if (!taskTerminal) {
 			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
@@ -178,9 +178,10 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	 * when the shell is still in the directory the terminal started in, so
 	 * that the command runs from the task's working directory, and when it is
 	 * not hidden in the background (e.g. after switching sessions), since only
-	 * foreground terminals can be activated.
+	 * foreground terminals can be activated. One a chat window of the session holds
+	 * while its terminals hide shows there again.
 	 */
-	private _getReusableTerminal(key: string, address: string): ITaskTerminal | undefined {
+	private _getReusableTerminal(key: string, address: string, session: ISession): ITaskTerminal | undefined {
 		const taskTerminal = this._taskTerminals.get(key);
 		if (!taskTerminal) {
 			return undefined;
@@ -193,7 +194,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (taskTerminal.isLaunching || this._agentHostTerminalService.isCommandExecuting(instance) !== false) {
 			return undefined;
 		}
-		if (!this._terminalService.foregroundInstances.includes(instance)) {
+		if (!this._terminalService.foregroundInstances.includes(instance) && !this._chatWindowTerminalsService.holdsSessionTerminal(session, instance.instanceId)) {
 			return undefined;
 		}
 		const terminalCwd = this._agentHostTerminalService.getCwd(instance);
@@ -220,7 +221,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	}
 
 	private _getAddress(session: ISession): string | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}

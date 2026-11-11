@@ -50,7 +50,7 @@ suite('Agent Host policy continuation', () => {
 		const backend = URI.parse('ahp-session:/source');
 		const request = upcastPartial<IChatRequestModel>({
 			message: { text: 'Original question', parts: [] },
-			response: upcastPartial<IChatResponseModel>({ entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }) }),
+			response: upcastPartial<IChatResponseModel>({ entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }), contentReferences: [], codeCitations: [] }),
 		});
 		const saved: IAgentHostSavedChat = {
 			session: backend,

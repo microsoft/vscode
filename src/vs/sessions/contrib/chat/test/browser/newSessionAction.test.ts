@@ -9,23 +9,27 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext, SideBarVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
-import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,16 +45,17 @@ suite('NewChatInSessionsWindowAction', () => {
 		instantiationService.stub(ISessionsManagementService, {
 			isQuickChatTargetAvailable: () => options.available ?? true,
 		});
-		instantiationService.stub(ISessionsService, {
-			activeSession: constObservable(options.active ? upcastPartial<IActiveSession>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: constObservable(options.active ? upcastPartial<ITestSessionWithChat>({
 				providerId: 'other-provider',
 				sessionType: 'other-agent',
 			}) : undefined),
 			openQuickChat: (target, preserveNavigation) => {
 				opened.push({ target, preserveNavigation });
-				return options.creationFailed ? undefined : upcastPartial<IActiveSession>({ resource });
+				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource });
 			},
-		});
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		if (!CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID)) {
 			store.add(registerAction2(NewChatInSessionsWindowAction));
 		}
@@ -64,8 +69,8 @@ suite('NewChatInSessionsWindowAction', () => {
 	}
 
 	test('shows in the title bar in place of the hidden sessions list of the main window, and of an editor window as before, never in a chat window', () => {
-		const menu = new NewChatInSessionsWindowAction().desc.menu;
-		const when = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.TitleBarLeftLayout)?.when;
+		store.add(appendNewSessionTitleBarMenuItem());
+		const when = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarLeftLayout).filter(isIMenuItem).find(item => item.command.id === NEW_SESSION_ACTION_ID)?.when;
 		// A chat window has layout modes; the main window and editor windows have none.
 		const shows = (window: { auxiliary: boolean; layoutMode?: string }) => !!when?.evaluate(new class extends mock<IContext>() {
 			override getValue<T>(key: string): T | undefined {
@@ -130,16 +135,17 @@ suite('NewChatInSessionsWindowAction', () => {
 			getNewSessionTarget: (providerId, sessionResource) => providerId === 'sandbox-backend' && isEqual(sessionResource, backendResource) ? creationTarget : undefined,
 			isNewSessionTargetAvailable: (folder, target) => isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
 		});
-		instantiationService.stub(ISessionsService, {
-			activeSession: constObservable(upcastPartial<IActiveSession>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: constObservable(upcastPartial<ITestSessionWithChat>({
 				providerId: 'sandbox-backend', sessionType: 'copilot', resource: backendResource,
 				workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: backendFolder })),
 			})),
 			openNewSession: async options => {
 				opened.push(options);
-				return { session: upcastPartial<IActiveSession>({ resource }), trustDeclined: false };
+				return { session: upcastPartial<ITestSessionWithChat>({ resource }), trustDeclined: false };
 			},
-		});
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		const result = await instantiationService.invokeFunction(accessor => new NewChatInSessionsWindowAction().run(accessor));
 		assert.deepStrictEqual({ result, opened }, {
 			result: resource,

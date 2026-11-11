@@ -3,84 +3,78 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import './media/chatWindow.css';
-import { getWindow } from '../../../../base/browser/dom.js';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
-import { isNative } from '../../../../base/common/platform.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { DeepPartial } from '../../../../base/common/types.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { hasCustomTitlebar } from '../../../../platform/window/common/window.js';
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
-import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
-import { EditorInputCapabilities, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
+import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowProvider } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatWindowColumnPlacement, ChatWindowLayoutMode, ChatWindowTerminalPosition, computeChatWindowLayout } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
+import { getChatWindowMainPartOptions, IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
-import { Menus } from '../../../browser/menus.js';
-import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBar.js';
-import { SessionView } from '../../../browser/parts/sessionView.js';
-import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
-import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
-import { SessionChangesEditorFileListContext } from '../../changes/common/changes.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
+import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { AgentsPartCard } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { agentsPanelsSpacing } from '../../../../platform/theme/common/sizeRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsChatSurface } from '../../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
+import { bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
+import { IChat, ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
+import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
+import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
-import { ChatModelHold, chatWindowTitle, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IGoneChatWindow, IReplaceableChatWindow, isChatWindowChatGone } from './chatWindowOpening.js';
-import { AGENTS_CHAT_WINDOW_CLASS } from './chatWindowTitleDoubleClick.js';
-import { ISessionChatViewHeaderHost, ISessionChatViewHost, ISessionChatViewTitle, registerSessionChatViewHost, SESSION_CHAT_VIEW_TYPE } from './sessionChatViewEditor.js';
-import { EditorTabsControl } from '../../../../workbench/browser/parts/editor/editorTabsControl.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext, getUnsentComposerMoveReason } from '../common/chatWindows.js';
+import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
+import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
+import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
+import { localize } from '../../../../nls.js';
+import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
+
+/** The class of the element of an Agents chat window. */
+export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';
 
 /** How long restoring a chat window waits for its session to load. */
 const RESTORE_SESSION_TIMEOUT = 30_000;
 
-/** The width of the frame of the cards of a chat window. */
-const CARD_FRAME_WIDTH = 1;
-
-/** A title row of a chat window, and where the session header shows in it. */
-interface IChatWindowTitle extends IDisposable {
-	readonly element: HTMLElement;
-	readonly size: IObservable<number>;
-	readonly header: ISessionChatViewHeaderHost | undefined;
-	layout(width: number, height: number): void;
-}
-
-/** Creates a title row of a chat window; see `SessionsChatWindowProvider._createTitle`. */
-type ChatWindowTitleFactory = (window: IChatWindow, content: SessionsChatWindowContent, container: HTMLElement, instantiationService: IInstantiationService, overChat: boolean) => IChatWindowTitle | undefined;
-
 /**
- * The options of the main part of a chat window: its tabs follow `workbench.editor.showTabs`, live, as the main window's
- * editor area does; `none` shows as `single`, so that the part keeps its title with its actions. Double-clicking a tab
- * does not maximize or expand a group: the window arranges its parts.
+ * The width of the strip's column at the right of a chat window, as the main window's Session Activity Bar column is
+ * (`SessionActivityBarColumn`): the gap between cards, none with compact layout density, which it keeps to the cards to
+ * its left, and a {@link MenuActivityBar} at the size chosen for the Session Activity Bar, which fills the rest.
  */
-export function getChatWindowMainPartOptions(showTabs: string | undefined): DeepPartial<IEditorPartOptions> {
-	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
+export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize, gap: number = AGENTS_FLOATING_PANEL_GAP, connectedTabs = true): number {
+	const frameInset = connectedTabs ? Math.min(AgentsPartCard.BORDER_WIDTH, Math.floor(gap / 2)) : 0;
+	return (compact ? 0 : Math.max(0, gap - frameInset)) + MenuActivityBar.getWidth(compact, size);
 }
 
 /** The options of the groups of the main part of a chat window: those of the main window's editor area of the Agents window. */
@@ -90,8 +84,8 @@ export const CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS: IEditorGroupViewOptions =
 		headerSecondary: Menus.SessionsEditorHeaderSecondary,
 		headerLayout: Menus.SessionsEditorHeaderLayout,
 		editorActions: Menus.SessionsEditorTitle,
-		tabsBarContext: Menus.SessionsEditorTabsBarContext,
-		tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab,
+		tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
+		tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 	},
 	showHeader: true,
 	useModernUITabs: true,
@@ -105,49 +99,6 @@ export function focusChatWindowUnlessFocused(targetWindow: { readonly document: 
 	if (!targetWindow.document.hasFocus()) {
 		focus();
 	}
-}
-
-/**
- * Centers the header's actions (`actionsHost`, last at the right of the title bar `titlebar`) above the Session Activity
- * Bar's column, at the right of the window below the title bar, as the entries of the column are: by the inset after them.
- */
-/** The class of the title of a chat over its column only, whose window controls float at the top right of the window. */
-const CHAT_COLUMN_TITLE_CLASS = 'header-chat-column';
-
-/** The room the tab row at the top right of a chat window keeps for the window controls floating above it. */
-const WINDOW_CONTROLS_WIDTH_PROPERTY = '--chat-window-controls-right-width';
-
-/**
- * Lets the tab row at the top right of the chat window that `titlebar` is in keep the room of its window controls at the
- * right, `controls`, while they float at the top right of the window over the part beside the chat (Windows, Linux):
- * none while they are in the title row, hidden as in full screen, or at the left, as the traffic lights of macOS are.
- */
-export function reserveChatWindowControls(titlebar: HTMLElement, controls: HTMLElement | undefined): void {
-	const host = titlebar.closest<HTMLElement>(`.${AGENTS_CHAT_WINDOW_CLASS}`);
-	if (!host) {
-		return;
-	}
-	const width = controls && titlebar.classList.contains(CHAT_COLUMN_TITLE_CLASS) ? controls.offsetWidth : 0;
-	if (width > 0) {
-		host.style.setProperty(WINDOW_CONTROLS_WIDTH_PROPERTY, `${width}px`);
-	} else {
-		host.style.removeProperty(WINDOW_CONTROLS_WIDTH_PROPERTY);
-	}
-}
-
-export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
-	const actions = actionsHost.firstElementChild?.getBoundingClientRect().width ?? 0;
-	const inset = actions ? Math.max(0, Math.round((SESSION_ACTIVITY_BAR_COLUMN_WIDTH - actions) / 2)) : undefined;
-	if (inset === undefined) {
-		titlebar.style.removeProperty('--session-header-actions-inset');
-	} else {
-		titlebar.style.setProperty('--session-header-actions-inset', `${inset}px`);
-	}
-}
-
-/** Whether the Session Activity Bar of a chat window shows in a column of its own: while the chat is below the main part or hidden. */
-export function isChatWindowStripInColumn(mode: ChatWindowLayoutMode): boolean {
-	return computeChatWindowLayout({ mode, terminalPosition: ChatWindowTerminalPosition.FullWidth, terminalsVisible: false, activityBar: true, inputOnly: false }).column !== ChatWindowColumnPlacement.None;
 }
 
 /** A session and the chat of it that a resource names: a session names its own; a chat its session. */
@@ -170,259 +121,254 @@ function resolveChat(sessionsManagementService: ISessionsManagementService, reso
 }
 
 /**
- * The editor of the chat of a chat window. Its tab, which shows while other editors are beside it in its group, shows the
- * title of the chat and, then, no close action: the chat closes with its window.
+ * One chat of a chat window: its editor, and the provider's session of the chat, which its editor shows and the window
+ * acts on while it is the window's active chat. It observes the session without owning it, and follows the chat, such as
+ * when its session is replaced or the chat moves to another session; the chat ends, and leaves the window, once it is
+ * deleted or archived.
  */
-export class SessionChatViewEditorInput extends ViewEditorInput {
-
-	private _name = '';
-	private _cannotClose = false;
-
-	constructor(chatResource: URI) {
-		super(SESSION_CHAT_VIEW_TYPE, chatResource);
-	}
-
-	setName(name: string): void {
-		if (this._name !== name) {
-			this._name = name;
-			this._onDidChangeLabel.fire();
-		}
-	}
-
-	setCannotClose(cannotClose: boolean): void {
-		if (this._cannotClose !== cannotClose) {
-			this._cannotClose = cannotClose;
-			this._onDidChangeCapabilities.fire();
-		}
-	}
-
-	override getName(): string {
-		return this._name || super.getName();
-	}
-
-	override getIcon(): ThemeIcon {
-		return Codicon.commentDiscussion;
-	}
-
-	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | (this._cannotClose ? EditorInputCapabilities.CannotClose : 0);
-	}
-}
-
-/**
- * What a chat window shows of a session: one of its chats, as a session of its own window (`showSessionInWindow`), once
- * the window exists; the window acts on that session ({@link ISessionScope}) and binds its keys.
- */
-class SessionsChatWindowContent extends Disposable implements IChatWindowContent, ISessionChatViewHost, IReplaceableChatWindow, IGoneChatWindow {
+class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISessionChatViewHost {
 
 	readonly chat: ISettableObservable<URI>;
-	readonly input: SessionChatViewEditorInput;
+	readonly input: ChatEditorInput;
 	readonly title: IObservable<string>;
-	readonly services: ServiceCollection;
 
 	private readonly _onDidEnd = this._register(new Emitter<void>());
 	readonly onDidEnd = this._onDidEnd.event;
+	private _ended = false;
+	private _disposed = false;
+
+	/** The provider's session of the chat, and the chat, once known. */
+	private readonly _shown = observableValue<{ readonly session: ISession; readonly chat: IChat } | undefined>(this, undefined);
+	/** Its new-session composer while the chat is that, until the composer's foreground request starts its session. */
+	private readonly _composer = observableValue<ChatWindowComposerModel | undefined>(this, undefined);
+	private readonly _composerStore = this._register(new MutableDisposable<DisposableStore>());
+	/** The session the composer sent and the session's main chat, once the session is created, until the chat becomes it. */
+	private readonly _composerShown = derived(this, reader => {
+		const session = this._composer.read(reader)?.session.read(reader);
+		return session && isSessionCreated(session, reader) ? { session, chat: session.mainChat.read(reader) } : undefined;
+	});
+	readonly session: IObservable<ISession | undefined> = derived(this, reader => {
+		const composer = this._composer.read(reader);
+		return composer ? composer.session.read(reader) : this._shown.read(reader)?.session;
+	});
+	readonly shownChat: IObservable<IChat | undefined> = derived(this, reader => this._composer.read(reader) ? this._composerShown.read(reader)?.chat : this._shown.read(reader)?.chat);
+	readonly content: IObservable<ISessionPaneContent | undefined>;
+	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
+		const composer = this._composer.read(reader);
+		return composer && { draftHost: composer, session: composer.session };
+	});
+	/** Whether it is a new-session composer that has not sent its session yet. */
+	get isComposer(): boolean { return !!this._composer.get(); }
+	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
+	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
+	/** The session the chat was last known in, so that its end is known while the session no longer lists it. */
+	private _knownSession: ISession | undefined;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
+	/** Keeps the chat out of the main window's grid while the window shows it. */
+	private readonly _gridHold = this._register(new MutableDisposable());
 
-	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
-	readonly session: IObservable<IActiveSession | undefined> = this._session;
-	readonly window = observableValue<IChatWindow | undefined>(this, undefined);
-	/** Where the session header shows in the title row of the window, once it has one. */
-	readonly windowHeader = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
-	/** Where the session header shows in the view's own title row, once it has one. */
-	private readonly _viewHeader = observableValue<ISessionChatViewHeaderHost | undefined>(this, undefined);
-	/** The attached session views, the last of which shows the chat; see {@link view}. */
-	private readonly _attachedViews: SessionView[] = [];
-	private readonly _view = observableValue<SessionView | undefined>(this, undefined);
-	readonly view: IObservable<SessionView | undefined> = this._view;
-	/**
-	 * Whether the view shows its own title row, at the top of the chat's card: with a single chat, side by side and in chat
-	 * only, as the session view shows its header then, while the chat leads the window, at its top left. Otherwise, such as
-	 * with the chats of the session as tabs, which replace the header, or with the chat moved into another part or after
-	 * another part, the title row of the window shows, across the window, as the main window's title bar does.
-	 */
-	readonly showsTitle: IObservable<boolean> = derived(this, reader => {
-		const window = this.window.read(reader);
-		const mode = window?.layoutMode.read(reader);
-		return !!this._viewHeader.read(reader)
-			&& (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly)
-			&& !!window?.chatLeads.read(reader)
-			&& (this._view.read(reader)?.headerShown.read(reader) ?? true);
-	});
-	/** The title row the session header shows in: the one that shows. */
-	readonly header: IObservable<ISessionChatViewHeaderHost | undefined> = derived(this, reader => this.showsTitle.read(reader) ? this._viewHeader.read(reader) : this.windowHeader.read(reader));
+	/** The views of its editor, the last of which shows it; see {@link view}. */
+	private readonly _attachedViews: ChatEditorContent[] = [];
+	private readonly _view = observableValue<ChatEditorContent | undefined>(this, undefined);
+	readonly view: IObservable<ChatEditorContent | undefined> = this._view;
 	private readonly _heldChat: ChatModelHold;
 
+	readonly window: IObservable<IChatWindow | undefined>;
+	readonly active: IObservable<boolean>;
+
 	constructor(
-		readonly sourceSession: ISession,
+		owner: SessionsChatWindowContent,
 		chatResource: URI,
-		private readonly _titleFactory: ChatWindowTitleFactory,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
-		@IChangesViewService private readonly _changesViewService: IChangesViewService,
-		@IHostService private readonly _hostService: IHostService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		composer: ChatWindowComposerModel | undefined,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatService chatService: IChatService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IChatHostOpenerService private readonly _chatHostOpenerService: IChatHostOpenerService,
+		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
-		const input = this.input = this._register(new SessionChatViewEditorInput(chatResource));
-		this._register(registerSessionChatViewHost(this.input, this));
-		this.title = derived(this, reader => chatWindowTitle(this._session.read(reader) ?? sourceSession, this.chat.read(reader), reader));
-		// Its tab, while other editors are beside it in its group, shows the title of the chat
-		this._register(autorun(reader => input.setName(this.title.read(reader))));
-		// What the window shows acts on its session, not on the one the main window shows.
-		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: this._session };
-		this.services = new ServiceCollection([ISessionScope, sessionScope]);
-		this._heldChat = this._register(new ChatModelHold(resource => chatService.acquireExistingSession(resource, 'ChatWindow#move')));
-		this._register(toDisposable(() => this._releaseSession()));
-	}
-
-	bind(window: IChatWindow, instantiationService: IInstantiationService): IDisposable {
-		const store = new DisposableStore();
-		this.window.set(window, undefined);
-		store.add(toDisposable(() => this.window.set(undefined, undefined)));
-
-		// The loaded model of the chat bridges its move from the main window's grid, which lets go of it as the session
-		// leaves the grid for the window.
-		const chat = this.chat.get();
-		this._heldChat.hold(this.sourceSession.chats.get().some(candidate => isEqual(candidate.resource, chat)) ? chat : undefined, this._boundCheck());
-		const windowSession = this._sessionsService.showSessionInWindow(this.sourceSession, { chatResource: chat });
-		this.setSession(windowSession);
-		// Closing the window stops showing its session there at once, such as before the chat shows in the main window again.
-		store.add(window.onDidClose(() => this._releaseSession()));
-		// Its session is the active session while the window has focus, wherever in the window focus is, such as in its
-		// title row or its main part, outside the view of its session: what acts on the active session acts on it.
-		store.add(this._hostService.onDidChangeActiveWindow(windowId => {
-			const session = this._session.get();
-			if (windowId === window.windowId && session) {
-				this._sessionsService.setActive(session, true);
+		this.content = derived(this, reader => {
+			if (this._composer.read(reader)) {
+				const shown = this._composerShown.read(reader);
+				return shown && this._contentOf(shown, () => this._composerShown.read(undefined) === shown);
 			}
+			const shown = this._shown.read(reader);
+			return shown && this._contentOf(shown, () => this._shown.read(undefined) === shown);
+		});
+		this.input = this._register(new ChatEditorInput(chatResource));
+		this._register(registerSessionChatViewHost(this.input, this));
+		this.window = owner.window;
+		this.active = derived(this, reader => isEqual(owner.window.read(reader)?.chat.read(reader), this.chat.read(reader)));
+		this.title = derived(this, reader => {
+			if (this._composer.read(reader)) {
+				return localize('chatWindow.newSession', "New Session");
+			}
+			const session = this.session.read(reader);
+			return session ? chatWindowTitle(session, this.chat.read(reader), reader) : '';
+		});
+		this._register(autorun(reader => this.input.setName(this.title.read(reader))));
+		// Its tab shows the status of the chat, as the sessions list does, while its header, which shows it too, hides.
+		this._register(autorun(reader => {
+			const shown = this._shown.read(reader);
+			this.input.setDetails(shown && getChatEditorInputDetails(shown.session, shown.chat, this.title.read(reader), reader, sessionsListModelService,
+				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat)));
+		}));
+		// It is read once it shows, as the active chat of the main window is: while it is the active chat of its window,
+		// focused or not, and its editor shows it.
+		const readMarker = new ShownChatReadMarker(_sessionsManagementService, extUri);
+		this._register(autorun(reader => {
+			const shown = this._shown.read(reader);
+			if (!shown) {
+				readMarker.reset();
+				return;
+			}
+			const visible = this.active.read(reader) && !!this._view.read(reader)?.visible.read(reader);
+			readMarker.update(shown.session, visible ? shown.chat : undefined, reader);
 		}));
 
-		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
-		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		CustomViewVisibleContext.bindTo(contextKeyService).set(false);
-		// Its Changes editor shows the list of the changed files beside the diffs, in whichever of its parts it shows; the
-		// main window's does not.
-		SessionChangesEditorFileListContext.bindTo(contextKeyService).set(true);
-		// Those of its changes too, such as the changeset operations its Changes editor shows.
-		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this._session, changes: this._changesViewService.getSessionChanges(this._session) }, contextKeyService));
+		// The loaded model of the chat bridges its move into the window, from the main window's grid, which lets go of it.
+		this._heldChat = this._register(new ChatModelHold(resource => chatService.acquireExistingSession(resource, 'ChatWindow#move')));
+		if (composer) {
+			this._setComposer(composer);
+		} else {
+			this._heldChat.hold(chatResource, this._boundCheck());
+		}
 
-		// Its tab offers no close action while other editors are beside it in its group, as the chat closes with its window.
-		store.add(this._trackChatGroup(window));
-
-		// Its empty groups offer the same Add Tab entries as the main window's.
-		const addTabs = store.add(new DisposableMap<IEditorGroupView>());
-		const add = (group: IEditorGroupView) => addTabs.set(group, this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab));
-		window.mainPart.groups.forEach(group => add(group as IEditorGroupView));
-		store.add(window.mainPart.onDidAddGroup(group => add(group as IEditorGroupView)));
-		store.add(window.mainPart.onDidRemoveGroup(group => addTabs.deleteAndDispose(group as IEditorGroupView)));
-		return store;
+		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
+		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
+			this._update(reader);
+		}));
 	}
 
-	private _trackChatGroup(window: IChatWindow): IDisposable {
+	/**
+	 * Shows `composer`, which it owns, until a foreground request of it starts its session: the chat then becomes that
+	 * session's main chat, in the same editor, and the composer goes. Closing the composer before discards its draft.
+	 */
+	private _setComposer(composer: ChatWindowComposerModel): void {
 		const store = new DisposableStore();
-		const input = this.input;
-		const update = () => {
-			const group = this._editorGroupsService.groups.find(candidate => candidate.windowId === window.windowId && candidate.contains(input, { strictEquals: true }));
-			input.setCannotClose(!!group && group.count > 1);
-		};
-		const groups = store.add(new DisposableMap<IEditorGroup>());
-		const add = (group: IEditorGroup) => {
-			if (group.windowId === window.windowId) {
-				groups.set(group, group.onDidModelChange(e => {
-					if (e.kind === GroupModelChangeKind.EDITOR_OPEN || e.kind === GroupModelChangeKind.EDITOR_CLOSE) {
-						update();
-					}
-				}));
+		store.add(composer);
+		// Its tab shows while it is a composer, also alone in its group, so it can be closed there: until its session's chat
+		// shows, it has no title of its own, as its session header hides.
+		this.input.setRendersTitle(false);
+		store.add(toDisposable(() => this.input.setRendersTitle(true)));
+		store.add(composer.onDidStart(session => {
+			const main = session.mainChat.get().resource;
+			transaction(tx => {
+				this._composer.set(undefined, tx);
+				this.chat.set(main, tx);
+			});
+			this._composerStore.clear();
+		}));
+		// It stays in its window until it sends its session.
+		this.input.setMoveRestriction({
+			reason: getUnsentComposerMoveReason(),
+			canMoveTo: group => {
+				const windowId = this.window.get()?.windowId;
+				return windowId !== undefined && this._editorGroupsService.getGroup(group)?.windowId === windowId;
+			},
+		});
+		store.add(toDisposable(() => this.input.setMoveRestriction(undefined)));
+		this._composerStore.value = store;
+		this._composer.set(composer, undefined);
+	}
+
+	private _end(): void {
+		if (!this._ended) {
+			this._ended = true;
+			this._onDidEnd.fire();
+		}
+	}
+
+	private _update(reader: IReader): void {
+		if (this._ended || this._composer.read(reader)) {
+			return;
+		}
+		const chatResource = this.chat.read(reader);
+		// The chats of the session it was in, as these change without the sessions changing, such as as one is deleted
+		// or replaced; the lookup below is not observable.
+		this._knownSession?.chats.read(reader);
+		this._knownSession?.loading.read(reader);
+		const owner = this._sessionsManagementService.getSessionForChatResource(chatResource);
+		if (owner) {
+			if (this._knownSession !== owner.session) {
+				owner.session.chats.read(reader);
+				owner.session.loading.read(reader);
 			}
-		};
-		this._editorGroupsService.groups.forEach(add);
-		store.add(this._editorGroupsService.onDidAddGroup(add));
-		store.add(this._editorGroupsService.onDidRemoveGroup(group => { groups.deleteAndDispose(group); update(); }));
-		store.add(toDisposable(() => input.setCannotClose(false)));
-		update();
-		return store;
-	}
-
-	didShow(_window: IChatWindow, focused: boolean): void {
-		const session = this._session.get();
-		if (focused && session) {
-			this._sessionsService.setActive(session);
-		}
-	}
-
-	createTitle(container: HTMLElement, instantiationService: IInstantiationService): ISessionChatViewTitle | undefined {
-		const window = this.window.get();
-		const title = window && this._titleFactory(window, this, container, instantiationService, true);
-		if (!title) {
-			return undefined;
-		}
-		const header = title.header;
-		this._viewHeader.set(header, undefined);
-		return {
-			element: title.element,
-			size: title.size,
-			layout: (width, height) => title.layout(width, height),
-			dispose: () => {
-				if (this._viewHeader.get() === header) {
-					this._viewHeader.set(undefined, undefined);
+			this._knownSession = owner.session;
+			if (isChatWindowChatGone(owner.session, chatResource, reader)) {
+				this._end();
+				return;
+			}
+			const shown = this._shown.get();
+			if (shown?.session !== owner.session || shown.chat !== owner.chat) {
+				const sessionChanged = shown?.session.sessionId !== owner.session.sessionId;
+				this._shown.set({ session: owner.session, chat: owner.chat }, undefined);
+				if (sessionChanged) {
+					this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
 				}
-				title.dispose();
+			}
+			return;
+		}
+		// Gone once the session it was in has loaded and no longer lists it, such as once it was deleted
+		if (this._knownSession && isChatWindowChatGone(this._knownSession, chatResource, reader)) {
+			this._end();
+		}
+	}
+
+	override dispose(): void {
+		// What it showed acts on it no more, such as a content its editor kept, once its window let go of it.
+		this._disposed = true;
+		this._onWillDispose.fire();
+		super.dispose();
+	}
+
+	/**
+	 * What its editor's pane shows of `shown`: its one chat, as a detached pane shows, apart from the session's slot. Closing
+	 * the pane closes the chat in its window, through the window's opener, while it still shows that chat of that session: a
+	 * content kept past the chat moving or its session being replaced, its chat ending, or its window letting go of it, as
+	 * its window closes or the chat moves to another window, closes nothing.
+	 */
+	private _contentOf(shown: { readonly session: ISession; readonly chat: IChat }, isShown: () => boolean): ISessionPaneContent {
+		const chats = constObservable([shown.chat]);
+		return {
+			session: shown.session,
+			chat: constObservable(shown.chat),
+			state: {
+				sticky: constObservable(false),
+				tabs: { openChats: chats, closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: chats, shouldShowChatTabs: constObservable(true) },
+				isDetached: true,
+			},
+			close: () => {
+				if (this._disposed || this._ended || !isShown()) {
+					return;
+				}
+				// The chat's own resource while the composer shows its session, which the window knows the chat by.
+				const resource = this._composer.get() ? this.chat.get() : shown.chat.resource;
+				void this._chatHostOpenerService.getOpenerOf(resource)?.close(resource).catch(onUnexpectedError);
 			},
 		};
 	}
 
-	attach(view: SessionView): IDisposable {
-		const store = new DisposableStore();
+	attach(view: ChatEditorContent): IDisposable {
 		this._attachedViews.push(view);
 		this._view.set(view, undefined);
-		store.add(toDisposable(() => {
+		return toDisposable(() => {
 			const index = this._attachedViews.indexOf(view);
 			if (index >= 0) {
 				this._attachedViews.splice(index, 1);
 			}
 			this._view.set(this._attachedViews.at(-1), undefined);
-		}));
-		// The session it shows becomes the active session once its window has focus, and focusing the session focuses
-		// the window, and its chat while the chat shows: focusing it while only the main part shows would not show it.
-		store.add(this._sessionsPartService.registerWindowSessionView(view, {
-			focus: () => {
-				// Its window shows and focuses the chat, also where another editor beside it, as a tab, shows
-				const window = this.window.get();
-				if (window) {
-					window.focus();
-					return;
-				}
-				const targetWindow = getWindow(view.element);
-				focusChatWindowUnlessFocused(targetWindow, () => void this._hostService.focus(targetWindow));
-				view.focus();
-			},
-		}));
-		return store;
+		});
 	}
 
-	setSession(session: IActiveSession): void {
-		this._session.set(session, undefined);
-		if (session.scopedChatResource) {
-			this.chat.set(session.scopedChatResource, undefined);
-		}
-	}
-
-	close(): void {
-		this._onDidEnd.fire();
-	}
-
-	override dispose(): void {
-		this._onWillDispose.fire();
-		super.dispose();
-	}
-
-	/** Whether the chat view of the window has bound to its model: it loaded, or showed that it was loading and is done. */
+	/** Whether the chat view of its editor has bound to its model: it loaded, or showed that it was loading and is done. */
 	private _boundCheck(): () => boolean {
 		let loading = false;
 		return () => {
@@ -437,30 +383,285 @@ class SessionsChatWindowContent extends Disposable implements IChatWindowContent
 			return loading;
 		};
 	}
-
-	/** Stops showing its session in a window, which a window of the same chat may still show, such as after a failed opening. */
-	private _releaseSession(): void {
-		const session = this._session.get();
-		if (session && this._sessionsService.windowSessions.get().includes(session)) {
-			this._sessionsService.closeSession(session);
-		}
-	}
 }
 
 /**
- * Shows the chats of the Agents window in chat windows: a chat beside the window's main part, with its session's header
- * as the window's top row, its Session Activity Bar, and the look of the main window.
+ * What a chat window shows: its chats, each an editor of its chat part, and the host of the window, whose chat is its
+ * active chat, the chat editor last active in it; the window acts on that chat and its session, and binds its keys.
+ */
+export class SessionsChatWindowContent extends Disposable implements IChatWindowContent {
+
+	readonly services: ServiceCollection;
+	readonly window = observableValue<IChatWindow | undefined>(this, undefined);
+
+	private readonly _chats = observableValue<readonly SessionsChatWindowChat[]>(this, []);
+	/** The composers opened in the window, by their resource, until their chat takes them ({@link resolveChat}). */
+	private readonly _pendingComposers = this._register(new DisposableMap<string, ChatWindowComposerModel>());
+	/** The chat of the window's active chat editor, while it shows; the first chat until then. */
+	readonly activeChat: IObservable<SessionsChatWindowChat | undefined>;
+	/** The host of the window: its active chat, and its session. */
+	readonly host: ISessionHost;
+	/** The context of its window's parts, where the window binds the keys of its session. */
+	private _windowContextKeyService: IContextKeyService | undefined;
+
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
+
+	override dispose(): void {
+		this._onWillDispose.fire();
+		super.dispose();
+	}
+
+	/**
+	 * @param _didResolveAs Told when a chat resolves as another one, such as a session as one of its chats, so that a
+	 * stored chat window of it is known to show.
+	 */
+	constructor(
+		private readonly _composers: ChatWindowComposers,
+		private readonly _didResolveAs: (original: URI, canonical: URI) => void,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+		@IChangesViewService private readonly _changesViewService: IChangesViewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionHostService sessionHostService: ISessionHostService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
+	) {
+		super();
+		this.activeChat = derived(this, reader => {
+			const chats = this._chats.read(reader);
+			const active = this.window.read(reader)?.chat.read(reader);
+			return (active && chats.find(chat => isEqual(chat.chat.read(reader), active))) ?? chats[0];
+		});
+		// What the window shows acts on its active chat and its session, not on what the main window shows.
+		this.host = new SessionHost({
+			kind: SessionHostKind.ChatWindow,
+			parent: undefined,
+			session: derived(this, reader => this.activeChat.read(reader)?.session.read(reader)),
+			chat: derived(this, reader => this.activeChat.read(reader)?.shownChat.read(reader)),
+			loadingChat: derived(this, reader => this.activeChat.read(reader)?.chat.read(reader)),
+			windowId: derived(this, reader => this.window.read(reader)?.windowId),
+			contextKeyService: () => this._windowContextKeyService ?? contextKeyService,
+		});
+		this._register(sessionHostService.registerHost(this.host));
+		this.services = new ServiceCollection([ISessionHost, this.host]);
+		this._register(toDisposable(() => this._chats.get().forEach(chat => chat.dispose())));
+	}
+
+	async resolveChat(resource: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined> {
+		const chat = await this._resolveChat(resource, exactChat);
+		const canonical = chat?.chat.get();
+		if (canonical && !isEqual(canonical, resource)) {
+			this._didResolveAs(resource, canonical);
+		}
+		return chat;
+	}
+
+	private async _resolveChat(resource: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined> {
+		if (isChatWindowComposerResource(resource)) {
+			return await this._resolveComposer(resource);
+		}
+		const resolved = resolveChat(this._sessionsManagementService, resource);
+		if (!resolved) {
+			return undefined;
+		}
+		const chatResource = resolved.chat ?? (exactChat ? resolved.session.mainChat.get().resource : shownChatOfSession(this._sessionsService, resolved.session));
+		const existing = this._chats.get().find(candidate => isEqual(candidate.chat.get(), chatResource));
+		if (existing) {
+			return existing;
+		}
+		return this._addChat(chatResource, undefined);
+	}
+
+	/**
+	 * The chat of the composer of `resource`: one it opened, or a stored one, which restores as a composer, or as the main
+	 * chat of the session that a send it had not seen end started.
+	 */
+	private async _resolveComposer(resource: URI): Promise<SessionsChatWindowChat | undefined> {
+		const existing = this._chats.get().find(candidate => isEqual(candidate.chat.get(), resource));
+		if (existing) {
+			return existing;
+		}
+		const opened = this._pendingComposers.deleteAndLeak(resource.toString());
+		if (opened) {
+			return this._addChat(resource, opened);
+		}
+		const restored = await this._composers.restore(resource, this._openStartedSession(resource));
+		if (!restored) {
+			return undefined;
+		}
+		// The window went away while the composer restored
+		if (this._store.isDisposed) {
+			if (restored.kind === 'composer') {
+				restored.composer.dispose();
+			}
+			return undefined;
+		}
+		if (restored.kind === 'composer') {
+			return this._addChat(resource, restored.composer);
+		}
+		const main = restored.session.mainChat.get().resource;
+		return this._chats.get().find(candidate => isEqual(candidate.chat.get(), main)) ?? this._addChat(main, undefined);
+	}
+
+	/** Opens a session that the composer of `resource` started in the background beside it, in its window. */
+	private _openStartedSession(resource: URI): (session: ISession) => Promise<void> {
+		return async started => {
+			await this._chatWindowService.open(started.mainChat.get().resource, { window: this.window.get(), tabOf: resource, exactChat: true });
+		};
+	}
+
+	private _addChat(chatResource: URI, composer: ChatWindowComposerModel | undefined): SessionsChatWindowChat | undefined {
+		if (isChatWindowComposerResource(chatResource) && !composer) {
+			return undefined;
+		}
+		const chat = this._instantiationService.createInstance(SessionsChatWindowChat, this, chatResource, composer);
+		this._chats.set([...this._chats.get(), chat], undefined);
+		// The window owns it while it shows it, and disposes it as it leaves
+		Event.once(chat.onWillDispose)(() => this._chats.set(this._chats.get().filter(candidate => candidate !== chat), undefined));
+		return chat;
+	}
+
+	/**
+	 * Opens a new-session composer as a tab of the window's active chat, in its group, or beside it, which starts its session
+	 * as the active chat's (see {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions
+	 * list the active chat's session is in. While the active chat is a composer that has not sent its session, it shows that
+	 * one instead. The composer's chat becomes its session's main chat once it sends it in the foreground.
+	 */
+	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
+		const active = this.activeChat.get();
+		if (active?.isComposer) {
+			await this._chatWindowService.open(active.chat.get(), { window, preserveFocus: options?.preserveFocus });
+			return;
+		}
+		const session = active?.session.get();
+		const resource = createChatWindowComposerResource();
+		const init: IChatWindowComposerInit = {
+			target: getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
+			groupId: session && this._sessionGroupsService.getGroupOfSession(session.sessionId),
+		};
+		this._pendingComposers.set(resource.toString(), this._composers.create(resource, init, this._openStartedSession(resource)));
+		try {
+			const reference = active?.chat.get();
+			await this._chatWindowService.open(resource, { window, preserveFocus: options?.preserveFocus, ...(options?.beside ? { beside: reference } : { tabOf: reference }) });
+		} finally {
+			// Not taken by a chat, such as when the window went away meanwhile
+			this._pendingComposers.deleteAndDispose(resource.toString());
+		}
+	}
+
+	/** Whether `chat` is one of its new-session composers that has not sent its session. */
+	isUnsentComposer(chat: URI): boolean {
+		return this._chats.get().some(candidate => candidate.isComposer && isEqual(candidate.chat.get(), chat));
+	}
+
+	/**
+	 * Whether it shows `chat`, as one of its chats, while the chat's editor is open in a group: not once the editor closed,
+	 * such as with its window as the window closes, and the window is still going away.
+	 */
+	showsChat(chat: URI): boolean {
+		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat) && this._editorGroupsService.groups.some(group => group.contains(candidate.input, { strictEquals: true })));
+	}
+
+	/** Closes the editor of `chat`, one of its chats; resolves whether it closed, not when its close is vetoed. */
+	async closeChat(chat: URI): Promise<boolean> {
+		const entry = this._chats.get().find(candidate => isEqual(candidate.chat.get(), chat));
+		const group = entry && this._editorGroupsService.groups.find(candidate => candidate.contains(entry.input, { strictEquals: true }));
+		return !!group && await group.closeEditor(entry.input);
+	}
+
+	bind(window: IChatWindow, instantiationService: IInstantiationService): IDisposable {
+		const store = new DisposableStore();
+		this.window.set(window, undefined);
+		store.add(toDisposable(() => this.window.set(undefined, undefined)));
+
+		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
+		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+		// The window's scope provides its host: what applies in session host scopes shows in it.
+		bindSessionHostScopeContext(instantiationService);
+		this._windowContextKeyService = contextKeyService;
+		store.add(toDisposable(() => this._windowContextKeyService = undefined));
+		CustomViewVisibleContext.bindTo(contextKeyService).set(false);
+		// Its Changes editor shows the list of the changed files beside the diffs, in whichever of its parts it shows; the
+		// main window's does not.
+		SessionChangesEditorFileListContext.bindTo(contextKeyService).set(true);
+		// Whether it holds a new session that cannot leave it yet, so that moving its chats to the main window is not offered.
+		const hasUnsentComposer = ChatWindowHasUnsentComposerContext.bindTo(contextKeyService);
+		store.add(autorun(reader => hasUnsentComposer.set(this._chats.read(reader).some(chat => chat.isUnsentComposer.read(reader)))));
+		// Those of its changes too, such as the changeset operations its Changes editor shows.
+		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this.host.session, chat: this.host.chat, isMainWindow: false, changes: this._changesViewService.getSessionChanges(this.host.session, this.host.chat) }, contextKeyService));
+
+		// The tab of its last chat offers no close action while other editors are beside it in its group, as that chat
+		// closes with its window.
+		store.add(this._trackLastChat(window));
+
+		// Its empty groups offer the same Add Tab entries as the main window's.
+		const addTabs = store.add(new DisposableMap<IEditorGroupView>());
+		const add = (group: IEditorGroupView) => addTabs.set(group, this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab));
+		window.mainPart.groups.forEach(group => add(group as IEditorGroupView));
+		store.add(window.mainPart.onDidAddGroup(group => add(group as IEditorGroupView)));
+		store.add(window.mainPart.onDidRemoveGroup(group => addTabs.deleteAndDispose(group as IEditorGroupView)));
+		return store;
+	}
+
+	private _trackLastChat(window: IChatWindow): IDisposable {
+		const store = new DisposableStore();
+		const update = () => {
+			const chats = this._chats.get();
+			for (const chat of chats) {
+				const group = chats.length === 1 ? this._editorGroupsService.groups.find(candidate => candidate.windowId === window.windowId && candidate.contains(chat.input, { strictEquals: true })) : undefined;
+				chat.input.setCannotClose(!!group && group.count > 1);
+			}
+		};
+		const groups = store.add(new DisposableMap<IEditorGroup>());
+		const add = (group: IEditorGroup) => {
+			if (group.windowId === window.windowId) {
+				groups.set(group, group.onDidModelChange(e => {
+					if (e.kind === GroupModelChangeKind.EDITOR_OPEN || e.kind === GroupModelChangeKind.EDITOR_CLOSE) {
+						update();
+					}
+				}));
+			}
+		};
+		this._editorGroupsService.groups.forEach(add);
+		store.add(this._editorGroupsService.onDidAddGroup(add));
+		store.add(this._editorGroupsService.onDidRemoveGroup(group => { groups.deleteAndDispose(group); update(); }));
+		store.add(autorun(reader => { this._chats.read(reader); update(); }));
+		store.add(toDisposable(() => this._chats.get().forEach(chat => chat.input.setCannotClose(false))));
+		return store;
+	}
+}
+
+/** The chat a chat window opened for a session shows: the one the session shows in the grid, else its main chat. */
+function shownChatOfSession(sessionsService: ISessionsService, session: ISession): URI {
+	// The session's own slot, not a detached pane of one of its chats.
+	const shown = sessionsService.slotPanes.get().find(pane => pane.session.get()?.sessionId === session.sessionId);
+	return shown?.chat.get()?.resource ?? session.mainChat.get().resource;
+}
+
+/**
+ * Shows the chats of the Agents window in chat windows: a chat beside the window's main part, with the title bar of the
+ * Agents window as the window's top row, its Session Activity Bar, and the look of the main window.
  */
 export class SessionsChatWindowProvider extends Disposable implements IChatWindowProvider {
 
 	private readonly _contents = observableValue<readonly SessionsChatWindowContent[]>(this, []);
+	/** The composers of its windows, and their background sends, which outlive them. */
+	private readonly _composers: ChatWindowComposers;
+	/** What the chats its windows restore resolved as, when another chat, until the restoration finished. */
+	private readonly _restoredAs = new Map<string, URI>();
+	private _restoreFinished = false;
 
 	readonly restoreEnabled: IObservable<boolean>;
 	readonly onDidRemoveChats: Event<readonly URI[]>;
 	readonly look: IChatWindowLook;
 	readonly chrome: IChatWindowChrome;
-	/** The height of the title rows of chat windows. */
-	private readonly _titleHeight: IObservable<number>;
+	private readonly _compact: IObservable<boolean>;
+	/** The size chosen for the Session Activity Bar, which it shows at in the strip, as in the main window's column. */
+	private readonly _stripSize: IObservable<MenuActivityBarSize>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -473,8 +674,43 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@ITitleService private readonly _titleService: ITitleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+		@IChatHostOpenerService chatHostOpenerService: IChatHostOpenerService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IStorageService storageService: IStorageService,
+		@ISizeService sizeService: ISizeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
+		this._composers = this._register(_instantiationService.createInstance(ChatWindowComposers, resource => this._waitForChat(resource).then(resolved => resolved?.session)));
+		// A stored composer restored once the chat it restored as shows in an open window, not before: opening it can fail.
+		this._register(autorun(reader => {
+			for (const window of this._chatWindowService.windows.read(reader)) {
+				this._composers.didOpen(window.openedChats.read(reader));
+			}
+		}));
+
+		// Opening a chat that a chat window shows reveals it there, and a chat opened beside one it shows opens beside it.
+		this._register(chatHostOpenerService.register({
+			showsChat: chat => this._contents.get().some(content => content.showsChat(chat)),
+			reveal: async (chat, options) => { await this._chatWindowService.open(chat, { preserveFocus: options?.preserveFocus }); },
+			openBeside: async (chat, reference, options) => {
+				const window = this._chatWindowService.windows.get().find(candidate => candidate.chats.get().some(shown => isEqual(shown, reference)));
+				await this._chatWindowService.open(chat, { window, beside: reference, preserveFocus: options?.preserveFocus });
+			},
+			close: async chat => {
+				const content = this._contents.get().find(candidate => candidate.showsChat(chat));
+				if (!content) {
+					return undefined;
+				}
+				// The window it closed from, which only what closed it holds on to, to show it there again
+				const window = content.window.get();
+				if (!await content.closeChat(chat)) {
+					return undefined;
+				}
+				return { restore: async () => { await this._chatWindowService.open(chat, { window, preserveFocus: true }); } };
+			},
+		}));
 
 		const enabled = observableConfigValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING, false, _configurationService);
 		this.restoreEnabled = derived(this, reader => enabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
@@ -482,12 +718,14 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 
 		const density = observableConfigValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default, _configurationService);
 		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, _configurationService);
-		const tabHeight = observableConfigValue<string | undefined>('workbench.editor.tabHeight', undefined, _configurationService);
-		this._titleHeight = derived(this, reader => getChatWindowTitleHeight(tabHeight.read(reader) === 'compact', density.read(reader) !== ModernUIDensity.Compact));
+		this._compact = derived(this, reader => density.read(reader) === ModernUIDensity.Compact);
+		this._stripSize = observeSessionActivityBarSize(this, storageService, this._register(new DisposableStore()));
+		const spacing = observableFromEvent(this, Event.any(sizeService.onDidChangeSizes, themeService.onDidColorThemeChange),
+			() => sizeService.getSize(agentsPanelsSpacing, themeService.getColorTheme())!.value);
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
-			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
-			// The cards keep the gap to the edges of the window as the main window's do; the title row is at the top.
+			gap: derived(reader => this._compact.read(reader) ? 0 : spacing.read(reader)),
+			// The cards keep the gap to the edges of the window as the main window's do; the title row spans the window at the top.
 			outerInsets: derived(reader => {
 				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
 				return { top: 0, right: gap, bottom: gap, left: gap };
@@ -499,54 +737,89 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		};
 		this.chrome = {
 			createTitleRow: (window, container, instantiationService) => this._createTitleRow(window, container, instantiationService),
-			createStrip: (window, container) => this._createStrip(window, container),
+			createStrip: (_window, container) => this._createStrip(container),
 		};
 
-		// A chat window shows its session for as long as the session shows in a window, and its chat for as long as the
-		// chat exists and is not archived: closing the session, deleting or archiving the chat closes the window.
-		this._register(followReplacedWindowSessions(this._contents, this._sessionsService.windowSessions));
-		this._register(closeChatWindowsOfGoneChats(this._contents));
 	}
 
-	async resolveContent(resource: URI): Promise<IChatWindowContent | undefined> {
-		const resolved = resolveChat(this._sessionsManagementService, resource);
-		if (!resolved) {
+	async resolveContent(resource: URI): Promise<SessionsChatWindowContent | undefined> {
+		if (isChatWindowComposerResource(resource) ? !this._composers.hasStored(resource) : !resolveChat(this._sessionsManagementService, resource)) {
 			return undefined;
 		}
-		const { session } = resolved;
-		// The chat the window shows, as `ISessionsService.showSessionInWindow` picks it: the one asked for, else the one the
-		// session shows in the grid, else its main chat.
-		const shown = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-		const chat = resolved.chat ?? shown?.activeChat.get().resource ?? session.mainChat.get().resource;
-		const content = this._instantiationService.createInstance(SessionsChatWindowContent, session, chat, (window, windowContent, container, instantiationService, overChat) => this._createTitle(window, windowContent, container, instantiationService, overChat));
+		const content = this._instantiationService.createInstance(SessionsChatWindowContent, this._composers, (original: URI, canonical: URI) => {
+			if (!this._restoreFinished) {
+				this._restoredAs.set(original.toString(), canonical);
+			}
+		});
 		this._contents.set([...this._contents.get(), content], undefined);
 		Event.once(content.onWillDispose)(() => this._contents.set(this._contents.get().filter(candidate => candidate !== content), undefined));
 		return content;
 	}
 
-	async moveToMainWindow(chat: URI, editors: IChatWindowEditors): Promise<void> {
-		const resolved = resolveChat(this._sessionsManagementService, chat);
-		if (!resolved) {
+	async moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void> {
+		const moved = chats.map(chat => resolveChat(this._sessionsManagementService, chat)).filter(resolved => !!resolved)
+			.map(resolved => ({ session: resolved.session, chatResource: resolved.chat ?? resolved.session.mainChat.get().resource }));
+		const first = moved[0];
+		if (!first) {
 			return;
 		}
-		const { session } = resolved;
-		await (resolved.chat ? this._sessionsService.openChat(session, resolved.chat) : this._sessionsService.openSession(session.resource));
+		await this._sessionsService.openMovedChats(moved);
 		const inputs = editors.editors ?? [];
 		if (!inputs.length) {
 			return;
 		}
-		// Once the main window is laid out for the session: laying it out restores the session's last editors, which would replace these.
-		await waitForState(this._sessionsService.mainWindowActiveSession, active => active?.sessionId === session.sessionId);
-		await timeout(0);
-		await waitForState(this._editorWorkingSetService.restoreState, restoreState => !restoreState.restoring);
+		// Once the main window is laid out for the session of its active chat, if it is: laying it out restores the
+		// session's last editors, which would replace these.
+		if (getMainWindowHost(this._sessionHostService).session.get()?.sessionId === first.session.sessionId) {
+			await timeout(0);
+			await waitForState(this._editorWorkingSetService.restoreState, restoreState => !restoreState.restoring);
+		}
 		const active = editors.activeEditor ?? inputs.at(-1);
 		this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 		await this._editorService.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })), this._editorGroupsService.mainPart.activeGroup);
 	}
 
+	moveVeto(chats: readonly URI[]): string | undefined {
+		const unsent = this._contents.get().some(content => chats.some(chat => content.isUnsentComposer(chat)));
+		return unsent ? getUnsentComposerMoveReason() : undefined;
+	}
+
+	didFinishRestore(claimed: readonly URI[]): void {
+		this._composers.didFinishRestore(claimed);
+		// The restoration knows what its stored chats opened as from now on: nothing else needs it.
+		this._restoreFinished = true;
+		this._restoredAs.clear();
+	}
+
+	canonicalChatOf(original: URI): URI | undefined {
+		// What it resolved as, while restoring
+		const resolved = this._restoredAs.get(original.toString());
+		if (resolved) {
+			return resolved;
+		}
+		// What it would resolve as now, from what is known: a stored composer as the session its send started, once that is
+		// known and created, a session as its main chat.
+		if (isChatWindowComposerResource(original)) {
+			const sent = this._composers.storedAttemptSessionOf(original);
+			const session = sent && this._sessionsManagementService.getSession(sent);
+			return session && isSessionCreated(session) ? session.mainChat.get().resource : undefined;
+		}
+		const chat = resolveChat(this._sessionsManagementService, original);
+		return chat && !chat.chat ? chat.session.mainChat.get().resource : undefined;
+	}
+
+	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openNewChat} does. */
+	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
+		const content = this._contents.get().find(candidate => candidate.window.get() === window);
+		await content?.openNewChat(window, options);
+	}
+
 	async canRestore(resource: URI): Promise<boolean> {
 		// After the main window restored the sessions it shows, and their editors, so that these are not shown there again.
 		await waitForState(this._sessionsService.initialRestoreComplete);
+		if (isChatWindowComposerResource(resource)) {
+			return this._composers.hasStored(resource);
+		}
 		const resolved = await this._waitForChat(resource);
 		if (!resolved) {
 			return false;
@@ -579,112 +852,41 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		}
 	}
 
-	private _contentOf(window: IChatWindow): SessionsChatWindowContent | undefined {
-		return this._contents.get().find(content => content.window.get() === window);
-	}
-
 	/**
-	 * The title row of the window: across its top, while the view does not show its own (see
-	 * {@link SessionsChatWindowContent.showsTitle}). Only with a custom title bar.
+	 * The title row of the window: the title bar of the Agents window, as the main window has it, across the top of the
+	 * window in every layout, with its command center, its actions and the window controls. It acts on the window's active
+	 * chat and its session, through the window's services.
 	 */
-	private _createTitleRow(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined {
-		const content = this._contentOf(window);
-		const title = content && this._createTitle(window, content, container, instantiationService, false);
-		if (!content || !title) {
-			return undefined;
-		}
-		content.windowHeader.set(title.header, undefined);
+	private _createTitleRow(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement {
+		const titlebar = this._titleService.createAuxiliaryTitlebarPart(container, window.mainPart, instantiationService);
 		return {
-			visible: derived(reader => !content.showsTitle.read(reader)),
-			size: title.size,
-			layout: (width, height) => title.layout(width, height),
-			dispose: () => {
-				if (content.windowHeader.get() === title.header) {
-					content.windowHeader.set(undefined, undefined);
-				}
-				title.dispose();
-			},
+			visible: constObservable(true),
+			size: observableFromEvent(this, titlebar.onDidChange, () => titlebar.height),
+			layout: (width, height) => titlebar.layout(width, height, 0, 0),
+			dispose: () => titlebar.dispose(),
 		};
 	}
 
 	/**
-	 * A title row of a chat window: the title bar, as other windows of the Agents window have one, which shows the session
-	 * header in place of the title of the chat. The title row of the window, or, `overChat`, the view's own, over the chat
-	 * only: the window controls at the right then stay at the top right of the window while the main part is beside it.
-	 * As tall as the row of tabs of the main part, from the first frame, in every layout. Only with a custom title bar.
+	 * The strip: the column the Session Activity Bar of the chat shows in, at the right of the window in every layout, as
+	 * the main window's column is, at the size chosen for it as in that column. Not with the classes of the main window's column, whose rules
+	 * follow the state of the main window, which the workbench element of a chat window mirrors the classes of.
 	 */
-	private _createTitle(window: IChatWindow, content: SessionsChatWindowContent, container: HTMLElement, instantiationService: IInstantiationService, overChat: boolean): IChatWindowTitle | undefined {
-		if (!isNative || !hasCustomTitlebar(this._configurationService)) {
-			return undefined;
-		}
-		const store = new DisposableStore();
-		const titlebar = store.add(this._titleService.createAuxiliaryTitlebarPart(container, window.mainPart, instantiationService));
-		const size = observableFromEvent(this, titlebar.onDidChange, () => titlebar.height);
-		let header: ISessionChatViewHeaderHost | undefined;
-		if (titlebar instanceof TitlebarPart) {
-			store.add(autorun(reader => titlebar.setHeight(this._titleHeight.read(reader))));
-			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
-			if (overChat) {
-				store.add(autorun(reader => {
-					titlebar.element.classList.toggle(CHAT_COLUMN_TITLE_CLASS, window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide);
-					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);
-				}));
-				// From the element it is in, which stays in the window as the title bar goes.
-				store.add(toDisposable(() => reserveChatWindowControls(container, undefined)));
-			}
-			header = {
-				element: titlebar.getSessionHeaderHost(),
-				actionsElement: titlebar.getSessionHeaderActionsHost(),
-				setShown: shown => titlebar.setHostsSessionHeader(shown),
-			};
-		}
-		return {
-			element: titlebar.element,
-			size,
-			header,
-			layout: (width, height) => {
-				// Not while it does not show: laid out without height, it would move the window controls out of the title row that shows.
-				if (height <= 0) {
-					return;
-				}
-				if (titlebar instanceof TitlebarPart) {
-					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());
-				}
-				titlebar.layout(width, height, 0, 0);
-				if (overChat && titlebar instanceof TitlebarPart) {
-					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);
-				}
-			},
-			dispose: () => store.dispose(),
-		};
-	}
-
-	/**
-	 * The strip: the column the Session Activity Bar of the chat shows in while the chat is below the main part or hidden;
-	 * beside the chat otherwise, as in the main window.
-	 */
-	private _createStrip(window: IChatWindow, container: HTMLElement): IChatWindowChromeElement {
-		const height = observableValue<number>(this, 0);
+	private _createStrip(container: HTMLElement): IChatWindowChromeElement {
+		container.classList.add('session-activity-bar-host');
+		const editorTabStyle = observableConfigValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected, this._configurationService);
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
-			active: derived(reader => isChatWindowStripInColumn(window.layoutMode.read(reader))),
-			height,
+			active: constObservable(true),
+			fullSize: true,
 			setOccupied: () => { },
 		});
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
-			// Its column, the gap to the parts beside it included, as the grid adds the half of the gap beside its card.
-			size: derived(reader => SESSION_ACTIVITY_BAR_COLUMN_WIDTH - Math.floor(this.look.gap.read(reader) / 2)),
-			layout: (_width, columnHeight) => height.set(columnHeight, undefined),
+			// Right beside the cards, the gap to them in the column, as in the main window's column; see the grid.
+			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader), this.look.gap.read(reader), editorTabStyle.read(reader) === ModernUIEditorTabStyle.Connected)),
+			layout: () => { },
 			dispose: () => registration.dispose(),
 		};
 	}
-}
-
-/**
- * The height of the title rows of chat windows: that of the row of tabs of an editor part, with `compactTabs` or not,
- * and, with `cards`, the frame of the card the tabs are in, so that a title row lines up with the tabs beside it.
- */
-export function getChatWindowTitleHeight(compactTabs: boolean, cards: boolean): number {
-	return EditorTabsControl.getModernUITabRowHeight(compactTabs) + (cards ? CARD_FRAME_WIDTH : 0);
 }

@@ -32,18 +32,36 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ITextModel, TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { TestCodeEditorService } from '../../../../../../editor/test/browser/editorTestServices.js';
+import { createTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
+import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
+import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { IChatVariablesService, type IDynamicVariable } from '../../../common/attachments/chatVariables.js';
+import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
+import { ChatRequestDynamicVariablePart } from '../../../common/requestParser/chatParserTypes.js';
+import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpr, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TERMINAL_AUTO_APPROVE_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { permissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
-import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -54,7 +72,6 @@ import { type IProtocolTransport } from '../../../../../../platform/agentHost/co
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
-import { ICanvas } from '../../../../canvases/common/canvas.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
@@ -78,8 +95,8 @@ import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, Notifica
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type CreateChatParams, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -96,7 +113,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatPlanReviewResult, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
@@ -114,7 +131,7 @@ import { ICopilotHomeService } from '../../../../../../platform/environment/comm
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, type IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostFirstResponseEvent } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
@@ -138,6 +155,7 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -165,13 +183,12 @@ import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { toAgentHostClientCustomization } from '../../../common/agentHostSessionCustomizations.js';
 import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
 import { IAgentHostMcpAppToolsService } from '../../../browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -182,11 +199,13 @@ import { ChatModel, ChatResponseModel, IntendedModelSlot, Response, reviveSerial
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { INLINE_ATTACHMENT_ANCHOR, projectInlineAttachments } from '../../../common/attachments/chatInlineAttachments.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { ICanvas } from '../../../../../common/canvasReference.js';
 
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
@@ -455,7 +474,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					title: this.nextCreatedChatTitle ?? 'Generated fork title',
 					status: SessionStatus.Idle,
 					modifiedAt: new Date().toISOString(),
-					origin: { kind: ChatOriginKind.User },
+					origin: options?.sideChat
+						? { kind: ChatOriginKind.SideChat, chat: options.sideChat.source.toString(), turnId: options.sideChat.turnId, ...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}) }
+						: { kind: ChatOriginKind.User },
 				},
 			},
 			serverSeq: this._nextSeq++,
@@ -1167,6 +1188,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			this.syncPendingRequestsFromRemoteCalls.push({ sessionResource, requests });
 			this.applyRemotePendingRequests?.(sessionResource, requests);
 		},
+		modelHolds: [] as { sessionResource: string; owner: string | undefined; released: boolean }[],
+		acquireExistingSession(sessionResource: URI, debugOwner?: string) {
+			const hold = { sessionResource: sessionResource.toString(), owner: debugOwner, released: false };
+			this.modelHolds.push(hold);
+			return { object: chatModels.get(sessionResource.toString()) ?? upcastPartial<IChatModel>({ sessionResource }), dispose: () => { hold.released = true; } };
+		},
 	};
 	instantiationService.stub(IChatService, chatService);
 	instantiationService.stub(IAgentHostFileSystemService, {
@@ -1648,6 +1675,40 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(chatAgentService.registeredAgents.get('agent-host-copilot')?.data.modes, [ChatModeKind.Agent, ChatModeKind.Ask]);
 		});
 
+		test('hides unsupported local harnesses in virtual editor workspaces only', () => {
+			const results = [];
+			for (const { isSessionsWindow, remoteAuthority } of [
+				{ isSessionsWindow: false, remoteAuthority: undefined },
+				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test' },
+				{ isSessionsWindow: true, remoteAuthority: undefined },
+			]) {
+				const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow, remoteAuthority });
+				instantiationService.stub(ICustomizationHarnessService, {
+					activeSessionResource: constObservable(URI.parse('agent-host-copilotcli:/session')),
+					registerExternalHarness: () => toDisposable(() => { }),
+				});
+				agentHostService.setRootState({
+					agents: ['copilotcli', 'claude', 'codex'].map(provider => ({ provider, displayName: provider, description: 'test', models: [] })),
+					activeSessions: 0,
+				});
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				const context = new Context(0, null);
+				const visible = ['', 'vscode-vfs'].map(scheme => {
+					context.setValue(VirtualWorkspaceContext.key, scheme);
+					return chatSessionContributions.filter(contribution => !contribution.when || ContextKeyExpr.deserialize(contribution.when)?.evaluate(context))
+						.map(contribution => contribution.type);
+				});
+				results.push({ isSessionsWindow, remoteAuthority, visible });
+			}
+			const all = ['agent-host-copilotcli', 'agent-host-claude', 'agent-host-codex'];
+			assert.deepStrictEqual(results, [
+				{ isSessionsWindow: false, remoteAuthority: undefined, visible: [all, ['agent-host-copilotcli']] },
+				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test', visible: [all, all] },
+				{ isSessionsWindow: true, remoteAuthority: undefined, visible: [all, all] },
+			]);
+		});
+
 		test('offers plugin source installation only when the management API supports it', () => {
 			const results = [];
 			for (const supported of [false, true]) {
@@ -1844,7 +1905,7 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('wire-to-feature', () => {
-		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; resourceUris?: IAgentHostResourceUriMapper }) {
+		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; resourceUris?: IAgentHostResourceUriMapper; agents?: AgentInfo[]; initializeMeta?: Record<string, unknown> }) {
 			const { instantiationService, chatAgentService, modelService, chatService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
 			instantiationService.get(IChatEntitlementService).acceptQuotas = quotas => { quotaUpdates.push(quotas); };
@@ -1872,7 +1933,7 @@ suite('AgentHostChatContribution', () => {
 			const connecting = client.connect();
 			peer.deliver({
 				jsonrpc: '2.0', id: (await initializeRequest).id,
-				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [], activeSessions: 1 } }] },
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: options?.initializeMeta, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: options?.agents ?? [], activeSessions: 1 } }] },
 			});
 			await connecting;
 
@@ -1940,8 +2001,255 @@ suite('AgentHostChatContribution', () => {
 					},
 				};
 			};
-			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, implicitReadGrants, instantiationService, chatService };
+			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, implicitReadGrants, instantiationService, chatService, chatAgentService };
 		}
+
+		for (const active of [false, true]) {
+			test(`isolated side chats preserve the ${active ? 'active' : 'last completed'} source model through the protocol and target draft`, async () => {
+				const modelConfiguration = { thinking: 'high', contextSize: 200000 };
+				const sourceMessage: Message = {
+					text: 'Unrelated parent request',
+					origin: { kind: MessageKind.User },
+					model: { id: 'source-model', config: modelConfiguration },
+					agent: { uri: 'agent://reviewer' },
+				};
+				const harness = await openWireSession({
+					agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [], capabilities: { multipleChats: { sideChat: true } } }],
+					initializeMeta: { 'vscode.sideChatWithoutContext': true },
+					languageModels: new Map([['agent-host-copilot:source-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'source-model', vendor: 'agent-host-copilot', name: 'Source Model' })]]),
+					chat: {
+						draft: sourceMessage,
+						...(active
+							? { activeTurn: { id: 'source-turn', startedAt: '2026-09-30T12:00:00.000Z', message: sourceMessage, responseParts: [], usage: undefined } }
+							: { turns: [{ id: 'source-turn', state: TurnState.Complete, message: sourceMessage, responseParts: [], usage: undefined }] }),
+					},
+				});
+				const drafts: DispatchActionParams[] = [];
+				disposables.add(harness.peer.onDispatch(sent => {
+					if (sent.action.type === ActionType.ChatDraftChanged) {
+						drafts.push(sent);
+					}
+				}));
+				assert.ok(harness.chatSession.createSideChat);
+				const createRequest = harness.peer.nextRequest('createChat');
+				const creating = harness.chatSession.createSideChat('source-turn', CancellationToken.None, undefined, false);
+				const request = await createRequest;
+				const params = request.params as CreateChatParams;
+				assert.ok(typeof params.chat === 'string');
+				const chatUri = params.chat;
+				const summary = {
+					resource: chatUri, title: 'Side Chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z',
+					origin: { kind: ChatOriginKind.SideChat, chat: harness.chatUri, turnId: 'source-turn' } as const,
+				};
+				harness.fire({ type: ActionType.SessionChatAdded, summary }, harness.backendSession.toString());
+				harness.peer.deliver({ jsonrpc: '2.0', id: request.id, result: null });
+				const target = await creating;
+				const sentDraft = drafts.find(sent => sent.channel === chatUri);
+				assert.ok(sentDraft?.action.type === ActionType.ChatDraftChanged, 'The target needs a model-bearing draft before it opens');
+				const draft = sentDraft.action.draft;
+				harness.echo(sentDraft);
+
+				const subscribe = harness.peer.nextRequest('subscribe');
+				const opening = harness.handler.provideChatSessionContent(target.resource, CancellationToken.None);
+				harness.peer.deliver({
+					jsonrpc: '2.0', id: (await subscribe).id,
+					result: { snapshot: { resource: chatUri, fromSeq: 2, state: { ...createChatState(summary), draft } } },
+				});
+				const targetSession = disposables.add(await opening);
+				const inputState = targetSession.transferredState?.inputState;
+				const restoredInput = inputState ? reviveSerializableInputState(inputState) : undefined;
+
+				assert.deepStrictEqual({
+					createParams: request.params,
+					draft,
+					inputText: inputState?.inputText,
+					attachments: inputState?.attachments,
+					model: restoredInput?.selectedModel?.identifier,
+					modelConfiguration: restoredInput?.modelConfiguration,
+					history: targetSession.history,
+				}, {
+					createParams: {
+						channel: harness.backendSession.toString(), chat: chatUri,
+						source: { kind: 'sideChat', chat: harness.chatUri, turnId: 'source-turn' },
+						_meta: { 'vscode.sideChatWithoutContext': true },
+					},
+					draft: { text: '', origin: { kind: MessageKind.User }, model: sourceMessage.model, agent: sourceMessage.agent },
+					inputText: '',
+					attachments: [],
+					model: 'agent-host-copilot:source-model',
+					modelConfiguration,
+					history: [],
+				});
+			});
+		}
+
+		suite('checkpoint truncation', () => {
+			async function openRestoredSession(keepFirstTurn: boolean) {
+				const turns = ['turn-1', 'turn-2', 'turn-3'].map(id => ({
+					id, message: { text: id, origin: { kind: MessageKind.User } },
+					responseParts: [], usage: undefined, state: TurnState.Complete,
+				}));
+				const context = await openWireSession({ chat: { turns } });
+				const controller = disposables.add(new AgentHostSnapshotController(context.sessionResource, context.client, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
+				for (const turn of turns) {
+					controller.ensureRequestCheckpoint(turn.id);
+				}
+				await controller.restoreSnapshot(turns[keepFirstTurn ? 1 : 0].id, undefined);
+				const disabled = new Set(controller.requestDisablement.get().map(request => request.requestId));
+				// ChatService removes disabled requests before invoking the agent with the new request.
+				const requests = [...turns.filter(turn => !disabled.has(turn.id)), { id: 'replacement' }]
+					.map(request => upcastPartial<ChatRequestModel>({ id: request.id }));
+				context.chatService.setSession(context.sessionResource, upcastPartial<IChatModel>({
+					sessionResource: context.sessionResource, editingSession: controller,
+					getRequests: () => requests, getPendingRequests: () => [], onDidChangePendingRequests: Event.None,
+				}));
+				const registered = context.chatAgentService.registeredAgents.get('agent-host-copilot');
+				assert.ok(registered);
+				const dispatched: DispatchActionParams[] = [];
+				disposables.add(context.peer.onDispatch(action => {
+					if (action.action.type === ActionType.ChatTruncated || action.action.type === ActionType.ChatTurnStarted) {
+						dispatched.push(action);
+					}
+				}));
+				return {
+					...context, dispatched, requests,
+					invoke: (token = CancellationToken.None, requestId = 'replacement') => registered.impl.invoke(makeRequest({
+						sessionResource: context.sessionResource, requestId,
+					}), () => { }, [], token),
+					turnIds: () => {
+						const state = context.client.getSubscriptionUnmanaged<ChatState>(StateComponents.Chat, URI.parse(context.chatUri))?.verifiedValue;
+						assert.ok(state && !(state instanceof Error));
+						return state.turns.map(turn => turn.id);
+					},
+				};
+			}
+
+			for (const keepFirstTurn of [false, true]) {
+				for (const synchronous of [false, true]) {
+					test(`waits for authoritative history truncation before sending the replacement (keep first: ${keepFirstTurn}, synchronous: ${synchronous})`, async () => {
+						const context = await openRestoredSession(keepFirstTurn);
+						if (synchronous) {
+							disposables.add(context.peer.onDispatch(sent => {
+								if (sent.action.type === ActionType.ChatTruncated) {
+									context.echo(sent);
+								}
+							}));
+						}
+						const truncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+						const starting = context.peer.nextDispatch(ActionType.ChatTurnStarted);
+						const result = context.invoke();
+						const truncated = await truncating;
+						if (!synchronous) {
+							await timeout(0);
+							assert.deepStrictEqual(context.dispatched.map(({ channel, action }) => ({ channel, action })), [{
+								channel: context.chatUri,
+								action: { type: ActionType.ChatTruncated, ...(keepFirstTurn ? { turnId: 'turn-1' } : {}) },
+							}]);
+							context.echo({ ...truncated, clientSeq: truncated.clientSeq + 100 }, 'Unrelated rejection');
+							await timeout(0);
+							assert.strictEqual(context.dispatched.length, 1);
+							context.echo(truncated);
+						}
+						const started = await starting;
+						context.echo(started);
+						context.fire(chatTurnComplete('replacement', 1));
+						await result;
+						assert.deepStrictEqual(context.turnIds(), [...(keepFirstTurn ? ['turn-1'] : []), 'replacement']);
+					});
+				}
+
+				for (const synchronous of [false, true]) {
+					test(`a refused truncation surfaces the reason without sending against stale history (keep first: ${keepFirstTurn}, synchronous: ${synchronous})`, async () => {
+						const context = await openRestoredSession(keepFirstTurn);
+						const reason = 'The runtime could not truncate its history.';
+						if (synchronous) {
+							disposables.add(context.peer.onDispatch(sent => {
+								if (sent.action.type === ActionType.ChatTruncated) {
+									context.echo(sent, reason);
+								}
+							}));
+						}
+						const truncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+						const rejected = assert.rejects(context.invoke(), { message: `Chat history could not be restored: ${reason}` });
+						const truncated = await truncating;
+						if (!synchronous) {
+							context.echo(truncated, reason);
+						}
+						await rejected;
+						assert.deepStrictEqual({
+							actions: context.dispatched.map(sent => sent.action.type),
+							turns: context.turnIds(),
+						}, {
+							actions: [ActionType.ChatTruncated],
+							turns: ['turn-1', 'turn-2', 'turn-3'],
+						});
+					});
+				}
+
+				test(`retries a refused truncation before sending another request (keep first: ${keepFirstTurn})`, async () => {
+					const context = await openRestoredSession(keepFirstTurn);
+					const truncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+					const rejected = assert.rejects(context.invoke(), /Chat history could not be restored/);
+					context.echo(await truncating, 'Retry the history operation');
+					await rejected;
+					context.requests.push(upcastPartial<ChatRequestModel>({ id: 'retry' }));
+					const result = context.invoke(CancellationToken.None, 'retry');
+					await timeout(0);
+					assert.deepStrictEqual(context.dispatched.map(sent => sent.action), [
+						{ type: ActionType.ChatTruncated, ...(keepFirstTurn ? { turnId: 'turn-1' } : {}) },
+						{ type: ActionType.ChatTruncated, ...(keepFirstTurn ? { turnId: 'turn-1' } : {}) },
+					]);
+					const starting = context.peer.nextDispatch(ActionType.ChatTurnStarted);
+					context.echo(context.dispatched[1]);
+					context.echo(await starting);
+					context.fire(chatTurnComplete('retry', 1));
+					await result;
+					assert.deepStrictEqual(context.turnIds(), [...(keepFirstTurn ? ['turn-1'] : []), 'retry']);
+				});
+			}
+
+			test('a cancelled wait cannot let a retry use optimistically truncated history', async () => {
+				const context = await openRestoredSession(true);
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const truncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+				const cancelled = assert.rejects(context.invoke(cancellation.token), isCancellationError);
+				const original = await truncating;
+				cancellation.cancel();
+				await cancelled;
+				context.requests.push(upcastPartial<ChatRequestModel>({ id: 'retry' }));
+				const retryTruncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+				const starting = context.peer.nextDispatch(ActionType.ChatTurnStarted);
+				const result = context.invoke(CancellationToken.None, 'retry');
+				const retry = await retryTruncating;
+				context.echo(original);
+				await timeout(0);
+				assert.deepStrictEqual(context.dispatched.map(sent => sent.action.type), [ActionType.ChatTruncated, ActionType.ChatTruncated]);
+				context.echo(retry);
+				context.echo(await starting);
+				context.fire(chatTurnComplete('retry', 1));
+				await result;
+				assert.deepStrictEqual(context.turnIds(), ['turn-1', 'retry']);
+			});
+
+			for (const interruption of ['cancel', 'dispose', 'disconnect'] as const) {
+				test(`does not send a replacement after ${interruption} while truncation is pending`, async () => {
+					const context = await openRestoredSession(true);
+					const cancellation = disposables.add(new CancellationTokenSource());
+					const truncating = context.peer.nextDispatch(ActionType.ChatTruncated);
+					const rejected = assert.rejects(context.invoke(cancellation.token), interruption === 'disconnect' ? /connection|transport/i : isCancellationError);
+					await truncating;
+					if (interruption === 'cancel') {
+						cancellation.cancel();
+					} else if (interruption === 'dispose') {
+						context.handler.dispose();
+					} else {
+						context.client.dispose();
+					}
+					await rejected;
+					assert.deepStrictEqual(context.dispatched.map(sent => sent.action.type), [ActionType.ChatTruncated]);
+				});
+			}
+		});
 
 		for (const synchronous of [false, true]) {
 			test(`rejected turn starts surface the reason and settle without a host turn (synchronous: ${synchronous})`, async () => {
@@ -2270,6 +2578,55 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		test('a running command asked for approval again shows where it runs, and the answer is sent back as before', async () => {
+			const { startRequest, fire, peer, echo } = await openWireSession();
+			const { turnId, progress, finish } = await startRequest();
+			const terminal = { toolKind: 'terminal' };
+			const observed = [];
+			for (const [toolCallId, workingDirectory, approved] of [['web', '/work/web', true], ['api', '/work/api', false]] as const) {
+				// The same relative command, started and then asked for approval as Codex does.
+				fire(chatToolCallStart(turnId, toolCallId, 'shell', 'Run shell command', { _meta: terminal }));
+				fire(chatToolCallReady(turnId, toolCallId, './test.sh', { toolInput: './test.sh', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: terminal }));
+				fire(chatToolCallReady(turnId, toolCallId, './test.sh', {
+					toolInput: './test.sh', confirmationTitle: 'Run the tests',
+					_meta: { ...terminal, 'vscode.terminalWorkingDirectory': workingDirectory },
+				}));
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === toolCallId);
+				assert.ok(invocation);
+				const data = invocation.toolSpecificData;
+				const state = invocation.state.get().type;
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, approved ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied, source: 'user' });
+				const sent = await confirmation;
+				echo(sent);
+				fire(chatToolCallComplete(turnId, toolCallId, { success: approved, pastTenseMessage: 'Ran ./test.sh', content: [] }));
+				observed.push({
+					state,
+					executionTarget: data?.kind === 'terminal' && hasKey(data, { commandLine: true }) ? data.executionTarget : undefined,
+					sent: sent.action,
+				});
+			}
+			await finish();
+			assert.deepStrictEqual(observed, [
+				{
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					executionTarget: { workingDirectory: '/work/web' },
+					sent: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'web', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+						_meta: { ...terminal, 'vscode.terminalWorkingDirectory': '/work/web', 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				},
+				{
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					executionTarget: { workingDirectory: '/work/api' },
+					sent: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'api', approved: false, reason: ToolCallCancellationReason.Denied,
+						_meta: { ...terminal, 'vscode.terminalWorkingDirectory': '/work/api', 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				},
+			]);
+		});
+
 		const appToolCases = [
 			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
 			{ name: 'glob', args: { pattern: '*.ts' }, kind: 'search', running: 'Searching `*.ts`', completed: 'Searched `*.ts`' },
@@ -2518,6 +2875,40 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		});
 		for (const kind of agentHostConnectionKinds) {
+			test(`sends accepted symbol completions with source text and ranges (${kind.name})`, async () => {
+				const { startRequest, modelService } = await openWireSession({ resourceUris: kind.resourceUris });
+				const hostUri = URI.file('/workspace/file.ts');
+				const uri = kind.toClient(hostUri);
+				const symbolRange = new Range(2, 1, 2, 9);
+				modelService.setModelContent(uri, 'first\ncaptured\nlast');
+				const part = new ChatRequestDynamicVariablePart(
+					new OffsetRange(8, 16), new Range(1, 9, 1, 17), '#sym:run',
+					`vscode.symbol/${JSON.stringify({ uri, range: symbolRange })}`, undefined,
+					{ uri, range: symbolRange }, 'run',
+				);
+				const { sent, finish } = await startRequest({
+					message: 'explain #sym:run',
+					variables: { variables: [part.toVariableEntry()] },
+				});
+				assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+				await finish();
+
+				assert.deepStrictEqual(sent.action.message.attachments, [{
+					type: MessageAttachmentKind.Resource,
+					label: 'run',
+					uri: hostUri.toString(),
+					displayKind: 'selection',
+					range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } },
+					selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } } },
+					_meta: {
+						'copilot.attachmentDetail': {
+							type: 'selection', filePath: hostUri.fsPath, text: 'captured', displayName: 'run',
+							selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
+						},
+					},
+				}]);
+			});
+
 			test(`resource attachments and reverse-read grants use the same sent URI (${kind.name})`, async () => {
 				const resourceUris = kind.resourceUris;
 				const { startRequest, implicitReadGrants } = await openWireSession({ resourceUris });
@@ -2759,6 +3150,34 @@ suite('AgentHostChatContribution', () => {
 				link: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
 				peerLink: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
 			});
+		});
+
+		test('maps virtual workspace SDK path links back to the workspace resource', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'virtual-links');
+			const defaultChat = 'host-chat:/virtual-main';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Virtual', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				workingDirectories: ['vscode-vfs://github/microsoft/vscode?ref=main'],
+			};
+			const main = createDefaultChatSummary(summary, defaultChat);
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main] });
+			agentHostService.chatStates.set(defaultChat, createChatState(main));
+			const resource = URI.parse('agent-host-copilot:/virtual-links');
+			disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+
+			assert.deepStrictEqual([
+				'/vscode-vfs/github/microsoft/vscode/src/a.ts',
+				'/vscode-vfs/github/microsoft/vscode/src/a.ts:42',
+				'/elsewhere/a.ts',
+				'file:///C:/Users/me/plan.md',
+			].map(href => sessionHandler.resolveChatResponseUri(resource, href, 'link')), [
+				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts?ref=main').toString(),
+				URI.parse('vscode-vfs://github/microsoft/vscode/src/a.ts?ref=main').with({ fragment: 'L42' }).toString(),
+				URI.file('/elsewhere/a.ts').toString(),
+				URI.parse('file:///C:/Users/me/plan.md').toString(),
+			]);
 		});
 
 		test('a chat on another agent than its session\'s, such as one moved in from a session of that agent, restores its models from that agent', async () => {
@@ -4373,6 +4792,559 @@ suite('AgentHostChatContribution', () => {
 				model: 'agent-host-copilot:opus-4.7',
 			});
 		});
+
+		for (const kind of agentHostConnectionKinds) {
+			test(`round trips inline skill and command drafts and clears peers on send (${kind.name})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'shared-model', name: 'Shared Model' });
+				const fallbackMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'fallback', name: 'Fallback' });
+				const selectedModel = { identifier: 'agent-host-copilot:shared-model', metadata: modelMetadata };
+				const sender = createContribution(disposables, { languageModels: new Map([[selectedModel.identifier, modelMetadata]]) });
+				sender.agentHostService.resourceUris = kind.resourceUris;
+				const backendSession = AgentSession.uri('copilot', 'inline-draft-sync');
+				const sessionResource = URI.parse('agent-host-copilot:/inline-draft-sync');
+				const text = '/review #file.ts\n/compact now';
+				const file = URI.file('/workspace/file.ts');
+				const skillMetadata = { uri: 'host-skill:/review', name: 'review', opaque: false };
+				const commandMetadata = { command: 'compact', opaque: 0 };
+				const skill = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', skillMetadata.uri, skillMetadata);
+				const command = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/compact', 'compact', commandMetadata);
+				const references: IDynamicVariable[] = [
+					{ id: skill.id, range: new Range(1, 1, 1, 8), data: skill.value, _meta: skillMetadata },
+					{ id: file.toString(), range: new Range(1, 9, 1, 17), data: kind.toClient(file), isFile: true },
+					{ id: command.id, range: new Range(2, 1, 2, 9), data: command.value, _meta: commandMetadata },
+				];
+				seedDraftSession(sender.agentHostService, backendSession, 'Inline Draft');
+				const { inputModel: senderInput } = createDraftInputModel({
+					inputText: text,
+					attachments: [],
+					mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel,
+					selectedModelReason: ModelSelectionReason.UserSelection,
+					modelConfiguration: { thinkingLevel: 'high' },
+					selections: [],
+					contrib: { [ChatDynamicVariableModel.ID]: references },
+				});
+				sender.chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource,
+					inputModel: senderInput,
+					getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'req-1' })],
+					startEditingSession: () => { },
+					onDidChangePendingRequests: Event.None,
+					getPendingRequests: () => [],
+				}));
+				disposables.add(await sender.sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				await timeout(500);
+				const outgoing = sender.agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []).at(-1);
+				assert.ok(outgoing);
+				const sharedDraft = { ...outgoing, _meta: { 'copilot.opaque': false, 'host.opaque': 0 } };
+				fireRemoteDraft(sender.agentHostService, backendSession, sharedDraft);
+
+				const createPeer = async () => {
+					const peer = createContribution(disposables, {
+						languageModels: new Map([['agent-host-copilot:fallback', fallbackMetadata]]),
+					});
+					peer.agentHostService.resourceUris = kind.resourceUris;
+					seedDraftSession(peer.agentHostService, backendSession, 'Inline Draft', sharedDraft);
+					const { inputModel, inputState } = createDraftInputModel({
+						inputText: '',
+						attachments: [],
+						mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: { identifier: 'agent-host-copilot:fallback', metadata: fallbackMetadata },
+						selectedModelReason: ModelSelectionReason.FirstAvailable,
+						selections: [],
+						contrib: { unrelated: { keep: true } },
+					});
+					peer.chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+						sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+					}));
+					const session = disposables.add(await peer.sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+					peer.agentHostService.dispatchedActions.length = 0;
+					return { ...peer, inputModel, inputState, session };
+				};
+				const cleanPeer = await createPeer();
+				const editedPeer = await createPeer();
+				const summarizeReferences = (contrib: Record<string, unknown> | undefined) => (contrib?.[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[] | undefined)?.map(reference => ({
+					range: [reference.range.startLineNumber, reference.range.startColumn, reference.range.endLineNumber, reference.range.endColumn],
+					data: URI.isUri(reference.data) ? reference.data.toString() : reference.data,
+					metadata: reference._meta,
+				}));
+				const restored = {
+					transferred: summarizeReferences(cleanPeer.session.transferredState?.inputState?.contrib),
+					live: summarizeReferences(cleanPeer.inputState.get()?.contrib),
+					attachments: cleanPeer.inputState.get()?.attachments,
+				};
+				cleanPeer.inputModel.setState({ selections: [] });
+				await timeout(500);
+				const roundTripEchoes = cleanPeer.agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged);
+
+				const { turnPromise, turnId, fire } = await startTurn(sender.sessionHandler, sender.agentHostService, sender.chatAgentService, disposables, {
+					sessionResource,
+					message: text,
+					variables: messageAttachmentsToVariableData(outgoing.attachments, 'local', text, kind.resourceUris),
+					userSelectedModelId: selectedModel.identifier,
+					beforeInvoke: () => senderInput.setState({
+						inputText: '',
+						attachments: [],
+						contrib: { [ChatDynamicVariableModel.ID]: [] },
+					}),
+				});
+				fire(chatTurnComplete(turnId!, 1000));
+				await turnPromise;
+				await timeout(500);
+				const clearedDraft = sender.agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []).at(-1);
+				cleanPeer.inputModel.setState({ selectedModelReason: ModelSelectionReason.FirstAvailable });
+				editedPeer.inputModel.setState({ inputText: `${text} unsent edit` });
+				fireRemoteDraft(cleanPeer.agentHostService, backendSession, clearedDraft);
+				fireRemoteDraft(editedPeer.agentHostService, backendSession, clearedDraft);
+				await timeout(500);
+
+				const expectedReferences = [
+					{ range: [1, 1, 1, 8], data: skill.value, metadata: skillMetadata },
+					{ range: [1, 9, 1, 17], data: kind.toClient(file).toString(), metadata: undefined },
+					{ range: [2, 1, 2, 9], data: command.value, metadata: commandMetadata },
+				];
+				const expectedAttachments = [
+					{ type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } }, _meta: skillMetadata },
+					{ type: MessageAttachmentKind.Resource, label: 'file.ts', uri: file.toString(), displayKind: 'document', range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } } },
+					{ type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } }, _meta: commandMetadata },
+				];
+				assert.deepStrictEqual({
+					outgoing,
+					restored,
+					roundTripEchoes,
+					clearedDraft,
+					cleanPeer: {
+						text: cleanPeer.inputState.get()?.inputText,
+						attachments: cleanPeer.inputState.get()?.attachments,
+						contrib: cleanPeer.inputState.get()?.contrib,
+						model: cleanPeer.inputState.get()?.selectedModel?.identifier,
+						echoes: cleanPeer.agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged),
+					},
+					editedPeer: {
+						text: editedPeer.inputState.get()?.inputText,
+						references: summarizeReferences(editedPeer.inputState.get()?.contrib),
+						drafts: editedPeer.agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []),
+					},
+				}, {
+					outgoing: { text, origin: { kind: MessageKind.User }, attachments: expectedAttachments, model: { id: 'shared-model', config: { thinkingLevel: 'high' } } },
+					restored: { transferred: expectedReferences, live: expectedReferences, attachments: [] },
+					roundTripEchoes: [],
+					clearedDraft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'shared-model', config: { thinkingLevel: 'high' } } },
+					cleanPeer: {
+						text: '',
+						attachments: [],
+						contrib: { unrelated: { keep: true }, [ChatDynamicVariableModel.ID]: [] },
+						model: 'agent-host-copilot:fallback',
+						echoes: [],
+					},
+					editedPeer: {
+						text: `${text} unsent edit`,
+						references: expectedReferences,
+						drafts: [{ text: `${text} unsent edit`, origin: { kind: MessageKind.User }, attachments: expectedAttachments, model: { id: 'shared-model', config: { thinkingLevel: 'high' } } }],
+					},
+				});
+			}));
+		}
+
+		test('does not echo parsed reference attachments through bound widget inputs after send', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const backendSession = AgentSession.uri('copilot', 'widget-draft-clear');
+			const sessionResource = URI.parse('agent-host-copilot:/widget-draft-clear');
+			const text = 'explain /commit and /compact please';
+			const completions = [
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/commit', 'host-skill:/commit', { uri: 'host-skill:/commit', opaque: false }),
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/compact', 'compact', { command: 'compact', opaque: 0 }),
+			];
+			const sender = createContribution(disposables);
+
+			function bindWidget(inputModel: IInputModel) {
+				const codeEditorService = disposables.add(new TestCodeEditorService(new TestThemeService()));
+				disposables.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
+					rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				}));
+				const editor = disposables.add(createTestCodeEditor(disposables.add(createTextModel('')), {
+					serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+				}));
+				const attachments = disposables.add(new ChatAttachmentModel(
+					upcastPartial<IFileService>({}),
+					upcastPartial<ISharedWebContentExtractorService>({}),
+					upcastPartial<IChatAttachmentResolveService>({}),
+				));
+				const loaded = disposables.add(new Emitter<void>());
+				const parsed = disposables.add(new Emitter<void>());
+				const input = Object.assign(Object.create(ChatInputPart.prototype), {
+					_inputEditor: editor, _attachmentModel: attachments, _inputModel: inputModel,
+					_inputModelSessionResource: sessionResource,
+					_currentModeObservable: constObservable({ id: 'agent', kind: ChatModeKind.Agent }),
+					_currentLanguageModel: constObservable(undefined),
+					_currentPermissionLevel: observableValue('permission', ChatPermissionLevel.Default),
+					_modelSelectionDiagnostics: { report: () => { } },
+					_syncTextDebounced: { cancel: () => { } },
+					_onDidLoadInputState: loaded,
+					agentService: { hasToolsAgent: true },
+					configurationService: new TestConfigurationService(),
+					getPermittedPermissionLevel: (level: ChatPermissionLevel) => level,
+					resetScrollbarVisibilityAfterAccept: () => { },
+					chatInputNotificationService: { handleMessageSent: () => { } },
+					getNotificationContext: () => ({}),
+					history: { append: () => { } },
+					accessibilityService: new TestAccessibilityService(),
+					logService: new NullLogService(),
+				}) as ChatInputPart;
+				const parser = new ChatRequestParser(sender.chatAgentService, upcastPartial<IChatVariablesService>({}), upcastPartial<IChatSlashCommandService>({}), upcastPartial<IPromptsService>({}));
+				const widget = Object.assign(Object.create(ChatWidget.prototype), {
+					inputPartDisposable: { value: input },
+					_viewModel: { model: { sessionResource } },
+					_onDidChangeParsedInput: parsed,
+					onDidChangeActiveInputEditor: Event.None,
+					parseInputForEditor: () => parser.parseChatRequestWithReferences(references.variables, ToolAndToolSetEnablementMap.fromEntries([]), editor.getValue()),
+				}) as ChatWidget;
+				Object.assign(input, { _widget: widget });
+				// Preserve the production ordering: parsing observes editor edits before reference tracking.
+				disposables.add(editor.onDidChangeModelContent(() => widget.refreshParsedInput()));
+				const references = disposables.add(new ChatDynamicVariableModel(widget, new MockLabelService()));
+				widget.contribs = [references];
+				disposables.add(parsed.event(() => {
+					const entries = widget.parsedInput.parts.flatMap(part => part instanceof ChatRequestDynamicVariablePart ? [part.toVariableEntry()] : []);
+					const removed = new Set(attachments.attachments.filter(attachment => attachment.range).map(attachment => attachment.id));
+					entries.forEach(entry => removed.delete(entry.id));
+					attachments.updateContext(removed, entries);
+				}));
+				disposables.add(attachments.onDidChange(() => input.flushInputStateToModel()));
+				disposables.add(loaded.event(() => widget.refreshParsedInput()));
+				disposables.add(editor.onDidChangeModelContent(() => input.flushInputStateToModel()));
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the private model-to-view binding without exposing a production API.
+				disposables.add(autorun(reader => input['_syncFromModel'](inputModel.state.read(reader), sessionResource)));
+				return { input, editor, references, attachments };
+			}
+
+			async function createWindow(contribution = createContribution(disposables), draft?: Message) {
+				seedDraftSession(contribution.agentHostService, backendSession, 'Widget Draft', draft);
+				const { inputModel, inputState } = createDraftInputModel({
+					inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel: undefined, selections: [], contrib: {},
+				});
+				contribution.chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, inputModel, getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'earlier-request' })],
+					startEditingSession: () => { }, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				}));
+				disposables.add(await contribution.sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				return { ...contribution, inputModel, inputState, ...bindWidget(inputModel) };
+			}
+
+			const source = await createWindow(sender);
+			source.editor.setValue(text);
+			for (const completion of completions) {
+				const start = text.indexOf(completion.name);
+				source.references.addReference({
+					id: completion.id, data: completion.value, _meta: completion._meta,
+					range: new Range(1, start + 1, 1, start + completion.name.length + 1),
+				});
+			}
+			source.input.flushInputStateToModel();
+			await timeout(500);
+			const draft = source.agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []).at(-1);
+			assert.ok(draft);
+			fireRemoteDraft(source.agentHostService, backendSession, draft);
+			const peer = await createWindow(undefined, draft);
+			const editedPeer = await createWindow(undefined, draft);
+			const afterRestore = { references: peer.references.variables.length, viewAttachments: peer.attachments.size, modelAttachments: peer.inputState.get()?.attachments.length };
+			// A normal view-to-model flush captures the parser-generated attachments and removes remote origin.
+			peer.input.flushInputStateToModel();
+			editedPeer.input.flushInputStateToModel();
+			await timeout(500);
+			const beforeSend = { references: peer.references.variables.length, attachments: peer.inputState.get()?.attachments.length, origin: peer.inputState.get()?.origin };
+			peer.agentHostService.dispatchedActions.length = 0;
+			editedPeer.agentHostService.dispatchedActions.length = 0;
+
+			const { turnPromise, turnId, fire } = await startTurn(source.sessionHandler, source.agentHostService, source.chatAgentService, disposables, {
+				sessionResource, message: text, variables: messageAttachmentsToVariableData(draft.attachments, 'local', text),
+				beforeInvoke: () => {
+					void source.input.acceptInput(true, true);
+					source.input.flushInputStateToModel();
+				},
+			});
+			fire(chatTurnComplete(turnId!, 1000));
+			await turnPromise;
+			await timeout(500);
+			const cleared = source.agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []).at(-1);
+			editedPeer.editor.executeEdits('test', [{ range: new Range(1, text.length + 1, 1, text.length + 1), text: ' unsent', forceMoveMarkers: true }]);
+			editedPeer.input.flushInputStateToModel();
+			fireRemoteDraft(peer.agentHostService, backendSession, cleared);
+			fireRemoteDraft(editedPeer.agentHostService, backendSession, cleared);
+			await timeout(1000);
+			const summarizeInput = (window: typeof source) => ({
+				editor: window.editor.getValue(), model: window.inputState.get()?.inputText,
+				references: window.references.variables.length, attachments: window.attachments.size,
+			});
+			assert.deepStrictEqual({
+				draftAttachments: draft.attachments?.map(attachment => ({ type: attachment.type, label: attachment.label, metadata: attachment._meta })),
+				afterRestore, beforeSend,
+				source: summarizeInput(source), peer: summarizeInput(peer), editedPeer: summarizeInput(editedPeer),
+				peerDrafts: peer.agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged),
+			}, {
+				draftAttachments: completions.map(completion => ({ type: MessageAttachmentKind.Simple, label: completion.name, metadata: completion._meta })),
+				afterRestore: { references: 2, viewAttachments: 2, modelAttachments: 0 },
+				beforeSend: { references: 2, attachments: 2, origin: undefined },
+				source: { editor: '', model: '', references: 0, attachments: 0 },
+				peer: { editor: '', model: '', references: 0, attachments: 0 },
+				editedPeer: { editor: `${text} unsent`, model: `${text} unsent`, references: 2, attachments: 2 },
+				peerDrafts: [],
+			});
+		}));
+
+		for (const edit of ['none', 'text', 'attachment', 'model'] as const) {
+			test(`handles remote clear before debounce after inline-pill projection with ${edit} edit`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const metadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'selected', name: 'Selected' });
+				const selectedModel = { identifier: 'agent-host-copilot:selected', metadata };
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, {
+					languageModels: new Map([[selectedModel.identifier, metadata]]),
+				});
+				const backendSession = AgentSession.uri('copilot', 'pill-projection-clear');
+				const sessionResource = URI.parse('agent-host-copilot:/pill-projection-clear');
+				const text = '/review and /compact';
+				seedDraftSession(agentHostService, backendSession, 'Pill Projection', {
+					text, origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill',
+						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
+						_meta: { uri: 'host-skill:/review', opaque: false },
+					}, {
+						type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command',
+						range: { start: { line: 0, character: 12 }, end: { line: 0, character: 20 } },
+						_meta: { command: 'compact', opaque: 0 },
+					}],
+				});
+				const { inputModel, inputState } = createDraftInputModel({
+					inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel: undefined, selections: [], contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				}));
+				disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				agentHostService.dispatchedActions.length = 0;
+				const references = inputState.get()!.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[];
+				const projection = projectInlineAttachments(`${INLINE_ATTACHMENT_ANCHOR} and /compact`, [{
+					offset: 0, text: '/review', reference: references[0],
+				}], [{ ...references[1], range: new Range(1, 7, 1, 15) }]);
+				assert.ok(projection);
+				const localAttachment: IChatRequestVariableEntry = { kind: 'generic', id: 'local', name: 'Local', value: 'unsent context' };
+				inputModel.setState({
+					inputText: edit === 'text' ? `${projection.text} unsent` : projection.text,
+					attachments: edit === 'attachment' ? [localAttachment] : [],
+					contrib: { [ChatDynamicVariableModel.ID]: projection.references },
+					...(edit === 'model' ? { selectedModel, selectedModelReason: ModelSelectionReason.UserSelection } : {}),
+				});
+				fireRemoteDraft(agentHostService, backendSession, undefined);
+				await timeout(500);
+
+				assert.deepStrictEqual({
+					text: inputState.get()?.inputText,
+					attachments: inputState.get()?.attachments,
+					references: (inputState.get()?.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[]).map(reference => reference.id),
+					model: inputState.get()?.selectedModel?.identifier,
+					published: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft?.text] : []),
+				}, {
+					text: edit === 'none' ? '' : edit === 'text' ? `${text} unsent` : text,
+					attachments: edit === 'attachment' ? [localAttachment] : [],
+					references: edit === 'none' ? [] : projection.references.map(reference => reference.id),
+					model: edit === 'model' ? selectedModel.identifier : undefined,
+					published: edit === 'none' ? [] : [edit === 'text' ? `${text} unsent` : text],
+				});
+			}));
+		}
+
+		for (const changePayload of [false, true]) {
+			test(`handles remote clear before debounce after pasted-text range hydration (${changePayload ? 'changed' : 'unchanged'} payload)`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatService, chatAgentService } = createContribution(disposables);
+				const backendSession = AgentSession.uri('copilot', 'paste-range-clear');
+				const sessionResource = URI.parse('agent-host-copilot:/paste-range-clear');
+				const text = 'review #attachment:context.txt';
+				seedDraftSession(agentHostService, backendSession, 'Paste Range', {
+					text, origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Simple, label: 'context.txt', modelRepresentation: 'original context',
+						range: { start: { line: 0, character: 7 }, end: { line: 0, character: text.length } },
+						_meta: {
+							[ChatPasteAttachmentMetadata.Kind]: 'paste',
+							[ChatPasteAttachmentMetadata.Language]: 'plaintext',
+							[ChatPasteAttachmentMetadata.FileName]: 'context.txt',
+							[ChatPasteAttachmentMetadata.PastedLines]: '1 line',
+							'host.opaque': false,
+						},
+					}],
+				});
+				const { inputModel, inputState } = createDraftInputModel({
+					inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel: undefined, selections: [], contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				}));
+				disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				agentHostService.dispatchedActions.length = 0;
+				const state = inputState.get()!;
+				const attachment = state.attachments[0];
+				assert.ok(attachment.kind === 'paste');
+				const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[];
+				const parser = new ChatRequestParser(chatAgentService, upcastPartial<IChatVariablesService>({}), upcastPartial<IChatSlashCommandService>({}), upcastPartial<IPromptsService>({}));
+				const part = parser.parseChatRequestWithReferences(references, ToolAndToolSetEnablementMap.fromEntries([]), text).parts.find(part => part instanceof ChatRequestDynamicVariablePart);
+				assert.ok(part instanceof ChatRequestDynamicVariablePart);
+				const projectedAttachment = { ...attachment, range: part.range, ...(changePayload ? { code: 'updated context', value: 'updated context' } : {}) };
+				inputModel.setState({ attachments: [projectedAttachment] });
+				fireRemoteDraft(agentHostService, backendSession, undefined);
+				await timeout(500);
+
+				assert.deepStrictEqual({
+					text: inputState.get()?.inputText,
+					attachments: inputState.get()?.attachments.map(attachment => ({ ...attachment, range: undefined })),
+					references: (inputState.get()?.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[]).length,
+					publishedPayloads: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged
+						? [entry.action.draft?.attachments?.map(attachment => attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined)] : []),
+				}, {
+					text: changePayload ? text : '',
+					attachments: changePayload ? [{ ...projectedAttachment, range: undefined }] : [],
+					references: changePayload ? 1 : 0,
+					publishedPayloads: changePayload ? [['updated context']] : [],
+				});
+			}));
+		}
+
+		for (const kind of agentHostConnectionKinds) {
+			const file = URI.file('/workspace/file.ts');
+			for (const reference of [
+				{ name: 'file', text: 'please #file\nabc', attachment: { type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'file.ts', displayKind: 'document' } },
+				{ name: 'skill', text: 'please /skill\nabc', attachment: { type: MessageAttachmentKind.Simple, label: '/skill', displayKind: 'skill', _meta: { uri: 'host-skill:/skill' } } },
+				{ name: 'command', text: 'please /compact\nabc', attachment: { type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: { command: 'compact' } } },
+			] as const) {
+				test(`keeps multiline ${reference.name} draft mentions as attachments (${kind.name})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatService, chatAgentService } = createContribution(disposables);
+					agentHostService.resourceUris = kind.resourceUris;
+					const backendSession = AgentSession.uri('copilot', 'multiline-draft');
+					const sessionResource = URI.parse('agent-host-copilot:/multiline-draft');
+					const attachment: MessageAttachment = {
+						...reference.attachment,
+						range: { start: { line: 0, character: 7 }, end: { line: 1, character: 3 } },
+					};
+					seedDraftSession(agentHostService, backendSession, 'Multiline Draft', {
+						text: reference.text, origin: { kind: MessageKind.User }, attachments: [attachment],
+					});
+					const { inputModel, inputState } = createDraftInputModel({
+						inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: undefined, selections: [], contrib: {},
+					});
+					chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+						sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+					}));
+					const session = disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+					agentHostService.dispatchedActions.length = 0;
+					const state = inputState.get()!;
+					const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[];
+					const parser = new ChatRequestParser(chatAgentService, upcastPartial<IChatVariablesService>({}), upcastPartial<IChatSlashCommandService>({}), upcastPartial<IPromptsService>({}));
+					const parsed = parser.parseChatRequestWithReferences(references, ToolAndToolSetEnablementMap.fromEntries([]), reference.text);
+					inputModel.setState({ inputText: `${reference.text} edited` });
+					await timeout(500);
+					assert.deepStrictEqual({
+						transferredReferences: session.transferredState?.inputState?.contrib[ChatDynamicVariableModel.ID],
+						references,
+						attachments: state.attachments.map(variable => ({
+							kind: variable.kind,
+							range: variable.range && { start: variable.range.start, endExclusive: variable.range.endExclusive },
+							resource: URI.isUri(variable.value) ? variable.value.toString() : undefined,
+						})),
+						parsed: parsed.parts.map(part => part.kind),
+						publishedAttachments: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft?.attachments] : []),
+					}, {
+						transferredReferences: [], references: [],
+						attachments: [{
+							kind: reference.name === 'file' ? 'file' : 'generic',
+							range: undefined,
+							resource: reference.name === 'file' ? kind.toClient(file).toString() : undefined,
+						}],
+						parsed: ['text'],
+						publishedAttachments: [[reference.attachment]],
+					});
+				}));
+			}
+		}
+
+		test('accepts remote clear of a lossy input projection before its outbound debounce', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'lossy-draft-clear');
+			const sessionResource = URI.parse('agent-host-copilot:/lossy-draft-clear');
+			seedDraftSession(agentHostService, backendSession, 'Lossy Draft', {
+				text: '/review',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'Context', modelRepresentation: 'context' }],
+				_meta: { 'host.opaque': false },
+			});
+			const { inputModel, inputState } = createDraftInputModel({
+				inputText: '',
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: undefined,
+				selections: [],
+				contrib: { unrelated: true },
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+			}));
+			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			agentHostService.dispatchedActions.length = 0;
+			inputModel.setState({ selections: [] });
+			fireRemoteDraft(agentHostService, backendSession, undefined);
+			await timeout(500);
+
+			assert.deepStrictEqual({
+				text: inputState.get()?.inputText,
+				attachments: inputState.get()?.attachments,
+				contrib: inputState.get()?.contrib,
+				drafts: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged),
+			}, {
+				text: '',
+				attachments: [],
+				contrib: { unrelated: true, [ChatDynamicVariableModel.ID]: [] },
+				drafts: [],
+			});
+		}));
+
+		test('preserves a deliberate fallback-model choice when a remote clear arrives before debounce', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const metadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'fallback', name: 'Fallback' });
+			const selectedModel = { identifier: 'agent-host-copilot:fallback', metadata };
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, {
+				languageModels: new Map([[selectedModel.identifier, metadata]]),
+			});
+			const backendSession = AgentSession.uri('copilot', 'chosen-fallback-draft');
+			const sessionResource = URI.parse('agent-host-copilot:/chosen-fallback-draft');
+			seedDraftSession(agentHostService, backendSession, 'Chosen Fallback', {
+				text: 'shared text', origin: { kind: MessageKind.User }, model: { id: 'unavailable' },
+			});
+			const { inputModel, inputState } = createDraftInputModel({
+				inputText: '',
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel,
+				selectedModelReason: ModelSelectionReason.FirstAvailable,
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+			}));
+			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			agentHostService.dispatchedActions.length = 0;
+			inputModel.setState({ selectedModelReason: ModelSelectionReason.UserSelection });
+			fireRemoteDraft(agentHostService, backendSession, undefined);
+			await timeout(500);
+
+			assert.deepStrictEqual({
+				text: inputState.get()?.inputText,
+				drafts: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []),
+			}, {
+				text: 'shared text',
+				drafts: [{ text: 'shared text', origin: { kind: MessageKind.User }, model: { id: 'fallback' } }],
+			});
+		}));
 
 		test('does not overwrite a locally edited input', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
@@ -6870,6 +7842,60 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('newChatSessionItem carries a folder chosen on the user\'s behalf to the new session without making it the window default', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const folderA = URI.from({ scheme: 'file', path: '/workspace/a' });
+			const folderB = URI.from({ scheme: 'file', path: '/workspace/b' });
+			const workspace: Partial<IWorkspaceContextService> = {
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
+				getWorkspace: () => ({
+					id: '', folders: [
+						{ uri: folderA, name: 'a', index: 0, toResource: () => folderA },
+						{ uri: folderB, name: 'b', index: 1, toResource: () => folderB },
+					]
+				}) as unknown as IWorkspace,
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			};
+			instantiationService.stub(IWorkspaceContextService, workspace as IWorkspaceContextService);
+			const folders = disposables.add(new AgentHostNewSessionFolderService({ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService, workspace as IWorkspaceContextService, { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
+			instantiationService.stub(IAgentHostNewSessionFolderService, folders);
+			let rebind: 'moved' | 'failed' = 'moved';
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				// The backend graduates under a different identity, so the folder is carried a second time.
+				tryRebind: async (_old: URI, resource: URI) => {
+					if (rebind === 'failed') {
+						throw new Error('rebind failed');
+					}
+					return resource.with({ path: `${resource.path}-backend` });
+				},
+				getProvisionalWorkingDirectories: () => [folderB],
+				setSessionCreationMetadata: () => { },
+				clearSessionCreationMetadata: () => { },
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+
+			// The user last chose folder A; a moved conversation continues in folder B.
+			folders.setFolder(URI.from({ scheme: 'agent-host-copilot', path: '/untitled-earlier' }), folderA);
+			const moved = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-moved' });
+			folders.setFolder(moved, folderB, { updateDefault: false });
+			const item = await listController.newChatSessionItem({ prompt: '', untitledResource: moved }, CancellationToken.None);
+			rebind = 'failed';
+			const failed = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-failed' });
+			folders.setFolder(failed, folderB, { updateDefault: false });
+			await assert.rejects(listController.newChatSessionItem({ prompt: '', untitledResource: failed }, CancellationToken.None), /rebind failed/);
+
+			assert.deepStrictEqual({
+				carried: item && folders.getFolder(item.resource)?.path,
+				windowDefault: folders.getDefaultFolder()?.path,
+			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
+		}));
+
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
 				.find((i): i is IMenuItem => isIMenuItem(i) && i.command.id === OpenAgentHostFolderPickerAction.ID);
@@ -7309,7 +8335,7 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('side chats', () => {
-		async function setupSideChat(options?: { peer?: boolean; opaque?: boolean; active?: boolean; noTurn?: boolean; readOnly?: boolean; restored?: boolean; missingSourceSummary?: boolean }) {
+		async function setupSideChat(options?: { peer?: boolean; opaque?: boolean; active?: boolean; noTurn?: boolean; readOnly?: boolean; restored?: boolean; missingSourceSummary?: boolean; sourceProvider?: string }) {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backend = AgentSession.uri('copilot', 'side-source');
 			const defaultChat = options?.opaque ? 'ahp-chat:/host-selected/default' : buildDefaultChatUri(backend);
@@ -7323,11 +8349,17 @@ suite('AgentHostChatContribution', () => {
 			};
 			agentHostService.setInitializeResult({ _meta: {} });
 			const setSupport = (sideChat: boolean) => agentHostService.setRootState({
-				agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [], capabilities: { multipleChats: { sideChat, fork: false } } }],
+				agents: ['copilot', ...(options?.sourceProvider ? [options.sourceProvider] : [])].map(provider => ({
+					provider, displayName: provider, description: 'test', models: [], capabilities: { multipleChats: { sideChat, fork: false } },
+				})),
 				activeSessions: 1,
 			});
 			setSupport(true);
-			const sourceSummary = { ...createDefaultChatSummary(summary, sourceChat), ...(options?.readOnly ? { interactivity: ChatInteractivity.ReadOnly } : {}) };
+			const sourceSummary = {
+				...createDefaultChatSummary(summary, sourceChat),
+				...(options?.readOnly ? { interactivity: ChatInteractivity.ReadOnly } : {}),
+				...(options?.sourceProvider ? { provider: options.sourceProvider } : {}),
+			};
 			const message = { text: 'Source request', origin: { kind: MessageKind.User }, model: { id: 'source-model', config: { thinking: 'high' } } };
 			const sourceState: ChatState = {
 				...createChatState(sourceSummary),
@@ -7417,7 +8449,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					count: fixture.agentHostService.createChatCalls.length,
 					backend: call.session,
-					options: call.options,
+					options: { ...call.options, sideChat: { ...call.options?.sideChat, source: call.options?.sideChat?.source.toString() } },
 					target: target.resource,
 					fork: fixture.session.forkSession,
 				}, {
@@ -7425,10 +8457,38 @@ suite('AgentHostChatContribution', () => {
 					backend: fixture.backend,
 					options: {
 						model: { id: 'source-model', config: { thinking: 'high' } },
-						sideChat: { source: URI.parse(fixture.sourceChat), turnId: 'source-turn', selection },
+						sideChat: { source: fixture.sourceChat, turnId: 'source-turn', selection },
 					},
 					target: fixture.resource.with({ fragment: getAgentHostChatId(call.chat.toString()) }),
 					fork: undefined,
+				});
+			});
+		}
+
+		for (const options of [{}, { peer: true }, { opaque: true, peer: true }, { active: true }, { peer: true, sourceProvider: 'claude' }]) {
+			test(`creates an isolated side chat retaining its advertised source ${JSON.stringify(options)}`, async () => {
+				const fixture = await setupSideChat(options);
+				assert.ok(fixture.session.createSideChat);
+				const added = Event.toPromise(Event.filter(fixture.agentHostService.onDidAction, envelope => envelope.action.type === ActionType.SessionChatAdded), disposables);
+				const target = await fixture.session.createSideChat('source-turn', CancellationToken.None, undefined, false);
+				const call = fixture.agentHostService.createChatCalls[0];
+				const action = (await added).action;
+
+				assert.deepStrictEqual({
+					count: fixture.agentHostService.createChatCalls.length,
+					backend: call.session,
+					options: { ...call.options, sideChat: { ...call.options?.sideChat, source: call.options?.sideChat?.source.toString() } },
+					target: target.resource,
+					origin: action.type === ActionType.SessionChatAdded ? action.summary.origin : undefined,
+				}, {
+					count: 1,
+					backend: fixture.backend,
+					options: {
+						model: { id: 'source-model', config: { thinking: 'high' } },
+						sideChat: { source: fixture.sourceChat, turnId: 'source-turn', includeSourceContext: false },
+					},
+					target: fixture.resource.with({ fragment: getAgentHostChatId(call.chat.toString()) }),
+					origin: { kind: ChatOriginKind.SideChat, chat: fixture.sourceChat, turnId: 'source-turn' },
 				});
 			});
 		}
@@ -7462,11 +8522,11 @@ suite('AgentHostChatContribution', () => {
 	// ---- Forking ---------------------------------------------------------
 
 	suite('forking', () => {
-		async function forkSession(requestedTitle: string | undefined, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string; activeTurnId?: string }) {
+		async function forkSession(requestedTitle: string | undefined, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string; activeTurnId?: string; sourceChat?: string }) {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'fork-source');
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
-			const sourceChat = buildDefaultChatUri(backendSession.toString());
+			const sourceChat = boundary?.sourceChat ?? buildDefaultChatUri(backendSession.toString());
 			const summary: SessionSummary = {
 				resource: backendSession.toString(),
 				provider: 'copilot',
@@ -7526,12 +8586,9 @@ suite('AgentHostChatContribution', () => {
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(chatSession);
-			const request = boundary?.beforeRequestId
-				? chatSession.history.find((item): item is IChatSessionRequestHistoryItem => item.type === 'request' && item.id === boundary.beforeRequestId)
+			const request: IChatSessionRequestHistoryItem | undefined = boundary?.beforeRequestId
+				? { type: 'request', id: boundary.beforeRequestId, prompt: 'Source request', participant: 'agent-host-copilot' }
 				: undefined;
-			if (boundary?.beforeRequestId) {
-				assert.ok(request);
-			}
 			const forkedItem = await chatSession.forkSession?.(request, CancellationToken.None, {
 				title: requestedTitle,
 				...(initialMessage ? { initialMessage } : {}),
@@ -7563,6 +8620,52 @@ suite('AgentHostChatContribution', () => {
 				turnId: 'source-turn-2',
 				prompt: 'Continue in a fork',
 			});
+		});
+
+		for (const sourceChat of [undefined, 'ahp-chat:/opaque-source-chat']) {
+			test(`a checkpoint before the active second request forks the completed first turn${sourceChat ? ' with an opaque chat URI' : ''}`, async () => {
+				const result = await forkSession(undefined, 'Fork', undefined, false, {
+					beforeRequestId: 'streaming-turn',
+					activeTurnId: 'streaming-turn',
+					sourceChat,
+				});
+				assert.deepStrictEqual({
+					source: result.call.options?.fork?.source.toString(),
+					turnId: result.call.options?.fork?.turnId,
+					initialMessage: result.call.options?.initialMessage,
+					disposedSessions: result.agentHostService.disposedSessions,
+					disposedChats: result.agentHostService.disposedChats,
+					dispatchedActions: result.agentHostService.dispatchedActions,
+				}, {
+					source: result.sourceChat,
+					turnId: 'source-turn',
+					initialMessage: undefined,
+					disposedSessions: [],
+					disposedChats: [],
+					dispatchedActions: [],
+				});
+			});
+		}
+
+		test('a checkpoint before the active first request cannot invent a completed boundary', async () => {
+			await assert.rejects(
+				forkSession(undefined, 'Fork', undefined, false, {
+					turnCount: 0,
+					beforeRequestId: 'streaming-turn',
+					activeTurnId: 'streaming-turn',
+				}),
+				/Cannot fork: no turns to fork from/,
+			);
+		});
+
+		test('an unknown checkpoint does not use the active request fallback', async () => {
+			await assert.rejects(
+				forkSession(undefined, 'Fork', undefined, false, {
+					beforeRequestId: 'missing-turn',
+					activeTurnId: 'streaming-turn',
+				}),
+				/Cannot fork: turn for request missing-turn not found in protocol state/,
+			);
 		});
 
 		test('prompt fork from an active first request cannot invent a completed boundary', async () => {
@@ -8968,6 +10071,32 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('a model router row that is picking a model settles when its router keeps the chat\'s pick', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:model-router:daily', upcastPartial<ILanguageModelChatMetadata>({ name: 'Daily Driver' })],
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				userSelectedModelId: 'agent-host-copilot:model-router:daily',
+			});
+
+			// No earlier turn says this router picks once per chat, so the row is already showing when the kept pick arrives.
+			fire({
+				type: 'chat/usage',
+				session,
+				turnId,
+				usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'gpt-5.4-mini', kept: true, firstTurnOnly: true } } },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(collected.flat().flatMap(part => part.kind === 'autoModeResolution' ? [[part.router, part.resolved?.name, part.kept]] : []), [
+				['Daily Driver', undefined, undefined],
+				['daily', 'GPT-5.4 mini', true],
+			]);
+		}));
+
 		test('Copilot Fusion routing shows only the resolved part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Copilot Fusion', autoModelFusion: true })],
@@ -8993,7 +10122,7 @@ suite('AgentHostChatContribution', () => {
 			};
 
 			assert.deepStrictEqual({ standard: await runTurn(true), highOrMax: await runTurn(false) }, {
-				standard: [{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } }],
+				standard: [{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason }, fusion: true }],
 				highOrMax: [],
 			});
 		}));
@@ -10169,6 +11298,47 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('freeform input request submission preserves the advertised single-select kind', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'input-1',
+					questions: [{
+						kind: ChatInputQuestionKind.SingleSelect,
+						id: 'answer',
+						message: 'Which release?',
+						required: true,
+						options: [{ id: 'preview', label: 'Preview' }],
+						allowFreeformInput: true,
+					}],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData);
+			carousel.dismiss({ answer: { freeformValue: 'latest' } });
+			await timeout(10);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatInputCompleted)?.action, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'input-1',
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					answer: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['latest'] },
+					},
+				},
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('input request completion from another client clears local question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-input-request-test' });
@@ -10443,6 +11613,153 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
+		}));
+
+		for (const response of [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline]) {
+			test(`empty MCP form requires confirmation and dispatches ${response}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				agentHostService.dispatchedActions.length = 0;
+				fire({
+					type: ActionType.ChatInputRequested,
+					request: withChatInputRequestPurpose({
+						id: 'empty-form',
+						message: '**Proceed** with this operation?',
+						...(response === ChatInputResponseKind.Decline ? { questions: [] } : {}),
+					}, ChatInputRequestPurpose.Elicitation),
+				} as ChatAction);
+				await timeout(10);
+				const card = collected.flat().find(part => part.kind === 'elicitation2');
+				assert.ok(card instanceof ChatElicitationRequestPart);
+				const completionsBeforeClick = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted);
+				if (response === ChatInputResponseKind.Accept) {
+					await card.accept(true);
+				} else {
+					await card.reject?.();
+				}
+				fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				await turnPromise;
+
+				assert.deepStrictEqual({
+					parts: collected.flat().map(part => part.kind),
+					title: textOf(card.title),
+					message: textOf(card.message),
+					buttons: [card.acceptButtonLabel, card.rejectButtonLabel],
+					completionsBeforeClick,
+					completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+					state: card.state.get(),
+					openedUrls: openerService.openedUrls,
+				}, {
+					parts: ['elicitation2'],
+					title: 'Confirmation Required',
+					message: '**Proceed** with this operation?',
+					buttons: ['Accept', 'Decline'],
+					completionsBeforeClick: [],
+					completions: [{
+						channel: session,
+						action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}) },
+					}],
+					state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+					openedUrls: [],
+				});
+			}));
+		}
+
+		test('empty MCP form completion from another client settles and hides stale controls without redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const results = [];
+			for (const response of [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline, ChatInputResponseKind.Cancel]) {
+				const requestId = `empty-form-${response}`;
+				fire({ type: ActionType.ChatInputRequested, request: withChatInputRequestPurpose({ id: requestId, message: 'Proceed?' }, ChatInputRequestPurpose.Elicitation) } as ChatAction);
+				await timeout(10);
+				const card = collected.flat().filter(part => part.kind === 'elicitation2').at(-1);
+				assert.ok(card instanceof ChatElicitationRequestPart);
+				agentHostService.dispatchedActions.length = 0;
+				fire({ type: ActionType.ChatInputCompleted, requestId, response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}) } as ChatAction);
+				await timeout(10);
+				await card.accept(true);
+				await card.reject?.();
+				results.push({
+					response,
+					state: card.state.get(),
+					hidden: card.isHidden.get(),
+					completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => entry.action),
+				});
+			}
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(results, [
+				{ response: ChatInputResponseKind.Accept, state: ElicitationState.Accepted, hidden: true, completions: [] },
+				{ response: ChatInputResponseKind.Decline, state: ElicitationState.Rejected, hidden: true, completions: [] },
+				{ response: ChatInputResponseKind.Cancel, state: ElicitationState.Rejected, hidden: true, completions: [] },
+			]);
+		}));
+
+		for (const cancellation of ['token', 'turnEnd']) {
+			test(`empty MCP form ${cancellation} cancellation hides the confirmation and dispatches Cancel once`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const cts = disposables.add(new CancellationTokenSource());
+				const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cts.token });
+				fire({ type: ActionType.ChatInputRequested, request: withChatInputRequestPurpose({ id: 'empty-form', message: 'Proceed?' }, ChatInputRequestPurpose.Elicitation) } as ChatAction);
+				await timeout(10);
+				const card = collected.flat().find(part => part.kind === 'elicitation2');
+				assert.ok(card instanceof ChatElicitationRequestPart);
+				agentHostService.dispatchedActions.length = 0;
+				if (cancellation === 'token') {
+					cts.cancel();
+				} else {
+					fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				}
+				await turnPromise;
+				await card.accept(true);
+				await card.reject?.();
+
+				assert.deepStrictEqual({
+					state: card.state.get(),
+					hidden: card.isHidden.get(),
+					completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => entry.action),
+				}, {
+					state: ElicitationState.Rejected,
+					hidden: true,
+					completions: [{ type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Cancel }],
+				});
+			}));
+		}
+
+		test('keeps structured MCP forms and empty ask-user or unclassified requests as question carousels', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.defaultChatUri = 'ahp-chat:/host-chosen-input-chat';
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const requests = [
+				withChatInputRequestPurpose({ id: 'structured', message: 'Name?', questions: [{ id: 'name', kind: ChatInputQuestionKind.Text, message: 'Name?', required: true }] }, ChatInputRequestPurpose.Elicitation),
+				withChatInputRequestPurpose({ id: 'ask-user', message: 'What next?' }, ChatInputRequestPurpose.AskUser),
+				{ id: 'unclassified', message: 'What next?', questions: [] },
+			];
+			const results = [];
+			for (const request of requests) {
+				fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+				await timeout(10);
+				const carousel = collected.flat().filter(part => part.kind === 'questionCarousel').at(-1);
+				assert.ok(carousel instanceof ChatQuestionCarouselData);
+				results.push({ id: request.id, questions: carousel.questions.map(question => ({ id: question.id, type: question.type, required: question.required })) });
+				fire({ type: ActionType.ChatInputCompleted, requestId: request.id, response: ChatInputResponseKind.Cancel } as ChatAction);
+			}
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				results,
+				parts: collected.flat().map(part => part.kind),
+			}, {
+				results: [
+					{ id: 'structured', questions: [{ id: 'name', type: 'text', required: true }] },
+					{ id: 'ask-user', questions: [{ id: 'answer', type: 'text', required: true }] },
+					{ id: 'unclassified', questions: [{ id: 'answer', type: 'text', required: true }] },
+				],
+				parts: ['questionCarousel', 'questionCarousel', 'questionCarousel'],
+			});
 		}));
 
 		function computerUseSetupRequest(message: string) {
@@ -11769,6 +13086,43 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
+		}));
+
+		test('session sandbox path grant dispatches the selected scope without writing user settings or claiming a saved receipt', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			const config = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
+			const update = sinon.stub(config, 'updateValue');
+			try {
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-session-grant', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
+				fire({
+					type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-session-grant',
+					invocationMessage: 'Read /outside', confirmationTitle: 'Allow sandbox path access and retry?',
+					_meta: { 'vscode.sandboxPathGrant': { path: '/outside', access: 'read' } },
+					options: [
+						{ id: SAVE_SESSION_SANDBOX_PATH, label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve },
+						{ id: SAVE_SANDBOX_PATH, label: 'Allow for This User', kind: ConfirmationOptionKind.Approve },
+						{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+					],
+				} as ChatAction);
+				await timeout(10);
+				const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
+				assert.ok(invocation?.kind === 'toolInvocation');
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: SAVE_SESSION_SANDBOX_PATH });
+				await timeout(10);
+				const confirmations = agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/toolCallConfirmed');
+				assert.deepStrictEqual({
+					settingsWrites: update.callCount,
+					confirmations: confirmations.map(item => ({
+						option: (item.action as IToolCallConfirmedAction).selectedOptionId,
+						receipt: readAgentPermissionResponseMeta(item.action as IToolCallConfirmedAction).sandboxPathGrantSaved,
+					})),
+				}, { settingsWrites: 0, confirmations: [{ option: SAVE_SESSION_SANDBOX_PATH, receipt: undefined }] });
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+			} finally {
+				update.restore();
+			}
 		}));
 
 		for (const failSave of [false, true]) {
@@ -13917,6 +15271,206 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 
+			for (const activeParent of [false, true]) {
+				test(`updates parent duration and credits when a settled child is opened (active parent: ${activeParent})`, async () => {
+					const scenario = seed(3, SessionStatus.Idle, activeParent);
+					const { children, agentHostService, sessionHandler, resource } = scenario;
+					const child = children[1].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					const startedAt = Date.parse(children[1].modifiedAt);
+					childState.turns[0] = {
+						...childState.turns[0],
+						startedAt: new Date(startedAt).toISOString(), duration: 40_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+					};
+					childState.turns.push({
+						...childState.turns[0], id: 'followup',
+						startedAt: new Date(startedAt + 60_000).toISOString(), duration: 23_000,
+						usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 0.25 } },
+					});
+					const { session, pills } = await scenario.open();
+					const pill = pills.find(part => part.toolCallId === 'launch-1');
+					assert.ok(pill);
+					const presentation = (part: ChatToolInvocation | undefined) => part?.toolSpecificData?.kind === 'subagent' ? {
+						startedAt: part.toolSpecificData.startedAt, duration: part.toolSpecificData.duration,
+						credits: part.toolSpecificData.credits, active: part.toolSpecificData.isActive,
+					} : undefined;
+					let rendered = presentation(pill);
+					disposables.add(autorun(reader => {
+						pill.state.read(reader);
+						rendered = presentation(pill);
+					}));
+					const beforeOpen = rendered;
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					disposables.add(toDisposable(() => childSession.dispose()));
+					const afterOpen = rendered;
+					agentHostService.fireAction({
+						channel: child,
+						action: {
+							type: ActionType.ChatTurnsLoaded,
+							turns: [{
+								...childState.turns[0], id: 'earlier',
+								startedAt: new Date(startedAt - 10_000).toISOString(), duration: 10_000,
+								usage: { inputTokens: 30, outputTokens: 15, _meta: { cost: 1.25 } },
+							}],
+						},
+						serverSeq: 100, origin: undefined,
+					});
+					const afterHistory = rendered;
+					childSession.dispose();
+					const afterClose = rendered;
+					session.dispose();
+					const reopened = await scenario.open();
+					const expected = { startedAt: startedAt - 10_000, duration: 93_000, credits: 2, active: false };
+					assert.deepStrictEqual({
+						beforeOpen, afterOpen, afterHistory, afterClose,
+						reopened: presentation(reopened.pills.find(part => part.toolCallId === 'launch-1')),
+						subscriptions: scenario.childSubscriptions(),
+						releasedOnClose: !agentHostService.hasLiveSubscription(child),
+					}, {
+						beforeOpen: { startedAt: undefined, duration: undefined, credits: undefined, active: false },
+						afterOpen: { startedAt, duration: 83_000, credits: 0.75, active: false },
+						afterHistory: expected, afterClose: expected, reopened: expected,
+						subscriptions: [child], releasedOnClose: true,
+					});
+				});
+			}
+
+			for (const duration of [undefined, 0]) {
+				test(`restores metadata from a child opened before its parent (duration: ${duration})`, async () => {
+					const scenario = seed(1);
+					const { children, agentHostService, sessionHandler, resource } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					childState.turns[0] = {
+						...childState.turns[0],
+						...(duration !== undefined ? { startedAt: children[0].modifiedAt, duration } : {}),
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					childSession.dispose();
+					const { pills } = await scenario.open();
+					const data = pills[0].toolSpecificData;
+					assert.deepStrictEqual({
+						presentation: data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined,
+						subscriptions: scenario.childSubscriptions(),
+						releasedOnClose: !agentHostService.hasLiveSubscription(child),
+					}, {
+						presentation: { startedAt: duration !== undefined ? Date.parse(children[0].modifiedAt) : undefined, duration, credits: 2.5 },
+						subscriptions: [child], releasedOnClose: true,
+					});
+				});
+			}
+
+			for (const hasMoreHistory of [false, true]) {
+				test(`preserves the more complete presentation when a child reopens with paginated history (more history: ${hasMoreHistory})`, async () => {
+					const scenario = seed(1);
+					const { agentHostService, children, resource, sessionHandler, fire } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					const startedAt = Date.parse(children[0].modifiedAt);
+					const latestTurn: Turn = {
+						...childState.turns[0], startedAt: new Date(startedAt).toISOString(), duration: 20_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+					};
+					const tail = { ...childState, turns: [latestTurn], turnsNextCursor: 'older' };
+					agentHostService.chatStates.set(child, tail);
+					const { pills } = await scenario.open();
+					const presentation = () => {
+						const data = pills[0].toolSpecificData;
+						return data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined;
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const initial = presentation();
+					agentHostService.fireAction({
+						channel: child, serverSeq: 100, origin: undefined,
+						action: {
+							type: ActionType.ChatTurnsLoaded,
+							turns: [{
+								...latestTurn, id: 'earlier', startedAt: new Date(startedAt - 60_000).toISOString(), duration: 30_000,
+								usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 1.5 } },
+							}],
+							turnsNextCursor: hasMoreHistory ? 'oldest' : undefined,
+						},
+					});
+					const afterHistory = presentation();
+					childSession.dispose();
+					agentHostService.chatStates.set(child, tail);
+					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterReopen = presentation();
+					reopened.dispose();
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { modifiedAt: new Date(startedAt + 120_000).toISOString() } });
+					const changed = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterRevisionChange = presentation();
+					changed.dispose();
+					assert.deepStrictEqual({
+						initial, afterHistory, afterReopen, afterRevisionChange,
+						subscriptions: scenario.childSubscriptions(), released: !agentHostService.hasLiveSubscription(child),
+					}, {
+						initial: { startedAt, duration: 20_000, credits: 0.5 },
+						afterHistory: { startedAt: startedAt - 60_000, duration: 80_000, credits: 2 },
+						afterReopen: { startedAt: startedAt - 60_000, duration: 80_000, credits: 2 },
+						afterRevisionChange: { startedAt, duration: 20_000, credits: 0.5 },
+						subscriptions: [child, child, child], released: true,
+					});
+				});
+			}
+
+			for (const restoredCredits of [undefined, 0]) {
+				test(`preserves cached credits when a settled child reopens without positive usage (credits: ${restoredCredits})`, async () => {
+					const scenario = seed(1);
+					const { agentHostService, children, resource, sessionHandler, fire } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					childState.turns[0] = {
+						...childState.turns[0], startedAt: children[0].modifiedAt, duration: 40_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+					};
+					const { pills } = await scenario.open();
+					const presentation = () => {
+						const data = pills[0].toolSpecificData;
+						return data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined;
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const completed = presentation();
+					childSession.dispose();
+					agentHostService.chatStates.set(child, {
+						...childState,
+						turns: childState.turns.map(turn => ({
+							...turn,
+							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { cost: restoredCredits } },
+						})),
+					});
+					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterReopen = presentation();
+					reopened.dispose();
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { modifiedAt: '2026-10-19T00:02:00.000Z' } });
+					const changed = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterRevisionChange = presentation();
+					changed.dispose();
+					const expected = { startedAt: Date.parse(children[0].modifiedAt), duration: 40_000, credits: 2.5 };
+					assert.deepStrictEqual({
+						completed, afterReopen, afterRevisionChange,
+						subscriptions: scenario.childSubscriptions(), released: !agentHostService.hasLiveSubscription(child),
+					}, {
+						completed: expected, afterReopen: expected, afterRevisionChange: { ...expected, credits: undefined },
+						subscriptions: [child, child, child], released: true,
+					});
+				});
+			}
+
 			test('publishes a withheld restored pill when its advertised child is registered already settled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1);
 				const { state, children, fire, agentHostService } = scenario;
@@ -14055,7 +15609,19 @@ suite('AgentHostChatContribution', () => {
 				}));
 			}
 
-			test('recovers the same pending tool after subscription failure and reports its unseen turn error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			test('restores and clears a failed subagent status without loading its settled chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.Error);
+				const { pills } = await scenario.open();
+				const isError = () => pills[0].toolSpecificData?.kind === 'subagent' ? pills[0].toolSpecificData.isError : undefined;
+				const failed = isError();
+				scenario.fire({ type: ActionType.SessionChatUpdated, chat: scenario.children[0].resource, changes: { status: SessionStatus.Idle } });
+				await timeout(0);
+				assert.deepStrictEqual({ failed, recovered: isError(), subscriptions: scenario.childSubscriptions() }, {
+					failed: true, recovered: false, subscriptions: [],
+				});
+			}));
+
+			test('recovers the same pending tool after subscription failure and reports its unseen error on the subagent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1, SessionStatus.InProgress);
 				const { agentHostService, children, fire } = scenario;
 				const child = children[0].resource;
@@ -14068,7 +15634,7 @@ suite('AgentHostChatContribution', () => {
 						status: ToolCallStatus.PendingConfirmation, invocationMessage: 'Run tests', confirmationTitle: 'Run Tests',
 					},
 				}];
-				const { session } = await scenario.open();
+				const { session, pills } = await scenario.open();
 				agentHostService.fireSubscriptionError(child, new Error('Connection interrupted'));
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InputNeeded } });
 				await timeout(0);
@@ -14093,7 +15659,8 @@ suite('AgentHostChatContribution', () => {
 					approvedChannels: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed && entry.action.approved).map(entry => entry.channel),
 					completedMessage: tool?.pastTenseMessage,
 					errors: parts().flatMap(part => part.kind === 'markdownContent' && part.content.value.includes('Late child failure') ? [part.content.value.trim()] : []),
-				}, { approvedChannels: [child], completedMessage: 'Tests passed', errors: ['Error: (unknown) Late child failure'] });
+					failed: pills[0].toolSpecificData?.kind === 'subagent' ? pills[0].toolSpecificData.isError : undefined,
+				}, { approvedChannels: [child], completedMessage: 'Tests passed', errors: [], failed: true });
 			}));
 
 			test('releases a settled child after its terminal action and resumes without duplicating tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -15782,6 +17349,35 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('generic web references become model-readable attachments without treating them as files', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const urls = ['https://aka.ms/vscode-agent-skills', 'http://example.com/documentation'];
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Follow the attached documentation.',
+				variables: {
+					variables: [
+						...urls.map(url => ({
+							kind: 'generic' as const,
+							id: url,
+							name: 'Documentation',
+							value: URI.parse(url),
+						})),
+						{ kind: 'generic', id: 'file', name: 'File', value: URI.file('/workspace/test.ts') },
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, urls.map(url => ({
+				type: MessageAttachmentKind.Simple,
+				label: 'Documentation',
+				modelRepresentation: url,
+			})));
+		}));
+
 		test('browser view variable becomes a model-readable browser attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/page-1' });
@@ -16767,6 +18363,43 @@ suite('AgentHostChatContribution', () => {
 					{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
 				]);
 			}));
+
+			for (const uri of [URI.file('/workspace/foo.ts'), URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' })]) {
+				test(`symbol completions embed selected live text from an unsaved ${uri.scheme} buffer for ${provider}`, async () => {
+					const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider });
+					modelService.setModelContent(uri, 'before\nfunction run() {}\nafter');
+					workingCopyService.setDirty(uri, true);
+					const location = { uri, range: new Range(2, 1, 2, 18) };
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'explain #sym:run',
+						variables: {
+							variables: [{
+								kind: 'generic',
+								id: `vscode.symbol/${JSON.stringify(location)}`,
+								name: 'sym:run',
+								fullName: 'run',
+								value: location,
+								range: { start: 8, endExclusive: 16 },
+								_meta: { source: 'symbol' },
+							}],
+						},
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+
+					const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+					assert.deepStrictEqual(turnAction.message.attachments, [{
+						type: MessageAttachmentKind.EmbeddedResource,
+						label: 'run',
+						displayKind: 'selection',
+						data: encodeBase64(VSBuffer.fromString('function run() {}')),
+						contentType: 'text/plain',
+						selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 17 } } },
+						range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } },
+						_meta: { source: 'symbol' },
+					}]);
+				});
+			}
 		}
 
 		test('dirty non-file resource that cannot be inlined is dropped for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -18253,6 +19886,45 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('reconnects to an empty MCP form confirmation on the advertised chat', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+			const sessionUri = URI.parse('ahp-session:/opaque-form-session');
+			const chatUri = 'ahp-chat:/host-chosen-form-chat';
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.seedSessionMetadata(sessionUri, 'copilot');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...state,
+				defaultChat: chatUri,
+				chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InputNeeded, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+				activeTurn: {
+					...state.activeTurn!,
+					responseParts: [{
+						kind: ResponsePartKind.InputRequest,
+						request: withChatInputRequestPurpose({ id: 'empty-form', message: 'Proceed after reconnect?' }, ChatInputRequestPurpose.Elicitation),
+					}],
+				},
+			});
+			const session = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/opaque-form-session'), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const card = session.progressObs?.get().find(part => part.kind === 'elicitation2');
+			assert.ok(card instanceof ChatElicitationRequestPart);
+			agentHostService.dispatchedActions.length = 0;
+			await card.accept(true);
+
+			assert.deepStrictEqual({
+				parts: session.progressObs?.get().map(part => part.kind),
+				message: textOf(card.message),
+				completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+			}, {
+				parts: ['elicitation2'],
+				message: 'Proceed after reconnect?',
+				completions: [{
+					channel: chatUri,
+					action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Accept, answers: {} },
+				}],
+			});
+		});
+
 		test('loads completed turns as history and active turn request/response', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -18441,6 +20113,113 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(session.isCompleteObs?.get(), true, 'Should be complete after turnComplete');
 		}));
+
+		for (const publication of ['beforeFailure', 'afterFailure', 'beforeRequest'] as const) {
+			for (const quotaExceeded of [false, true]) {
+				test(`reconnected failures use structured error details (quota=${quotaExceeded}, publication=${publication})`, async () => {
+					const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+					const backendSession = URI.parse('ahp-session:/reconnected-failure');
+					const chatUri = 'ahp-chat:/host-assigned-failure-chat';
+					const resource = URI.parse('agent-host-copilot:/reconnected-failure');
+					const turnId = 'turn-active';
+					const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+						initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+					}));
+					const addRequest = () => {
+						const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+							undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, turnId);
+						request.response?.setResult({ metadata: { existing: true } });
+						return request;
+					};
+					let request = publication !== 'beforeRequest' ? addRequest() : undefined;
+					if (publication === 'beforeFailure') {
+						chatService.setSession(resource, model);
+					}
+
+					const state = makeSessionStateWithActiveTurn(backendSession.toString());
+					agentHostService.seedSessionMetadata(backendSession, 'copilot');
+					agentHostService.sessionStates.set(backendSession.toString(), {
+						...state,
+						defaultChat: chatUri,
+						chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+						turns: [],
+						activeTurn: { ...state.activeTurn!, id: turnId },
+					});
+					const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+					assert.ok(session.isCompleteObs);
+					const completed = waitForState(session.isCompleteObs, complete => complete);
+					agentHostService.fireAction({
+						channel: chatUri,
+						action: {
+							type: ActionType.ChatError, turnId, duration: 1000,
+							part: {
+								kind: ResponsePartKind.Error,
+								error: quotaExceeded
+									? { errorType: 'quota', message: 'Quota exceeded', _meta: { chatError: { fetchError: { type: 'quotaExceeded' } } } }
+									: { errorType: 'query', message: 'Model temporarily unavailable' },
+								...(!quotaExceeded ? { resumable: true } : {}),
+							},
+						},
+						serverSeq: 100, origin: undefined,
+					});
+					await completed;
+					if (publication !== 'beforeFailure') {
+						chatService.setSession(resource, model);
+						await timeout(0);
+						if (publication === 'beforeRequest') {
+							request = addRequest();
+							await timeout(0);
+						}
+					}
+					assert.ok(request?.response);
+
+					assert.deepStrictEqual({
+						errorDetails: request.response.result?.errorDetails,
+						existingMetadata: request.response.result?.metadata?.existing,
+						markdown: session.progressObs?.get().filter(part => part.kind === 'markdownContent').map(part => part.content.value),
+						complete: session.isCompleteObs.get(),
+					}, {
+						errorDetails: quotaExceeded
+							? { code: 'quotaExceeded', message: 'Quota Exceeded', isQuotaExceeded: true }
+							: {
+								message: 'Error: (query) Model temporarily unavailable',
+								confirmationButtons: [{ label: 'Try Again', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
+							},
+						existingMetadata: true,
+						markdown: ['Partial response so far'],
+						complete: true,
+					});
+				});
+			}
+		}
+
+		test('discarding a reconnect before model publication does not apply its failure to a later model', async () => {
+			const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'discarded-reconnect');
+			const resource = URI.parse('agent-host-copilot:/discarded-reconnect');
+			agentHostService.sessionStates.set(backendSession.toString(), makeSessionStateWithActiveTurn(backendSession.toString()));
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			assert.ok(session.isCompleteObs);
+			const completed = waitForState(session.isCompleteObs, complete => complete);
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.ChatError, turnId: 'turn-active', duration: 1000,
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Discarded failure' } },
+				},
+				serverSeq: 100, origin: undefined,
+			});
+			await completed;
+			session.dispose();
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+			}));
+			const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'turn-active');
+			chatService.setSession(resource, model);
+			await timeout(0);
+			assert.strictEqual(request.response?.result, undefined);
+		});
 
 		test('handles active turn with running tool call', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -18970,7 +20749,6 @@ suite('AgentHostChatContribution', () => {
 			clock.tick(5000);
 			agentHostService.fireAction({ channel: chat, action: { type: ActionType.ChatResponsePart, turnId: 'turn-active', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Answer' } }, serverSeq: 101, origin: undefined });
 			consume(false);
-			response.finalizeReasoningDuration();
 
 			assert.deepStrictEqual(JSON.parse(JSON.stringify(response.value.filter(part => part.kind === 'thinking'))), [
 				{ kind: 'thinking', id: 'reasoning', value: 'Restored prefix continued', reasoningTimingSource: 'provider' },
@@ -20735,7 +22513,7 @@ suite('AgentHostChatContribution', () => {
 		test('a server-initiated steering request is undone with the checkpoint it follows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-steered-checkpoint' });
-			const controller = disposables.add(new AgentHostSnapshotController(sessionResource, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
+			const controller = disposables.add(new AgentHostSnapshotController(sessionResource, agentHostService, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
 			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
 				sessionResource,
 				editingSession: controller,
@@ -21041,6 +22819,71 @@ suite('AgentHostChatContribution', () => {
 			const removedQueueIds = chatService.removePendingRequestCalls.filter(c => c.requestId === 'q-1');
 			assert.strictEqual(removedQueueIds.length, 1, 'consumed queued message should be removed from chat model');
 			assert.deepStrictEqual(chatService.consumePendingRequestCalls, [{ sessionResource, pendingRequestId: 'q-1', requestId: 'server-turn-q' }]);
+		}));
+
+		for (const ending of ['complete', 'cancelled', 'error'] as const) {
+			test(`keeps the chat loaded for the host's next queued turn only after a successful turn (${ending})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/queued-handoff-${ending}` });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+				const turnPromise = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+				await timeout(10);
+				const dispatch = agentHostService.turnActions[0];
+				const turnId = (dispatch.action as ITurnStartedAction).turnId;
+				const session = dispatch.channel.toString();
+				agentHostService.fireAction({ channel: session, action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+				agentHostService.fireAction({
+					channel: session,
+					action: { type: 'chat/pendingMessageSet', session, kind: 'queued', id: 'q-1', message: { text: 'next', origin: { kind: MessageKind.User } } } as ChatAction,
+					serverSeq: 2, origin: undefined,
+				});
+				const endedAt = '2025-01-01T00:00:00.000Z';
+				agentHostService.fireAction({
+					channel: session,
+					action: (ending === 'complete' ? { type: 'chat/turnComplete', endedAt, session, turnId }
+						: ending === 'cancelled' ? { type: 'chat/turnCancelled', endedAt, turnId }
+							: { type: 'chat/error', endedAt, turnId, part: { kind: ResponsePartKind.Error, error: { errorType: 'test', message: 'failed' } } }) as ChatAction,
+					serverSeq: 3, origin: undefined,
+				});
+				await turnPromise;
+				const holds = () => chatService.modelHolds.filter(hold => hold.owner === 'AgentHostSessionHandler#queuedTurnHandoff').map(hold => hold.released);
+
+				const afterTurn = holds();
+				await timeout(AgentHostSessionHandler.QUEUED_TURN_HANDOFF_MS);
+				const afterHandoff = holds();
+
+				assert.deepStrictEqual({ afterTurn, afterHandoff }, ending === 'complete'
+					? { afterTurn: [false], afterHandoff: [true] }
+					: { afterTurn: [], afterHandoff: [] });
+			}));
+		}
+
+		test('releases the queued-turn hold when the chat session is disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/queued-handoff-dispose' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			const turnPromise = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const dispatch = agentHostService.turnActions[0];
+			const turnId = (dispatch.action as ITurnStartedAction).turnId;
+			const session = dispatch.channel.toString();
+			agentHostService.fireAction({ channel: session, action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: 'chat/pendingMessageSet', session, kind: 'queued', id: 'q-1', message: { text: 'next', origin: { kind: MessageKind.User } } } as ChatAction,
+				serverSeq: 2, origin: undefined,
+			});
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction, serverSeq: 3, origin: undefined });
+			await turnPromise;
+
+			chatSession.dispose();
+
+			assert.deepStrictEqual(chatService.modelHolds.filter(hold => hold.owner === 'AgentHostSessionHandler#queuedTurnHandoff').map(hold => hold.released), [true]);
 		}));
 
 		test('a server-initiated turn names the removed notice turn it replaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -21355,6 +23198,46 @@ suite('AgentHostChatContribution', () => {
 			const content = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
 			assert.deepStrictEqual(content.history.map(item => item.type), ['request', 'response']);
+		});
+
+		test('keeps virtual working directories unchanged only for local Copilot CLI editor sessions', async () => {
+			const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode?ref=main');
+			const results = [];
+			for (const kind of agentHostConnectionKinds) {
+				const directories: (string[] | undefined)[] = [];
+				for (const { provider, isSessionsWindow } of [
+					{ provider: 'copilotcli', isSessionsWindow: false },
+					{ provider: 'claude', isSessionsWindow: false },
+					{ provider: 'copilotcli', isSessionsWindow: true },
+				]) {
+					const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, { resolve: () => workingDirectory });
+					instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+					agentHostService.resourceUris = kind.resourceUris;
+					agentHostService.clientConnectionKind = kind.name === 'local' ? AgentHostClientConnectionKind.Local : AgentHostClientConnectionKind.DirectWebSocket;
+					agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/vscode' });
+					const agentId = `agent-host-${provider}`;
+					const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider,
+						agentId,
+						sessionType: agentId,
+						fullName: provider,
+						description: 'test',
+						connection: agentHostService,
+						connectionAuthority: kind.name === 'local' ? LOCAL_AGENT_HOST_AUTHORITY : 'remote-test',
+					}));
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { agentId });
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+					directories.push(agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(directory => directory.toString()));
+				}
+				results.push({ connection: kind.name, directories });
+			}
+			assert.deepStrictEqual(results, [
+				{ connection: 'local', directories: [[workingDirectory.toString()], undefined, undefined] },
+				{ connection: 'remote agent host', directories: [undefined, undefined, undefined] },
+				{ connection: 'editor remote', directories: [undefined, undefined, undefined] },
+				{ connection: 'strict', directories: [undefined, undefined, undefined] },
+			]);
 		});
 
 		test('drops a working directory the host cannot address, letting it choose its own', async () => {
@@ -22900,6 +24783,98 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 			assert.deepStrictEqual(records.map(record => record.rootToolCallsBeforeFirstText), [1]);
 		}));
+
+		for (const alreadyFailed of [false, true]) {
+			test(`subagent failures stay out of parent markdown (alreadyFailed=${alreadyFailed})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const backendSession = AgentSession.uri('copilot', 'subagent-failure');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(), provider: 'copilot', title: 'Parent', status: SessionStatus.Idle,
+						createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+					}),
+					lifecycle: SessionLifecycle.Ready,
+				});
+				const { turnPromise, collected, chatSession, session: parentChat, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					sessionResource: URI.parse('agent-host-copilot:/subagent-failure'),
+				});
+				const parentToolCallId = 'failed-subagent';
+				const childChatUri = 'ahp-chat:/host-assigned-failed-subagent';
+				const errorPart = {
+					kind: ResponsePartKind.Error as const,
+					error: {
+						errorType: 'query',
+						message: 'Model temporarily unavailable',
+						_meta: { chatError: { fetchError: { type: 'failed', requestId: 'client-request', serverRequestId: 'server-request', reason: 'Model temporarily unavailable' } } },
+					},
+				};
+				const childState = {
+					...createChatState({
+						resource: childChatUri, title: 'Review', status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z',
+						origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: parentToolCallId },
+						interactivity: ChatInteractivity.ReadOnly,
+					}),
+					activeTurn: makeChildState(childChatUri, 'child-tool').activeTurn,
+				};
+				if (alreadyFailed) {
+					childState.turns = [{
+						...childState.activeTurn!,
+						state: TurnState.Error,
+						responseParts: [...childState.activeTurn!.responseParts, errorPart],
+						usage: undefined,
+					}];
+					childState.activeTurn = undefined;
+				}
+				agentHostService.chatStates.set(childChatUri, childState);
+				fire(chatToolCallStart(turnId, parentToolCallId, 'task', 'Task', { _meta: { toolKind: 'subagent', subagentDescription: 'Review changes' } }));
+				fire(chatToolCallReady(turnId, parentToolCallId, 'Reviewing changes', { confirmed: ToolCallConfirmationReason.NotNeeded }));
+				fire({
+					type: ActionType.ChatToolCallContentChanged, turnId, toolCallId: parentToolCallId,
+					content: [{ type: ToolResultContentType.Subagent, resource: childChatUri, title: 'Review' }],
+				});
+				await timeout(0);
+				if (!alreadyFailed) {
+					agentHostService.fireAction({
+						channel: childChatUri,
+						action: { type: ActionType.ChatError, turnId: 'child-turn-1', duration: 1000, part: errorPart },
+						serverSeq: 100, origin: undefined,
+					});
+					await timeout(0);
+				}
+				fire(chatToolCallComplete(turnId, parentToolCallId, {
+					success: false,
+					pastTenseMessage: 'Design review failed',
+					error: { code: 'failure', message: 'Model temporarily unavailable' },
+					content: [{ type: ToolResultContentType.Subagent, resource: childChatUri, title: 'Review' }],
+				}));
+				fire({ type: ActionType.ChatResponsePart, turnId, part: { kind: ResponsePartKind.Markdown, id: 'parent-response', content: 'Continuing the parent task.' } });
+				fire(chatTurnComplete(turnId, 1000));
+				const result = await turnPromise;
+				const childResource = getSubagentEditorResource({ chatResource: childChatUri, parentSessionResource: chatSession.sessionResource.toString() });
+				assert.ok(childResource);
+				const childSession = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+				const parent = collected.flat().find(part => part.kind === 'toolInvocation' && part.toolCallId === parentToolCallId);
+
+				assert.deepStrictEqual({
+					parentError: result.errorDetails,
+					parentMarkdown: collected.flat().filter(part => part.kind === 'markdownContent').map(part => part.content.value),
+					toolError: parent?.kind === 'toolInvocation' ? IChatToolInvocation.resultError(parent) : undefined,
+					childErrors: childSession.history.flatMap(item => item.type === 'response' && item.errorDetails ? [item.errorDetails] : []),
+					childActive: parent?.kind === 'toolInvocation' && parent.toolSpecificData?.kind === 'subagent' ? parent.toolSpecificData.isActive : undefined,
+					childFailed: parent?.kind === 'toolInvocation' && parent.toolSpecificData?.kind === 'subagent' ? parent.toolSpecificData.isError : undefined,
+				}, {
+					parentError: undefined,
+					parentMarkdown: ['Continuing the parent task.'],
+					toolError: 'Model temporarily unavailable',
+					childErrors: [{
+						code: 'failed',
+						message: 'Sorry, your request failed. Please try again.\n\nClient Request Id: client-request\n\nGH Request Id: server-request\n\nReason: Model temporarily unavailable',
+					}],
+					childActive: false,
+					childFailed: true,
+				});
+			}));
+		}
 
 		for (const completed of [false, true]) {
 			test(`clears ${completed ? 'completed' : 'active'} subagent availability after a hydrated subscription errors`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

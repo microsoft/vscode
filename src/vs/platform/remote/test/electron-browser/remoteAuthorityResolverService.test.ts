@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '../../common/remoteAuthorityResolver.js';
+import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, WebSocketRemoteConnection } from '../../common/remoteAuthorityResolver.js';
 import { RemoteAuthorityResolverService } from '../../electron-browser/remoteAuthorityResolverService.js';
 
 suite('RemoteAuthorityResolverService', () => {
@@ -26,6 +26,19 @@ suite('RemoteAuthorityResolverService', () => {
 		} catch (err) {
 			assert.strictEqual(RemoteAuthorityResolverError.isTemporarilyNotAvailable(err), true);
 		}
+		service.dispose();
+	});
+
+	test('getConnectionData falls back to the resolved authority token', async () => {
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		// eslint-disable-next-line local/code-no-any-casts
+		const service = new RemoteAuthorityResolverService(productService, undefined as any);
+		const result = service.resolveAuthority('test+x');
+		service._setResolvedAuthority({ authority: 'test+x', connectTo: new WebSocketRemoteConnection('localhost', 1234), connectionToken: 'abc' });
+		await result;
+		assert.strictEqual(service.getConnectionData('test+x')?.connectionToken, 'abc');
+		service._setAuthorityConnectionToken('test+x', 'env');
+		assert.strictEqual(service.getConnectionData('test+x')?.connectionToken, 'env');
 		service.dispose();
 	});
 });
