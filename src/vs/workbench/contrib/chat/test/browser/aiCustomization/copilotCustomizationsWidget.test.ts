@@ -25,13 +25,14 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../../platfor
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
+import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
+import { ICanvas, ICanvasReference } from '../../../../../common/canvasReference.js';
 
 suite('CopilotCanvasesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,7 +50,7 @@ suite('CopilotCanvasesWidget', () => {
 		};
 	}
 
-	function inventory(definitions: readonly ICanvasDefinition[], status: 'running' | 'disabled' | 'failed' | 'starting' = 'running'): IAgentExtensionInventory {
+	function inventory(definitions: readonly ICanvasDefinition[], status: 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' = 'running'): IAgentExtensionInventory {
 		const extensions = new Map<string, IAgentExtensionInventory['extensions'][number]>();
 		for (const canvas of definitions) {
 			if (canvas.extensionSource === 'session') {
@@ -841,31 +842,33 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
-	test('removes cached children after a running extension authoritatively reports none', async () => {
-		const storageService = store.add(new InMemoryStorageService());
-		const first = createHarness({ storageService });
-		await timeout(20);
-		first.widget.dispose();
+	for (const status of ['running', 'dormant'] as const) {
+		test(`removes cached children after a ${status} extension authoritatively reports none`, async () => {
+			const storageService = store.add(new InMemoryStorageService());
+			const first = createHarness({ storageService });
+			await timeout(20);
+			first.widget.dispose();
 
-		const refreshed = createHarness({
-			definitions: [],
-			extensionInventory: inventory([definition()], 'running'),
-			storageService,
-		});
-		await timeout(20);
-		refreshed.widget.fireItemCount();
-		const accessible = refreshed.widget.getAccessibilityContent();
+			const refreshed = createHarness({
+				definitions: [],
+				extensionInventory: inventory([definition()], status),
+				storageService,
+			});
+			await timeout(20);
+			refreshed.widget.fireItemCount();
+			const accessible = refreshed.widget.getAccessibilityContent();
 
-		assert.deepStrictEqual({
-			canvas: accessible.includes('Preview. Last known:'),
-			lastKnown: accessible.includes('Last known:'),
-			itemCount: refreshed.itemCounts.at(-1),
-		}, {
-			canvas: false,
-			lastKnown: false,
-			itemCount: 0,
+			assert.deepStrictEqual({
+				canvas: accessible.includes('Preview. Last known:'),
+				lastKnown: accessible.includes('Last known:'),
+				itemCount: refreshed.itemCounts.at(-1),
+			}, {
+				canvas: false,
+				lastKnown: false,
+				itemCount: 0,
+			});
 		});
-	});
+	}
 
 	test('uses each Canvas frontend target and reveals an existing Canvas', async () => {
 		const canvasResource = URI.parse('canvas:/live-preview');

@@ -25,11 +25,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../../workbench/contrib/sessions/browser/chat/sessionArchiveNudge.js';
@@ -39,7 +39,7 @@ import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewCh
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
@@ -152,7 +152,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}
 	}
 
-	test('documents chat windows only when enabled', () => {
+	test('documents chat windows, and New Session in them, only when enabled', () => {
 		const help = [false, true].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: enabled });
@@ -167,12 +167,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return content.split('\n').find(line => line.startsWith('To show a chat in a window of its own')) ?? null;
+			const lines = content.split('\n');
+			return [lines.find(line => line.startsWith('To show a chat in a window of its own')) ?? null, lines.find(line => line.startsWith('In a chat window, New Session')) ?? null];
 		});
 
 		assert.deepStrictEqual(help, [
-			null,
-			'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+			[null, null],
+			[
+				'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+				'In a chat window, New Session<keybinding:sessions.chatWindow.newSession> opens a new session as a tab of the window\'s active chat. It starts with that chat\'s workspace, agent, model and mode, which you can change before sending, and joins the group of that chat\'s session in the sessions list. While the window\'s active chat is a new session that has not been sent, New Session moves focus to it instead. Choosing New Session in the Sessions picker of a chat window opens it in that window too, beside the active chat when opened to the side. Press Enter to send its first prompt: the tab becomes the session\'s chat. Use Send in Background<keybinding:sessions.sendInBackground> to start the session in the background: the tab stays a new session, and its status offers Open Session, which opens the started session beside it. If a background start fails, its prompt goes back into the new session when nothing changed there since; otherwise a notification offers Copy Prompt, and Restore Prompt while the new session is still open. A new session that has not been sent can\'t move to the main window or to another window: send it first, or close it to discard it. It reopens with its prompt after a restart. Compare Agents is available in the main window\'s new session.',
+			],
 		]);
 	});
 
@@ -231,8 +235,19 @@ suite('SessionsChatAccessibilityHelp', () => {
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
+			detailPositions: content.includes('to the left or right of, above, or below editor content inside the side panel. The side panel stays beside chat.'),
+			floatingDetails: content.includes('Activate Unpin to return to hover-preview mode without collapsing the view or moving focus.'),
+			instantSelection: content.includes('Opening a file or diff collapses an unpinned preview immediately, without a delay or collapse animation; expanding a folder does not.'),
+			passiveDetailsHeader: content.includes('Clicking the title or header does not change the pin state.'),
+			hoverPreview: content.includes('Moving the pointer away starts a short collapse delay; moving back into the widget cancels it.'),
+			floatingMove: content.includes('Tab to the Move grip and use Arrow keys; hold Shift for larger steps or press Home to reset its position.'),
+			contentFit: content.includes('Files and Changes shrink to their contents up to the saved height limit; larger lists scroll.'),
+			floatingMarkdown: content.includes('The floating Files widget remains available alongside Markdown Editor and Markdown previews.'),
+			floatingFocus: content.includes('A preview stays open while keyboard focus is inside it, even if the pointer leaves.'),
+			floatingResize: content.includes('Increase Current View Size and Decrease Current View Size resize the floating view while its tree or header has focus.'),
+			keyboardResize: content.includes('width or height resize handle, labelled with the view name'),
 			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, moveToSession: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, detailPositions: true, floatingDetails: true, instantSelection: true, passiveDetailsHeader: true, hoverPreview: true, floatingMove: true, contentFit: true, floatingMarkdown: true, floatingFocus: true, floatingResize: true, keyboardResize: true, moveToSession: true });
 	});
 
 	test('documents terminal command descriptions and Explain in confirmations', () => {
@@ -250,7 +265,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({
 			description: content.includes('the confirmation title includes that description, such as Run in terminal: followed by the description'),
-			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a side chat'),
+			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a fresh side chat that explains only the terminal command, without the prior conversation as context'),
 			pending: content.includes('The confirmation stays pending until you allow or skip it'),
 		}, { description: true, explain: true, pending: true });
 	});
@@ -750,7 +765,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hasClearWorkspace: true,
 			},
 			{
-				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. A one-time spotlight may explain this change. Activate Understood or press Escape to dismiss it, or activate the highlighted Add Context action to open the menu and dismiss the tip. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
@@ -881,7 +896,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes the Ask Question input when the response-selection menu is disabled', () => {
+	test('omits response-selection help when the menu is disabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: false,
@@ -896,10 +911,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
-		assert.strictEqual(
-			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
-			'When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input.',
-		);
+		assert.strictEqual(provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')), undefined);
 	});
 
 	test('describes the response-selection menu when enabled', () => {
@@ -1146,6 +1158,22 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 
+	test('mobile help omits unavailable background controls and generation even when appearance tools are configured', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp(undefined, false).getProvider(instantiationService)).provideContent();
+		assert.deepStrictEqual(['Set Background', 'Change Background Layout', 'Tint Window to Match Background', 'Celebrate button', 'Get Theme Colors', '/generate-chat-background']
+			.filter(text => content.includes(text)), []);
+	});
+
 	test('describes generic directional navigation for the session grid', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -1193,7 +1221,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
 			manualComparison: defaultHelp.includes('activate Compare Models'),
-		}, { tools: [false, true, false], manualComparison: true });
+			openComparison: enabledHelp.includes('Use Tab to reach Open Comparison in the tool result and Enter'),
+			scopedDiscovery: enabledHelp.includes('list comparisons started by this chat'),
+		}, { tools: [false, true, false], manualComparison: true, openComparison: true, scopedDiscovery: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

@@ -9,7 +9,7 @@ import { derived, IObservable, observableSignalFromEvent } from '../../../../bas
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ISession } from '../common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');

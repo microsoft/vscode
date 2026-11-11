@@ -22,7 +22,7 @@ import { ModelIdentifierResolution } from '../../chat/common/modelSelection.js';
 import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -745,6 +745,7 @@ export interface ISessionsProvider {
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	readonly supportsForceWorktreeCleanup?: boolean;
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
@@ -875,14 +876,10 @@ export interface ISessionsProvider {
 	forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
-	 * Create a side chat from an existing chat's turn, inheriting the source
-	 * chat's model/agent selection. Unlike {@link forkChat}, a side chat is for
-	 * a tangential follow-up rather than continuing the same line of work.
-	 * @param sessionId The ID of the session containing the source chat.
-	 * @param sourceChat The resource URI of the chat to branch from.
-	 * @param turnId The ID of the turn to branch from.
+	 * Creates a side chat inheriting the source model/agent and, by default, conversation context.
+	 * Set `includeSourceContext` to false for a fresh chat.
 	 */
-	createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
+	createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext?: boolean): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.

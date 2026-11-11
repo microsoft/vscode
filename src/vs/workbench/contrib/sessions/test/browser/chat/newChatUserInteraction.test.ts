@@ -23,13 +23,14 @@ import { ToolInvocationPresentation } from '../../../../chat/common/tools/langua
 import { createChatUserInteractionTestHarness } from '../../../../chat/test/browser/chatUserInteractionTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ITestSessionsService, ITestSessionWithChat, testGridPanes } from '../sessionHostTestUtils.js';
-import { IChat, ISession, SessionStatus } from '../../../common/session.js';
-import { ISendRequestOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { NewChatInSessionWidget } from '../../../browser/chat/newChatInSessionWidget.js';
 import { NewChatUserInteraction } from '../../../browser/chat/newChatUserInteraction.js';
 import { NewChatWidget } from '../../../browser/chat/newChatWidget.js';
+import { shownChatOf } from '../../../../../services/sessions/common/sessionPane.js';
 
 suite('Sessions - New chat user-perceived TTFP', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

@@ -20,7 +20,7 @@ import { ILanguageFeaturesService } from '../../../../../../editor/common/servic
 import { IChatWidget } from '../../../../chat/browser/chat.js';
 import { IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { ISession } from '../../../common/session.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { addSessionReference, IAddSessionReferenceArgs, SessionReferenceCompletions } from '../../../browser/chat/sessionReferenceCompletions.js';
 

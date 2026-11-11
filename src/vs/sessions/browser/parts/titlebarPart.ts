@@ -30,12 +30,13 @@ import { MenuWorkbenchButtonBar } from '../../../platform/actions/browser/button
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
+import { isDefined } from '../../../base/common/types.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/services/sessions/browser/sessionHost.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
@@ -97,6 +98,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
+	/** The groups of actions at the right, in order, the last shown of which ends the title bar of a window with layout actions. */
+	private readonly rightToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
@@ -376,12 +379,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 		const updateScreenReaderButtonBar = () => {
 			screenReaderToolBarElement.classList.toggle('has-no-actions', screenReaderButtonBar.buttons.length === 0);
+			this.updateLastRightToolBar();
 			this.titleBarToolBarOverflowScheduler.schedule();
 		};
 		this._register(screenReaderButtonBar.onDidChange(updateScreenReaderButtonBar));
 		updateScreenReaderButtonBar();
 
 		this.overflowManagedToolBarElements.push(screenReaderToolBarElement);
+		this.rightToolBarElements.push(...[screenReaderToolBarElement, sessionActionsContainer, windowLayoutContainer, rightToolbarContainer].filter(isDefined));
+		this.updateLastRightToolBar();
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
@@ -447,10 +453,20 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {
 		this.overflowManagedToolBarElements.push(element);
-		this._register(toolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
+		this._register(toolBar.onDidChangeMenuItems(() => {
+			this.updateLastRightToolBar();
+			this.titleBarToolBarOverflowScheduler.schedule();
+		}));
 	}
 
 	private updateTitleBarToolBarOverflow(): void {
+		const hasWindowControls = Array.from(this.rightContent.children).some(element => element.classList.contains('window-controls-container') && element.clientWidth > 0);
+		this.rightContent.classList.toggle('has-window-controls', hasWindowControls);
+		this.updateOverflowingToolBars();
+		this.updateLastRightToolBar();
+	}
+
+	private updateOverflowingToolBars(): void {
 		for (const element of this.overflowManagedToolBarElements) {
 			element.classList.remove('overflowing');
 		}
@@ -467,6 +483,21 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			if (!element.classList.contains('has-no-actions')) {
 				element.classList.add('overflowing');
 			}
+		}
+	}
+
+	/**
+	 * Marks the last shown group of actions at the right of the title bar of a window with layout actions, such as a chat
+	 * window, which keeps the inset to the window's edge: its layout actions, or the actions before them while those show
+	 * in its Session Activity Bar.
+	 */
+	private updateLastRightToolBar(): void {
+		if (!this.showsWindowLayoutActions) {
+			return;
+		}
+		const last = this.rightToolBarElements.findLast(element => !element.classList.contains('has-no-actions') && !element.classList.contains('overflowing'));
+		for (const element of this.rightToolBarElements) {
+			element.classList.toggle('titlebar-last-actions', element === last);
 		}
 	}
 

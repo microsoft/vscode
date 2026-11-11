@@ -11,7 +11,7 @@ import { ILogService } from '../../platform/log/common/log.js';
 import { MobileWorkbench } from './mobileWorkbench.js';
 import { DesktopWorkbench } from './desktopWorkbench.js';
 import { IWorkbenchOptions, Workbench } from './workbench.js';
-import { AgentWorkbenchLayout } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
 export function getSessionsWorkbenchLayout(viewportWidth: number, platform = { isWeb, isMobile }): AgentWorkbenchLayout {
 	return platform.isWeb && platform.isMobile && viewportWidth < 640 ? AgentWorkbenchLayout.Mobile : AgentWorkbenchLayout.Desktop;

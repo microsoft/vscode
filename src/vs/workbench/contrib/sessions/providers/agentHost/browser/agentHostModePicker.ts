@@ -27,8 +27,8 @@ import { SessionConfigPropertySchema } from '../../../../../../platform/agentHos
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { getSessionConfigProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../../common/session.js';
-import { ISessionChatSource } from '../../../browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionChatSource } from '../../../../../services/sessions/browser/sessionHost.js';
 import { type ISessionConfigProvider, type ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../chat/browser/chatPetAchievements.js';
@@ -63,6 +63,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	protected _triggerElement: HTMLElement | undefined;
 	private _pickerVisible = false;
+	private _pickerPresenter: ((anchor: HTMLElement) => Promise<void>) | undefined;
 
 	protected abstract readonly _property: string;
 	protected abstract readonly _pickerId: string;
@@ -292,8 +293,12 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}
 	}
 
+	setPickerPresenter(presenter: (anchor: HTMLElement) => Promise<void>): void {
+		this._pickerPresenter = presenter;
+	}
+
 	protected _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions = this._getListOptions()): boolean {
-		if (!anchor || this._actionWidgetService.isVisible) {
+		if (!anchor || this._pickerVisible || this._actionWidgetService.isVisible) {
 			return false;
 		}
 		const ctx = this._getActiveContext();
@@ -303,6 +308,19 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		// Defensive against stale keyboard activation on a disabled chip.
 		if (this._isCurrentlyResolvingConfig()) {
 			return false;
+		}
+		if (this._pickerPresenter) {
+			this._pickerVisible = true;
+			anchor.setAttribute('aria-expanded', 'true');
+			void this._pickerPresenter(anchor).finally(() => {
+				this._pickerVisible = false;
+				anchor.setAttribute('aria-expanded', 'false');
+				if (anchor.isConnected) {
+					anchor.focus();
+				}
+				onHide?.();
+			}).catch(onUnexpectedError);
+			return true;
 		}
 
 		const actionItems = this._getActionItems(ctx.items, ctx.currentValue);

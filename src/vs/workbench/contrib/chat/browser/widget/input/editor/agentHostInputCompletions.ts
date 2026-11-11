@@ -8,7 +8,7 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { AgentHostCompletionReferenceKind, chatReferenceVariableEntryId, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue, type IAgentHostCompletionVariableValue, type IChatReferenceDynamicVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, chatReferenceVariableEntryId, getAgentHostCompletionReferenceKindFromValue, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue, type IAgentHostCompletionVariableValue, type IChatReferenceDynamicVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
@@ -80,7 +80,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				fullName: arg.displayName,
 				data: arg.data,
 				_meta: arg._meta,
-			});
+			}, getAgentHostCompletionReferenceKindFromValue(arg.data) !== undefined);
 			if (arg.submitOnAccept) {
 				await arg.widget.acceptInput();
 			} else if (arg.retriggerSuggestions) {

@@ -11,8 +11,8 @@ import { IMenuActionOptions } from '../../../../../platform/actions/common/actio
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { ISessionPaneContent } from '../../common/sessionsManagement.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /**
  * Session-scoped header whose title follows the session's active chat.

@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ISessionHost } from '../sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentFeedbackService } from '../agentFeedback.js';
 import type { ISessionChatPillsDebugData } from '../chat/sessionChatInputToolbarDebug.js';

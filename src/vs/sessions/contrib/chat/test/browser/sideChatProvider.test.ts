@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
-import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionsService, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,9 +26,9 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {
@@ -73,11 +73,12 @@ suite('SessionsSideChatProviderContribution', () => {
 		const activeSession = observableValue<ITestSessionWithChat | undefined>(store, session);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>(store, undefined);
 		const gridSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'grid', resource: URI.parse('test:///grid'), chats: constObservable([]), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///grid/chat') })) });
+		const windowSessions = observableValue<readonly ITestSessionWithChat[]>(store, options.inChatWindow ? [session] : []);
 		const mainWindowSession = options.inChatWindow ? observableValue<ITestSessionWithChat | undefined>(store, gridSession) : activeSession;
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, {
 			mainWindowActiveSession: mainWindowSession,
 			gridShown: options.inChatWindow ? derived(reader => [mainWindowSession.read(reader)]) : constObservable([session]),
-			windowSessions: constObservable(options.inChatWindow ? [session] : []),
+			windowSessions,
 		}));
 
 		let registered: SessionsSideChatProviderContribution | undefined;
@@ -97,6 +98,8 @@ suite('SessionsSideChatProviderContribution', () => {
 
 		const callOrder: string[] = [];
 		const requests: ISendRequestOptions[] = [];
+		const contextInheritance: (boolean | undefined)[] = [];
+		const openReferences: (string | undefined)[] = [];
 		const sendRequest: ISessionsManagementService['sendRequest'] = async (_session, chat, requestOptions) => {
 			callOrder.push(`send:${chat.resource.toString()}:${requestOptions.query}`);
 			requests.push(requestOptions);
@@ -109,8 +112,9 @@ suite('SessionsSideChatProviderContribution', () => {
 				const resolvedChat = [chat, parentChat].find(candidate => extUri.isEqual(candidate.resource, resource));
 				return resolvedChat ? { session, chat: resolvedChat } : undefined;
 			},
-			createSideChatInSession: async (_session, _sourceChat, turnId, selection) => {
+			createSideChatInSession: async (_session, _sourceChat, turnId, selection, includeSourceContext) => {
 				callOrder.push(`create:${turnId}:${selection?.text ?? ''}`);
+				contextInheritance.push(includeSourceContext);
 				if (options.fail === 'create') {
 					throw new Error('Create failed');
 				}
@@ -125,8 +129,9 @@ suite('SessionsSideChatProviderContribution', () => {
 			slotPanes: testGridPanes(constObservable([session])),
 			activeSession,
 			navigationRequest,
-			openChat: async (_session, chatUri) => {
+			openChat: async (_session, chatUri, openOptions) => {
 				callOrder.push(`open:${chatUri.toString()}`);
+				openReferences.push(openOptions?.referenceChatResource?.toString());
 				if (options.fail === 'open') {
 					throw new Error('Open failed');
 				}
@@ -147,16 +152,16 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
+		return { provider: () => registered, callOrder, openReferences, requests, contextInheritance, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession, windowSessions };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
-		const { provider, callOrder, requests } = setup();
+		const { provider, callOrder, requests, contextInheritance } = setup();
 		const attachedContext = [toPasteVariableEntry('Pasted text #1', 'Long pasted text')];
 
 		await provider()!.askInSideChat(sourceChat.resource, 'what about this?', { text: 'selected text' }, { attachedContext });
 
-		assert.deepStrictEqual({ callOrder, requests }, {
+		assert.deepStrictEqual({ callOrder, requests, contextInheritance }, {
 			callOrder: [
 				'create:turn-1:selected text',
 				`open:${sideChat.resource.toString()}`,
@@ -164,6 +169,25 @@ suite('SessionsSideChatProviderContribution', () => {
 				`send:${sideChat.resource.toString()}:what about this?`,
 			],
 			requests: [{ query: 'what about this?', attachedContext }],
+			contextInheritance: [undefined],
+		});
+	});
+
+	test('opens a fresh side chat and sends only the supplied prompt when source context is disabled', async () => {
+		const { provider, callOrder, requests, contextInheritance } = setup();
+		const query = 'Explain this command: git status';
+
+		await provider()!.askInSideChat(sourceChat.resource, query, undefined, { includeSourceContext: false });
+
+		assert.deepStrictEqual({ callOrder, requests, contextInheritance }, {
+			callOrder: [
+				'create:turn-1:',
+				`open:${sideChat.resource.toString()}`,
+				`split:${sideChat.resource.toString()}`,
+				`send:${sideChat.resource.toString()}:${query}`,
+			],
+			requests: [{ query, attachedContext: undefined }],
+			contextInheritance: [false],
 		});
 	});
 
@@ -200,7 +224,30 @@ suite('SessionsSideChatProviderContribution', () => {
 		});
 	}
 
-	test('a side chat from a chat window is not sent in the background when the main window switches sessions meanwhile', async () => {
+	test('a side chat from a chat window opens beside its source chat there, and is not split in the main window grid', async () => {
+		const { provider, callOrder, openReferences, requests } = setup({ inChatWindow: true });
+
+		await provider()!.askInSideChat(sourceChat.resource, 'question');
+
+		assert.deepStrictEqual({ callOrder, openReferences, requests }, {
+			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:question`],
+			openReferences: [sourceChat.resource.toString()],
+			requests: [{ query: 'question', attachedContext: undefined, background: true }],
+		});
+	});
+
+	test('a side chat from the main window opens beside its source chat and splits in the grid', async () => {
+		const { provider, callOrder, openReferences } = setup();
+
+		await provider()!.askInSideChat(sourceChat.resource, 'question');
+
+		assert.deepStrictEqual({ callOrder, openReferences }, {
+			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `split:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:question`],
+			openReferences: [sourceChat.resource.toString()],
+		});
+	});
+
+	test('a side chat from a chat window is sent once in the background, so it neither discards the main window draft nor is it followed there', async () => {
 		const creation = new DeferredPromise<void>();
 		const harness = setup({ inChatWindow: true, onCreateSideChat: () => creation.p });
 		const request = harness.provider()!.askInSideChat(sourceChat.resource, 'question', undefined, undefined);
@@ -211,7 +258,22 @@ suite('SessionsSideChatProviderContribution', () => {
 		await creation.complete();
 		await request;
 
-		assert.deepStrictEqual(harness.requests.map(request => request.background ?? false), [false]);
+		assert.deepStrictEqual(harness.requests.map(request => request.background ?? false), [true]);
+	});
+
+	test('a side chat is sent in the background without opening or splitting when its source chat window closes while it is created', async () => {
+		const creation = new DeferredPromise<void>();
+		const harness = setup({ inChatWindow: true, onCreateSideChat: () => creation.p });
+		const request = harness.provider()!.askInSideChat(sourceChat.resource, 'question');
+
+		harness.windowSessions.set([], undefined);
+		await creation.complete();
+		await request;
+
+		assert.deepStrictEqual({ callOrder: harness.callOrder, requests: harness.requests }, {
+			callOrder: ['create:turn-1:', `send:${sideChat.resource.toString()}:question`],
+			requests: [{ query: 'question', attachedContext: undefined, background: true }],
+		});
 	});
 
 	test('does not split or follow a side chat when navigation supersedes its pending open', async () => {

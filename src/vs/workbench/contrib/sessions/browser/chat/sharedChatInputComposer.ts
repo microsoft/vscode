@@ -11,7 +11,7 @@ import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -53,12 +53,11 @@ import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { Menus } from '../menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../common/theme.js';
-import { IWorkspaceSelectionSnapshot } from '../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
-import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
-import { IChat } from '../../common/session.js';
+import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 import { ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
-import { shownChatOf } from '../../common/sessionsManagement.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -76,8 +75,9 @@ import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
-import { isPhoneLayout } from '../mobileLayout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../mobile/mobileChipLaneScroll.js';
+import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;
@@ -206,6 +206,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	readonly onDidChangeAttachments = this._onDidChangeAttachments.event;
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
+	/** Fires with the model the user selects for the session, once applied: not as the session's model changes otherwise. */
+	get onDidSelectModel(): Event<string> { return this._modelSelection.onDidSelectModel; }
 
 	private _widgetContextKeyService: IContextKeyService | undefined;
 
@@ -369,8 +371,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const inputRow = tipContainer.nextElementSibling;
 			this._promptOptions.attach(widget.inputEditor, tipContainer.parentElement, dom.isHTMLElement(inputRow) ? inputRow : undefined);
 		}
-		this._register(this.newChatVoiceTargetService.registerComposer(this));
-		this._register(this.onDidFocus(() => this.newChatVoiceTargetService.setActive(this)));
+		this._register(this._registerVoiceTarget());
 		const inputContainer = widget.inputPart.inputContainerElement;
 		if (inputContainer) {
 			this._register(this.instantiationService.createInstance(NewChatVoiceInputDecorations, inputContainer, this.options.inputVisible ?? constObservable(true), ownsDraftVoiceSession));
@@ -386,10 +387,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 
 		this._renderSessionControls(parent);
-		if (this._pendingAttachments.length) {
-			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
-		}
-		this._restoreDraftState();
+		this._restoreInput(widget);
 		this._bindChatModel();
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('SharedChatInputComposer', () => this._layoutWidget(), dom.getWindow(container)));
@@ -652,6 +650,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		return this.options.onDidChangeWorkspaceSelection ?? Event.None;
 	}
 
+	/** Makes it a target of Voice Mode, the active one as it mounts and once it gains focus, unless its host keeps it out of Voice Mode. */
+	private _registerVoiceTarget(): IDisposable {
+		if (this.options.voiceTarget === false) {
+			return Disposable.None;
+		}
+		const store = new DisposableStore();
+		store.add(this.newChatVoiceTargetService.registerComposer(this));
+		store.add(this.onDidFocus(() => this.newChatVoiceTargetService.setActive(this)));
+		return store;
+	}
+
 	get routesWhileSessionActive(): boolean {
 		return this.options.voiceRoutesWhileSessionActive === true;
 	}
@@ -696,7 +705,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	saveState(): void {
 		const widget = this._widget;
-		if (widget) {
+		// A host that keeps the input in a snapshot persists it itself.
+		if (widget && !this.options.inputSnapshot) {
 			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
 		}
 	}
@@ -718,12 +728,89 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 	}
 
+	/** Gives the input its context queued before rendering and its saved draft, and then tracks the host's snapshot. */
+	private _restoreInput(widget: ChatWidget): void {
+		if (this._pendingAttachments.length) {
+			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
+		}
+		this._restoreDraftState();
+		// Only once the host's input is restored and the queued context is merged into it, so neither overwrites it.
+		if (this.options.inputSnapshot) {
+			this._register(this._trackInputSnapshot(widget));
+		}
+	}
+
+	/**
+	 * Writes the input to the host's snapshot now and synchronously on every change of its text, attachments, inline
+	 * references or inline attachment pills, which can change the saved prompt without an edit. Never on disposal.
+	 */
+	private _trackInputSnapshot(widget: ChatWidget): IDisposable {
+		const store = new DisposableStore();
+		const write = () => this._writeInputSnapshot(widget);
+		store.add(widget.inputEditor.onDidChangeModelContent(write));
+		store.add(widget.attachmentModel.onDidChange(write));
+		const references = widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+		if (references) {
+			store.add(references.onDidChangeReferences(write));
+		}
+		const inlineAttachments = widget.input.inlineAttachments;
+		if (inlineAttachments) {
+			store.add(inlineAttachments.onDidChange(write));
+		}
+		store.add(this.options.inputSnapshot!.registerRestorer(draft => this._showRestoredInput(widget, draft)));
+		write();
+		return store;
+	}
+
+	/**
+	 * Shows `draft`, which the host gave back, such as the prompt of a send that did not start its session, and returns
+	 * whether it did: not while it sends, which clears the input it would show it in.
+	 */
+	private _showRestoredInput(widget: ChatWidget, draft: IChatDraft): boolean {
+		if (this._widget !== widget || this._sending.get()) {
+			return false;
+		}
+		this.setInputValue(draft.inputText);
+		widget.attachmentModel.clearAndSetContext(...draft.attachments);
+		this._restoreDraftReferences(draft);
+		return true;
+	}
+
+	private _writeInputSnapshot(widget: ChatWidget): void {
+		if (this.options.inputSnapshot && this._widget === widget) {
+			this.options.inputSnapshot.set({ inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+		}
+	}
+
+	/**
+	 * Ends a send's attempt. A send that did not go out restores its input into the composer; when the composer's input
+	 * is gone, such as a view replaced during the send, the snapshot gets it back for the next view, unless that view
+	 * already has input of its own.
+	 */
+	private _endSendAttempt(attemptId: string, sent: boolean, inputAlive: boolean): void {
+		const snapshot = this.options.inputSnapshot;
+		if (!snapshot) {
+			return;
+		}
+		const state = snapshot.get();
+		if (!sent && !inputAlive && state.attempt?.id === attemptId && !state.input.inputText && !state.input.attachments.length) {
+			snapshot.set(state.attempt.input);
+		}
+		snapshot.endSendAttempt(attemptId);
+	}
+
 	private _restoreDraftState(): void {
 		let draft: IChatDraft | undefined;
-		try {
-			draft = readNewChatDraftState(this.storageService);
-		} catch {
-			this.logService.warn('[SharedChatInputComposer] Could not restore the saved draft');
+		if (this.options.inputSnapshot) {
+			// A send whose input was cleared but that has not ended restores what was sent.
+			const state = this.options.inputSnapshot.get();
+			draft = state.attempt?.input ?? state.input;
+		} else {
+			try {
+				draft = readNewChatDraftState(this.storageService);
+			} catch {
+				this.logService.warn('[SharedChatInputComposer] Could not restore the saved draft');
+			}
 		}
 		if (draft) {
 			this.setInputValue(draft.inputText);
@@ -933,14 +1020,22 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (!this._canSendRequest.get()) {
 			return false;
 		}
+		const targetWindow = dom.getWindow(widget.domNode);
+		const hadFocus = widget.input.hasFocus();
+		let disabledInputFocus = targetWindow.document.activeElement;
+		const canRestoreInputFocus = () => {
+			const activeElement = targetWindow.document.activeElement;
+			return this.options.inputVisible?.get() !== false && this.options.hostVisible?.get() !== false
+				&& (activeElement === targetWindow.document.body || activeElement === disabledInputFocus || widget.input.hasFocus());
+		};
 		if (this.options.confirmSend) {
-			const hadFocus = widget.input.hasFocus();
 			transaction(tx => {
 				this._sending.set(true, tx);
 				this._confirmingSend.set(true, tx);
 			});
 			// The request is already captured, so edits made while the host confirms would be lost.
 			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+			disabledInputFocus = targetWindow.document.activeElement;
 			let confirmed = false;
 			try {
 				confirmed = await this.options.confirmSend(query);
@@ -951,7 +1046,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				});
 				if (this._widget === widget && widget.input) {
 					widget.input.setInputEnabled(true);
-					if (!confirmed && hadFocus) {
+					if (!confirmed && hadFocus && canRestoreInputFocus()) {
 						widget.input.focus();
 					}
 				}
@@ -967,12 +1062,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			hostVisible: this.options.hostVisible,
 		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
+		const restoreFocusAfterSend = hadFocus && canRestoreInputFocus();
 		this._sending.set(true, undefined);
 		widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+		disabledInputFocus = targetWindow.document.activeElement;
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;
 		let ownsClearedDraft: (() => boolean) | undefined;
+		let attemptId: string | undefined;
+		let sent = false;
 		const restoreInput = () => {
 			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
@@ -997,24 +1096,30 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				return true;
 			}
 
+			// The input is about to be cleared: until the send ends, the host restores what is sent.
+			attemptId = this.options.inputSnapshot?.beginSendAttempt({ inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
 			// Clear the input as a regular chat send does. The widget is bound to
 			// the draft's chat model, which the running session adopts once the
 			// host sends, so the draft must not carry the sent prompt.
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
-			// The host can create another composer before the send completes.
-			ownsClearedDraft = writeNewChatDraftState(this.storageService, { inputText: '', attachments: [] });
+			// The host can create another composer before the send completes. A host that keeps the input in a
+			// snapshot gets the cleared input from tracking it, and never the main composer's saved draft.
+			if (!this.options.inputSnapshot) {
+				ownsClearedDraft = writeNewChatDraftState(this.storageService, { inputText: '', attachments: [] });
+			}
 			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
 			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset
 				? { ...entry, range: { start: entry.range.start - queryOffset, endExclusive: entry.range.endExclusive - queryOffset } }
 				: entry);
-			const sent = await this.options.sendRequest({ query, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction });
-			if (!sent) {
+			const accepted = await this.options.sendRequest({ query, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction, attemptId });
+			if (!accepted) {
 				userInteraction?.cancel('notDispatched');
 				restoreInput();
 				return false;
 			}
+			sent = true;
 			return true;
 		} catch (error) {
 			userInteraction?.cancel(isCancellationError(error) ? 'cancelled' : 'error');
@@ -1022,9 +1127,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this.logService.error('[SharedChatInputComposer] Failed to send request', error);
 			return false;
 		} finally {
+			// After a rejection or failure restored the input, so the snapshot holds it again.
+			if (attemptId) {
+				this._endSendAttempt(attemptId, sent, isInputAlive());
+			}
 			this._userInteractionSource.clear();
 			if (isInputAlive()) {
 				widget.input.setInputEnabled(true);
+				if (!sent && restoreFocusAfterSend && canRestoreInputFocus()) {
+					widget.input.focus();
+				}
 			}
 			this._sending.set(false, undefined);
 		}

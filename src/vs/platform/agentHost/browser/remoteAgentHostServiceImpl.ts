@@ -45,7 +45,7 @@ import {
 } from '../common/remoteAgentHostService.js';
 import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
-import { AgentHostProtocolClient, InitialAuthenticationError } from './agentHostProtocolClient.js';
+import { AgentHostProtocolClient } from './agentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
@@ -871,7 +871,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
-			entry.lastConnectionError = undefined;
+			entry.lastConnectionError = reason === AgentHostTransportFailureReason.AuthenticationFailed
+				? localize('remoteAgentHost.authenticationFailed', "Authentication failed. Reconnect to sign in again.")
+				: undefined;
 			entry.client = undefined;
 			disposeEntry(entry);
 			this._onDidChangeConnections.fire();
@@ -879,8 +881,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// the "fatal" path — the protocol client already gave up its own
 			// soft-reconnect attempts (or it was never enabled), so we rebuild
 			// from scratch.
-			if (createdConnection.reconnectManagedByClient) {
-				this._rejectPendingConnectionWait(address, new Error(localize('remoteAgentHost.recoveryClosed', "Connection to {0} closed before recovery completed.", address)));
+			if (createdConnection.reconnectManagedByClient || reason === AgentHostTransportFailureReason.AuthenticationFailed) {
+				this._rejectPendingConnectionWait(address, new Error(entry.lastConnectionError ?? localize('remoteAgentHost.recoveryClosed', "Connection to {0} closed before recovery completed.", address)));
 				observer?.('failed');
 			} else if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
 				observer?.('failed');
@@ -927,13 +929,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					break;
 				case 'incompatible': {
 					const wasReconnecting = RemoteAgentHostConnectionStatus.isReconnecting(entry.status);
+					const message = localize('remoteAgentHost.protocolIncompatible', "The remote agent host does not support this client's protocol versions.");
 					observer?.('failed');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
+					entry.status = RemoteAgentHostConnectionStatus.fromConnectError(client.connectionError, getAgentHostSupportedProtocolVersions())
+						?? RemoteAgentHostConnectionStatus.incompatible(message, getAgentHostSupportedProtocolVersions());
 					entry.lastConnectionError = undefined;
 					this._reconnectAttempts.delete(address);
 					if (wasReconnecting) {
-						this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
+						this._rejectPendingConnectionWait(address, client.connectionError ?? new Error(message));
 					}
 					this._onDidChangeConnections.fire();
 					break;
@@ -975,9 +979,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// reconnect attempts would just spin until the user upgrades
 			// either side, so leave recovery to the manual `Reconnect`
 			// action in the picker.
-			const incompatible = err instanceof InitialAuthenticationError
-				? RemoteAgentHostConnectionStatus.incompatible(err.message, getAgentHostSupportedProtocolVersions())
-				: RemoteAgentHostConnectionStatus.fromConnectError(err, getAgentHostSupportedProtocolVersions());
+			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, getAgentHostSupportedProtocolVersions());
 			if (incompatible) {
 				observer?.('failed');
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
@@ -1007,14 +1009,16 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
-			entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
+			if (disconnectReason !== AgentHostTransportFailureReason.AuthenticationFailed) {
+				entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
+			}
 			entry.client = undefined;
 			// Clean up the failed client while retaining its entry and status.
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			if (createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			if (disconnectReason === AgentHostTransportFailureReason.AuthenticationFailed || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
 				observer?.('failed');
 			}
 		}

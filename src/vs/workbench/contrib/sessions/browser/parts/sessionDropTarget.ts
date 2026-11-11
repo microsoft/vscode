@@ -15,7 +15,7 @@ import { IThemeService, Themable } from '../../../../../platform/theme/common/th
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../dnd.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ISession, isSessionCreated } from '../../common/session.js';
+import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';

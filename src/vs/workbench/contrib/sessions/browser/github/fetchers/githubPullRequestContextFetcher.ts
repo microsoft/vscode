@@ -8,7 +8,7 @@ import { ChangedFile } from '../../../../../../platform/github/common/core/core.
 import { IssueComment } from '../../../../../../platform/github/common/core/issues.js';
 import { ReviewComment } from '../../../../../../platform/github/common/core/reviews.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestContextComment } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubPullRequestContextFetcher {
 	constructor(private readonly _client: GitHubApiClient) { }

@@ -45,6 +45,11 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/**
+	 * Whether {@link chats} also open, beside the chat, in a window that shows the chat already, which then shows instead of
+	 * a new window: as the chat windows open again that were open when the window last closed. Not by default.
+	 */
+	readonly restoreChatsOnReveal?: boolean;
 	/** Of its chats, the one whose remembered layout and part sizes the window uses, when not the one it opens for. */
 	readonly layoutChat?: URI;
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
@@ -147,6 +152,21 @@ export interface IChatWindowChrome {
 	createStrip?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 }
 
+/**
+ * The options of a chat window's chat part over those of its main part: its tabs, of chats with long titles, are all as
+ * wide, at most as an editor tab with fixed sizing is by default, whatever sizing editor tabs have.
+ */
+export const CHAT_PART_OPTIONS = { tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 } satisfies Partial<IEditorPartOptions>;
+
+/**
+ * The options of the main part of a chat window: its tabs follow `workbench.editor.showTabs`, live, as the main window's
+ * editor area does; `none` shows as `single`, so that the part keeps its title with its actions. Double-clicking a tab
+ * does not maximize or expand a group: the window arranges its parts.
+ */
+export function getChatWindowMainPartOptions(showTabs: string | undefined): DeepPartial<IEditorPartOptions> {
+	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
+}
+
 /** The look facet: how a provider's chat windows look. */
 export interface IChatWindowLook {
 	/** The gap between the parts of the window, in pixels. */
@@ -172,6 +192,13 @@ export interface IChatWindowProvider {
 	resolveContent(chat: URI): Promise<IChatWindowContent | undefined>;
 	readonly chrome?: IChatWindowChrome;
 	readonly look: IChatWindowLook;
+	/**
+	 * Why `chats`, those of a chat window, cannot move to the main window now, such as a chat that cannot leave its window
+	 * yet; undefined when they can. Closing the window is not affected.
+	 */
+	moveVeto?(chats: readonly URI[]): string | undefined;
+	/** Opens a new chat of the provider's in `window`, such as one that starts a new session, as {@link IChatWindowService.openNewChat} does. */
+	openNewChat?(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void>;
 	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed; the first is the one that was active there. */
 	moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void>;
 	/**
@@ -179,6 +206,18 @@ export interface IChatWindowProvider {
 	 * to know, such as for the chat to load. A chat that is gone does not.
 	 */
 	canRestore(chat: URI): Promise<boolean>;
+	/**
+	 * Called once the chat windows open when the window last closed were restored, with the chats it restored or tried to
+	 * (`claimed`): those {@link canRestore} accepted, also in a window that failed to open, which stays stored to restore
+	 * next time. Not while restoring is pending ({@link restoreEnabled}).
+	 */
+	didFinishRestore?(claimed: readonly URI[]): void;
+	/**
+	 * The chat that `original`, a chat of a stored chat window, opens as when that is another chat: such as a session,
+	 * as chat windows were stored before they were built on parts, which opens as one of its chats. Synchronous, from what
+	 * is known now. Used to know when a stored chat shows, not how chats are stored or opened.
+	 */
+	canonicalChatOf?(original: URI): URI | undefined;
 	/** Whether chat windows are restored now; while not, the stored ones are kept for later. */
 	readonly restoreEnabled: IObservable<boolean>;
 	/** Fires with chats that are gone, so that their stored windows are forgotten before the next save. */
@@ -191,6 +230,11 @@ export interface IChatWindow {
 	readonly windowId: number;
 	/** The chats it shows, in the order they joined it. It closes once the last one leaves. */
 	readonly chats: IObservable<readonly URI[]>;
+	/**
+	 * Its {@link chats} whose editors opened in it: not one whose editor still opens, which can fail. What it keeps of its
+	 * chats beyond the window, such as across a reload, follows these.
+	 */
+	readonly openedChats: IObservable<readonly URI[]>;
 	/**
 	 * The active chat: the chat whose editor was last active in the window, whichever part shows it. It does not change as
 	 * focus moves to another editor, such as of the main part.
@@ -294,4 +338,27 @@ export interface IChatWindowService {
 
 	/** Closes `window`, and shows its chats in the main window again, with the editors of its main part. */
 	moveToMainWindow(window: IChatWindow): Promise<void>;
+
+	/**
+	 * Opens a new chat in `window`, as its provider defines one, such as one that starts a new session: a tab of its active
+	 * chat, or beside it. Does nothing without a provider that offers new chats.
+	 */
+	openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void>;
+}
+
+/** How {@link IChatWindowService.openNewChat} opens a new chat in a window. */
+export interface IChatWindowNewChatOptions {
+	/** Beside the window's active chat, in a group of its own to the side, rather than as a tab of it. */
+	readonly beside?: boolean;
+	/** Without moving focus to it, such as when opened in the background. */
+	readonly preserveFocus?: boolean;
+	/** The folder the new chat starts in, such as one the user picked, rather than what the window's active chat starts it from. */
+	readonly folder?: IChatWindowNewChatFolder;
+}
+
+/** A folder a new chat starts in ({@link IChatWindowNewChatOptions.folder}). */
+export interface IChatWindowNewChatFolder {
+	readonly uri: URI;
+	/** The provider that resolved the folder before, such as for a recent folder, so that the new chat keeps it. */
+	readonly providerId?: string;
 }

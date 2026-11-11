@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -33,12 +34,12 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
@@ -468,23 +469,38 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
-	test('plays the confetti signal after keyboard archive when animation is enabled', async () => {
+	test('plays the confetti signal optimistically when keyboard archive is requested', async () => {
 		const enabled = createActionHarness([createTestSession('Enabled').session], undefined);
 		const disabled = createActionHarness([createTestSession('Disabled').session], undefined, undefined, undefined, false, { confettiEnabled: false });
 		const reducedMotion = createActionHarness([createTestSession('Reduced motion').session], undefined, undefined, undefined, false, { reducedMotion: true });
+		const failed = createActionHarness([createTestSession('Failed').session], undefined);
+		const completion = new DeferredPromise<void>();
+		enabled.managementService.archiveSession = async () => completion.p;
+		failed.managementService.archiveSession = async () => { throw new Error('Archive failed'); };
 
-		await enabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const archive = enabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const enabledBeforeCompletion = [...enabled.playedSignals];
+		await completion.complete();
+		await archive;
 		await disabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 		await reducedMotion.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		await assert.rejects(
+			() => failed.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor)),
+			/Archive failed/,
+		);
 
 		assert.deepStrictEqual({
+			enabledBeforeCompletion,
 			enabled: enabled.playedSignals,
 			disabled: disabled.playedSignals,
 			reducedMotion: reducedMotion.playedSignals,
+			failed: failed.playedSignals,
 		}, {
+			enabledBeforeCompletion: [AccessibilitySignal.confetti],
 			enabled: [AccessibilitySignal.confetti],
 			disabled: [],
 			reducedMotion: [],
+			failed: [AccessibilitySignal.confetti],
 		});
 	});
 

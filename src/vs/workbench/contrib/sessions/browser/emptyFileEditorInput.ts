@@ -11,9 +11,9 @@ import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbos
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { DockedEditorInput } from './dockedEditorInput.js';
+import { DockedEditorInput } from '../../../browser/parts/editor/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ISessionWorkspace } from '../common/session.js';
+import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
 export class EmptyFileEditorInput extends DockedEditorInput {
 

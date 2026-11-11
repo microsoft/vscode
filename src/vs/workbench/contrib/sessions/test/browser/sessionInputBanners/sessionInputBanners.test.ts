@@ -38,10 +38,10 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import type { IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISessionHost, SessionHost, SessionHostKind } from '../../../browser/sessionHost.js';
+import { ISessionHost, SessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../sessionHostTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../browser/agentFeedback.js';

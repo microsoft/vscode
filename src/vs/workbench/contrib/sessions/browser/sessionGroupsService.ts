@@ -5,16 +5,16 @@
 
 import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getOrSet } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from '../common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from './sessionSectionOrderService.js';
+import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
 
 /** Local icon and theme-color overrides for custom groups and grouping sections. */
 export interface ISessionGroupAppearance {
@@ -289,6 +289,14 @@ export interface ISessionGroupsService {
 	 * group does not exist.
 	 */
 	setPendingNewSessionGroup(groupId: string): void;
+
+	/**
+	 * Record the group that sessions sent from the new-session draft slot with id `slotId` (see
+	 * `ISessionsManagementService.createNewSessionSlot`) join, or `undefined` for none. Unlike
+	 * {@link setPendingNewSessionGroup}, it applies to every send of the slot until the returned disposable is disposed,
+	 * and it never takes or clears the main composer's intent.
+	 */
+	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable;
 }
 
 export const ISessionGroupsService = createDecorator<ISessionGroupsService>('sessionGroupsService');
@@ -345,6 +353,15 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	 */
 	private readonly _inFlightSessionGroups = new Map<string, string>();
 
+	/** The groups of new-session draft slots ({@link setDraftSlotGroup}): slotId -> groupId. */
+	private readonly _draftSlotGroups = new Map<string, string>();
+
+	/**
+	 * The {@link _inFlightSessionGroups} of sends from independent draft slots. They are kept while the request runs,
+	 * also while its session is not listed, and dropped when it ends without starting.
+	 */
+	private readonly _slotSendSessionIds = new Set<string>();
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -374,18 +391,19 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			const transientMembershipChanged = new Set<string>();
 			const inFlightSessionIds = new Set(this.sessionsManagementService.getInFlightNewSessionRequests().map(session => session.sessionId));
 			for (const session of e.added) {
-				if (inFlightSessionIds.has(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
+				if (inFlightSessionIds.has(session.sessionId) && this.isMainComposerSession(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
 					transientMembershipChanged.add(session.sessionId);
 				}
 			}
 			for (const session of e.removed) {
-				if (this._inFlightSessionGroups.delete(session.sessionId)) {
+				// A send of a draft slot keeps its group until its request ends, also while its session drops out of the list.
+				if (!this._slotSendSessionIds.has(session.sessionId) && this.deleteInFlightSessionGroup(session.sessionId)) {
 					transientMembershipChanged.add(session.sessionId);
 				}
 			}
 			const visibleSessionIds = new Set(this.sessionsManagementService.getSessions().map(session => session.sessionId));
 			for (const sessionId of this._inFlightSessionGroups.keys()) {
-				if (!visibleSessionIds.has(sessionId)) {
+				if (!visibleSessionIds.has(sessionId) && !this._slotSendSessionIds.has(sessionId)) {
 					this._inFlightSessionGroups.delete(sessionId);
 					transientMembershipChanged.add(sessionId);
 				}
@@ -432,7 +450,30 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// can no longer rebind it. A send into an existing session discards the
 		// draft (firing the discard handler below) before this fires.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => {
-			if (this.capturePendingNewSessionGroup(session.sessionId)) {
+			if (this.isMainComposerSession(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
+			}
+		}));
+
+		// A send from an independent draft slot takes the slot's group when it is accepted, before the slot lets go of
+		// its draft, and keeps it until the request ends.
+		this._register(this.sessionsManagementService.onDidAcceptNewSessionRequest(({ session, owner }) => {
+			if (owner === this.sessionsManagementService.defaultNewSessionSlot) {
+				return;
+			}
+			const groupId = this._draftSlotGroups.get(owner.id);
+			if (groupId === undefined || !this._groups.has(groupId)) {
+				return;
+			}
+			this._inFlightSessionGroups.set(session.sessionId, groupId);
+			this._slotSendSessionIds.add(session.sessionId);
+			this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
+		}));
+		this._register(this.sessionsManagementService.onDidEndNewSessionRequest(({ session, started }) => {
+			if (!this._slotSendSessionIds.delete(session.sessionId) || started) {
+				return;
+			}
+			if (this._inFlightSessionGroups.delete(session.sessionId)) {
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
 			}
 		}));
@@ -447,7 +488,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			if (groupId === undefined) {
 				return;
 			}
-			this._inFlightSessionGroups.delete(session.sessionId);
+			this.deleteInFlightSessionGroup(session.sessionId);
 			if (this._groups.has(groupId)) {
 				this.addToGroup(session.sessionId, groupId);
 			}
@@ -455,8 +496,10 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 		// Abandoning the composer draft drops the not-yet-dispatched intent so it
 		// never binds an unrelated session created later.
-		this._register(this.sessionsManagementService.onDidDiscardNewSession(() => {
-			this._pendingNewSessionGroupId = undefined;
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(session => {
+			if (this.isMainComposerSession(session.sessionId)) {
+				this._pendingNewSessionGroupId = undefined;
+			}
 		}));
 
 		this._register(this.sessionsManagementService.onDidMoveChat(({ from, to }) => this.onDidMoveChat(from.session, from.chat, to.session, to.chat)));
@@ -734,9 +777,14 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		if (this._pendingNewSessionGroupId !== undefined && deletedIds.has(this._pendingNewSessionGroupId)) {
 			this._pendingNewSessionGroupId = undefined;
 		}
+		for (const [slotId, gid] of this._draftSlotGroups) {
+			if (deletedIds.has(gid)) {
+				this._draftSlotGroups.delete(slotId);
+			}
+		}
 		for (const [sessionId, gid] of this._inFlightSessionGroups) {
 			if (deletedIds.has(gid)) {
-				this._inFlightSessionGroups.delete(sessionId);
+				this.deleteInFlightSessionGroup(sessionId);
 			}
 		}
 		const membership = new Map<string, string>();
@@ -814,7 +862,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	removeFromGroup(sessionId: string): void {
 		const membershipDeleted = this._membership.delete(sessionId);
-		const transientMembershipDeleted = this._inFlightSessionGroups.delete(sessionId);
+		const transientMembershipDeleted = this.deleteInFlightSessionGroup(sessionId);
 		if (!membershipDeleted && !transientMembershipDeleted) {
 			return;
 		}
@@ -850,7 +898,31 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
 	}
 
+	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable {
+		if (groupId !== undefined && this._groups.has(groupId)) {
+			this._draftSlotGroups.set(slotId, groupId);
+		} else {
+			this._draftSlotGroups.delete(slotId);
+		}
+		return toDisposable(() => {
+			if (this._draftSlotGroups.get(slotId) === groupId) {
+				this._draftSlotGroups.delete(slotId);
+			}
+		});
+	}
+
 	// -- Helpers --
+
+	/** Whether a session is not owned by an independent new-session draft slot, so the main composer's intent applies. */
+	private isMainComposerSession(sessionId: string): boolean {
+		const owner = this.sessionsManagementService.getNewSessionOwner(sessionId);
+		return !owner || owner === this.sessionsManagementService.defaultNewSessionSlot;
+	}
+
+	private deleteInFlightSessionGroup(sessionId: string): boolean {
+		this._slotSendSessionIds.delete(sessionId);
+		return this._inFlightSessionGroups.delete(sessionId);
+	}
 
 	private capturePendingNewSessionGroup(sessionId: string): boolean {
 		if (this._pendingNewSessionGroupId === undefined) {
@@ -871,6 +943,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		this._inFlightSessionGroups.delete(from.sessionId);
 		this._inFlightSessionGroups.set(to.sessionId, groupId);
+		if (this._slotSendSessionIds.delete(from.sessionId)) {
+			this._slotSendSessionIds.add(to.sessionId);
+		}
 		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([from.sessionId, to.sessionId]) });
 	}
 

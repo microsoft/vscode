@@ -21,30 +21,31 @@ import { agentsCardBorder, agentsPanelBorder } from '../../../workbench/contrib/
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../workbench/services/sessions/browser/visibleSessions.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const pickerKeys = new Set([SessionWorkspacePickerVisibleContext.key, SessionHarnessPickerVisibleContext.key, SessionIsolationPickerVisibleContext.key]);
 
 	test('positional pane lookup distinguishes the empty composer from an absent pane', () => {
-		const { part } = createSessionsPartTestHarness(store);
+		const { content } = createSessionsPartTestHarness(store);
 		const session = createTestActiveSession('session');
-		renderTestPanes(part, [undefined, session], session);
+		renderTestPanes(content, [undefined, session], session);
 		const describe = (index: number) => {
-			const pane = part.getPaneAtPosition(index);
+			const pane = content.getPaneAtPosition(index);
 			return pane && (pane.session.get()?.sessionId ?? 'new session');
 		};
 		assert.deepStrictEqual([describe(0), describe(-1), describe(2)], ['new session', session.sessionId, undefined]);
 	});
 
 	test('focusing the view of a pane the grid clips reveals it and moves focus into it', () => {
-		const { part, container } = createSessionsPartTestHarness(store);
+		const { part, content, container } = createSessionsPartTestHarness(store);
 		const sessions = ['first', 'second', 'third', 'fourth'].map(id => createTestActiveSession(id));
-		const panes = renderTestPanes(part, sessions, sessions[0]);
+		const panes = renderTestPanes(content, sessions, sessions[0]);
 		part.layout(500, 600, 0, 0);
 		const grid = container.querySelector<HTMLElement>('.session-grid')!;
-		const target = part.getSessionView(sessions[3].sessionId)!;
+		const target = content.getSessionView(sessions[3].sessionId)!;
 		const isFullyVisible = () => {
 			const gridRect = grid.getBoundingClientRect();
 			const viewRect = target.element.getBoundingClientRect();
@@ -52,13 +53,13 @@ suite('Sessions - Sessions Part', () => {
 		};
 		const before = isFullyVisible();
 
-		part.focusPane(panes[3].id);
+		content.focusPane(panes[3].id);
 
 		assert.deepStrictEqual({ before, after: isFullyVisible(), focused: target.element.contains(mainWindow.document.activeElement) }, { before: false, after: true, focused: true });
 	});
 
 	test('focusing the view of a detached pane reveals and focuses that pane, not the slot of its session', () => {
-		const { part, container } = createSessionsPartTestHarness(store);
+		const { part, content, container } = createSessionsPartTestHarness(store);
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		};
@@ -69,7 +70,7 @@ suite('Sessions - Sessions Part', () => {
 		grid.moveChatToGrid(session, session.chats.get()[1], grid.getGridSlots()[3].id, Direction.Right);
 		grid.setActive(grid.panes.get()[0]);
 		const [slot, detached] = [grid.panes.get()[0], grid.panes.get().at(-1)!];
-		part.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
+		content.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
 		part.layout(500, 600, 0, 0);
 		const gridElement = container.querySelector<HTMLElement>('.session-grid')!;
 		const isFullyVisible = (element: HTMLElement) => {
@@ -77,21 +78,21 @@ suite('Sessions - Sessions Part', () => {
 			const viewRect = element.getBoundingClientRect();
 			return viewRect.left >= gridRect.left - 1 && viewRect.right <= gridRect.right + 1;
 		};
-		const target = part.getViewOfPane(detached)!;
+		const target = content.getViewOfPane(detached)!;
 		const before = isFullyVisible(target.element);
 
-		part.focusPane(detached.id);
+		content.focusPane(detached.id);
 
 		assert.deepStrictEqual({
 			before,
 			after: isFullyVisible(target.element),
 			focused: target.element.contains(mainWindow.document.activeElement),
-			slotFocused: part.getViewOfPane(slot)!.element.contains(mainWindow.document.activeElement),
+			slotFocused: content.getViewOfPane(slot)!.element.contains(mainWindow.document.activeElement),
 		}, { before: false, after: true, focused: true, slotFocused: false });
 	});
 
 	test('a replacement of a session by the identical object leaves its view bound, which shows the tabs and the chat the pane seeds again from the persisted state', () => {
-		const { part } = createSessionsPartTestHarness(store);
+		const { part, content: sessionsGrid } = createSessionsPartTestHarness(store);
 		const session = createTestActiveSession('session', true, { chatCount: 3 });
 		const [main, peer, child] = session.chats.get();
 		// The persisted state of the session, which the pane seeds its tabs and chat from.
@@ -101,11 +102,11 @@ suite('Sessions - Sessions Part', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}));
 		grid.restoreGrid([{ session, sticky: false }], 0);
-		const render = () => part.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
+		const render = () => sessionsGrid.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
 		render();
 		part.layout(800, 600, 0, 0);
 		const [pane] = grid.panes.get();
-		const view = part.getViewOfPane(pane)!;
+		const view = sessionsGrid.getViewOfPane(pane)!;
 		const shown = () => ({
 			tabs: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
 			activeTab: view.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
@@ -123,7 +124,7 @@ suite('Sessions - Sessions Part', () => {
 			before: before.shown,
 			after: shown(),
 			samePane: grid.panes.get()[0] === pane,
-			sameView: part.getViewOfPane(pane) === view,
+			sameView: sessionsGrid.getViewOfPane(pane) === view,
 			rebound: content() !== before.content,
 		}, {
 			before: { tabs: [main, peer, child].map(chat => chat.resource.toString()), activeTab: main.resource.toString(), chat: main.resource.toString() },
@@ -149,10 +150,10 @@ suite('Sessions - Sessions Part', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IThemeService, themeService);
 		let compact = false;
-		const { part, container } = createSessionsPartTestHarness(store, false, { instantiationService, compactLayout: () => compact });
+		const { part, content, container } = createSessionsPartTestHarness(store, false, { instantiationService, compactLayout: () => compact });
 		const first = createTestActiveSession('first');
 		const second = createTestActiveSession('second');
-		renderTestPanes(part, [first, second], first);
+		renderTestPanes(content, [first, second], first);
 		part.layout(1202, 802, 0, 0);
 		const splitView = container.querySelector<HTMLElement>('.session-grid .monaco-split-view2');
 		assert.ok(splitView);
@@ -190,10 +191,10 @@ suite('Sessions - Sessions Part', () => {
 		const themeService = new TestThemeService(themes[0]);
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IThemeService, themeService);
-		const { part, container } = createSessionsPartTestHarness(store, false, { instantiationService, compactLayout: () => true });
+		const { part, content, container } = createSessionsPartTestHarness(store, false, { instantiationService, compactLayout: () => true });
 		const first = createTestActiveSession('first');
 		const second = createTestActiveSession('second');
-		renderTestPanes(part, [first, second], first);
+		renderTestPanes(content, [first, second], first);
 		part.layout(1202, 802, 0, 0);
 		const splitView = container.querySelector<HTMLElement>('.session-grid .monaco-split-view2');
 		assert.ok(splitView);
@@ -220,10 +221,10 @@ suite('Sessions - Sessions Part', () => {
 
 	test('uses floating-panel gaps only in default desktop density', () => {
 		let compact = false;
-		const { part, container } = createSessionsPartTestHarness(store, false, { compactLayout: () => compact });
+		const { part, content, container } = createSessionsPartTestHarness(store, false, { compactLayout: () => compact });
 		const first = createTestActiveSession('first');
 		const second = createTestActiveSession('second');
-		renderTestPanes(part, [first, second], first);
+		renderTestPanes(content, [first, second], first);
 		const snapshot = () => ({
 			hasGaps: container.querySelector('.session-grid')?.classList.contains('session-grid-has-gaps'),
 			insets: [...container.querySelectorAll<HTMLElement>('.session-grid-leaf')].map(leaf => [
@@ -259,11 +260,11 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('keeps custom backgrounds visible within gapped session panels', () => {
-		const { part, container } = createSessionsPartTestHarness(store, false, { chatBackground: { kind: 'codicons' } });
+		const { part, content, container } = createSessionsPartTestHarness(store, false, { chatBackground: { kind: 'codicons' } });
 		container.style.setProperty('--vscode-agents-background', '#123456');
 		const first = createTestActiveSession('first');
 		const second = createTestActiveSession('second');
-		renderTestPanes(part, [first, second], first);
+		renderTestPanes(content, [first, second], first);
 
 		part.layout(1202, 802, 0, 0);
 
@@ -291,17 +292,17 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	function assertActivation(eventFactory: () => Event): void {
-		const { part } = createSessionsPartTestHarness(store);
+		const { part, content } = createSessionsPartTestHarness(store);
 		const first = createTestActiveSession('minimized');
 		const second = createTestActiveSession('wider');
-		renderTestPanes(part, [first, second, undefined], first);
+		renderTestPanes(content, [first, second, undefined], first);
 		part.layout(1202, 802, 0, 0);
-		part.resizeSession('minimized', Direction.Left, 1000);
-		const minimizedView = part.getSessionView('minimized')!;
-		const widerView = part.getSessionView('wider')!;
-		const emptyView = part.getSessionView(undefined)!;
+		content.resizeSession('minimized', Direction.Left, 1000);
+		const minimizedView = content.getSessionView('minimized')!;
+		const widerView = content.getSessionView('wider')!;
+		const emptyView = content.getSessionView(undefined)!;
 		const focused: string[] = [];
-		store.add(part.onDidFocusPane(id => focused.push(id)));
+		store.add(content.onDidFocusPane(id => focused.push(id)));
 		const minimum = minimizedView.element.style.width;
 		minimizedView.element.dispatchEvent(eventFactory());
 		const expanded = Number.parseFloat(minimizedView.element.style.width) > Number.parseFloat(minimum);
@@ -323,20 +324,20 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('reorders and removes created sessions without rebinding surviving chat views', () => {
-		const { part, chatViews } = createSessionsPartTestHarness(store);
+		const { part, content, chatViews } = createSessionsPartTestHarness(store);
 		const [a, b, c] = ['a', 'b', 'c'].map(id => createTestActiveSession(id));
-		renderTestPanes(part, [a, b, c], b);
+		renderTestPanes(content, [a, b, c], b);
 		part.layout(1202, 802, 0, 0);
-		const views = [a, b, c].map(session => part.getSessionView(session.sessionId));
+		const views = [a, b, c].map(session => content.getSessionView(session.sessionId));
 		const chats = chatViews.filter(view => view.kind === 'chat');
 		chats[1].input.value = 'Keep this draft';
-		renderTestPanes(part, [c, a, b], b);
-		const reordered = [a, b, c].map((session, index) => part.getSessionView(session.sessionId) === views[index]);
-		renderTestPanes(part, [c, b], b);
-		renderTestPanes(part, [c, b], b, undefined, { type: 'arrange' });
+		renderTestPanes(content, [c, a, b], b);
+		const reordered = [a, b, c].map((session, index) => content.getSessionView(session.sessionId) === views[index]);
+		renderTestPanes(content, [c, b], b);
+		renderTestPanes(content, [c, b], b, undefined, { type: 'arrange' });
 		assert.deepStrictEqual({
 			reordered,
-			retained: [part.getSessionView('c') === views[2], part.getSessionView('b') === views[1]],
+			retained: [content.getSessionView('c') === views[2], content.getSessionView('b') === views[1]],
 			kinds: chats.map(chat => chat.kind),
 			resources: chats.map(chat => chat.chat?.resource.toString()),
 			disposals: chats.map(chat => chat.disposeCount),
@@ -350,40 +351,76 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('all session geometry is current when a hosted chat lays out', () => {
-		const { part, chatViews } = createSessionsPartTestHarness(store);
+		const { part, content, chatViews } = createSessionsPartTestHarness(store);
 		const sessions = [createTestActiveSession('a'), createTestActiveSession('b')];
-		renderTestPanes(part, sessions, sessions[0]);
+		renderTestPanes(content, sessions, sessions[0]);
 		part.layout(1202, 802, 0, 0);
 		const observations: string[][] = [];
 		for (const chat of chatViews.filter(view => view.kind === 'chat')) {
-			chat.onLayout = () => observations.push(sessions.map(session => part.getSessionView(session.sessionId)!.element.style.width));
+			chat.onLayout = () => observations.push(sessions.map(session => content.getSessionView(session.sessionId)!.element.style.width));
 		}
 		part.layout(1402, 902, 0, 0);
 		part.layout(1402, 902, 0, 0);
 		assert.deepStrictEqual(observations, [['698px', '698px'], ['698px', '698px']]);
 	});
 
+	for (const created of [false, true]) {
+		test(`top bars only show a grab cursor with multiple visible chat panels (created: ${created})`, async () => {
+			const { part, content, configurationService } = createSessionsPartTestHarness(store);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+			const session = createTestActiveSession('session', created, { chatCount: 2 });
+			const other = createTestActiveSession('other');
+			renderTestPanes(content, [session], session);
+			part.layout(1202, 802, 0, 0);
+			const view = content.getSessionView(session.sessionId)!;
+			const readTopBars = () => Array.from(view.element.querySelectorAll<HTMLElement>('.session-header-bar, .chat-composite-bar-toolbar-floating'))
+				.filter(element => mainWindow.getComputedStyle(element).display !== 'none')
+				.map(element => ({ cursor: mainWindow.getComputedStyle(element).cursor, draggable: element.draggable }));
+			const single = readTopBars();
+
+			const [pane] = renderTestPanes(content, [session, other], session);
+			const multiple = readTopBars();
+			content.toggleMaximizePane(pane);
+			const maximized = readTopBars();
+			content.toggleMaximizePane(pane);
+			const restored = readTopBars();
+			renderTestPanes(content, [session], session);
+			const singleAgain = readTopBars();
+
+			const normal = [{ cursor: 'default', draggable: true }];
+			const grab = [{ cursor: 'grab', draggable: true }];
+			assert.deepStrictEqual({ single, multiple, maximized, restored, singleAgain }, {
+				single: normal, multiple: grab, maximized: normal, restored: grab, singleAgain: normal,
+			});
+
+			if (created) {
+				await view.openChatToSide(session.chats.get()[1].resource);
+				assert.deepStrictEqual(readTopBars(), [...grab, ...grab]);
+			}
+		});
+	}
+
 	test('aggregates chats actually shown across splits, maximization, and part visibility', async () => {
-		const { part } = createSessionsPartTestHarness(store);
+		const { part, content } = createSessionsPartTestHarness(store);
 		const splitSession = createTestActiveSession('split', true, { chatCount: 2 });
 		const singleSession = createTestActiveSession('single');
-		const [, singlePane] = renderTestPanes(part, [splitSession, singleSession], splitSession);
+		const [, singlePane] = renderTestPanes(content, [splitSession, singleSession], splitSession);
 		part.layout(1202, 802, 0, 0);
-		const initial = part.shownChatCount.get();
+		const initial = content.shownChatCount.get();
 
-		part.getSessionView('split')!.splitActiveChat('right');
+		content.getSessionView('split')!.splitActiveChat('right');
 		await timeout(0);
-		const split = part.shownChatCount.get();
+		const split = content.shownChatCount.get();
 
-		part.toggleMaximizePane(singlePane);
-		const maximized = part.shownChatCount.get();
-		part.toggleMaximizePane(singlePane);
-		const restored = part.shownChatCount.get();
+		content.toggleMaximizePane(singlePane);
+		const maximized = content.shownChatCount.get();
+		content.toggleMaximizePane(singlePane);
+		const restored = content.shownChatCount.get();
 
 		part.setVisible(false);
-		const partHidden = part.shownChatCount.get();
+		const partHidden = content.shownChatCount.get();
 		part.setVisible(true);
-		const partShown = part.shownChatCount.get();
+		const partShown = content.shownChatCount.get();
 
 		assert.deepStrictEqual({ initial, split, maximized, restored, partHidden, partShown }, {
 			initial: 2,
@@ -397,19 +434,19 @@ suite('Sessions - Sessions Part', () => {
 
 	for (const maximized of [false, true]) {
 		test(`removing and disposing a ${maximized ? 'maximized' : 'phone'} projection detaches its outgoing views`, () => {
-			const { part, container, chatViews } = createSessionsPartTestHarness(store);
+			const { part, content, container, chatViews } = createSessionsPartTestHarness(store);
 			const [a, b] = ['a', 'b'].map(id => createTestActiveSession(id));
-			const [, paneB] = renderTestPanes(part, [a, b], b);
+			const [, paneB] = renderTestPanes(content, [a, b], b);
 			part.layout(1202, 802, 0, 0);
 			if (maximized) {
-				part.toggleMaximizePane(paneB);
+				content.toggleMaximizePane(paneB);
 			} else {
 				container.classList.add('phone-layout');
 				part.layout(390, 780, 0, 0);
 			}
-			const outgoing = part.getSessionView('b')!.element;
-			const surviving = part.getSessionView('a')!.element;
-			renderTestPanes(part, [a], a);
+			const outgoing = content.getSessionView('b')!.element;
+			const surviving = content.getSessionView('a')!.element;
+			renderTestPanes(content, [a], a);
 			const afterRemoval = {
 				outgoingConnected: outgoing.isConnected,
 				visibleSessions: container.querySelectorAll('.session-view').length,
@@ -426,35 +463,35 @@ suite('Sessions - Sessions Part', () => {
 
 	for (const mobile of [false, true]) {
 		test(`${mobile ? 'phone' : 'desktop'}-born part restores its desktop arrangement across viewport changes`, () => {
-			const { part, container, chatViews } = createSessionsPartTestHarness(store, mobile);
+			const { part, content, container, chatViews } = createSessionsPartTestHarness(store, mobile);
 			const a = createTestActiveSession('a');
 			const b = createTestActiveSession('b');
 			const slots = [{ id: 'a' }, { id: 'b', placement: { reference: 'a', direction: Direction.Down } }];
-			renderTestPanes(part, [a, b], a, slots);
+			renderTestPanes(content, [a, b], a, slots);
 			container.classList.remove('phone-layout');
 			part.layout(1202, 802, 0, 0);
-			part.resizeSession('a', Direction.Down, 40);
-			const desktop = part.getGridLayout();
+			content.resizeSession('a', Direction.Down, 40);
+			const desktop = content.getGridLayout();
 			container.classList.add('phone-layout');
 			part.layout(390, 780, 0, 0);
-			const phone = part.getGridLayout();
-			renderTestPanes(part, [a, b], b, slots);
-			const phoneSize = part.getSessionView('b')!.element.style.width;
+			const phone = content.getGridLayout();
+			renderTestPanes(content, [a, b], b, slots);
+			const phoneSize = content.getSessionView('b')!.element.style.width;
 			container.classList.remove('phone-layout');
 			part.layout(1202, 802, 0, 0);
 			assert.deepStrictEqual({
-				phone, restored: part.getGridLayout(), phoneSize, created: chatViews.filter(view => view.kind === 'chat').length, disposed: chatViews.filter(view => view.kind === 'chat').map(view => view.disposed),
+				phone, restored: content.getGridLayout(), phoneSize, created: chatViews.filter(view => view.kind === 'chat').length, disposed: chatViews.filter(view => view.kind === 'chat').map(view => view.disposed),
 			}, { phone: desktop, restored: desktop, phoneSize: '390px', created: 2, disposed: [false, false] });
 		});
 	}
 
 	test('projects only the active view while retaining explicit, independent scoped picker values', () => {
-		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+		const { content, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
 		const first = createTestActiveSession('first', false);
 		const second = createTestActiveSession('second', false);
-		renderTestPanes(part, [first, second], first);
-		const firstView = part.getSessionView(first.sessionId)!;
-		const secondView = part.getSessionView(second.sessionId)!;
+		renderTestPanes(content, [first, second], first);
+		const firstView = content.getSessionView(first.sessionId)!;
+		const secondView = content.getSessionView(second.sessionId)!;
 		const [firstChat, secondChat] = chatViews;
 		const initial = [getSessionPickerVisibility(contextKeyService), getSessionPickerVisibility(contextKeyService, secondView.element)];
 
@@ -474,10 +511,10 @@ suite('Sessions - Sessions Part', () => {
 				changes.push(getSessionPickerVisibility(contextKeyService));
 			}
 		}));
-		renderTestPanes(part, [first, second], second);
+		renderTestPanes(content, [first, second], second);
 		firstChat.inputPickerVisibility.setVisible('harness', true);
 		const afterSwitch = getSessionPickerVisibility(contextKeyService);
-		renderTestPanes(part, [first, second], first);
+		renderTestPanes(content, [first, second], first);
 
 		assert.deepStrictEqual({
 			initial, afterInactiveRender, afterActiveRender, afterSwitch,
@@ -502,16 +539,16 @@ suite('Sessions - Sessions Part', () => {
 
 	for (const picker of ['environment', 'branch', 'worktree', 'sync'] as const) {
 		test(`projects ${picker} availability only from the active composer`, () => {
-			const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+			const { content, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
 			const first = createTestActiveSession('first', false);
 			const second = createTestActiveSession('second', false);
-			renderTestPanes(part, [first, second], first);
+			renderTestPanes(content, [first, second], first);
 			chatViews[1].inputPickerVisibility.setVisible(picker, true);
 			const inactive = getSessionPickerVisibility(contextKeyService);
-			const secondScope = getSessionPickerVisibility(contextKeyService, part.getSessionView(second.sessionId)!.element);
-			renderTestPanes(part, [first, second], second);
+			const secondScope = getSessionPickerVisibility(contextKeyService, content.getSessionView(second.sessionId)!.element);
+			renderTestPanes(content, [first, second], second);
 			const active = getSessionPickerVisibility(contextKeyService);
-			renderTestPanes(part, [first, second], first);
+			renderTestPanes(content, [first, second], first);
 			assert.deepStrictEqual({ inactive, secondScope, active, switchedBack: getSessionPickerVisibility(contextKeyService) }, {
 				inactive: noSessionPickerVisibility,
 				secondScope: { ...noSessionPickerVisibility, [picker]: true },
@@ -522,10 +559,10 @@ suite('Sessions - Sessions Part', () => {
 	}
 
 	test('inactive picker updates and disposal never reset the active view globally', () => {
-		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+		const { content, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
 		const first = createTestActiveSession('first', false);
 		const second = createTestActiveSession('second', false);
-		renderTestPanes(part, [first, second], first);
+		renderTestPanes(content, [first, second], first);
 		const [firstChat, secondChat] = chatViews;
 		firstChat.inputPickerVisibility.setVisible('workspace', true);
 		firstChat.inputPickerVisibility.setVisible('harness', true);
@@ -538,7 +575,7 @@ suite('Sessions - Sessions Part', () => {
 
 		secondChat.inputPickerVisibility.setVisible('isolation', true);
 		secondChat.inputPickerVisibility.setVisible('isolation', false);
-		renderTestPanes(part, [first], first);
+		renderTestPanes(content, [first], first);
 
 		assert.deepStrictEqual({
 			disposed: secondChat.disposed,
@@ -553,17 +590,17 @@ suite('Sessions - Sessions Part', () => {
 
 	for (const emptyFirst of [true, false]) {
 		test(`the active empty composer owns visibility beside an existing session (empty ${emptyFirst ? 'first' : 'last'})`, () => {
-			const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+			const { part, content, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
 			const existing = createTestActiveSession('existing');
 			const visible = emptyFirst ? [undefined, existing] : [existing, undefined];
-			renderTestPanes(part, visible, existing);
-			const emptyView = part.getSessionView(undefined)!;
-			const existingView = part.getSessionView(existing.sessionId)!;
+			renderTestPanes(content, visible, existing);
+			const emptyView = content.getSessionView(undefined)!;
+			const existingView = content.getSessionView(existing.sessionId)!;
 			const composer = chatViews.find(view => view.kind === 'newSession')!;
 			composer.inputPickerVisibility.setVisible('workspace', true);
 			const beforeActivation = getSessionPickerVisibility(contextKeyService);
 
-			renderTestPanes(part, visible, undefined);
+			renderTestPanes(content, visible, undefined);
 			const active = {
 				global: getSessionPickerVisibility(contextKeyService),
 				empty: emptyView.element.classList.contains('is-active'),
@@ -601,17 +638,17 @@ suite('Sessions - Sessions Part', () => {
 	}
 
 	test('resets picker scopes when a draft is sent or its active slot is rebound', () => {
-		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+		const { part, content, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
 		const draft = createTestActiveSession('draft', false);
-		renderTestPanes(part, [draft], draft);
-		const sessionView = part.getSessionView(draft.sessionId)!;
+		renderTestPanes(content, [draft], draft);
+		const sessionView = content.getSessionView(draft.sessionId)!;
 		chatViews[0].inputPickerVisibility.setVisible('workspace', true);
 		chatViews[0].inputPickerVisibility.setVisible('harness', true);
 		chatViews[0].inputPickerVisibility.setVisible('isolation', true);
 
 		draft.isCreated.set(true, undefined);
 		const sent = [getSessionPickerVisibility(contextKeyService), getSessionPickerVisibility(contextKeyService, sessionView.element)];
-		renderTestPanes(part, [undefined], undefined);
+		renderTestPanes(content, [undefined], undefined);
 		const rebound = getSessionPickerVisibility(contextKeyService);
 		chatViews.at(-1)!.inputPickerVisibility.setVisible('workspace', true);
 		const rendered = getSessionPickerVisibility(contextKeyService);
@@ -629,9 +666,9 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('combines content and grid visibility for mounted session views', () => {
-		const { part, chatViews } = createSessionsPartTestHarness(store);
+		const { part, content, chatViews } = createSessionsPartTestHarness(store);
 		const session = createTestActiveSession('visible');
-		renderTestPanes(part, [session], session);
+		renderTestPanes(content, [session], session);
 		const chat = chatViews.find(view => view.kind === 'chat')!;
 		const partVisibilityEvents: boolean[] = [];
 		store.add(part.onDidVisibilityChange(visible => partVisibilityEvents.push(visible)));

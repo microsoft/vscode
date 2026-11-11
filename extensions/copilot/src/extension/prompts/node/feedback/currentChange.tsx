@@ -6,6 +6,7 @@ import { BasePromptElementProps, PromptElement, PromptPiece, PromptReference, Pr
 import type { Position, Selection, TextDocument } from 'vscode';
 import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDocumentSnapshot';
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Repository } from '../../../../platform/git/vscode/git';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../../platform/log/common/logService';

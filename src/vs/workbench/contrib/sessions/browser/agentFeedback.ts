@@ -11,7 +11,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from './codeReviewService.js';
-import { ISession, ISessionFileChange } from '../common/session.js';
+import { ISession, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { IAgentFeedbackVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 

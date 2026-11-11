@@ -16,7 +16,7 @@ import { getChatSessionTelemetryContext } from '../../../chat/common/chatService
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { ISessionsService } from '../sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 export interface INewChatUserInteractionSource {

@@ -30,7 +30,7 @@ import { IChatModel, IChatRequestModel } from '../../../../../chat/common/model/
 import { IChatViewModel } from '../../../../../chat/common/model/chatViewModel.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IChat, SessionStatus } from '../../../../common/session.js';
+import { IChat, SessionStatus } from '../../../../../../services/sessions/common/session.js';
 import { AgentHostCodexApprovalsPicker } from '../../browser/agentHostCodexApprovalsPicker.js';
 import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 

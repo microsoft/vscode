@@ -19,6 +19,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -64,17 +65,17 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MoveModalEditorToMainWindowAction } from '../../../../../workbench/browser/parts/editor/editorCommands.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { SideBySideEditorInput } from '../../../../../workbench/common/editor/sideBySideEditorInput.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { ChangesViewPane } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
+import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OPEN_BROWSER_COMMAND_ID, OpenBrowserAction, registerSessionActivityBarTabEntries } from '../../browser/addTabActions.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
 import '../../browser/emptyFileEditor.contribution.js';
@@ -289,9 +290,11 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('uses one connected group frame with or without docked details', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench dock-detail-panel');
+		workbench.classList.add(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
 		workbench.style.setProperty('--vscode-agentsPanel-border', '#888888');
 		workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
 		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+		workbench.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');
@@ -554,6 +557,8 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return undefined; }
+			override getChatResource(): URI | undefined { return undefined; }
 		});
 		const changesTab = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/1')));
 		const filesTab = store.add(instantiationService.createInstance(EmptyFileEditorInput, undefined));

@@ -30,7 +30,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../../browser/chat/sessionTypePicker.js';
 import '../../../browser/chat/media/chatWidget.css';

@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { isPhoneLayout } from '../mobileLayout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 
 /** Pixels of pointer movement before a drag is treated as a scroll
  * gesture rather than a tap. Small enough that taps stay responsive,
