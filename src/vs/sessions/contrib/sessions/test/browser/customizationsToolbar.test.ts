@@ -58,6 +58,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCustomizationsTelemetry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 
 function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
 	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
@@ -423,7 +424,6 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
-			createExtensionSuggestionsService(constObservable(false)),
 			NullHoverService,
 			telemetryInstantiationService(() => activationCount++),
 		));
@@ -446,8 +446,11 @@ suite('Customizations toolbar', () => {
 		});
 	});
 
-	test('badges links that show extension suggestions while suggestions are unseen', () => {
-		const showBadge = observableValue(disposables, true);
+	test('badges links to sections while their badge is set and the section is visible', () => {
+		const section = AICustomizationManagementSection.Skills;
+		const badge = observableValue<string | undefined>(disposables, 'Skills to review.');
+		const hiddenSections = observableValue<readonly string[]>(disposables, []);
+		disposables.add(aiCustomizationManagementSectionRegistry.registerBadge(section, () => badge));
 		const hovers = new Set<{ readonly content: unknown }>();
 		const hoverService = new class extends mock<IHoverService>() {
 			override setupDelayedHover(_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) {
@@ -456,38 +459,47 @@ suite('Customizations toolbar', () => {
 				return toDisposable(() => hovers.delete(hover));
 			}
 		};
+		const instantiationService = telemetryInstantiationService();
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = constObservable('test');
+			override readonly availableHarnesses = hiddenSections.map(hidden => [upcastPartial<IHarnessDescriptor>({ id: 'test', hiddenSections: hidden })]);
+			override findHarnessById(id: string) {
+				return this.availableHarnesses.get().find(harness => harness.id === id);
+			}
+		});
+		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly managementSections = [section];
+		});
 		const item = disposables.add(new CustomizationLinkViewItem(
-			disposables.add(new Action('test.extensions', 'Extensions')),
+			disposables.add(new Action('test.skills', 'Skills')),
 			{},
-			{ id: 'test.extensions', label: 'Extensions', icon: Codicon.extensions, showsExtensionSuggestions: true },
+			{ id: 'test.skills', label: 'Skills', icon: Codicon.lightbulb, section },
 			new class extends mock<IAICustomizationItemsModel>() { },
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
-			createExtensionSuggestionsService(showBadge),
 			hoverService,
-			telemetryInstantiationService(),
+			instantiationService,
 		));
 		const container = mainWindow.document.createElement('div');
 		item.render(container);
-		const badge = container.querySelector<HTMLElement>('.customization-link-button .ai-customization-suggestion-badge');
+		const badgeElement = container.querySelector<HTMLElement>('.customization-link-button .ai-customization-suggestion-badge');
 		const readState = () => ({
-			visible: badge?.classList.contains('hidden') === false,
+			visible: badgeElement?.classList.contains('hidden') === false,
+			ariaLabel: badgeElement?.getAttribute('aria-label'),
 			hovers: [...hovers].map(hover => hover.content),
 		});
-		const unseenState = readState();
-		showBadge.set(false, undefined);
+		const shown = readState();
+		hiddenSections.set([section], undefined);
+		const hidden = readState();
+		hiddenSections.set([], undefined);
+		badge.set(undefined, undefined);
 
-		assert.deepStrictEqual({
-			role: badge?.getAttribute('role'),
-			ariaLabel: badge?.getAttribute('aria-label'),
-			unseenState,
-			seenState: readState(),
-		}, {
+		assert.deepStrictEqual({ role: badgeElement?.getAttribute('role'), shown, hidden, cleared: readState() }, {
 			role: 'img',
-			ariaLabel: 'Some installed extensions can be enabled in the Agents window.',
-			unseenState: { visible: true, hovers: ['Some installed extensions can be enabled in the Agents window.'] },
-			seenState: { visible: false, hovers: [] },
+			shown: { visible: true, ariaLabel: 'Skills to review.', hovers: ['Skills to review.'] },
+			hidden: { visible: false, ariaLabel: null, hovers: [] },
+			cleared: { visible: false, ariaLabel: null, hovers: [] },
 		});
 	});
 
@@ -501,7 +513,6 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
-			createExtensionSuggestionsService(constObservable(false)),
 			NullHoverService,
 			telemetryInstantiationService(),
 		);

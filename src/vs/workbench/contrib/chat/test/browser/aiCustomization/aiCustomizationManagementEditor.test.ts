@@ -56,7 +56,7 @@ import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '.
 import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionContribution, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { AICustomizationManagementSectionBadgeProvider, aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
 import { TestProgressService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -886,7 +886,7 @@ suite('aiCustomizationManagementEditor', () => {
 		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): void;
 		rebuildVisibleSections(): void;
 		sectionBadges: Map<AICustomizationManagementSection, string>;
-		registerContributedSectionBadges(): void;
+		registerSectionBadges(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
 		editorGroupsService: {
@@ -1277,7 +1277,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false, getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false, getBadge?: AICustomizationManagementSectionBadgeProvider) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -1304,7 +1304,6 @@ suite('aiCustomizationManagementEditor', () => {
 			enablementSettings,
 			initializeOnEditorOpen,
 			supportsHarness: id => id === harnessId,
-			getBadge,
 			create: () => {
 				state.created++;
 				return {
@@ -1317,6 +1316,9 @@ suite('aiCustomizationManagementEditor', () => {
 				};
 			},
 		}));
+		if (getBadge) {
+			store.add(aiCustomizationManagementSectionRegistry.registerBadge(section, getBadge, id => id === harnessId));
+		}
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
@@ -1329,7 +1331,7 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
 	});
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: IAICustomizationManagementSectionContribution['getBadge'], initializeOnEditorOpen = false) {
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: AICustomizationManagementSectionBadgeProvider, initializeOnEditorOpen = false) {
 		const context = createContributedSectionEditor(enablementSettings, initializeOnEditorOpen, getBadge);
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
@@ -1395,7 +1397,7 @@ suite('aiCustomizationManagementEditor', () => {
 		Object.assign(editor.workspaceService, { managementSections: [AICustomizationManagementSection.Agents, section] });
 		const readBadges = () => sections.map(item => ({ id: item.id, badge: item.badge }));
 
-		editor.registerContributedSectionBadges();
+		editor.registerSectionBadges();
 		editor.rebuildVisibleSections();
 		const shown = readBadges();
 		badge.set(undefined, undefined);

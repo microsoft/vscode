@@ -806,14 +806,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	private rebuildVisibleSections(): void {
 		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.findHarnessById(activeId);
-		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
-			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
-			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
+			if (aiCustomizationManagementSectionRegistry.isVisible(s.id, activeId, this.harnessService, this.configurationService)) {
 				this.sections.push(contribution ? {
 					...s,
 					label: contribution.label,
@@ -843,8 +840,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isContributedSectionEnabled(section: AICustomizationManagementSection): boolean {
-		const settings = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get())?.enablementSettings;
-		return !settings || settings.some(setting => this.configurationService.getValue<boolean>(setting) === true);
+		return aiCustomizationManagementSectionRegistry.isEnabled(aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get()), this.configurationService);
 	}
 
 	private updateContributedSectionEnablement(): void {
@@ -921,7 +917,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
-		this.registerContributedSectionBadges();
+		this.registerSectionBadges();
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
@@ -3646,14 +3642,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Shows the badges that contributed sections describe on their navigation entries.
+	 * Shows the badges that sections register on their navigation entries.
 	 */
-	private registerContributedSectionBadges(): void {
+	private registerSectionBadges(): void {
 		// Resolve the badge observables once per harness so that badge changes only re-read them.
 		const sectionBadges = derived(this, reader => {
 			const activeHarness = this.harnessService.activeHarness.read(reader);
 			return this.workspaceService.managementSections.map(section => {
-				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
+				const getBadge = aiCustomizationManagementSectionRegistry.getBadge(section, activeHarness);
 				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
 			});
 		});
