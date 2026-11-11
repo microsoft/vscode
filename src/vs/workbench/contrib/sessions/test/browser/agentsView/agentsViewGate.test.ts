@@ -18,11 +18,11 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer } from '../../../../../common/views.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
 import { ISessionsStorageService } from '../../../../../services/sessions/browser/sessionsStorageService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -40,11 +40,16 @@ import { AgentsViewGate } from '../../../browser/agentsView/agentsViewGate.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
 function sessionItemMenuItems(): number {
 	return MenuRegistry.getMenuItems(SessionItemContextMenuId).length;
 }
+
+const CHAT_CONTAINER = 'workbench.panel.chat';
 
 suite('AgentsViewGate', () => {
 
@@ -81,7 +86,7 @@ suite('AgentsViewGate', () => {
 	let hiddenParts: Parts[];
 	let contextKeyService: MockContextKeyService;
 
-	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { readonly visible: boolean; readonly containers: string[] }): AgentsViewGate {
+	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }): AgentsViewGate {
 		createdStorageServices = 0;
 		createdChatParts = 0;
 		delegates = 0;
@@ -101,15 +106,26 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
-			onDidChangePartVisibility: Event.None,
+			onDidChangePartVisibility: events?.partVisibility ?? Event.None,
 			isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && !!auxiliaryBar?.visible,
-			setPartHidden: (hidden: boolean, part: Parts) => { if (hidden) { hiddenParts.push(part); } },
+			setPartHidden: (hidden: boolean, part: Parts) => {
+				if (hidden) {
+					hiddenParts.push(part);
+					if (part === Parts.AUXILIARYBAR_PART && auxiliaryBar) {
+						auxiliaryBar.visible = false;
+					}
+				}
+			},
 		}));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		contextKeyService = new MockContextKeyService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ setChatViewHostDelegate: () => { delegates++; return toDisposable(() => delegates--); } }));
-		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({ getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [] }));
+		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
+			getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [],
+			onDidPaneCompositeClose: (events?.compositeClose ?? Event.None) as IPaneCompositePartService['onDidPaneCompositeClose'],
+		}));
+		instantiationService.stub(IExtensionService, upcastPartial<IExtensionService>({ whenInstalledExtensionsRegistered: () => events?.extensionsRegistered ?? Promise.resolve(true) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({}));
 		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
 		return disposables.add(instantiationService.createInstance(AgentsViewGate));
@@ -218,17 +234,42 @@ suite('AgentsViewGate', () => {
 		assert.deepStrictEqual({ available: claims({}), aiOff: claims({ chatSetupHidden: true }), disabledInWorkspace: claims({ chatSetupDisabledInWorkspace: true }) }, { available: true, aiOff: false, disabledInWorkspace: false });
 	});
 
-	test('hides the Secondary Side Bar as the window restores only when, without the Chat view, it would show nothing', async () => {
-		const first = createGate(true, undefined, { visible: true, containers: [] });
-		await Promise.resolve();
-		const empty = hiddenParts;
-		first.dispose();
-		createGate(true, undefined, { visible: true, containers: ['workbench.view.extension.other'] });
-		await Promise.resolve();
-		const withOther = hiddenParts;
+	test('hides the Secondary Side Bar whenever, without the Chat view, it would show nothing: once extensions registered their containers, and as it shows again', () => runWithFakedTimers({}, async () => {
+		// Before extensions registered, the bar of its containers still shows the Chat view's
+		const auxiliaryBar = { visible: true, containers: [CHAT_CONTAINER] };
+		const partVisibility = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
+		const compositeClose = disposables.add(new Emitter<{ viewContainerLocation: ViewContainerLocation }>());
+		const extensionsRegistered = new DeferredPromise<boolean>();
+		createGate(true, undefined, auxiliaryBar, { partVisibility: partVisibility.event, compositeClose: compositeClose.event, extensionsRegistered: extensionsRegistered.p });
+		await timeout(10);
+		const beforeExtensions = [...hiddenParts];
+		auxiliaryBar.containers = [];
+		await extensionsRegistered.complete(true);
+		await timeout(10);
+		const afterExtensions = [...hiddenParts];
+		// Its toggle shows it again, with nothing to show
+		auxiliaryBar.visible = true;
+		partVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await timeout(10);
+		const shownAgain = [...hiddenParts];
+		// A container shows in it, then closes
+		auxiliaryBar.visible = true;
+		auxiliaryBar.containers = ['workbench.view.extension.other'];
+		partVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await timeout(10);
+		const withOther = [...hiddenParts];
+		auxiliaryBar.containers = [];
+		compositeClose.fire({ viewContainerLocation: ViewContainerLocation.AuxiliaryBar });
+		await timeout(10);
 
-		assert.deepStrictEqual({ empty, withOther }, { empty: [Parts.AUXILIARYBAR_PART], withOther: [] });
-	});
+		assert.deepStrictEqual({ beforeExtensions, afterExtensions, shownAgain, withOther, closed: hiddenParts }, {
+			beforeExtensions: [],
+			afterExtensions: [Parts.AUXILIARYBAR_PART],
+			shownAgain: [Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART],
+			withOther: [Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART],
+			closed: [Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART],
+		});
+	}));
 
 	test('shows how to sign in instead of the sessions while chat needs it, and the sessions otherwise', () => {
 		createGate(true);

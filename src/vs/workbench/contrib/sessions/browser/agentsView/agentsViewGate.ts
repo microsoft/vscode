@@ -37,6 +37,8 @@ import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AGENTS_VIEW_SETU
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
 import { WorkspaceFolderRepositories } from './workspaceFolderRepositories.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
@@ -100,7 +102,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				this._register(instantiationService.createInstance(AgentsChatPartContribution));
-				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService));
+				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService), accessor.get(IExtensionService));
 			}
 		});
 	}
@@ -109,7 +111,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 	 * The chat part replaces the Chat view: the Chat view does not show (`ChatContextKeys.agentsViewActive`), the keys that
 	 * open it open the chat part, and the Secondary Side Bar, which shows the Chat view by default, does not show empty.
 	 */
-	private replaceChatView(contextKeyService: IContextKeyService, layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService, lifecycleService: ILifecycleService): void {
+	private replaceChatView(contextKeyService: IContextKeyService, layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService, lifecycleService: ILifecycleService, extensionService: IExtensionService): void {
 		ChatContextKeys.agentsViewActive.bindTo(contextKeyService).set(true);
 
 		this._register(KeybindingsRegistry.registerKeybindingRule({
@@ -120,10 +122,29 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			when: ContextKeyExpr.and(ChatContextKeys.agentsViewActive, AgentsViewAvailable),
 		}));
 
-		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			if (!this._store.isDisposed && layoutService.isVisible(Parts.AUXILIARYBAR_PART) && !paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length) {
+		// The Secondary Side Bar shows the Chat view by default: without it, it can have nothing to show, then it does not show,
+		// also as it shows again, such as by its toggle. Its view containers are known once extensions registered theirs, which
+		// the bar of its containers waits for to hide the empty ones, as the Chat view's: it checks once the bar did.
+		const hideEmptyAuxiliaryBar = this._register(new RunOnceScheduler(() => {
+			if (layoutService.isVisible(Parts.AUXILIARYBAR_PART) && !paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length) {
 				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
+		}, 0));
+		void Promise.all([lifecycleService.when(LifecyclePhase.Restored), extensionService.whenInstalledExtensionsRegistered()]).then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			hideEmptyAuxiliaryBar.schedule();
+			this._register(layoutService.onDidChangePartVisibility(e => {
+				if (e.partId === Parts.AUXILIARYBAR_PART && e.visible) {
+					hideEmptyAuxiliaryBar.schedule();
+				}
+			}));
+			this._register(paneCompositeService.onDidPaneCompositeClose(e => {
+				if (e.viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
+					hideEmptyAuxiliaryBar.schedule();
+				}
+			}));
 		});
 	}
 
