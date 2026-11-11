@@ -28,6 +28,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -226,6 +227,7 @@ interface IAutomationsFixtureOptions {
 	readonly historyState?: AutomationCatalogueState;
 	readonly emptyHistory?: boolean;
 	readonly remoteEntries?: readonly IRemoteAgentHostEntry[];
+	readonly githubEnvironments?: readonly IMissionControlHost[];
 }
 
 const TUNNEL_ENTRIES: readonly IRemoteAgentHostEntry[] = [
@@ -304,7 +306,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 			populated: false,
 			catalogueState: 'unavailable',
 			unavailableProviders: [{ id: remoteProviderId(GITHUB_ENVIRONMENT_ENTRY), label: GITHUB_ENVIRONMENT_ENTRY.name, unavailableReasonCode: 'disconnected' }],
-			remoteEntries: [GITHUB_ENVIRONMENT_ENTRY],
+			githubEnvironments: [{ id: 'environment', name: GITHUB_ENVIRONMENT_ENTRY.name, kind: 'user-local', status: 'offline' }],
 		}),
 	}),
 	UnavailableMultipleReasons: defineComponentFixture({
@@ -434,6 +436,10 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			}());
 			reg.defineInstance(IAutomationService, automationService);
 			reg.defineInstance(IRemoteAgentHostService, remoteAgentHostService);
+			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
+				override readonly enabled = true;
+				override readonly hosts = constObservable(options.githubEnvironments ?? []);
+			}());
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
 			reg.defineInstance(IAgentPluginService, agentPluginService);

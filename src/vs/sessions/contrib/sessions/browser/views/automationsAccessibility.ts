@@ -9,6 +9,9 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -22,8 +25,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -43,7 +47,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
-			localize('automationsCustomView.help.manageRemotes', "When a remote is disconnected and remote management is enabled, the unavailable message shows how many remotes are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes."),
+			localize('automationsCustomView.help.manageRemotes', "When a dev tunnel is disconnected and remote management is enabled, the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
@@ -94,6 +98,9 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
+		const configurationService = accessor.get(IConfigurationService);
+		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+		const missionControlEnvironmentService = accessor.get(IMissionControlEnvironmentService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
@@ -106,6 +113,17 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				const startingAutomationIds = new Set(runs
 					.filter(run => isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession))
 					.map(run => run.automationId));
+				const catalogueState = automationService.catalogueState.get();
+				const unavailableProviders = automationService.unavailableProviders.get();
+				const remoteManagementEnabled = configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+					&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
+					&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+				const remoteStatusPresentation = getAutomationRemoteStatusPresentation(
+					unavailableProviders,
+					remoteAgentHostService.configuredEntries,
+					missionControlEnvironmentService.hosts.get().map(host => host.id),
+					remoteManagementEnabled,
+				);
 				return buildAutomationsAccessibleContent(
 					automationService.automations.get(),
 					runs.filter(run => {
@@ -118,9 +136,9 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 							)
 						);
 					}),
-					automationService.catalogueState.get(),
+					catalogueState === 'unavailable' && remoteStatusPresentation.suppressedAllReasons ? 'ready' : catalogueState,
 					readAutomationTemplates(agentPluginService.plugins.get()),
-					automationService.unavailableProviders.get(),
+					remoteStatusPresentation.visibleUnavailableProviders,
 					automationService.historyState?.get(),
 					chatService.chatModels.get(),
 					id => automationService.getAutomationHistoryName?.(id),

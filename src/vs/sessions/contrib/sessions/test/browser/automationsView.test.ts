@@ -32,6 +32,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -712,6 +713,14 @@ class FakeRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 	}
 }
 
+class FakeMissionControlEnvironmentService extends mock<IMissionControlEnvironmentService>() {
+	override readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+
+	setHosts(hosts: readonly IMissionControlHost[]): void {
+		this.hosts.set(hosts, undefined);
+	}
+}
+
 function tunnelEntry(name: string, tunnelId: string): IRemoteAgentHostEntry {
 	return {
 		name,
@@ -769,6 +778,7 @@ suite('AutomationsCardsWidget', () => {
 			readonly catalogueState: AutomationCatalogueState;
 			readonly unavailableProviders: readonly IAutomationProviderDescriptor[];
 			readonly configuredEntries: readonly IRemoteAgentHostEntry[];
+			readonly githubEnvironments?: readonly IMissionControlHost[];
 		},
 	) {
 		const automationService = new FakeAutomationService();
@@ -790,10 +800,12 @@ suite('AutomationsCardsWidget', () => {
 		const keybindingService = new TestKeybindingService();
 		const telemetryService = new TestDataTelemetryService();
 		const remoteAgentHostService = disposables.add(new FakeRemoteAgentHostService());
+		const missionControlEnvironmentService = new FakeMissionControlEnvironmentService();
 		if (initialState) {
 			automationService.setUnavailableProviders(initialState.unavailableProviders);
 			automationService.setCatalogueState(initialState.catalogueState);
 			remoteAgentHostService.setConfiguredEntries(initialState.configuredEntries);
+			missionControlEnvironmentService.setHosts(initialState.githubEnvironments ?? []);
 		}
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
@@ -822,6 +834,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+		instantiationService.stub(IMissionControlEnvironmentService, missionControlEnvironmentService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		if (fileService) {
 			instantiationService.stub(IFileService, fileService);
@@ -874,7 +887,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
@@ -3103,17 +3116,23 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('ignores disconnected GitHub Environments and excludes them from the remote count', async () => {
-		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
+		const { automationService, configurationService, instantiationService, missionControlEnvironmentService, remoteAgentHostService, widget } = setup();
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
 		const tunnel = tunnelEntry('benbox3', 'benbox3');
 		const environment = githubEnvironmentEntry('CPC-bevil', 'environment');
-		remoteAgentHostService.setConfiguredEntries([tunnel, environment]);
+		remoteAgentHostService.setConfiguredEntries([tunnel]);
 		remoteAgentHostService.setConnections([{
 			name: tunnel.name,
 			address: getEntryAddress(tunnel),
 			status: RemoteAgentHostConnectionStatus.connected,
+		}]);
+		missionControlEnvironmentService.setHosts([{
+			id: 'environment',
+			name: environment.name,
+			kind: 'user-local',
+			status: 'offline',
 		}]);
 		automationService.setUnavailableProviders([{
 			id: providerId(environment),
@@ -3122,14 +3141,39 @@ suite('AutomationsCardsWidget', () => {
 		}]);
 		automationService.setCatalogueState('unavailable');
 
-		assert.deepStrictEqual({
+		const emptyState = {
 			controlDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes')?.style.display,
 			count: widget.element.querySelector('.automations-cards-unavailable .automations-manage-remotes-count')?.textContent,
 			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')?.style.display,
-		}, {
-			controlDisplay: 'none',
-			count: '1/1 remotes detected',
-			warningDisplay: 'none',
+		};
+		automationService.setAutomations([automation()]);
+		const savedState = {
+			bannerDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display,
+			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')?.style.display,
+		};
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+		const accessibleProvider = disposables.add(instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor))!);
+		const accessibleContent = accessibleProvider.provideContent();
+
+		assert.deepStrictEqual({ emptyState, savedState, accessible: {
+			includesEnvironment: accessibleContent.includes(environment.name),
+			includesUnavailable: accessibleContent.includes('Some automations are unavailable.'),
+		} }, {
+			emptyState: {
+				controlDisplay: 'none',
+				count: '1/1 remotes detected',
+				warningDisplay: 'none',
+			},
+			savedState: {
+				bannerDisplay: 'none',
+				warningDisplay: 'none',
+			},
+			accessible: {
+				includesEnvironment: false,
+				includesUnavailable: false,
+			},
 		});
 	});
 
@@ -5337,7 +5381,7 @@ suite('AutomationsCardsWidget', () => {
 		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
 		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
-		assert.ok(provider.provideContent().includes('the unavailable message shows how many remotes are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes.'));
+		assert.ok(provider.provideContent().includes('the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count.'));
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {

@@ -30,8 +30,9 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -84,7 +85,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/ses
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -394,8 +395,8 @@ class AutomationCardsSection extends Disposable {
 	private partialState: AutomationCatalogueState = 'ready';
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private manageRemotesVisible = false;
-	private managedDisconnectedProviderIds = new Set<string>();
-	private ignoredGitHubEnvironmentProviderIds = new Set<string>();
+	private managedDisconnectedProviderIds: ReadonlySet<string> = new Set();
+	private ignoredGitHubEnvironmentProviderIds: ReadonlySet<string> = new Set();
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
 
@@ -419,6 +420,7 @@ class AutomationCardsSection extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly missionControlEnvironmentService: IMissionControlEnvironmentService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -1198,33 +1200,28 @@ class AutomationCardsSection extends Disposable {
 			configurationChanged.read(reader);
 			remoteHostsChanged.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
+			const automations = this.automationService.automations.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
 			const configuredEntries = this.remoteAgentHostService.configuredEntries;
-			const tunnelEntries = configuredEntries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.Tunnel);
-			const tunnelProviderIds = new Set(tunnelEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
-			const githubEnvironmentProviderIds = new Set(configuredEntries
-				.filter(entry => entry.connection.type === RemoteAgentHostEntryType.CloudSandbox && entry.connection.environmentKind === 'user-local')
-				.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
-			const managedDisconnectedProviderIds = new Set(unavailableProviders
-				.filter(provider => provider.unavailableReasonCode === 'disconnected'
-					&& tunnelProviderIds.has(provider.id))
-				.map(provider => provider.id));
-			const ignoredGitHubEnvironmentProviderIds = new Set(unavailableProviders
-				.filter(provider => provider.unavailableReasonCode === 'disconnected'
-					&& githubEnvironmentProviderIds.has(provider.id))
-				.map(provider => provider.id));
-			const visible = catalogueState === 'unavailable'
-				&& managedDisconnectedProviderIds.size > 0
-				&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+			const remoteManagementEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			const presentation = getAutomationRemoteStatusPresentation(
+				unavailableProviders,
+				configuredEntries,
+				this.missionControlEnvironmentService.hosts.read(reader).map(host => host.id),
+				remoteManagementEnabled,
+			);
+			const managedDisconnectedProviderIds = presentation.replacedTunnelProviderIds;
+			const ignoredGitHubEnvironmentProviderIds = presentation.ignoredGitHubEnvironmentProviderIds;
+			const visible = catalogueState === 'unavailable' && managedDisconnectedProviderIds.size > 0;
 			const connectedAddresses = new Set(this.remoteAgentHostService.connections
 				.filter(connection => RemoteAgentHostConnectionStatus.isConnected(connection.status))
 				.map(connection => normalizeRemoteAgentHostAddress(connection.address)));
-			const connectedCount = tunnelEntries.filter(entry =>
+			const connectedCount = presentation.tunnelEntries.filter(entry =>
 				connectedAddresses.has(normalizeRemoteAgentHostAddress(getEntryAddress(entry)))
 			).length;
-			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, tunnelEntries.length);
+			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, presentation.tunnelEntries.length);
 			count.textContent = countLabel;
 			link.setAttribute('aria-label', localize('automationsManageRemotesWithCount', "{0}, Manage Remotes", countLabel));
 			if (!visible && container.contains(DOM.getActiveElement())) {
@@ -1241,7 +1238,10 @@ class AutomationCardsSection extends Disposable {
 				this.ignoredGitHubEnvironmentProviderIds = ignoredGitHubEnvironmentProviderIds;
 				if (catalogueState === 'unavailable') {
 					this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
-					this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+					const hasPartialMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+					if (automations.length > 0) {
+						this.partialStateContainer.style.display = hasPartialMessage || visible ? '' : 'none';
+					}
 				}
 			}
 		}));
@@ -1291,14 +1291,15 @@ class AutomationCardsSection extends Disposable {
 		this.partialStateContainer.style.display = '';
 		this.partialStateContainer.classList.toggle('automations-cards-partial-state-error', isError);
 		if (catalogueState === 'unavailable') {
-			this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			const hasMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			this.partialStateContainer.style.display = hasMessage || this.manageRemotesVisible ? '' : 'none';
 		} else {
 			this.partialStateMessage.style.display = '';
 			this.partialStateMessage.textContent = localize('automationsPartialLoadError', "Some automations could not be loaded.");
 		}
 	}
 
-	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
+	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): boolean {
 		const visibleProviders = unavailableProviders.filter(provider =>
 			!this.ignoredGitHubEnvironmentProviderIds.has(provider.id)
 			&& (!this.manageRemotesVisible || !this.managedDisconnectedProviderIds.has(provider.id)));
@@ -1314,6 +1315,7 @@ class AutomationCardsSection extends Disposable {
 		} else {
 			DOM.clearNode(container);
 		}
+		return !suppressedAllReasons;
 	}
 
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
