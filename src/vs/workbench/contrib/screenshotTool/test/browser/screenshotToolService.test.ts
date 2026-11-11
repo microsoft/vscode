@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, registerWindow } from '../../../../../base/browser/dom.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
@@ -337,6 +337,27 @@ suite('ScreenshotTool', () => {
 				focusedDuringSession: [targetWindow],
 				focusedWindows: [targetWindow, mainWindow],
 				focused: true,
+			});
+		});
+
+		test('cancels when its target window closes, which ends its session', async () => {
+			const { service, container } = createService();
+			const targetWindow = upcastPartial<CodeWindow>({
+				vscodeWindowId: 1000,
+				document: mainWindow.document.implementation.createHTMLDocument(),
+				addEventListener: () => { },
+				removeEventListener: () => { },
+			});
+			const registration = registerWindow(targetWindow);
+			const active: boolean[] = [];
+			store.add(service.onDidChangeActive(event => active.push(event.active)));
+			const result = service.capture(targetWindow);
+			const overlay = getOverlay(container);
+			registration.dispose();
+			assert.deepStrictEqual({ result: await result, overlay: overlay.isConnected, active }, {
+				result: { kind: 'cancelled', mode: 'none' },
+				overlay: false,
+				active: [true, false],
 			});
 		});
 

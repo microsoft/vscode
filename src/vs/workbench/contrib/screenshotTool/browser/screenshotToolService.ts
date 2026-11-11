@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, EventType, getActiveWindow, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getActiveWindow, getWindow, isHTMLElement, onDidUnregisterWindow, onWillUnregisterWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise, isThenable, timeout } from '../../../../base/common/async.js';
@@ -389,6 +389,8 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 				shouldForwardKey: event => this.isAccessibilityHelpKey(event),
 			}));
 			store.add(token.onCancellationRequested(() => overlay.cancel()));
+			// A window that closes takes the overlay with it, so the selection ends with the window.
+			store.add(Event.filter(Event.any(onWillUnregisterWindow, onDidUnregisterWindow), window => window === targetWindow)(() => overlay.cancel()));
 			session.surface = overlay;
 			store.add(toDisposable(() => session.surface = undefined));
 			overlay.focus();
