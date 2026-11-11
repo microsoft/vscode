@@ -2140,7 +2140,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x' });
 		fireSessionAdded(agentHost, 'elsewhere', { workingDirectory: 'file:///other' });
 		await timeout(100);
-		const scoped = { listed: ids(provider.getSessions()), all: ids(provider.getAllSessions()), found: provider.getSessionByResource(AgentSession.uri('copilotcli', 'elsewhere')) !== undefined };
+		const elsewhere = provider.getAllSessions().find(session => AgentSession.id(session.resource) === 'elsewhere');
+		const scoped = { listed: ids(provider.getSessions()), all: ids(provider.getAllSessions()), found: !!elsewhere && provider.getSessionByResource(elsewhere.resource) === elsewhere };
 		folders.set([URI.parse('file:///other')], undefined);
 		const otherFolder = ids(provider.getSessions());
 

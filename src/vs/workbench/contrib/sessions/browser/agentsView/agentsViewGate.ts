@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';

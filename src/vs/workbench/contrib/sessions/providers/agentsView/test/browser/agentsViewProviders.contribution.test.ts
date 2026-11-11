@@ -94,6 +94,8 @@ suite('AgentsViewProvidersService', () => {
 				events.push(`register ${fn.name}`);
 				return upcastPartial<IDisposable>({ dispose: () => { events.push(`release ${fn.name}`); } }) as R;
 			},
+			// The listing scope of the window's folders, which the providers are registered with
+			createInstance: (() => upcastPartial<IDisposable>({ dispose: () => { } })) as IInstantiationService['createInstance'],
 		});
 		const instantiationService = upcastPartial<IInstantiationService>({
 			invokeFunction: <R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R => fn(upcastPartial<ServicesAccessor>({ get: <T>(): T => providersInstantiationService as T }), ...args),

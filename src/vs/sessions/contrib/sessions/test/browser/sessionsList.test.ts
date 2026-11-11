@@ -4174,7 +4174,7 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
-				unscoped: { sessions: ['attempt-1', 'attempt-2', 'here'], comparison: true },
+				unscoped: { sessions: ['here'], comparison: true },
 				scoped: { sessions: ['here'], comparison: false },
 			});
 		});
