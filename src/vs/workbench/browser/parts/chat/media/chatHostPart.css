@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.chat {
+	box-sizing: border-box;
+	overflow: hidden;
+	background-color: var(--vscode-editor-background);
+}
+
+.monaco-workbench .part.chat > .content {
+	width: 100%;
+	height: 100%;
+}
+
+/* Without floating panels, a separator sets the chat part apart from the editor beside it, as between editor groups */
+.monaco-workbench:not(.floating-panels) .part.chat {
+	border-inline: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, transparent);
+}
+
+/* With floating panels, the chat part is a card at the outer tier, as the editor beside it is */
+.monaco-workbench.floating-panels .part.chat {
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-editor-border-color, var(--vscode-editor-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
+	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.chat {
+	border-radius: 0;
+}
