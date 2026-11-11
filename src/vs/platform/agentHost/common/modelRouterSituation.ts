@@ -84,6 +84,13 @@ const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ?
 /** A smaller count made the decision read a quick question as larger work. */
 const MIN_UNCOMMITTED_FILES_TOLD = 10;
 
+const MAX_NAME_LENGTH = 80;
+
+/** Names come from files, folders and clients, so each stays one short line of the request. */
+function oneLine(name: string | undefined): string | undefined {
+	return name?.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH) || undefined;
+}
+
 /** The lines a decision is given about a turn. */
 export function describeModelRouterSituation(situation: IModelRouterSituation | undefined): string[] {
 	if (!situation) {
@@ -91,15 +98,18 @@ export function describeModelRouterSituation(situation: IModelRouterSituation | 
 	}
 	const lines: string[] = [];
 	if (situation.attachments?.length) {
-		lines.push(`Attached: ${situation.attachments.map(({ kind, count, lines }) => `${plural(count, kind)}${lines ? ` (${plural(lines, 'line')})` : ''}`).join(', ')}`);
+		lines.push(`Attached: ${situation.attachments.map(({ kind, count, lines }) => `${plural(count, oneLine(kind) ?? 'attachment')}${lines ? ` (${plural(lines, 'line')})` : ''}`).join(', ')}`);
 	}
 	if (situation.mode) {
 		lines.push(modeDescriptions[situation.mode]);
 	}
-	if (situation.agent) {
-		lines.push(`Custom agent chosen by the user: ${situation.agent}`);
+	const agent = oneLine(situation.agent);
+	if (agent) {
+		lines.push(`Custom agent chosen by the user: ${agent}`);
 	}
-	const workspace = situation.workspace && situation.repository ? `${situation.workspace} (${situation.repository})` : situation.workspace ?? situation.repository;
+	const folder = oneLine(situation.workspace);
+	const repository = oneLine(situation.repository);
+	const workspace = folder && repository ? `${folder} (${repository})` : folder ?? repository;
 	const workingTree = [
 		...(situation.uncommittedFiles && situation.uncommittedFiles >= MIN_UNCOMMITTED_FILES_TOLD ? [`${plural(situation.uncommittedFiles, 'file')} with uncommitted changes`] : []),
 		...(situation.pullRequest === 'open' ? ['the branch has an open pull request'] : []),
