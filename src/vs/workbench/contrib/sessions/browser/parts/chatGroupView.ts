@@ -5,6 +5,7 @@
 
 import { $, append, size, trackFocus } from '../../../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -28,6 +29,8 @@ import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionRea
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../../browser/parts/partGrid/partGridGap.js';
 
@@ -45,8 +48,6 @@ export interface IChatGroupContext {
 
 	/** Closes the pane of the group, as closing its main chat's tab does. */
 	closePane(): void;
-	/** Closes the group that shows the given chat. */
-	closeChat(resource: URI): void;
 
 	/** Options forwarded to the new-chat views the group creates. */
 	readonly options: IChatViewOptions;
@@ -184,6 +185,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
@@ -312,7 +314,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			close: () => {
 				const chat = activeChat.get();
 				if (chat) {
-					context.closeChat(chat.resource);
+					void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(context.session, chat, this._sessionHost)).catch(onUnexpectedError);
 				}
 			},
 		});

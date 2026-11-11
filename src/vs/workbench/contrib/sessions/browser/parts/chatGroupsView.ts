@@ -405,7 +405,6 @@ export class ChatGroupsView extends Themable {
 			session,
 			isDetached: content.state.isDetached,
 			closePane: () => content.close(),
-			closeChat: resource => { void this.closeChatGroup(resource).catch(onUnexpectedError); },
 			options: this._options!,
 			chats,
 			activeChatResource: activeResourceId,
