@@ -321,10 +321,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		if (!chatWidget) {
-			// It shows a new-session composer, which takes the query to send
-			if (chatViewHostDelegate && opts?.query) {
-				await chatViewHostDelegate.prefillInput(opts.query);
-			}
 			return;
 		}
 

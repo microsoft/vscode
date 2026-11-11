@@ -22,6 +22,7 @@ import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './a
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { AgentsChatViewHostDelegate } from './agentsChatViewHostDelegate.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 
 /**
  * The chat part of an editor window with the Sessions view. Created as the window starts, before its grid, which then has a
@@ -39,8 +40,15 @@ export class AgentsChatPartContribution extends Disposable {
 	) {
 		super();
 
-		// It replaces the Chat view: what would show the Chat view shows the chat part instead
-		this._register(chatWidgetService.setChatViewHostDelegate(instantiationService.createInstance(AgentsChatViewHostDelegate)));
+		// It replaces the Chat view: what would show the Chat view shows the chat part instead. The delegate, with the chat part
+		// and the sessions it shows, is created as the first request comes, not as the window starts
+		const delegate = new Lazy(() => instantiationService.createInstance(AgentsChatViewHostDelegate));
+		this._register(chatWidgetService.setChatViewHostDelegate({
+			reveal: preserveFocus => delegate.value.reveal(preserveFocus),
+			openSession: (sessionResource, preserveFocus) => delegate.value.openSession(sessionResource, preserveFocus),
+			toggle: () => delegate.value.toggle(),
+			newSession: (sessionType, preserveFocus) => delegate.value.newSession(sessionType, preserveFocus),
+		}));
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartFrame).part);

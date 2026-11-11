@@ -1925,10 +1925,33 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
 	const progressService = accessor.get(IProgressService);
 
-	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, opens its own sessions
-	if (openOptions.position === ChatSessionPosition.Sidebar && accessor.get(IChatWidgetService).chatViewHostDelegate) {
-		accessor.get(INotificationService).info(localize('chatSessions.chatViewUnavailable', "Opening a chat session in the Chat view is not available while the Agents view is enabled."));
-		return undefined;
+	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, shows the session instead
+	const widgetService = accessor.get(IChatWidgetService);
+	const chatViewHostDelegate = widgetService.chatViewHostDelegate;
+	if (openOptions.position === ChatSessionPosition.Sidebar && chatViewHostDelegate) {
+		if (openOptions.type === AgentSessionProviders.Local) {
+			// It shows sessions, not local chat
+			accessor.get(INotificationService).info(localize('chatSessions.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
+			return undefined;
+		}
+		if (!chatSendOptions?.importConversation?.turns.length) {
+			openOptions.beforeOpen?.();
+			if (openOptions.sessionResource && !chatSendOptions && await widgetService.openSession(openOptions.sessionResource)) {
+				return { resource: openOptions.sessionResource, sendOutcome: 'none' };
+			}
+			// A new session of the type, which its composer creates as it sends the initial request
+			const widget = await chatViewHostDelegate.newSession(openOptions.type, false);
+			if (widget && chatSendOptions) {
+				for (const entry of chatSendOptions.attachedContext ?? []) {
+					widget.attachmentModel.addContext(entry);
+				}
+				await widget.acceptInput(chatSendOptions.prompt);
+			}
+			return undefined;
+		}
+		// A copied conversation seeds the session as it is created for its resource, which a composer has not yet: it opens
+		// in an editor instead, which carries it, as the initial request and its tools
+		openOptions = { ...openOptions, position: ChatSessionPosition.Editor };
 	}
 
 	// Determine resource to open

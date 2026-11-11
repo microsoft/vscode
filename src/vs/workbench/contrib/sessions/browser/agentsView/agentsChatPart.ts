@@ -29,6 +29,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { getChatWindowMainPartOptions } from '../../../chatWindow/browser/chatWindow.js';
@@ -56,7 +57,7 @@ const CHAT_PART_EDITORS_STORAGE_KEY = 'workbench.chatPart.editors';
 /** How long restoring a chat of the chat part waits for its session to load. */
 const RESTORE_SESSION_TIMEOUT = 30_000;
 
-/** How long a composer waits for its view to show, to put a prompt in it. */
+/** How long the chat part waits for the view of a composer to show. */
 const COMPOSER_VIEW_TIMEOUT = 5_000;
 
 /** A chat that the chat part shows, with its session. */
@@ -69,6 +70,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly preserveFocus?: boolean;
 	/** Opens beside the active chat, in a group of its own. */
 	readonly sideBySide?: boolean;
+	/** Opens a new composer, also while the active tab is one that has not sent its session yet. */
+	readonly newComposer?: boolean;
 }
 
 export const IAgentsChatPartService = createDecorator<IAgentsChatPartService>('agentsChatPartService');
@@ -107,8 +110,8 @@ export interface IAgentsChatPartService {
 	 */
 	show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean }): Promise<void>;
 
-	/** Shows a new-session composer, aimed at `target`, with `text` in its input, as {@link openComposer} does. */
-	prefillComposer(target: INewSessionTarget | undefined, text: string): Promise<void>;
+	/** The chat widget of the input of the composer in the active tab, once it shows: its submits create the session. */
+	getComposerWidget(): Promise<IChatWidget | undefined>;
 
 	/** Shows again the chats the chat part showed as the window last closed, when the layout restores it shown. */
 	restore(): Promise<void>;
@@ -411,7 +414,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// A new session in the active tab while it is a composer that has not sent its session yet, as a chat window does
 		const active = this._activeInput.get();
 		const activeChat = active && this._chats.get(active);
-		if (activeChat?.isComposer && !options?.sideBySide) {
+		if (activeChat?.isComposer && !options?.sideBySide && !options?.newComposer) {
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
@@ -445,19 +448,17 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 	}
 
-	async prefillComposer(target: INewSessionTarget | undefined, text: string): Promise<void> {
-		await this.openComposer(target);
+	async getComposerWidget(): Promise<IChatWidget | undefined> {
 		const active = this._activeInput.get();
 		const chat = active && this._chats.get(active);
 		if (!chat?.isComposer) {
-			return;
+			return undefined;
 		}
-		// Its view shows once its editor renders
-		const composerView = derived(reader => chat.view.read(reader)?.composerView.read(reader));
+		// Its view, and the widget of its input, show once its editor renders
+		const widget = derived(reader => chat.view.read(reader)?.composerView.read(reader)?.chatWidget);
 		const cts = new CancellationTokenSource();
 		try {
-			const view = await raceTimeout(waitForState(composerView, view => !!view, undefined, cts.token).catch(() => undefined), COMPOSER_VIEW_TIMEOUT, () => cts.cancel());
-			view?.prefillInput(text);
+			return await raceTimeout(waitForState(widget, widget => !!widget, undefined, cts.token).catch(() => undefined), COMPOSER_VIEW_TIMEOUT, () => cts.cancel());
 		} finally {
 			cts.dispose();
 		}

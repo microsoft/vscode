@@ -88,14 +88,20 @@ export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidge
  * with the Agents view (`chatAgentsViewActive`). See {@link IChatWidgetService.setChatViewHostDelegate}.
  */
 export interface IChatViewHostDelegate {
-	/** Shows its active chat, or a new-session composer when it has none, and resolves to the widget of the chat it shows. */
+	/**
+	 * Shows its active chat, or a new-session composer when it has none, and resolves to the widget of what it shows: of the
+	 * chat, or of the composer's input, whose submits create the session.
+	 */
 	reveal(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
 	/** Shows the chat of `sessionResource`, and resolves to its widget; to `undefined` when it cannot show that chat. */
 	openSession(sessionResource: URI, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
 	/** Shows or hides it, as Toggle Chat shows or hides the Chat view. */
 	toggle(): Promise<void>;
-	/** Shows a new-session composer with `text` in its input, such as the query that Open Chat brings. */
-	prefillInput(text: string): Promise<void>;
+	/**
+	 * Shows a new-session composer, aimed at sessions of `sessionType` when given, and resolves to the widget of its input,
+	 * whose submits create the session.
+	 */
+	newSession(sessionType: string | undefined, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
 }
 
 export interface IChatWidgetService {

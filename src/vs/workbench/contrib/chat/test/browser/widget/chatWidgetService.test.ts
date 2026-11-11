@@ -113,7 +113,7 @@ suite('ChatWidgetService', () => {
 			reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; },
 			openSession: async (sessionResource, preserveFocus) => { calls.push(`openSession ${sessionResource.toString()} preserveFocus=${preserveFocus}`); return undefined; },
 			toggle: async () => { },
-			prefillInput: async () => { },
+			newSession: async () => undefined,
 		});
 		await service.revealWidget();
 		await service.revealChatView(true);

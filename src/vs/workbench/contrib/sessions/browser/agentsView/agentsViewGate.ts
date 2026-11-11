@@ -106,9 +106,9 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		this._register(KeybindingsRegistry.registerKeybindingRule({
 			...ChatViewOpenKeybindings,
 			id: CHAT_OPEN_ACTION_ID,
-			// Over the Chat view's own
+			// Over the Chat view's own; not while chat is hidden or disabled, such as with AI features off
 			weight: KeybindingWeight.WorkbenchContrib + 1,
-			when: ChatContextKeys.agentsViewActive,
+			when: ContextKeyExpr.and(ChatContextKeys.agentsViewActive, AgentsViewAvailable),
 		}));
 
 		void lifecycleService.when(LifecyclePhase.Restored).then(() => {

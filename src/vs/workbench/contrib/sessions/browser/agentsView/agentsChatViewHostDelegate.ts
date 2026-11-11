@@ -7,12 +7,14 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { AgentsViewAvailable } from './agentsView.js';
 
 /** How long it waits for a session to load, or for the widget of a chat it shows to be created. */
 const WAIT_TIMEOUT = 5_000;
@@ -25,29 +27,32 @@ const WAIT_TIMEOUT = 5_000;
 export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) { }
 
-	// The chat part and the sessions start as a request comes, not as the window starts, as an injected delayed service would
-	// once the window is idle: until the chat part or the Sessions view first shows, nothing of them runs
-	private get _chatPart(): IAgentsChatPartService {
-		return this._instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService));
-	}
-
-	private get _sessionsManagementService(): ISessionsManagementService {
-		return this._instantiationService.invokeFunction(accessor => accessor.get(ISessionsManagementService));
+	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */
+	private get _available(): boolean {
+		return this._contextKeyService.contextMatchesRules(AgentsViewAvailable);
 	}
 
 	async reveal(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined> {
+		if (!this._available) {
+			return undefined;
+		}
 		await this._chatPart.show(this._composerTarget(), { preserveFocus });
 		const active = this._chatPart.activeChat.get();
-		return active && this._waitForWidget(active.chat.resource);
+		return active ? this._waitForWidget(active.chat.resource) : this._chatPart.getComposerWidget();
 	}
 
 	async openSession(sessionResource: URI, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined> {
+		if (!this._available) {
+			return undefined;
+		}
 		const owner = await this._findSession(sessionResource);
 		if (!owner) {
 			return undefined;
@@ -59,16 +64,22 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 	async toggle(): Promise<void> {
 		if (this._layoutService.isVisible(Parts.CHAT_PART)) {
 			this._layoutService.setPartHidden(true, Parts.CHAT_PART);
-		} else {
+		} else if (this._available) {
 			await this._chatPart.show(this._composerTarget());
 		}
 	}
 
-	prefillInput(text: string): Promise<void> {
-		return this._chatPart.prefillComposer(this._composerTarget(), text);
+	async newSession(sessionType: string | undefined, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined> {
+		if (!this._available) {
+			return undefined;
+		}
+		const target = this._composerTarget();
+		// A composer of its own: the one it shows may aim at sessions of another type
+		await this._chatPart.openComposer(sessionType ? { ...target, sessionTypeId: sessionType } : target, { preserveFocus, newComposer: !!sessionType });
+		return this._chatPart.getComposerWidget();
 	}
 
-	private _composerTarget() {
+	private _composerTarget(): INewSessionTarget | undefined {
 		return getAgentsChatPartComposerTarget(this._workspaceContextService);
 	}
 

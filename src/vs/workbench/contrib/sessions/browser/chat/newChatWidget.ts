@@ -66,6 +66,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
 import type { IChatPetPlatformOccupation } from '../../../chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -2859,6 +2860,10 @@ export class NewChatWidget extends Disposable {
 			this.logService.error('Failed to refresh new-session prompt options:', error);
 			this._newChatInput.showPromptOptions(undefined);
 		}
+	}
+
+	get chatWidget(): IChatWidget | undefined {
+		return this._newChatInput.widget;
 	}
 
 	prefillInput(text: string): void {

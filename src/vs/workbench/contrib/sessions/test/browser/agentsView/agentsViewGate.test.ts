@@ -25,7 +25,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -35,7 +35,7 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../chat/common/constants.js';
-import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
 import { AgentsViewGate } from '../../../browser/agentsView/agentsViewGate.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
@@ -183,7 +183,7 @@ suite('AgentsViewGate', () => {
 	});
 
 	test('replaces the Chat view in a local window: it hides it, its keys and what would show it show the chat part', () => {
-		const chatViewKeys = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_OPEN_ACTION_ID && rule.when?.serialize() === ChatContextKeys.agentsViewActive.serialize()).length;
+		const chatViewKeys = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_OPEN_ACTION_ID && rule.when?.serialize() === ContextKeyExpr.and(ChatContextKeys.agentsViewActive, AgentsViewAvailable)?.serialize()).length;
 		const local = createGate(true);
 		const localState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), delegates, chatViewKeys: chatViewKeys() };
 		local.dispose();
@@ -196,6 +196,14 @@ suite('AgentsViewGate', () => {
 			afterDispose: { delegates: 0, chatViewKeys: 0 },
 			remoteState: { active: undefined, delegates: 0, chatViewKeys: 0 },
 		});
+	});
+
+	test('its keys open the chat part only while chat shows: not with AI features off', () => {
+		createGate(true);
+		const rule = KeybindingsRegistry.getDefaultKeybindings().find(rule => rule.command === CHAT_OPEN_ACTION_ID && rule.when?.keys().includes(ChatContextKeys.agentsViewActive.key));
+		const claims = (values: Record<string, unknown>) => !!rule?.when?.evaluate({ getValue: <T>(key: string) => ({ chatAgentsViewActive: true, 'config.chat.agent.enabled': true, remoteName: '', ...values })[key] as T });
+
+		assert.deepStrictEqual({ available: claims({}), aiOff: claims({ chatSetupHidden: true }), disabledInWorkspace: claims({ chatSetupDisabledInWorkspace: true }) }, { available: true, aiOff: false, disabledInWorkspace: false });
 	});
 
 	test('hides the Secondary Side Bar as the window restores only when, without the Chat view, it would show nothing', async () => {

@@ -6,10 +6,24 @@
 import assert from 'assert';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ServiceIdentifier } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IChatViewOpenOptions, ModeOpenChatGlobalAction } from '../../../browser/actions/chatActions.js';
-import { IChatViewHostDelegate, IChatWidgetService } from '../../../browser/chat.js';
+import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { ChatSessionPosition, openChatSessionAndSend } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatMode, IChatMode } from '../../../common/chatModes.js';
 import { ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -27,7 +41,7 @@ suite('Open Chat', () => {
 			reveal: async () => { calls.push('reveal'); return undefined; },
 			openSession: async () => { calls.push('openSession'); return undefined; },
 			toggle: async () => { calls.push('toggle'); },
-			prefillInput: async () => { calls.push('prefillInput'); },
+			newSession: async () => { calls.push('newSession'); return undefined; },
 		};
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
@@ -44,6 +58,31 @@ suite('Open Chat', () => {
 		await openChat(ChatMode.Agent, { query: ' @workspace where is the layout?' });
 
 		assert.deepStrictEqual(calls, ['notification', 'notification', 'notification']);
+	});
+
+	test('a session opened in the Chat view while something replaces it shows there: a new session of its type, with its request sent, not local chat', async () => {
+		const calls: unknown[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const composerWidget = upcastPartial<IChatWidget>({
+			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ addContext: (...entries: IChatRequestVariableEntry[]) => { calls.push({ attached: entries.length }); } }),
+			acceptInput: async (query?: string) => { calls.push({ sent: query }); return undefined; },
+		});
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			chatViewHostDelegate: upcastPartial<IChatViewHostDelegate>({ newSession: async sessionType => { calls.push({ newSession: sessionType }); return composerWidget; } }),
+		}));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: () => { calls.push('notification'); return upcastPartial<INotificationHandle>({}); } }));
+		const services: ServiceIdentifier<unknown>[] = [IViewsService, IChatService, IChatSessionsService, ILogService, IEditorGroupsService, IEditorService, ICustomizationHarnessService, ILanguageModelToolsService, IAgentHostImportConversationStore, IProgressService];
+		for (const service of services) {
+			instantiationService.stub(service, {});
+		}
+		const open = (type: string, prompt: string) => instantiationService.invokeFunction(accessor => openChatSessionAndSend(accessor, { type, displayName: type, position: ChatSessionPosition.Sidebar }, { prompt, attachedContext: [upcastPartial<IChatRequestVariableEntry>({ id: 'file' })] }));
+
+		const results = [await open(AgentSessionProviders.AgentHostCopilot, 'review this'), await open(AgentSessionProviders.Local, 'hi')];
+
+		assert.deepStrictEqual({ calls, results }, {
+			calls: [{ newSession: AgentSessionProviders.AgentHostCopilot }, { attached: 1 }, { sent: 'review this' }, 'notification'],
+			results: [undefined, undefined],
+		});
 	});
 
 	test('while the Agents view replaces the Chat view, what needs the Chat view or local chat is not enabled', () => {
