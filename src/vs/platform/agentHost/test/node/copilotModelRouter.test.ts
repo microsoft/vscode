@@ -220,6 +220,23 @@ suite('CopilotModelRouter', () => {
 		]);
 	});
 
+	test('routes a message that is only an attachment, and not one with nothing in it', async () => {
+		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
+		const route = (previousTurns: Turn[], situation: IModelRouterSituation) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile('switching: auto\n'), text: ' ', models, previousTurns, picker, situation });
+		const image: IModelRouterSituation = { attachments: [{ kind: 'image', count: 1 }] };
+		const first = await route([], image);
+		const followUp = await route([routedTurn({ router: 'daily', chosenModel: 'haiku' })], image);
+		const nothing = await route([], { mode: 'plan' });
+		const nothingLater = await route([routedTurn({ router: 'daily', chosenModel: 'haiku' })], {});
+		assert.deepStrictEqual({ asked: picker.requests.length, first: first.routed?.chosenModel, followUp: followUp.routed?.chosenModel, nothing: nothing.routed, nothingLater: nothingLater.routed?.kept }, {
+			asked: 2,
+			first: 'opus',
+			followUp: 'opus',
+			nothing: { router: 'daily', chosenModel: 'haiku', defaulted: true },
+			nothingLater: true,
+		});
+	});
+
 	test('picks a playbook by name, even when two run on the same model, and keeps it for the chat', async () => {
 		const content = 'version: 1\ndescription: Test.\neffort: off\nplaybooks:\n  feature:\n    when: Building.\n    main: opus\n  bug-fix:\n    when: Fixing.\n    main: opus\n';
 		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };

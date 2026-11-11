@@ -243,7 +243,7 @@ export class CopilotModelRouter {
 		if (routes.length === 1) {
 			return decision(context, fallback, { ...switchedFrom(fallback), ...preferenceOf(fallback) }, [], this._effortFor(context, fallback, undefined));
 		}
-		if (!request.text.trim()) {
+		if (!hasRequest(request)) {
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, undefined));
 		}
 		let pick: IModelRouterPick;
@@ -270,7 +270,7 @@ export class CopilotModelRouter {
 	private async _routeFollowUp(context: IRouteContext, current: IResolvedModelRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, router, routes } = context;
 		const stay = decision(context, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
-		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !request.text.trim() || CONTINUATION.test(request.text)) {
+		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !hasRequest(request) || CONTINUATION.test(request.text)) {
 			return stay;
 		}
 		const { previousTurns } = request;
@@ -311,6 +311,11 @@ export class CopilotModelRouter {
 		}
 		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target.model.name)], this._effortFor(context, target, pick.effortScore));
 	}
+}
+
+/** A message with only an attachment still has something a route can go by. */
+function hasRequest(request: IModelRouterRouteRequest): boolean {
+	return !!request.text.trim() || !!request.situation?.attachments?.length;
 }
 
 function decision({ router, keepLongContext }: IRouteContext, route: IResolvedModelRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {

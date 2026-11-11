@@ -10,7 +10,7 @@ import type { SessionMode } from './agentHostSchema.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { readAgentModelPricingMeta } from './meta/agentModelMeta.js';
 import { modelContextSizes } from './modelRouter.js';
-import { hasSessionPullRequestForBranch, MessageAttachmentKind, readFolderScopeGitState, readSessionGitHubState, readSessionGitState, readWorkingDirectoryScopeId, type MessageAttachment, type SessionState } from './state/sessionState.js';
+import { MessageAttachmentKind, readFolderScopeGitState, readSessionGitHubState, readSessionGitState, readWorkingDirectoryScopeId, type MessageAttachment, type SessionState } from './state/sessionState.js';
 
 export interface IModelRouterAttachmentSummary {
 	readonly kind: string;
@@ -65,7 +65,7 @@ export function summarizeModelRouterAttachments(attachments: readonly MessageAtt
  * Where a turn's work happens. `workingDirectories` are the chat's own, which for a peer chat can
  * be another folder than the session's.
  */
-export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta' | 'workingDirectories'> | undefined, workingDirectories: readonly string[] | undefined): Pick<IModelRouterSituation, 'workspace' | 'repository' | 'uncommittedFiles' | 'pullRequest'> {
+export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta' | 'workingDirectories'> | undefined, workingDirectories: readonly string[] | undefined, isDefaultChat: boolean): Pick<IModelRouterSituation, 'workspace' | 'repository' | 'uncommittedFiles' | 'pullRequest'> {
 	const folder = workingDirectories?.[0];
 	if (!session || !folder) {
 		return {};
@@ -73,11 +73,13 @@ export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta
 	const workspace = basename(URI.parse(folder));
 	const sessionFolder = session.workingDirectories?.[0];
 	const isSessionFolder = sessionFolder !== undefined && getWorkingDirectoryKey(sessionFolder) === getWorkingDirectoryKey(folder);
-	const git = readFolderScopeGitState(session._meta, readWorkingDirectoryScopeId(session._meta, workingDirectories))
-		?? (isSessionFolder ? readSessionGitState(session._meta) : undefined);
+	// As the host's git state service reads it: the session's state is its default chat's, a peer's is stored for its folders.
+	const git = isDefaultChat && isSessionFolder
+		? readSessionGitState(session._meta)
+		: readFolderScopeGitState(session._meta, readWorkingDirectoryScopeId(session._meta, workingDirectories)) ?? (isSessionFolder ? readSessionGitState(session._meta) : undefined);
 	const gitHub = readSessionGitHubState(session._meta, folder);
-	// A stored pull request can be one of a branch the checkout has since left.
-	const pullRequest = git && hasSessionPullRequestForBranch(gitHub, git.branchName) ? gitHub?.pullRequestState : undefined;
+	// A stored pull request can be one of a branch the checkout has since left, so it counts only for the branch it names.
+	const pullRequest = git?.branchName && gitHub?.pullRequestUrls?.length && gitHub.pullRequestBranchName === git.branchName ? gitHub.pullRequestState : undefined;
 	return {
 		...(workspace ? { workspace } : {}),
 		...(gitHub?.owner && gitHub.repo ? { repository: `${gitHub.owner}/${gitHub.repo}` } : {}),

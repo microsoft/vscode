@@ -46,21 +46,29 @@ suite('modelRouterSituation', () => {
 	test('reads the workspace, repository, changed files and pull request of the chat\'s own folder', () => {
 		const folder = 'file:///Users/dev/shop-checkout';
 		const other = 'file:///Users/dev/shop-docs';
-		const session = (pullRequestBranchName: string) => ({
+		const session = (pullRequestBranchName: string | undefined) => ({
 			_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestUrls: ['https://github.com/contoso/shop/pull/7'], pullRequestBranchName, pullRequestState: 'open' }),
 			workingDirectories: [folder],
 		});
 		const withPeerFolder = withFolderScopeGitState(withFolderGitHubState(session('feature')._meta, getWorkingDirectoryKey(other), { owner: 'contoso', repo: 'docs' }, other), getWorkingDirectoryScopeId([other]), { branchName: 'main', uncommittedChanges: 12 }, [other]);
+		// A snapshot stored for the session's folder by a peer, which is not the session's current state.
+		const withPeerSnapshot = { ...session('feature'), _meta: withFolderScopeGitState(session('feature')._meta, getWorkingDirectoryScopeId([folder]), { branchName: 'old-feature', uncommittedChanges: 40 }, [folder]) };
 		assert.deepStrictEqual({
-			full: modelRouterWorkspaceSituation(session('feature'), [folder]),
-			pullRequestOfAnotherBranch: modelRouterWorkspaceSituation(session('old-feature'), [folder]),
-			peerChatFolder: modelRouterWorkspaceSituation({ _meta: withPeerFolder, workingDirectories: [folder] }, [other]),
-			folderWithoutState: modelRouterWorkspaceSituation(session('feature'), ['file:///Users/dev/elsewhere']),
-			noFolder: modelRouterWorkspaceSituation(session('feature'), undefined),
-			noSession: modelRouterWorkspaceSituation(undefined, [folder]),
+			full: modelRouterWorkspaceSituation(session('feature'), [folder], true),
+			pullRequestOfAnotherBranch: modelRouterWorkspaceSituation(session('old-feature'), [folder], true),
+			pullRequestWithoutBranch: modelRouterWorkspaceSituation(session(undefined), [folder], true),
+			defaultChatKeepsSessionState: modelRouterWorkspaceSituation(withPeerSnapshot, [folder], true),
+			peerChatInSessionFolder: modelRouterWorkspaceSituation(withPeerSnapshot, [folder], false),
+			peerChatFolder: modelRouterWorkspaceSituation({ _meta: withPeerFolder, workingDirectories: [folder] }, [other], false),
+			folderWithoutState: modelRouterWorkspaceSituation(session('feature'), ['file:///Users/dev/elsewhere'], false),
+			noFolder: modelRouterWorkspaceSituation(session('feature'), undefined, true),
+			noSession: modelRouterWorkspaceSituation(undefined, [folder], true),
 		}, {
 			full: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
 			pullRequestOfAnotherBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
+			pullRequestWithoutBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
+			defaultChatKeepsSessionState: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
+			peerChatInSessionFolder: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 40 },
 			peerChatFolder: { workspace: 'shop-docs', repository: 'contoso/docs', uncommittedFiles: 12 },
 			folderWithoutState: { workspace: 'elsewhere' },
 			noFolder: {},

@@ -2469,7 +2469,7 @@ export class AgentSideEffects extends Disposable {
 		// The chat's own folders: a peer chat can work somewhere else than its session.
 		const workingDirectories = resolvedWorkingDirectories?.map(directory => directory.toString()) ?? this._agentConfigService.getEffectiveWorkingDirectories(turnChannel);
 		return {
-			...modelRouterWorkspaceSituation(this._stateManager.getSessionState(sessionChannel), workingDirectories),
+			...modelRouterWorkspaceSituation(this._stateManager.getSessionState(sessionChannel), workingDirectories, this._stateManager.isDefaultChat(URI.parse(sessionChannel), URI.parse(turnChannel))),
 			...(summary.length ? { attachments: summary } : {}),
 			...(mode && mode !== 'interactive' ? { mode } : {}),
 		};
