@@ -29,25 +29,25 @@ suite('composeDevToolsScreenshot', () => {
 
 	const P = 'P'.charCodeAt(0);
 	const D = 'D'.charCodeAt(0);
-	const viewSize = { width: 4, height: 3 };
 
 	test('places the page beside a right-docked panel', () => {
-		const result = composeDevToolsScreenshot(solid(3, 3, P), solid(1, 3, D), { viewSize, bounds: { x: 3, y: 0, width: 1, height: 3 } });
+		const result = composeDevToolsScreenshot(solid(3, 3, P), solid(4, 3, D), 'right');
 		assert.deepStrictEqual(render(result), ['PPPD', 'PPPD', 'PPPD']);
 	});
 
 	test('places the page beside a left-docked panel', () => {
-		const result = composeDevToolsScreenshot(solid(3, 3, P), solid(1, 3, D), { viewSize, bounds: { x: 0, y: 0, width: 1, height: 3 } });
+		const result = composeDevToolsScreenshot(solid(3, 3, P), solid(4, 3, D), 'left');
 		assert.deepStrictEqual(render(result), ['DPPP', 'DPPP', 'DPPP']);
 	});
 
 	test('places the page above a bottom-docked panel', () => {
-		const result = composeDevToolsScreenshot(solid(4, 20, P), solid(4, 10, D), { viewSize: { width: 4, height: 30 }, bounds: { x: 0, y: 20, width: 4, height: 10 } });
-		assert.deepStrictEqual(render(result).filter((_, i) => i === 0 || i === 19 || i === 20 || i === 29), ['PPPP', 'PPPP', 'DDDD', 'DDDD']);
+		const result = composeDevToolsScreenshot(solid(4, 2, P), solid(4, 3, D), 'bottom');
+		assert.deepStrictEqual(render(result), ['PPPP', 'PPPP', 'DDDD']);
 	});
 
-	test('scales the output to device pixels', () => {
-		const result = composeDevToolsScreenshot(solid(6, 6, P), solid(2, 6, D), { viewSize: { width: 4, height: 3 }, bounds: { x: 3, y: 0, width: 1, height: 3 } });
-		assert.deepStrictEqual({ width: result.width, height: result.height }, { width: 8, height: 6 });
+	test('does not modify the DevTools bitmap', () => {
+		const devTools = solid(4, 3, D);
+		composeDevToolsScreenshot(solid(3, 3, P), devTools, 'left');
+		assert.deepStrictEqual(render(devTools), ['DDDD', 'DDDD', 'DDDD']);
 	});
 });

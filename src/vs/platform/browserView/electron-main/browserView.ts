@@ -7,7 +7,7 @@ import { nativeImage, screen, WebContentsView, webContents } from 'electron';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
+import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
@@ -942,20 +942,13 @@ export class BrowserView extends Disposable {
 			return pageImage;
 		}
 		try {
-			// The DevTools view only covers its own panel; the frontend marks its dock side on <body>.
-			const [dockSide, width, height] = await devTools.executeJavaScript(
-				`[['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked', window.innerWidth, window.innerHeight]`
-			) as [string, number, number];
-			const viewBounds = this._view.getBounds();
-			if (dockSide === 'undocked' || width <= 0 || height <= 0 || width > viewBounds.width || height > viewBounds.height) {
+			// The frontend marks its dock side on <body>; it has none while undocked.
+			const dockSide = await devTools.executeJavaScript(
+				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
+			) as BrowserViewDevToolsDockSide | 'undocked';
+			if (dockSide === 'undocked') {
 				return pageImage;
 			}
-			const bounds = {
-				x: dockSide === 'right' ? viewBounds.width - width : 0,
-				y: dockSide === 'bottom' ? viewBounds.height - height : 0,
-				width,
-				height
-			};
 			const devToolsImage = await devTools.capturePage(undefined, { stayHidden: true });
 			if (devToolsImage.isEmpty()) {
 				return pageImage;
@@ -965,7 +958,7 @@ export class BrowserView extends Disposable {
 			const composed = composeDevToolsScreenshot(
 				{ data: pageImage.toBitmap(), ...pageSize },
 				{ data: devToolsImage.toBitmap(), ...devToolsSize },
-				{ bounds, viewSize: { width: viewBounds.width, height: viewBounds.height } }
+				dockSide
 			);
 			return nativeImage.createFromBitmap(Buffer.from(composed.data.buffer, composed.data.byteOffset, composed.data.byteLength), { width: composed.width, height: composed.height });
 		} catch (error) {
