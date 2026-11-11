@@ -183,10 +183,10 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number; extensionSuggestions?: boolean; collapsed?: boolean }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number; extensionSuggestions?: boolean; collapsed?: boolean; headerHovered?: boolean }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.height = `${options?.height ?? 260}px`;
-	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	ctx.container.style.backgroundColor = 'var(--vscode-agents-background)';
 
 	const actionViewItemService = new FixtureActionViewItemService();
 
@@ -241,8 +241,17 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationShortcutsWidget, ctx.container, undefined)
 	);
-	if (options?.collapsed) {
-		ctx.container.querySelector<HTMLElement>('.ai-customization-header')?.click();
+	if (options?.collapsed || options?.headerHovered) {
+		const header = ctx.container.querySelector<HTMLElement>('.ai-customization-header');
+		if (!header) {
+			throw new Error('Expected the customizations header.');
+		}
+		if (options.collapsed) {
+			header.click();
+		}
+		if (options.headerHovered) {
+			header.classList.add('hovered');
+		}
 	}
 }
 
@@ -255,6 +264,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	Expanded: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx),
+	}),
+
+	ExpandedHeaderHovered: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderWidget(ctx, { headerHovered: true }),
+	}),
+
+	CollapsedHeaderHovered: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: (ctx) => renderWidget(ctx, {
+			collapsed: true,
+			headerHovered: true,
+			counts: { skills: 30, instructions: 16 },
+		}),
 	}),
 
 	MinimumHeight: defineComponentFixture({
