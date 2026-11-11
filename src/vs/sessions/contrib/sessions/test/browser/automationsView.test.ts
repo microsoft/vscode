@@ -50,6 +50,7 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AUTOMATION_REMINDERS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -852,6 +853,43 @@ suite('AutomationsCardsWidget', () => {
 		disposables.add(toDisposable(() => widget.element.remove()));
 		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
+
+	test('reminders start collapsed with due and scheduled counts, preserve expansion and hide when opted out', async () => {
+		const { automationService, widget, configurationService } = setup();
+		const setEnabled = async (value: boolean) => {
+			await configurationService.setUserConfiguration(AUTOMATION_REMINDERS_ENABLED_SETTING, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([AUTOMATION_REMINDERS_ENABLED_SETTING]),
+				change: { keys: [AUTOMATION_REMINDERS_ENABLED_SETTING], overrides: [] },
+				affectsConfiguration: key => key === AUTOMATION_REMINDERS_ENABLED_SETTING,
+			});
+		};
+		const reminders = [
+			automation({ id: 'due', prompt: 'Due reminder', reminder: { status: 'due' } }),
+			automation({ id: 'future', prompt: 'Scheduled reminder', reminder: { status: 'scheduled' } }),
+			automation({ id: 'past', prompt: 'Dismissed reminder', reminder: { status: 'dismissed' } }),
+		];
+		automationService.setAutomations(reminders);
+		const details = widget.element.querySelector<HTMLDetailsElement>('.automation-reminders')!;
+		const hiddenByDefault = details.hidden;
+		await setEnabled(true);
+		const initial = { open: details.open, counts: [...details.querySelectorAll('.monaco-count-badge')].map(badge => badge.textContent) };
+		details.open = true;
+		automationService.setAutomations(reminders.slice(1));
+		const updated = {
+			open: details.open,
+			counts: [...details.querySelectorAll('.monaco-count-badge')].map(badge => badge.textContent),
+			items: [...details.querySelectorAll('.automation-reminder-row > .monaco-button')].map(button => button.textContent?.split(' - ')[0]),
+		};
+		await setEnabled(false);
+		assert.deepStrictEqual({ hiddenByDefault, initial, updated, hiddenAfterOptOut: details.hidden }, {
+			hiddenByDefault: true,
+			initial: { open: false, counts: ['1 due', '1 scheduled'] },
+			updated: { open: true, counts: ['0 due', '1 scheduled'], items: ['Scheduled reminder'] },
+			hiddenAfterOptOut: true,
+		});
+	});
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
 		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)

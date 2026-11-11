@@ -81,15 +81,24 @@
 	margin-bottom: var(--vscode-spacing-size240);
 }
 
-.automation-reminders-header {
+.automation-reminder-row {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size60);
 }
 
-.automation-reminders-header > .monaco-button {
-	width: auto;
+.automation-reminder-row > .monaco-button {
+	flex: 1;
+	min-width: 0;
+}
+
+.automation-reminder-actions {
+	flex-shrink: 0;
+	visibility: hidden;
+}
+
+.automation-reminder-row:is(:hover, :focus-within) .automation-reminder-actions {
+	visibility: visible;
 }
 
 .automation-reminders h3,

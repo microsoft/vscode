@@ -9,6 +9,7 @@ import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -38,7 +39,7 @@ import { IAction, Separator, SubmenuAction } from '../../../../../base/common/ac
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { SessionGroupAppearancePicker } from '../../../../../workbench/contrib/sessions/browser/views/sessionGroupAppearancePicker.js';
@@ -60,6 +61,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AUTOMATION_REMINDERS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -82,6 +84,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { getIconsStyleSheet } from '../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -5380,18 +5383,33 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ before, scopePreserved: list.filters.hasInboxScope }, { before: [], scopePreserved: true });
 		});
 
-		test('inbox indents reminder rows without repeated bells and counts only due reminders', () => {
+		test('inbox shows compact dot-led reminder rows with separate times and counts only due reminders', async () => {
+			const contextMenus: string[][] = [];
+			for (const section of ['reminder', 'reminders']) {
+				disposables.add(MenuRegistry.appendMenuItem(Menus.SessionSectionContext, {
+					command: { id: `test.reminder.${section}`, title: section },
+					when: ContextKeyExpr.equals('sessionSection.type', section),
+				}));
+			}
 			const reminder = (id: string, status: 'scheduled' | 'due' | 'dismissed') => upcastPartial<IAutomationDescriptor>({
 				id, name: id, prompt: id, reminder: { status }, schedule: { interval: 'once', at: '2026-11-11T12:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			});
 			const automations = observableValue<readonly IAutomationDescriptor[]>(disposables, [
 				reminder('first', 'due'), reminder('second', 'due'), reminder('future', 'scheduled'), reminder('history', 'dismissed'),
 			]);
-			const harness = createListHarness(disposables, [], instantiationService => {
-				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const harness = createListHarness(disposables, [createTestSession('ordinary').session], instantiationService => {
+				const configuration = new TestConfigurationService({ 'chat.automations.enabled': true, [AUTOMATION_REMINDERS_ENABLED_SETTING]: true });
+				instantiationService.stub(IConfigurationService, configuration);
+				const contextKeyService = disposables.add(new ContextKeyService(configuration));
 				instantiationService.stub(IContextKeyService, contextKeyService);
 				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 				ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+				instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+				instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(delegate: IContextMenuDelegate): void {
+						contextMenus.push(delegate.getActions().map(action => action.id).filter(id => id.startsWith('test.reminder.')));
+					}
+				});
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = automations;
 					override readonly runs = constObservable([]);
@@ -5400,12 +5418,18 @@ suite('Sessions - SessionsList', () => {
 			});
 			const container = harness.createContainer();
 			container.style.setProperty('--vscode-spacing-size20', '2px');
+			container.style.setProperty('--vscode-spacing-size40', '4px');
 			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size120', '12px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-codiconFontSize', '16px');
+			createStyleSheet(container).textContent = disposables.add(getIconsStyleSheet(undefined)).getCSS();
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
 			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
 			}));
 			list.layout(800, 320);
+			await mainWindow.document.fonts.ready;
 			const snapshot = () => {
 				const row = list.getItemRow({ section: 'reminders' });
 				return {
@@ -5414,23 +5438,35 @@ suite('Sessions - SessionsList', () => {
 				};
 			};
 			const initial = snapshot();
-			const headerLabel = list.getItemRow({ section: 'reminders' })!.querySelector('.session-section-label')!;
+			const sessionTitle = container.querySelector('.session-title')!;
 			const reminderRow = list.getItemRow({ section: 'reminder:first' })!;
+			const title = reminderRow.querySelector('.session-section-label')!;
+			const time = reminderRow.querySelector('.session-section-description')!;
+			const indentation = title.getBoundingClientRect().left - sessionTitle.getBoundingClientRect().left;
+			reminderRow.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			list.getItemRow({ section: 'reminders' })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 			const appearance = {
-				indented: reminderRow.querySelector('.session-section-label')!.getBoundingClientRect().left > headerLabel.getBoundingClientRect().left,
+				compactIndentation: Math.abs(indentation) <= 2,
+				dots: reminderRow.querySelectorAll('.codicon-circle-small-filled').length,
 				bells: reminderRow.querySelectorAll('.codicon-bell').length,
+				title: title.textContent,
+				timeBelowTitle: time.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+				time: time.textContent?.startsWith('Due: '),
+				createRow: list.getItemRow({ section: 'reminder:create' }) !== undefined,
+				management: list.getItemRow({ section: 'reminder:view' })?.querySelector('.session-section-label')?.textContent,
+				contextMenus,
 			};
 			automations.set([reminder('first', 'due'), reminder('second', 'scheduled')], undefined);
 			const postponed = snapshot();
 			automations.set([reminder('first', 'dismissed'), reminder('second', 'scheduled')], undefined);
 			assert.deepStrictEqual({ appearance, counts: [initial, postponed, snapshot()] }, {
-				appearance: { indented: true, bells: 0 },
+				appearance: { compactIndentation: true, dots: 1, bells: 0, title: 'first', timeBelowTitle: true, time: true, createRow: false, management: undefined, contextMenus: [['test.reminder.reminder'], ['test.reminder.reminders']] },
 				counts: [
 					{ count: '2', label: 'Reminders, 2 reminders' },
 					{ count: '1', label: 'Reminders, 1 reminder' },
 					{ count: '0', label: 'Reminders, 0 reminders' },
 				],
-			});
+			}, `Reminder title offset from session: ${indentation}px`);
 		});
 
 		test('inbox keeps primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {

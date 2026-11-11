@@ -59,7 +59,8 @@ import { ChatInputPart, IChatInputPartOptions } from '../../../../../workbench/c
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { AutomationCatalogueState, AutomationRepositoryOwnershipUnavailableError, AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationRepositoryOwnershipUnavailableError, AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AUTOMATION_REMINDERS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IAutomationDialogResult, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -108,10 +109,10 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(actual, { session: true, chat: true });
 	});
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
+	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'], remindersEnabled = false) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService(remindersEnabled ? { 'chat.automations.enabled': true, [AUTOMATION_REMINDERS_ENABLED_SETTING]: true } : undefined);
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -144,7 +145,7 @@ suite('Automation dialog creation', () => {
 				getSessionTypes: uri => getSessionTypesForFolder(uri).filter(type => type.providerId === id).map(type => type.sessionType),
 			}) as T : undefined,
 		}));
-		const providers = observableValue('providers', [{ id: 'host', label: 'Host' }, ...(cloudConfiguration && cloudCreatable ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
+		const providers = observableValue<readonly IAutomationProviderDescriptor[]>('providers', [{ id: 'host', label: 'Host', ...(remindersEnabled ? { supportsReminders: true } : {}) }, ...(cloudConfiguration && cloudCreatable ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
 		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration && cloudEnabledAtOpen);
 		let refresh: () => Promise<void> = async () => { };
 		const hovers: string[] = [];
@@ -188,6 +189,7 @@ suite('Automation dialog creation', () => {
 		}));
 		instantiationService.stub(IAutomationService, upcastPartial<IAutomationService>({
 			availableProviders: providers,
+			canCreateReminder: providers.map(items => items.some(item => item.supportsReminders)),
 			getProviderConfiguration: id => id === 'cloud' && cloudEnabled.get() ? cloudConfiguration : undefined,
 			automations: constObservable(options.existing ? [options.existing] : []),
 			catalogueState: constObservable('ready'),
@@ -379,6 +381,59 @@ suite('Automation dialog creation', () => {
 		{ name: 'pull_request_comment', title: 'Comment', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', label: 'Comment text', required: false }] },
 		{ name: 'pull_request_review_submitted', title: 'Review', description: '', fields: [{ name: 'types', required: true, options: ['submitted'] }, { name: 'states', label: 'Review state', required: true, options: ['approved', 'changes_requested', 'commented'] }] },
 	];
+
+	test('One Time creates a notification-only reminder without capturing agent configuration', async () => {
+		let configurations = 0;
+		const dialog = openDialog({
+			initialValues: { name: 'Review', prompt: 'Review the change', schedule: { interval: 'once', at: '2035-01-02T03:04:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }, reminder: { status: 'scheduled' } },
+		}, undefined, {
+			getAutomationSessionConfiguration: async () => { configurations++; return null; },
+		}, undefined, true, true, true, undefined, true);
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		const time = dialog.container.querySelector<HTMLInputElement>('input[type="datetime-local"]')!;
+		const select = (label: string) => {
+			trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === label);
+			trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+		};
+		const visible = (element: HTMLElement) => !element.closest('[style*="display: none"], [hidden]');
+		const states = [visible(time)];
+		select('Daily');
+		states.push(visible(time));
+		select('One Time');
+		states.push(visible(time));
+		time.value = '2020-01-02T03:04';
+		time.dispatchEvent(new (DOM.getWindow(time).Event)('input', { bubbles: true }));
+		const rejectsPast = dialog.saveButton.getAttribute('aria-disabled') === 'true';
+		time.value = '2035-01-02T03:04';
+		time.dispatchEvent(new (DOM.getWindow(time).Event)('input', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({
+			states, rejectsPast, configurations, kind: result?.kind, value: result?.value,
+		}, {
+			states: [true, false, true], rejectsPast: true, configurations: 0, kind: 'create',
+			value: {
+				name: 'Review', prompt: 'Review the change', target: { kind: 'reminder', providerId: 'host' },
+				schedule: { interval: 'once', at: new Date(2035, 0, 2, 3, 4).toISOString(), scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				reminder: { status: 'scheduled' }, enabled: true,
+			},
+		});
+	});
+
+	test('One Time is opt-in and cannot save after its provider loses reminder support', async () => {
+		const disabled = openDialog();
+		const offeredWhileDisabled = [...disabled.container.querySelectorAll('option')].some(option => option.textContent === 'One Time');
+		disabled.cancelButton.click();
+		await disabled.result;
+		const dialog = openDialog({
+			initialValues: { name: 'Review', prompt: 'Review', schedule: { interval: 'once', at: '2035-01-01T00:00:00Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }, reminder: { status: 'scheduled' } },
+		}, undefined, undefined, undefined, true, true, true, undefined, true);
+		dialog.providers.set([{ id: 'host', label: 'Host' }], undefined);
+		const cannotSave = dialog.saveButton.getAttribute('aria-disabled') === 'true';
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ offeredWhileDisabled, cannotSave }, { offeredWhileDisabled: false, cannotSave: true });
+	});
 
 	test('unified Trigger dropdown lists schedules and event families without a Schedule category', async () => {
 		const initial = eventAutomation({});

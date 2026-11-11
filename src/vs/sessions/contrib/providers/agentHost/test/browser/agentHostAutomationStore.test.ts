@@ -421,11 +421,12 @@ suite('AgentHostAutomationStore', () => {
 		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, reminders: {} } }, undefined);
 		store.setConnection(connection);
 		const at = '2030-01-02T03:04:00.000Z';
+		const sourceSessionResource = URI.parse('client-session:/original');
 		const reminder = await store.createAutomation({
 			name: 'Review', prompt: 'Review PR #42',
 			target: { kind: 'reminder', providerId: 'local-agent-host' },
 			schedule: { interval: 'once', at, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			reminder: { status: 'scheduled', draft: { inputText: 'Review PR #42', attachments: '[]' } },
+			reminder: { status: 'scheduled', sourceSessionResource, draft: { inputText: 'Review PR #42', attachments: '[]' } },
 		});
 		const dismissed = await store.updateAutomationIfUnchanged(reminder.id, { reminder: { status: 'dismissed', draft: reminder.reminder?.draft } }, reminder);
 		const create = connection.dispatched[0].action;
@@ -436,7 +437,7 @@ suite('AgentHostAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: reminder.target,
 			schedule: reminder.schedule,
-			reminder: reminder.reminder,
+			reminder: { ...reminder.reminder, sourceSessionResource: reminder.reminder?.sourceSessionResource?.toString() },
 			session: create.type === ActionType.AutomationCreateRequested ? create.definition.session : undefined,
 			expectedModifiedAt: update.type === ActionType.AutomationUpdateRequested ? update.expectedModifiedAt : undefined,
 			dismissed: dismissed.kind === 'updated' ? dismissed.automation.reminder?.status : 'conflict',
@@ -447,7 +448,7 @@ suite('AgentHostAutomationStore', () => {
 		}, {
 			target: { kind: 'reminder', providerId: 'local-agent-host' },
 			schedule: { interval: 'once', at, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			reminder: { status: 'scheduled', draft: { inputText: 'Review PR #42', attachments: '[]' }, handoffId: undefined },
+			reminder: { status: 'scheduled', sourceSessionResource: sourceSessionResource.toString(), draft: { inputText: 'Review PR #42', attachments: '[]' }, handoffId: undefined },
 			session: {},
 			expectedModifiedAt: reminder.updatedAt,
 			dismissed: 'dismissed',

@@ -6,7 +6,9 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toLocalISOString } from '../../../../base/common/date.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -15,22 +17,23 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, NotificationsFilter, Severity } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { serializeChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { reviveChatDraft, serializeChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, isImplicitVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { EDIT_REMINDER_COMMAND, OPEN_REMINDERS_COMMAND, reminderDescription, UNDO_REMINDER_COMMAND } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
+import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { AutomationRemindersEnabledContext, EDIT_REMINDER_COMMAND, isAutomationRemindersEnabled, OPEN_REMINDERS_COMMAND, reminderDescription, UNDO_REMINDER_COMMAND } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IAutomationService, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IParsedReminder, parseReminder, parseReminderTime } from '../../../../workbench/contrib/chat/common/automations/reminderParser.js';
 import { ChatAgentLocation, ChatConfiguration, ChatNotificationMode } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -38,12 +41,13 @@ import { IChatSlashCommandService } from '../../../../workbench/contrib/chat/com
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 export const IAutomationRemindersService = createDecorator<IAutomationRemindersService>('automationRemindersService');
 
 export interface IAutomationRemindersService {
 	readonly _serviceBrand: undefined;
-	execute(action: 'create' | 'open' | 'edit' | 'undo', id?: string, revision?: string): Promise<void>;
+	execute(action: 'create' | 'open' | 'edit' | 'undo' | 'draft' | 'postpone' | 'dismiss' | 'source', id?: string, revision?: string): Promise<void>;
 }
 
 /** UI for host-owned reminders. There is deliberately no scheduling timer or second store here. */
@@ -63,11 +67,13 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@ISessionsService private readonly sessions: ISessionsService,
 		@ISessionsPartService private readonly sessionsPart: ISessionsPartService,
-		@ISessionsManagementService sessionsManagement: ISessionsManagementService,
+		@ISessionsManagementService private readonly sessionsManagement: ISessionsManagementService,
 		@IModelService private readonly models: IModelService,
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly signals: IAccessibilitySignalService,
 		@IHostService private readonly host: IHostService,
+		@IDialogService private readonly dialogs: IDialogService,
+		@IAutomationDialogService private readonly automationDialog: IAutomationDialogService,
 	) {
 		super();
 		if (isWeb) {
@@ -80,10 +86,11 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 			executeDuringRequest: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
-		}, async (input, _progress, _history, _location, _resource, token, options, context) => {
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationRemindersEnabledContext),
+		}, async (input, _progress, _history, _location, resource, token, options, context) => {
 			try {
-				const created = await this.create(input, options?.attachedContext, token);
+				const source = this.sessionsManagement.getSessionForChatResource(resource)?.session;
+				const created = await this.create(input, options?.attachedContext, token, isSessionCreated(source) ? source?.resource : undefined);
 				if (created && context?.inputUri) {
 					this.inputNotifications.setNotification({
 						id: `reminder.receipt.${context.inputUri}`,
@@ -93,7 +100,7 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 						message: localize('reminder.receipt', "I'll remind you: {0}", created.prompt),
 						description: reminderDescription(created),
 						actions: [
-							{ kind: ChatInputNotificationActionKind.Command, label: localize('reminder.edit', "Edit"), commandId: EDIT_REMINDER_COMMAND, commandArgs: [created.id] },
+							{ kind: ChatInputNotificationActionKind.Command, label: localize('reminder.edit', "Edit..."), commandId: EDIT_REMINDER_COMMAND, commandArgs: [created.id] },
 							{ kind: ChatInputNotificationActionKind.Command, label: localize('reminder.undo', "Undo"), commandId: UNDO_REMINDER_COMMAND, commandArgs: [created.id, created.updatedAt] },
 							{ kind: ChatInputNotificationActionKind.Command, label: localize('reminder.view', "View"), commandId: OPEN_REMINDERS_COMMAND },
 						],
@@ -129,10 +136,10 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 			const message = newlyDue.length === 1 ? localize('reminder.notification', "Reminder: {0}", newlyDue[0].prompt) : localize('reminder.notifications', "{0} reminders are due.", newlyDue.length);
 			const handle = this.notifications.prompt(Severity.Info, message,
 				newlyDue.length === 1 ? [
-					{ label: localize('reminder.send', "Send to Session"), run: () => this.run(() => this.send(this.requireReminder(newlyDue[0].id))) },
-					{ label: localize('reminder.postpone', "Postpone"), run: () => this.run(() => this.postpone(this.requireReminder(newlyDue[0].id))) },
+					{ label: localize('reminder.send', "Create Draft Session"), run: () => this.run(() => this.send(this.requireReminder(newlyDue[0].id))) },
+					{ label: localize('reminder.postpone', "Postpone..."), run: () => this.run(() => this.postpone(this.requireReminder(newlyDue[0].id))) },
 					{ label: localize('reminder.dismiss', "Dismiss"), run: () => this.run(() => this.dismiss(this.requireReminder(newlyDue[0].id))) },
-				] : [{ label: localize('reminder.viewAll', "View Reminders"), run: () => this.commands.executeCommand(OPEN_REMINDERS_COMMAND) }],
+				] : [{ label: localize('reminder.viewAll', "Manage Reminders..."), run: () => this.commands.executeCommand(OPEN_REMINDERS_COMMAND) }],
 			);
 			this.notification.value = toDisposable(() => handle.close());
 			void this.notifyOS(message, newlyDue.map(item => `${item.id}:${item.schedule.at}`).join(','));
@@ -161,7 +168,7 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 				title: localize('reminder.osTitle', "Reminders"),
 				body: message,
 				dedupeKey: `reminders:${dedupeKey}`,
-				actions: [localize('reminder.viewAll', "View Reminders")],
+				actions: [localize('reminder.viewAll', "Manage Reminders...")],
 			}, cancellation.token);
 			if (!cancellation.token.isCancellationRequested && this.isEnabled() && (result.clicked || result.actionIndex === 0)) {
 				await this.host.focus(mainWindow);
@@ -176,11 +183,23 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 		}
 	}
 
-	async execute(action: 'create' | 'open' | 'edit' | 'undo', id?: string, revision?: string): Promise<void> {
+	async execute(action: Parameters<IAutomationRemindersService['execute']>[0], id?: string, revision?: string): Promise<void> {
 		await this.run(async () => {
 			this.assertEnabled();
 			if (action === 'create') {
-				await this.create();
+				await this.automationDialog.showAutomationDialog({
+					initialValues: {
+						name: '', prompt: '',
+						schedule: { interval: 'once', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+						reminder: { status: 'scheduled' },
+					},
+					commit: async result => {
+						this.assertEnabled();
+						if (result.kind === 'create') {
+							await this.automations.createAutomation(result.value, () => this.assertEnabled());
+						}
+					},
+				});
 				return;
 			}
 			const item = this.requireReminder(id);
@@ -196,6 +215,14 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 				});
 			} else if (action === 'edit') {
 				await this.edit(item);
+			} else if (action === 'draft') {
+				await this.send(item);
+			} else if (action === 'postpone') {
+				await this.postpone(item);
+			} else if (action === 'dismiss') {
+				await this.dismiss(item);
+			} else if (action === 'source' && item.reminder?.sourceSessionResource) {
+				await this.sessions.openSession(item.reminder.sourceSessionResource);
 			} else {
 				await this.show(item);
 			}
@@ -203,12 +230,12 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 	}
 
 	private isEnabled(): boolean {
-		return !isWeb && this.configuration.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true && !this.configuration.getValue<boolean>(ChatAIDisabledSettingId);
+		return !isWeb && isAutomationRemindersEnabled(this.configuration);
 	}
 
 	private assertEnabled(): void {
 		if (!this.isEnabled()) {
-			throw new Error(localize('reminder.disabled', "Enable Automations to use reminders."));
+			throw new Error(localize('reminder.disabled', "Enable Automations and the experimental reminders setting to use reminders."));
 		}
 	}
 
@@ -221,7 +248,7 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 		return item;
 	}
 
-	private async create(input?: string, attachments: readonly IChatRequestVariableEntry[] = [], token = CancellationToken.None): Promise<IAutomationDescriptor | undefined> {
+	private async create(input?: string, attachments: readonly IChatRequestVariableEntry[] = [], token = CancellationToken.None, sourceSessionResource?: URI): Promise<IAutomationDescriptor | undefined> {
 		this.assertEnabled();
 		const provider = this.automations.availableProviders.get().find(provider => provider.supportsReminders);
 		if (!provider) {
@@ -241,7 +268,7 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 			prompt: reminder.text,
 			target: { kind: 'reminder', providerId: provider.id },
 			schedule: { interval: 'once', at: reminder.at, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			reminder: { status: 'scheduled', draft },
+			reminder: { status: 'scheduled', draft, ...(sourceSessionResource ? { sourceSessionResource } : {}) },
 		}, () => {
 			this.assertEnabled();
 			if (token.isCancellationRequested) {
@@ -254,7 +281,7 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 		return created;
 	}
 
-	private async prompt(text?: string): Promise<IParsedReminder | undefined> {
+	private async prompt(text?: string, savedAt?: string): Promise<IParsedReminder | undefined> {
 		const reminderText = await this.quickInput.input({
 			title: localize('reminder.createTitle', "Remind Me"),
 			prompt: localize('reminder.textPrompt', "What would you like to be reminded about? No agent runs when a reminder is due."),
@@ -264,23 +291,27 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 		if (reminderText === undefined) {
 			return undefined;
 		}
-		const at = await this.pickTime();
+		const at = await this.pickTime(savedAt);
 		return at ? { text: reminderText.trim(), at } : undefined;
 	}
 
-	private async pickTime(): Promise<string | undefined> {
+	private async pickTime(savedAt?: string): Promise<string | undefined> {
+		const savedTime = savedAt ? toLocalISOString(new Date(savedAt)).slice(0, 16).replace('T', ' at ') : undefined;
 		const value = await this.quickInput.input({
 			title: localize('reminder.when', "When Should I Remind You?"),
 			prompt: localize('reminder.timePrompt', "Use English, for example: in one hour, tomorrow at 9am, or 2027-01-15 at 14:30. Times are local. Recurring and ambiguous times are not supported."),
-			value: 'in one hour',
+			value: savedTime ?? 'in one hour',
 			validateInput: async value => {
-				const time = parseReminderTime(value, new Date());
+				const time = savedTime && value === savedTime ? new Date(savedAt!) : parseReminderTime(value, new Date());
 				return time ? { content: localize('reminder.exactTime', "Reminder: {0}", time.toLocaleString()), severity: Severity.Info }
 					: localize('reminder.invalidTime', "Choose a future, unambiguous date and time, for example tomorrow at 9am.");
 			},
 		});
 		if (value === undefined) {
 			return undefined;
+		}
+		if (savedTime && value === savedTime) {
+			return savedAt;
 		}
 		const time = parseReminderTime(value, new Date());
 		if (!time) {
@@ -291,30 +322,56 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 
 	private async show(item: IAutomationDescriptor): Promise<void> {
 		const active = item.reminder?.status === 'due' || item.reminder?.status === 'scheduled';
-		const choices: (IQuickPickItem & { run: () => Promise<void> })[] = [];
+		const choices: IPromptButton<void>[] = [];
 		if (item.reminder?.status === 'due') {
-			choices.push({ label: localize('reminder.send', "Send to Session"), description: localize('reminder.sendDescription', "Open an editable draft; nothing is sent yet"), run: () => this.send(item) });
+			choices.push({ label: localize('reminder.send', "Create Draft Session"), run: () => this.send(item) });
+		}
+		if (item.reminder?.sourceSessionResource) {
+			const source = item.reminder.sourceSessionResource;
+			choices.push({ label: localize('reminder.openOriginal', "Open Original Session"), run: () => this.sessions.openSession(source) });
 		}
 		if (active) {
 			choices.push(
-				{ label: localize('reminder.postpone', "Postpone"), run: () => this.postpone(item) },
+				{ label: localize('reminder.postpone', "Postpone..."), run: () => this.postpone(item) },
+				{ label: localize('reminder.edit', "Edit..."), run: () => this.edit(item) },
 				{ label: localize('reminder.dismiss', "Dismiss"), run: () => this.dismiss(item) },
-				{ label: localize('reminder.edit', "Edit"), run: () => this.edit(item) },
 			);
 		}
 		const sent = item.reminder;
 		if (sent?.status === 'sent') {
 			choices.push({ label: localize('reminder.openSession', "Open Session"), run: () => this.sessions.openSession(sent.sessionResource) });
 		}
-		choices.push({ label: localize('reminder.viewAll', "View Reminders"), run: async () => { await this.commands.executeCommand(OPEN_REMINDERS_COMMAND); } });
-		const choice = await this.quickInput.pick(choices, { title: item.prompt, placeHolder: reminderDescription(item) });
-		if (choice) {
-			await choice.run();
+		const details = new MarkdownString().appendText(reminderDescription(item));
+		const attachments = item.reminder?.draft ? reviveChatDraft(item.reminder.draft).attachments : [];
+		if (attachments.length) {
+			details.appendMarkdown('\n\n').appendText(localize('reminder.attachments', "Attachments"));
+			for (const attachment of attachments) {
+				details.appendMarkdown('\n\n');
+				const resource = IChatRequestVariableEntry.toUri(attachment);
+				if (resource) {
+					details.appendLink(resource.toString(), attachment.name);
+				} else {
+					details.appendText(attachment.name);
+				}
+				if (attachment.kind === 'paste') {
+					details.appendCodeblock(attachment.language, attachment.code);
+				}
+			}
 		}
+		await this.dialogs.prompt({
+			type: 'none',
+			message: localize('reminder.details', "Reminder"),
+			detail: item.prompt,
+			custom: { icon: Codicon.bell, markdownDetails: [{ markdown: details }] },
+			buttons: choices,
+			cancelButton: localize('reminder.close', "Close"),
+		});
 	}
 
 	private async update(item: IAutomationDescriptor, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
-		const result = await this.automations.updateAutomationIfUnchanged(item.id, patch, item, () => this.assertEnabled());
+		// Completing an already submitted draft must survive opting out of reminder UI.
+		const guard = patch.reminder?.status === 'sent' ? undefined : () => this.assertEnabled();
+		const result = await this.automations.updateAutomationIfUnchanged(item.id, patch, item, guard);
 		if (result.kind === 'conflict') {
 			throw new Error(localize('reminder.changed', "This reminder changed in another window. Open it again to review the latest version."));
 		}
@@ -322,33 +379,25 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 	}
 
 	private async edit(item: IAutomationDescriptor): Promise<void> {
-		const edited = await this.prompt(item.prompt);
+		const edited = await this.prompt(item.prompt, item.schedule.at);
 		if (edited && item.reminder) {
 			await this.update(item, {
 				name: edited.text, prompt: edited.text,
 				schedule: { ...item.schedule, at: edited.at },
-				reminder: { status: 'scheduled', draft: item.reminder.draft },
+				reminder: { ...item.reminder, ...(edited.at !== item.schedule.at ? { status: 'scheduled' as const } : {}), handoffId: undefined },
 			});
 		}
 	}
 
 	private async postpone(item: IAutomationDescriptor): Promise<void> {
-		const choice = await this.quickInput.pick([
-			{ id: 'hour', label: localize('reminder.oneHour', "In One Hour") },
-			{ id: 'tomorrow', label: localize('reminder.tomorrow', "Tomorrow at 9 AM") },
-			{ id: 'custom', label: localize('reminder.chooseTime', "Choose Date and Time...") },
-		], { title: localize('reminder.postponeTitle', "Postpone Reminder") });
-		if (!choice || !item.reminder) {
-			return;
-		}
-		const at = choice.id === 'custom' ? await this.pickTime() : parseReminderTime(choice.id === 'hour' ? 'in one hour' : 'tomorrow at 9am', new Date())?.toISOString();
-		if (at) {
-			await this.update(item, { schedule: { ...item.schedule, at }, reminder: { status: 'scheduled', draft: item.reminder.draft } });
+		const at = await this.pickTime();
+		if (at && item.reminder) {
+			await this.update(item, { schedule: { ...item.schedule, at }, reminder: { ...item.reminder, status: 'scheduled', handoffId: undefined } });
 		}
 	}
 
 	private async dismiss(item: IAutomationDescriptor): Promise<void> {
-		await this.update(item, { reminder: { status: 'dismissed', draft: item.reminder?.draft } });
+		await this.update(item, { reminder: { ...item.reminder, status: 'dismissed', handoffId: undefined } });
 	}
 
 	private async send(item: IAutomationDescriptor): Promise<void> {
@@ -364,17 +413,17 @@ export class AutomationRemindersService extends Disposable implements IAutomatio
 			handoffId,
 		}, undefined, {}, CancellationToken.None);
 		if (result === 'preserved') {
-			this.notifications.info(localize('reminder.draftPreserved', "Your existing draft was kept. Finish or clear it, then use Send to Session again. The reminder is still due."));
+			this.notifications.info(localize('reminder.draftPreserved', "Your existing draft was kept. Finish or clear it, then use Create Draft Session again. The reminder is still due."));
 			return;
 		}
 		if (result !== 'applied') {
-			throw new Error(localize('reminder.draftNotReady', "The new-session composer is not ready yet. Try Send to Session again. The reminder is still due."));
+			throw new Error(localize('reminder.draftNotReady', "The new-session composer is not ready yet. Try Create Draft Session again. The reminder is still due."));
 		}
 	}
 
 	private async markSent(item: IAutomationDescriptor, sessionResource: URI): Promise<void> {
 		try {
-			await this.update(item, { reminder: { status: 'sent', sessionResource, draft: item.reminder?.draft } });
+			await this.update(item, { reminder: { ...item.reminder, status: 'sent', sessionResource, handoffId: undefined } });
 		} catch (error) {
 			this.logService.error('[Reminders] Could not record successful handoff', error);
 			this.notifications.prompt(Severity.Error, localize('reminder.saveHandoffFailed', "Your session started, but its reminder could not be updated: {0}. Do not send it again.", getErrorMessage(error)), [

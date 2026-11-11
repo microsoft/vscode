@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -13,7 +15,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,8 +41,11 @@ import { ICustomViewService } from '../../../../workbench/contrib/sessions/brows
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { AutomationRemindersContribution, AutomationRemindersService, IAutomationRemindersService } from './automationReminders.js';
-import { CREATE_REMINDER_COMMAND, EDIT_REMINDER_COMMAND, OPEN_REMINDER_COMMAND, OPEN_REMINDERS_COMMAND, SESSIONS_SHOW_REMINDERS_SETTING, UNDO_REMINDER_COMMAND } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
+import { AUTOMATION_REMINDERS_ENABLED_SETTING, AutomationRemindersEnabledContext, CREATE_REMINDER_COMMAND, CREATE_REMINDER_DRAFT_COMMAND, DISMISS_REMINDER_COMMAND, EDIT_REMINDER_COMMAND, isAutomationRemindersEnabled, OPEN_REMINDER_COMMAND, OPEN_REMINDER_SOURCE_COMMAND, OPEN_REMINDERS_COMMAND, POSTPONE_REMINDER_COMMAND, ReminderHasSourceContext, RemindersCanCreateContext, ReminderStatusContext, SESSIONS_SHOW_REMINDERS_SETTING, UNDO_REMINDER_COMMAND } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 
 const initialProvidersSettled = observableFromPromise(
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
@@ -55,26 +60,51 @@ registerWorkbenchContribution2(AutomationRemindersContribution.ID, AutomationRem
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
+		[AUTOMATION_REMINDERS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('reminders.enabled', "Enable experimental one-time reminders in Automations and Inbox. Reminders notify you without running an agent. Requires Automations and a local Agent Host with reminder support."),
+		},
 		[SESSIONS_SHOW_REMINDERS_SETTING]: {
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('reminders.outsideInbox', "Show the Reminders section in other Sessions list groupings. Reminders are always shown in Inbox when Automations are enabled. This does not change reminder delivery."),
+			description: localize('reminders.outsideInbox', "Show the Reminders section in other Sessions list groupings when reminders are enabled. This does not change reminder delivery."),
 		},
 	},
 });
 
-for (const action of [
-	{ id: CREATE_REMINDER_COMMAND, title: localize2('reminder.create', "Create Reminder..."), kind: 'create' as const, f1: true },
-	{ id: OPEN_REMINDER_COMMAND, title: localize2('reminder.open', "Open Reminder"), kind: 'open' as const, f1: false },
-	{ id: EDIT_REMINDER_COMMAND, title: localize2('reminder.edit', "Edit Reminder"), kind: 'edit' as const, f1: false },
-	{ id: UNDO_REMINDER_COMMAND, title: localize2('reminder.undo', "Undo Reminder"), kind: 'undo' as const, f1: false },
-]) {
+const reminderRow = ContextKeyExpr.equals(SessionSectionTypeContext.key, 'reminder');
+const reminderActions: {
+	id: string; title: ReturnType<typeof localize2>; kind: Parameters<IAutomationRemindersService['execute']>[0];
+	icon?: ThemeIcon; when?: ContextKeyExpression; group?: string; order?: number; inline?: boolean;
+}[] = [
+	{ id: CREATE_REMINDER_COMMAND, title: localize2('reminder.create', "New Reminder..."), kind: 'create', icon: Codicon.add, when: ContextKeyExpr.and(ContextKeyExpr.equals(SessionSectionTypeContext.key, 'reminders'), RemindersCanCreateContext), group: 'navigation', order: 0, inline: true },
+	{ id: OPEN_REMINDER_COMMAND, title: localize2('reminder.open', "Open Reminder"), kind: 'open', when: reminderRow, group: 'navigation', order: 0 },
+	{ id: CREATE_REMINDER_DRAFT_COMMAND, title: localize2('reminder.draft', "Create Draft Session"), kind: 'draft', icon: Codicon.commentDiscussion, when: ContextKeyExpr.and(reminderRow, ReminderStatusContext.isEqualTo('due')), group: 'navigation', order: 1, inline: true },
+	{ id: OPEN_REMINDER_SOURCE_COMMAND, title: localize2('reminder.source', "Open Original Session"), kind: 'source', when: ContextKeyExpr.and(reminderRow, ReminderHasSourceContext), group: 'navigation', order: 2 },
+	{ id: POSTPONE_REMINDER_COMMAND, title: localize2('reminder.postpone', "Postpone..."), kind: 'postpone', icon: Codicon.clock, when: reminderRow, group: '1_state', order: 3, inline: true },
+	{ id: EDIT_REMINDER_COMMAND, title: localize2('reminder.edit', "Edit Reminder..."), kind: 'edit', when: reminderRow, group: '4_manage', order: 4 },
+	{ id: DISMISS_REMINDER_COMMAND, title: localize2('reminder.dismiss', "Dismiss"), kind: 'dismiss', icon: Codicon.check, when: reminderRow, group: '4_manage', order: 5, inline: true },
+	{ id: UNDO_REMINDER_COMMAND, title: localize2('reminder.undo', "Undo Reminder"), kind: 'undo' },
+];
+for (const action of reminderActions) {
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id: action.id, title: action.title, category: CHAT_CATEGORY, f1: action.f1, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, IsWebContext.negate()) });
+			super({
+				id: action.id, title: action.title, icon: action.icon, category: CHAT_CATEGORY, f1: false,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationRemindersEnabledContext, IsWebContext.negate()),
+				menu: action.group ? [
+					{ id: Menus.SessionSectionContext, group: action.group, order: action.order, when: action.when },
+					{ id: SessionSectionToolbarMenuId, group: action.inline ? 'navigation' : '4_manage', order: action.order, when: action.when },
+				] : undefined,
+			});
 		}
-		override async run(accessor: ServicesAccessor, id?: string, revision?: string): Promise<void> {
+		override async run(accessor: ServicesAccessor, context?: string | { readonly reminder?: IAutomationDescriptor }, revision?: string): Promise<void> {
+			const id = typeof context === 'string' ? context : context?.reminder?.id;
 			await accessor.get(IAutomationRemindersService).execute(action.kind, id, revision);
 		}
 	});
@@ -82,9 +112,16 @@ for (const action of [
 
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: OPEN_REMINDERS_COMMAND, title: localize2('reminders.view', "View Reminders"), category: CHAT_CATEGORY, f1: true, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, IsWebContext.negate()) });
+		super({
+			id: OPEN_REMINDERS_COMMAND, title: localize2('reminders.view', "Manage Reminders..."), category: CHAT_CATEGORY, f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationRemindersEnabledContext, IsWebContext.negate()),
+			menu: [{ id: Menus.SessionSectionContext, group: '4_manage', when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'reminders') }],
+		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		if (!isAutomationRemindersEnabled(accessor.get(IConfigurationService))) {
+			return;
+		}
 		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 	}
 });

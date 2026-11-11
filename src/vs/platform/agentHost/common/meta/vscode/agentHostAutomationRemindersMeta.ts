@@ -12,6 +12,8 @@ const reminderContextKey = 'vscode.reminderContext';
 export interface IAgentHostAutomationReminderContext {
 	readonly attachments?: string;
 	readonly handoffId?: string;
+	/** Client-owned session URI, preserved verbatim rather than mapped into host filesystem space. */
+	readonly sourceSessionResource?: string;
 }
 
 export function getAgentHostAutomationReminderContext(definition: AutomationDefinition): IAgentHostAutomationReminderContext | undefined {
@@ -21,12 +23,14 @@ export function getAgentHostAutomationReminderContext(definition: AutomationDefi
 	}
 	const context = value as Record<string, unknown>;
 	if (context.attachments !== undefined && typeof context.attachments !== 'string'
-		|| context.handoffId !== undefined && typeof context.handoffId !== 'string') {
+		|| context.handoffId !== undefined && typeof context.handoffId !== 'string'
+		|| context.sourceSessionResource !== undefined && typeof context.sourceSessionResource !== 'string') {
 		return undefined;
 	}
 	return {
 		...(typeof context.attachments === 'string' ? { attachments: context.attachments } : {}),
 		...(typeof context.handoffId === 'string' ? { handoffId: context.handoffId } : {}),
+		...(typeof context.sourceSessionResource === 'string' ? { sourceSessionResource: context.sourceSessionResource } : {}),
 	};
 }
 

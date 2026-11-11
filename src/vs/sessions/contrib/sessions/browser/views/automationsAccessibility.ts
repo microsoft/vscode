@@ -15,7 +15,8 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../.
 import { AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
-import { reminderDescription } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
+import { isAutomationRemindersEnabled, reminderDescription } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -43,7 +44,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const builtInTemplatesVisible = templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
-			localize('automations.help.reminders', "Reminders appear in their own section before agent automations. Create Reminder asks for text and a one-time local date and time, without a workspace or model. Tab to a reminder and press Enter to view its actions. Due reminders offer Send to Session, Postpone, and Dismiss. Send to Session opens an editable draft and never submits it automatically. After you send successfully, the reminder moves to Sent to Session history and offers Open Session. Upcoming and completed reminders remain available here. Reminders do not run agents and overdue reminders reappear when you reopen the app."),
+			...(isAutomationRemindersEnabled(accessor.get(IConfigurationService)) ? [localize('automations.help.reminders', "Reminders appear in a collapsed section before agent automations, with due and scheduled counts. Press Enter or Space on the heading to expand it. In New Automation, choose One Time and enter a local date and time. Agent-only options are hidden because reminders do not run agents. Tab to a reminder and press Enter to read its full text, time, and attachments. Use its inline actions or Shift+F10 for the context menu. Create Draft Session opens an editable draft without submitting. Open Original Session returns to the conversation where the reminder was created, when available. Postpone changes its time; Edit preserves the saved time unless you change it. Dismissed and successfully sent reminders leave the list.")] : []),
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.manageRemotes', "When a remote is disconnected and remote management is enabled, the unavailable message shows how many remotes are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
@@ -96,6 +97,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
+		const configurationService = accessor.get(IConfigurationService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
@@ -109,7 +111,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					.filter(run => isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession))
 					.map(run => run.automationId));
 				return buildAutomationsAccessibleContent(
-					automationService.automations.get(),
+					automationService.automations.get().filter(automation => !automation.reminder || (isAutomationRemindersEnabled(configurationService) && (automation.reminder.status === 'due' || automation.reminder.status === 'scheduled'))),
 					runs.filter(run => {
 						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
 						return retainedHistory || (

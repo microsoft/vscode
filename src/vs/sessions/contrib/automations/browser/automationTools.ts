@@ -13,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { isAutomationRemindersEnabled } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -207,7 +208,7 @@ export class ListAutomationsTool implements IToolImpl {
 					}
 				} : {}),
 				...(unavailableReason !== undefined ? { unavailableReason } : {}),
-				automations: store.automations.get().map(automation => toAutomationListToolOutput(automation, this.automationService)),
+				automations: store.automations.get().filter(automation => !automation.reminder || isAutomationRemindersEnabled(this.configurationService)).map(automation => toAutomationListToolOutput(automation, this.automationService)),
 			}];
 		}));
 		if (token.isCancellationRequested) {

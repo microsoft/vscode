@@ -62,6 +62,9 @@ import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToUTC, DAYS_OF_WEEK, getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { describeAutomationCron } from '../../../../platform/agentHost/common/automationCron.js';
+import { isAutomationRemindersEnabled } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
+import { parseReminderTime } from '../../../../workbench/contrib/chat/common/automations/reminderParser.js';
+import { toLocalISOString } from '../../../../base/common/date.js';
 import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -99,6 +102,7 @@ const automationNameInputBoxStyles = getInputBoxStyle({
 
 const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[] = [
 	{ value: 'manual', label: localize('automation.interval.manual', "Manual") },
+	{ value: 'once', label: localize('automation.interval.once', "One Time") },
 	{ value: 'hourly', label: localize('automation.interval.hourly', "Hourly") },
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
 	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
@@ -233,6 +237,8 @@ export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
 	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
+	reminderAt?: string;
+	reminderProviderId?: string;
 	cronExpression?: string;
 	cronTimeZone?: string;
 	hour: number;
@@ -298,7 +304,7 @@ interface IRenderFormHandle {
 	readonly cancelInputPopup: () => boolean;
 }
 
-export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError';
+export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError' | 'reminderInfo';
 
 export interface IAutomationDialogMessage {
 	readonly severity: 'info' | 'warning' | 'error';
@@ -1107,6 +1113,7 @@ export function renderForm(
 		validateForm();
 	};
 	const formContent = DOM.append(form, $('.automation-form-content'));
+	const reminderMode = observableValue(form, state.interval === 'once');
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
 	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
@@ -1178,6 +1185,21 @@ export function renderForm(
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
 
+	const reminderTimeGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
+	DOM.append(reminderTimeGroup, $('span.automation-form-label', undefined, localize('automation.form.reminderTime', "Date and Time (Local)")));
+	const reminderTime = disposables.add(new InputBox(reminderTimeGroup, contextViewService, {
+		type: 'datetime-local',
+		inputBoxStyles: automationNameInputBoxStyles,
+		ariaLabel: localize('automation.form.reminderTime', "Date and Time (Local)"),
+	}));
+	if (state.reminderAt) {
+		reminderTime.value = toLocalISOString(new Date(state.reminderAt)).slice(0, 16);
+	}
+	disposables.add(reminderTime.onDidChange(value => {
+		state.reminderAt = parseReminderTime(value.replace('T', ' at '), new Date())?.toISOString();
+		revalidate();
+	}));
+
 	const timeGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-time-group'));
 	const timeLabel = DOM.append(timeGroup, $('span.automation-form-label', undefined, localize('automation.form.time', "Time")));
 	const timeOptions = buildTimeOptions(state.hour, state.minute);
@@ -1244,6 +1266,8 @@ export function renderForm(
 		revalidate();
 	}));
 	const applyIntervalVisibility = () => {
+		reminderMode.set(state.interval === 'once', undefined);
+		setAutomationControlVisible(reminderTimeGroup, state.interval === 'once');
 		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
@@ -1253,13 +1277,15 @@ export function renderForm(
 		updateCronDescription();
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
-		intervals = INTERVALS.filter(item => !cloud || (item.value !== 'weekdays' && item.value !== 'cron'));
+		const reminderIntervals = INTERVALS.filter(item => item.value === 'once' && !isEdit && isAutomationRemindersEnabled(configurationService) && customizations?.service.canCreateReminder?.get() === true);
+		intervals = INTERVALS.filter(item => item.value !== 'once' || reminderIntervals.length > 0);
 		if (cloud) {
 			intervals = ['weekly', 'daily', 'hourly'].flatMap(value => INTERVALS.filter(item => item.value === value));
 			const families = triggerEditor.families;
 			intervals.push(
 				...(families.includes('issue') ? [{ value: 'issue' as const, label: localize('automation.trigger.issue', "Issue") }] : []),
 				...(families.includes('pullRequest') ? [{ value: 'pullRequest' as const, label: localize('automation.trigger.pr', "Pull Request") }] : []),
+				...reminderIntervals,
 				...INTERVALS.filter(item => item.value === 'manual'),
 			);
 		}
@@ -1477,6 +1503,10 @@ export function renderForm(
 	};
 	let lastDraftTargetDiagnostic: string | undefined;
 	const updateAutomationSessionTarget = () => {
+		if (reminderMode.get()) {
+			automationSessionDraftSynchronizer.update(undefined);
+			return;
+		}
 		// While connecting, the local draft must survive until the switch captures its configuration.
 		if (switchingTarget || connectingCloud) {
 			return;
@@ -1909,7 +1939,7 @@ export function renderForm(
 		'aria-atomic': 'true',
 	}));
 	disposables.add(autorun(reader => {
-		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
+		const hasTarget = !reminderMode.read(reader) && (isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined);
 		const cloud = runInCloud.read(reader);
 		setAutomationControlVisible(sessionConfigContainer, hasTarget);
 		setAutomationControlVisible(sessionControlsContainer, hasTarget && !cloud);
@@ -2143,7 +2173,7 @@ export function renderForm(
 		updateToolsControls();
 	}));
 	reloadCustomizations = () => customizationSelection?.updateTarget(
-		state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
+		state.interval !== 'once' && state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
 			? createAutomationTarget(state, isolationModel.persistedBranch)
 			: undefined,
 	);
@@ -2158,6 +2188,29 @@ export function renderForm(
 	disposables.add(autorun(reader => {
 		const message = sessionConfigurationErrorMessage.read(reader);
 		setDialogMessage('saveError', message ? { severity: 'error', text: message } : undefined);
+	}));
+
+	const reminderConfigurationChanged = observableSignalFromEvent(form, configurationService.onDidChangeConfiguration);
+	disposables.add(autorun(reader => {
+		reminderConfigurationChanged.read(reader);
+		const providers = customizations?.service.availableProviders.read(reader);
+		customizations?.service.canCreateReminder?.read(reader);
+		state.reminderProviderId = isAutomationRemindersEnabled(configurationService)
+			? providers?.find(provider => provider.supportsReminders)?.id
+			: undefined;
+		updateIntervalOptions(runInCloud.read(reader));
+		revalidate();
+	}));
+	disposables.add(autorun(reader => {
+		const reminder = reminderMode.read(reader);
+		setAutomationControlVisible(cloudRow, showCloudSwitch && !reminder);
+		setAutomationControlVisible(targetRow, !reminder);
+		setDialogMessage('reminderInfo', reminder ? {
+			severity: 'info',
+			text: localize('automation.form.reminderInfo', "One Time creates a personal reminder in Inbox. It does not run an agent."),
+		} : undefined);
+		updateAutomationSessionTarget();
+		revalidate();
 	}));
 
 	return {
@@ -2462,6 +2515,9 @@ export class AutomationCustomizationSelection extends Disposable {
 }
 
 export function createAutomationTarget(state: IFormState, branch: string | undefined): AutomationTarget | undefined {
+	if (state.interval === 'once') {
+		return state.reminderProviderId ? { kind: 'reminder', providerId: state.reminderProviderId } : undefined;
+	}
 	if (state.isQuickChat) {
 		return state.providerId && state.sessionTypeId
 			? { kind: 'quickChat', providerId: state.providerId, sessionTypeId: state.sessionTypeId }
@@ -2518,17 +2574,22 @@ export function updateSaveButtonState(
 	originalProviderId?: string,
 	requireName = true,
 ): void {
+	const reminder = state.interval === 'once';
 	validation.nameError = requireName && state.name.trim() === ''
 		? localize('automation.form.nameRequired', "Name is required.")
 		: undefined;
 	validation.promptError = getPrompt().trim() === ''
 		? localize('automation.form.promptRequired', "Prompt is required.")
 		: undefined;
-	validation.folderError = !state.folderUri
+	validation.folderError = !reminder && !state.folderUri
 		&& !state.isQuickChat
 		? localize('automation.form.folderRequired', "Workspace folder is required.")
 		: undefined;
-	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
+	if (reminder) {
+		validation.sessionTypeError = providerAvailable && state.reminderProviderId
+			? undefined
+			: localize('automation.form.reminderUnavailable', "Enable experimental reminders and connect to a local Agent Host with reminder support.");
+	} else if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
 		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
 	} else if (state.targetPending) {
 		validation.sessionTypeError = undefined;
@@ -2548,14 +2609,18 @@ export function updateSaveButtonState(
 			validation.sessionTypeError = undefined;
 		}
 	}
-	validation.branchError = !state.isQuickChat && state.isolationMode === 'worktree' && !getBranch()
+	validation.branchError = !reminder && !state.isQuickChat && state.isolationMode === 'worktree' && !getBranch()
 		? localize('automation.form.branchRequired', "A branch is required for Worktree isolation.")
 		: undefined;
 
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = state.timeZone === 'UTC' && state.cloudTrigger
+	validation.scheduleError = reminder
+		? state.reminderAt && new Date(state.reminderAt).getTime() > Date.now()
+			? undefined
+			: localize('automation.form.reminderTimeRequired', "Choose an unambiguous date and time in the future.")
+		: state.timeZone === 'UTC' && state.cloudTrigger
 		? state.triggerError
 		: !INTERVALS.some(item => item.value === state.interval)
 			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
@@ -2572,7 +2637,7 @@ export function updateSaveButtonState(
 	const cronComplete = state.interval !== 'cron' || !!state.cronExpression?.trim();
 	const valid = cronComplete && !validation.cronError && !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
-		saveButton.enabled = valid && !state.targetPending;
+		saveButton.enabled = valid && (reminder || !state.targetPending);
 	}
 	form.classList.toggle('automation-form-invalid', !valid);
 }

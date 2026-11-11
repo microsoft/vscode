@@ -31,6 +31,7 @@ import { defaultButtonStyles, defaultDialogStyles, defaultProgressBarStyles } fr
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { isAutomationRemindersEnabled } from '../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -119,6 +120,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			name: initial?.name ?? '',
 			ownership: initial?.ownership ?? 'user',
 			interval: initialSchedule?.interval ?? 'daily',
+			reminderAt: initialSchedule?.at,
 			cronExpression: initialSchedule?.cronExpression ?? '',
 			cronTimeZone: initialSchedule?.cronTimeZone,
 			hour: initialSchedule?.scheduleHour ?? 9,
@@ -169,7 +171,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let notificationAction: Button | undefined;
 		let activeNotificationAction: IAutomationDialogMessage['action'];
 		let renderedNotification: { readonly source: AutomationDialogMessageSource; readonly severity: IAutomationDialogMessage['severity']; readonly text: string; readonly actionLabel: string | undefined } | undefined;
-		const messagePriority: readonly AutomationDialogMessageSource[] = ['operationError', 'saveError', 'targetValidation', 'scheduleValidation', 'toolCatalogError', 'immutableSettings', 'repositoryWarning'];
+		const messagePriority: readonly AutomationDialogMessageSource[] = ['operationError', 'saveError', 'targetValidation', 'scheduleValidation', 'toolCatalogError', 'immutableSettings', 'repositoryWarning', 'reminderInfo'];
 		const updateNotificationCenter = () => {
 			const candidate = messagePriority
 				.map(source => ({ source, message: dialogMessages.get(source) }))
@@ -230,6 +232,23 @@ export class AutomationDialogService implements IAutomationDialogService {
 		const savingButtonLabel = localize('automation.dialog.saving', "Saving…");
 		const captureErrorMessage = localize('automation.dialog.captureError', "The automation wasn't saved because its session configuration couldn't be captured. Check the provider connection and try again.");
 		const buildResult = (sessionConfigurationCapture: Exclude<AutomationSessionConfigurationCapture, { readonly kind: 'failed' }>): IAutomationDialogResult | undefined => {
+			if (!existing && state.interval === 'once') {
+				if (!state.reminderProviderId) {
+					throw new Error(localize('automation.dialog.reminderUnavailable', "The local Agent Host is no longer available for reminders."));
+				}
+				const prompt = getPrompt();
+				return {
+					kind: 'create',
+					value: {
+						name: state.name.trim() || deriveAutomationName(prompt),
+						prompt,
+						target: { kind: 'reminder', providerId: state.reminderProviderId },
+						schedule: { interval: 'once', at: state.reminderAt, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+						reminder: { status: 'scheduled' },
+						enabled: true,
+					},
+				};
+			}
 			const localSchedule: IAutomationSchedule = {
 				interval: state.interval,
 				scheduleHour: state.hour,
@@ -297,7 +316,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return;
 			}
 			revalidate();
-			if (state.targetPending) {
+			if (state.interval !== 'once' && state.targetPending) {
 				return;
 			}
 			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError || validation.cronError
@@ -305,7 +324,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				dialogTelemetry.validationFailed();
 				return;
 			}
-			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
+			if (state.interval !== 'once' && ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId))) {
 				dialogTelemetry.validationFailed();
 				return;
 			}
@@ -325,9 +344,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 			let shouldClose = false;
 			let shouldFocusError = false;
 			try {
-				await waitForAutomationSessionSync(cancellation.token);
-				await waitForCustomizationChoices(cancellation.token);
-				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
+				if (state.interval !== 'once') {
+					await waitForAutomationSessionSync(cancellation.token);
+					await waitForCustomizationChoices(cancellation.token);
+				}
+				const sessionConfigurationCapture = state.interval === 'once'
+					? { kind: 'preserved' as const, configuration: undefined }
+					: await getSessionConfiguration(cancellation.token);
 				if (sessionConfigurationCapture.kind === 'failed') {
 					dialogTelemetry.captureFailed();
 					showSaveError(captureErrorMessage);
@@ -335,7 +358,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					return;
 				}
 				revalidate();
-				if (state.targetPending || validation.sessionTypeError || validation.scheduleError) {
+				if ((state.interval !== 'once' && state.targetPending) || validation.sessionTypeError || validation.scheduleError) {
 					return;
 				}
 				const result = buildResult(sessionConfigurationCapture);
@@ -509,7 +532,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const saveBlockedHover = disposables.add(new MutableDisposable());
 					let saveBlockedMessage: string | undefined;
 					revalidate = () => {
-						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
+						const providerAvailable = state.interval === 'once'
+							? isAutomationRemindersEnabled(this.configurationService) && this.automationService.availableProviders.get().some(provider => provider.id === state.reminderProviderId && provider.supportsReminders)
+							: state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
 						handle.showTargetValidationError(validation.sessionTypeError);
 						handle.showScheduleValidationError(validation.scheduleError);

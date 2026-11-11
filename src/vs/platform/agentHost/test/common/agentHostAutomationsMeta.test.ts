@@ -54,8 +54,18 @@ suite('Agent Host Automation reminder metadata', () => {
 		}, { original: { vendor: { keep: true } }, context, cleared: original, absent: undefined });
 	});
 
+		test('round trips the opaque originating session URI alongside handoff context', () => {
+			const context = {
+				attachments: 'serialized draft',
+				handoffId: 'handoff',
+				sourceSessionResource: 'vendor-session://connection/opaque%2Fsession?origin=client#chat',
+			};
+			const definition = upcastPartial<AutomationDefinition>({ _meta: withAgentHostAutomationReminderContext(undefined, context) });
+			assert.deepStrictEqual(getAgentHostAutomationReminderContext(JSON.parse(JSON.stringify(definition))), context);
+		});
+
 	test('ignores malformed context instead of exposing unvalidated values', () => {
-		const values = [undefined, null, [], 'draft', { attachments: [] }, { handoffId: 1 }, { attachments: 'valid', handoffId: false }];
+			const values = [undefined, null, [], 'draft', { attachments: [] }, { handoffId: 1 }, { attachments: 'valid', handoffId: false }, { sourceSessionResource: null }, { sourceSessionResource: 1 }, { sourceSessionResource: { scheme: 'vendor-session' } }, { attachments: 'valid', sourceSessionResource: false }];
 		assert.deepStrictEqual(values.map(value => getAgentHostAutomationReminderContext(upcastPartial<AutomationDefinition>({
 			_meta: { 'vscode.reminderContext': value },
 		}))), values.map(() => undefined));

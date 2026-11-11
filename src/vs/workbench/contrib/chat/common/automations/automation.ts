@@ -117,6 +117,7 @@ export interface IAutomationCloudTrigger {
 export type AutomationReminder = {
 	readonly draft?: IAgentsWindowDraft;
 	readonly handoffId?: string;
+	readonly sourceSessionResource?: URI;
 } & (
 	| { readonly status: 'scheduled' | 'due' | 'dismissed' }
 	| { readonly status: 'sent'; readonly sessionResource: URI }

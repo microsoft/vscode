@@ -412,6 +412,37 @@
 	}
 }
 
+.sessions-list-control .session-section.session-reminder {
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60) var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	color: var(--vscode-foreground);
+
+	.session-section-label-container {
+		flex-direction: column;
+		align-items: stretch;
+		gap: var(--vscode-spacing-size20);
+	}
+
+	.session-section-label {
+		line-height: 17px;
+	}
+
+	.session-section-description {
+		font-size: var(--vscode-fontSize-label1);
+		line-height: 15px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.session-section-icon,
+	.session-section-toolbar {
+		align-self: flex-start;
+	}
+}
+
 .session-item {
 	display: flex;
 	flex-direction: row;

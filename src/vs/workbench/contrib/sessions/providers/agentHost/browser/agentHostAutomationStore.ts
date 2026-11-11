@@ -580,6 +580,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					: { status: reminder.status }),
 				...(reminderContext?.attachments !== undefined ? { draft: { inputText: state.definition.message.text, attachments: reminderContext.attachments } } : {}),
 				handoffId: reminderContext?.handoffId,
+				...(reminderContext?.sourceSessionResource ? { sourceSessionResource: URI.parse(reminderContext.sourceSessionResource) } : {}),
 			} : undefined,
 			...(schedule.interval === 'custom' ? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in VS Code.") } : {}),
 			target,
@@ -830,6 +831,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				_meta: withAgentHostAutomationReminderContext(existing?._meta, {
 					attachments: descriptor.reminder.draft?.attachments,
 					handoffId: descriptor.reminder.handoffId,
+					sourceSessionResource: descriptor.reminder.sourceSessionResource?.toString(),
 				}),
 			};
 		}

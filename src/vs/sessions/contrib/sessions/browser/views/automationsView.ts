@@ -9,9 +9,10 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
+import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -24,6 +25,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -32,13 +34,13 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { CREATE_REMINDER_COMMAND, OPEN_REMINDER_COMMAND, reminderDescription } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
+import { isAutomationRemindersEnabled, OPEN_REMINDER_COMMAND, reminderDescription, ReminderHasSourceContext, ReminderStatusContext } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
@@ -80,7 +82,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
-import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsFlatList, SessionItemStatusContext, SessionSectionToolbarMenuId, SessionSectionTypeContext, formatSessionListTime } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -242,17 +244,20 @@ export class AutomationsCardsWidget extends Disposable {
 	private readonly historySection: AutomationHistorySection;
 	private readonly isMarkingAllRead = observableValue(this, false);
 	private readonly reminderDisposables = this._register(new DisposableStore());
+	private readonly reminderHoverDelegate = this._register(createInstantHoverDelegate());
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -265,10 +270,13 @@ export class AutomationsCardsWidget extends Disposable {
 		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
 		this._register(toDisposable(() => focusContext.reset()));
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
-		const remindersSection = DOM.append(scrollContent, $('section.automation-reminders'));
+		const remindersSection = DOM.append(scrollContent, $<HTMLDetailsElement>('details.automation-reminders.automations-template-section'));
+		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		this._register(autorun(reader => {
-			const reminders = this.automationService.automations.read(reader).filter(item => item.reminder);
-			const canCreate = this.automationService.availableProviders.read(reader).some(provider => provider.supportsReminders);
+			configurationChanged.read(reader);
+			const enabled = isAutomationRemindersEnabled(configurationService);
+			const reminders = this.automationService.automations.read(reader).filter(item => enabled && item.reminder);
+			const canCreate = enabled && this.automationService.availableProviders.read(reader).some(provider => provider.supportsReminders);
 			this.renderReminders(remindersSection, reminders, canCreate);
 		}));
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent, this.element));
@@ -348,33 +356,42 @@ export class AutomationsCardsWidget extends Disposable {
 
 	private renderReminders(container: HTMLElement, reminders: readonly IAutomationDescriptor[], canCreate: boolean): void {
 		const active = DOM.getActiveElement();
-		const focusedId = DOM.isHTMLElement(active) && container.contains(active) ? active.dataset.reminderId : undefined;
+		const focusedId = DOM.isHTMLElement(active) && container.contains(active) ? active.closest<HTMLElement>('[data-reminder-id]')?.dataset.reminderId : undefined;
 		this.reminderDisposables.clear();
 		DOM.clearNode(container);
 		container.hidden = !canCreate && reminders.length === 0;
 		if (container.hidden) {
 			return;
 		}
-		const header = DOM.append(container, $('.automation-reminders-header'));
-		DOM.append(header, $('h3')).textContent = localize('reminders.heading', "Reminders");
-		let focusTarget: HTMLElement | undefined;
+		const header = DOM.append(container, $('summary.automations-template-section-summary'));
+		header.dataset.reminderId = 'toggle';
+		const chevron = DOM.append(header, $('span.automations-template-section-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+		DOM.append(header, $('span.automations-template-section-title', { role: 'heading', 'aria-level': '3' })).textContent = localize('reminders.heading', "Reminders");
+		for (const badge of [
+			{ status: 'due', format: localize('reminders.dueCount', "{0} due") },
+			{ status: 'scheduled', format: localize('reminders.scheduledCount', "{0} scheduled") },
+		]) {
+			this.reminderDisposables.add(new CountBadge(DOM.append(header, $('span')), {
+				count: reminders.filter(item => item.reminder?.status === badge.status).length,
+				countFormat: badge.format,
+			}, defaultCountBadgeStyles));
+		}
+		let focusTarget: HTMLElement = header;
 		const addButton = (parent: HTMLElement, id: string, label: string, command: string, argument?: string): void => {
 			const button = this.reminderDisposables.add(new Button(parent, { ...defaultButtonStyles, secondary: true }));
 			button.label = label;
 			button.element.dataset.reminderId = id;
 			this.reminderDisposables.add(button.onDidClick(() => this.commandService.executeCommand(command, argument)));
-			if (id === focusedId || !focusTarget) {
+			if (id === focusedId) {
 				focusTarget = button.element;
 			}
 		};
-		if (canCreate) {
-			addButton(header, 'create', localize('reminders.create', "Create Reminder..."), CREATE_REMINDER_COMMAND);
-		}
-		DOM.append(container, $('p')).textContent = localize('reminders.explanation', "A reminder notifies you without running an agent. When it is due, send it to a session, postpone it, or dismiss it.");
+		DOM.append(container, $('p')).textContent = localize('reminders.explanation', "A reminder notifies you without running an agent. Create one with the One Time trigger in New Automation. When it is due, open it in a new session, postpone it, or dismiss it.");
 		for (const group of [
 			{ title: localize('reminders.due', "Due"), items: reminders.filter(item => item.reminder?.status === 'due') },
 			{ title: localize('reminders.scheduled', "Scheduled"), items: reminders.filter(item => item.reminder?.status === 'scheduled') },
-			{ title: localize('reminders.history', "History"), items: reminders.filter(item => item.reminder?.status === 'dismissed' || item.reminder?.status === 'sent') },
 		]) {
 			if (!group.items.length) {
 				continue;
@@ -382,8 +399,38 @@ export class AutomationsCardsWidget extends Disposable {
 			DOM.append(container, $('h4')).textContent = group.title;
 			const list = DOM.append(container, $('ul'));
 			for (const item of group.items.sort((a, b) => (a.schedule.at ?? '').localeCompare(b.schedule.at ?? ''))) {
-				const row = DOM.append(list, $('li'));
+				const row = DOM.append(list, $('li.automation-reminder-row'));
+				row.dataset.reminderId = item.id;
 				addButton(row, item.id, localize('reminders.item', "{0} - {1}", item.prompt, reminderDescription(item)), OPEN_REMINDER_COMMAND, item.id);
+				const context = this.reminderDisposables.add(this.contextKeyService.createScoped(row));
+				SessionSectionTypeContext.bindTo(context).set('reminder');
+				ReminderStatusContext.bindTo(context).set(item.reminder?.status ?? '');
+				ReminderHasSourceContext.bindTo(context).set(!!item.reminder?.sourceSessionResource);
+				const scopedInstantiationService = this.reminderDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, context])));
+				const actions = DOM.append(row, $('.automation-reminder-actions'));
+				const toolbar = this.reminderDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, SessionSectionToolbarMenuId, {
+					menuOptions: { shouldForwardArgs: true },
+					telemetrySource: 'automations.reminder',
+					hoverDelegate: this.reminderHoverDelegate,
+				}));
+				toolbar.context = { reminder: item };
+				const showMenu = (anchor: HTMLElement | { x: number; y: number }) => this.contextMenuService.showContextMenu({
+					menuId: Menus.SessionSectionContext,
+					contextKeyService: context,
+					menuActionOptions: { shouldForwardArgs: true },
+					getAnchor: () => anchor,
+					getActionsContext: () => ({ reminder: item }),
+				});
+				this.reminderDisposables.add(DOM.addDisposableListener(row, DOM.EventType.CONTEXT_MENU, event => {
+					DOM.EventHelper.stop(event, true);
+					showMenu(event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : row);
+				}));
+				this.reminderDisposables.add(DOM.addDisposableListener(row, DOM.EventType.KEY_DOWN, event => {
+					if (event.shiftKey && event.key === 'F10') {
+						DOM.EventHelper.stop(event, true);
+						showMenu(row);
+					}
+				}));
 			}
 		}
 		if (focusedId) {
