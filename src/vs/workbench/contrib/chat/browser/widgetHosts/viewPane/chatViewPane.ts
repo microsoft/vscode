@@ -23,7 +23,7 @@ import { getComparisonKey, isEqual } from '../../../../../../base/common/resourc
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../aiCustomization/chatCustomizationsHover.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -1107,7 +1107,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.customizationMigrationsAvailable);
+			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.instantiationService.createInstance(ChatCustomizationsHover), 'chatToolbar', this.customizationMigrationsAvailable, false, undefined);
 		}
 		return super.createActionViewItem(action, options);
 	}
@@ -1950,36 +1950,4 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} : undefined;
 	}
 
-}
-
-class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
-	constructor(
-		action: MenuItemAction,
-		options: IDropdownMenuActionViewItemOptions | undefined,
-		private readonly migrationAvailable: IObservable<boolean>,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-customizations-action-item');
-		this._register(autorun(reader => {
-			container.classList.toggle('migration-available', this.migrationAvailable.read(reader));
-			this.updateTooltip();
-		}));
-	}
-
-	protected override getTooltip(): string {
-		const tooltip = super.getTooltip();
-		return this.migrationAvailable.get()
-			? localize('openCustomizationsMigrationsAvailable', "{0} (Migrations Available)", tooltip)
-			: tooltip;
-	}
 }

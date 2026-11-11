@@ -114,6 +114,12 @@ export interface UsageInfoMeta {
 	autoModeResolved?: IAutoModeResolvedInfo;
 	/** The model a host-side router picked for this turn. */
 	modelRouted?: IModelRoutedInfo;
+	/**
+	 * The model router this turn asked for, when the router made no pick and the chat kept its
+	 * model. A restored turn's own selection is the model it ran on, so this is what still says
+	 * the user had not picked that model by hand.
+	 */
+	modelRouterUnrouted?: string;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
 		/** This turn's nano-AIU cost. */
@@ -215,6 +221,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
 	const modelRouted = readModelRoutedInfo(meta.modelRouted);
 	if (modelRouted) { result.modelRouted = modelRouted; }
+	if (typeof meta.modelRouterUnrouted === 'string' && meta.modelRouterUnrouted) { result.modelRouterUnrouted = meta.modelRouterUnrouted; }
 	const copilotUsage = meta.copilotUsage;
 	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
 		const rawUsage = copilotUsage as Record<string, unknown>;
@@ -299,11 +306,17 @@ function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
 	return {
 		router: raw.router,
 		chosenModel: raw.chosenModel,
+		...(typeof raw.routerLabel === 'string' ? { routerLabel: raw.routerLabel } : {}),
+		...(typeof raw.playbook === 'string' ? { playbook: raw.playbook } : {}),
 		...(typeof raw.preference === 'string' ? { preference: raw.preference } : {}),
 		...(typeof raw.effort === 'string' ? { effort: raw.effort } : {}),
+		...(raw.contextSize === 'default' || raw.contextSize === 'long' ? { contextSize: raw.contextSize } : {}),
+		...(typeof raw.contextTokens === 'number' && raw.contextTokens > 0 ? { contextTokens: raw.contextTokens } : {}),
+		...(raw.longContext === true ? { longContext: true } : {}),
 		...(typeof raw.switchedFrom === 'string' ? { switchedFrom: raw.switchedFrom } : {}),
 		...(raw.defaulted === true ? { defaulted: true } : {}),
 		...(raw.kept === true ? { kept: true } : {}),
+		...(raw.firstTurnOnly === true ? { firstTurnOnly: true } : {}),
 	};
 }
 

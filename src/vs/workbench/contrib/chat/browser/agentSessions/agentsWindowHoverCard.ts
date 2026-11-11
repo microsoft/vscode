@@ -6,6 +6,7 @@
 import './media/agentsWindowHoverCard.css';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -27,6 +28,7 @@ export class AgentsWindowHoverCard extends Disposable {
 
 	readonly element: HTMLElement;
 	readonly design: AgentsWindowGraphicDesign;
+	private readonly button: Button;
 
 	constructor(options: IAgentsWindowHoverCardOptions) {
 		super();
@@ -46,8 +48,18 @@ export class AgentsWindowHoverCard extends Disposable {
 			actions,
 		);
 
-		const button = this._register(new Button(actions, defaultButtonStyles));
-		button.label = localize('agentsWindowHoverCard.open', "Open Agents Window");
-		this._register(button.onDidClick(() => options.onOpen()));
+		this.button = this._register(new Button(actions, defaultButtonStyles));
+		this.button.label = localize('agentsWindowHoverCard.open', "Open Agents Window");
+		this._register(this.button.onDidClick(() => options.onOpen()));
+	}
+
+	/** Focuses the button that opens the Agents window. */
+	focus(): void {
+		this.button.focus();
+	}
+
+	/** Fires when Escape is pressed on the card's button, which handles Escape itself, so the hover does not see it. */
+	get onDidEscape(): Event<unknown> {
+		return this.button.onDidEscape;
 	}
 }

@@ -29,6 +29,7 @@ import { ISessionsHostLayoutService } from '../../../workbench/services/sessions
 import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { SessionsChatSurface } from '../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
 import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -117,6 +118,9 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		return view;
 	};
 	instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+		override createChatBackground(container: HTMLElement, scopedInstantiationService: IInstantiationService) {
+			return scopedInstantiationService.createInstance(SessionsChatSurface, container);
+		}
 		override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService): AbstractChatView {
 			return createChatView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
 		}
@@ -164,6 +168,7 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
 		override isModernUICompact() { return options?.compactLayout?.() ?? false; }
+		override getPanelSpacing() { return mobile || this.isModernUICompact() ? 0 : 4; }
 	}();
 	services.instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
 	services.instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);

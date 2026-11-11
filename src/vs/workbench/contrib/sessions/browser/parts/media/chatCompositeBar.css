@@ -443,7 +443,7 @@
 }
 
 .chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
-	background-color: var(--vscode-list-warningForeground);
+	background-color: var(--vscode-agentSessionNeedsInput-foreground);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
@@ -603,6 +603,7 @@
  * Connected tabs retain the same ownership in compact density. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface) {
 	border-color: transparent;
+	border-width: var(--agents-session-frame-inset);
 	background-clip: padding-box;
 }
 
@@ -612,7 +613,7 @@
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view {
 	position: relative;
-	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	border-radius: max(0px, calc(var(--agents-component-corner-radius, var(--agents-part-corner-radius, var(--vscode-cornerRadius-large))) - var(--agents-session-frame-inset, var(--vscode-strokeThickness))));
 	overflow: hidden;
 }
 
@@ -648,7 +649,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface {
-	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+	border-radius: max(0px, calc(var(--agents-component-corner-radius, var(--agents-part-corner-radius, var(--vscode-cornerRadius-large))) - var(--agents-session-frame-inset, var(--vscode-strokeThickness))));
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-content {

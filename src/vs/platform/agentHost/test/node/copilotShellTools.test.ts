@@ -136,6 +136,7 @@ suite('CopilotShellTools', () => {
 		const policies = new Map<string, ISessionSandboxPolicy>();
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
+			copilotM365EnabledAtStartup: false,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: sessionEmitter.event,
 			onDidChatConfigChange: Event.None,

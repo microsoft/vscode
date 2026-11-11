@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
 import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
-import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } from './shellScenarios';
+import { runInTerminalScenario, shellEchoResponseMatcher } from './shellScenarios';
 
 /**
  * Per-session scenarios. Each session uses a pair of unique scenario ids so
@@ -17,7 +17,7 @@ import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } fr
  * prompts per session to also exercise the follow-up message path.
  *
  * `kind` selects between the two chat surfaces in the VS Code window:
- *  - 'editor': the chat opens as an editor tab (Copilot CLI, Agent Host Copilot).
+ *  - 'editor': the chat opens as an editor tab (Agent Host Copilot).
  *  - 'view':   the default chat panel in the sidebar / aux bar (Local).
  */
 interface SessionConfig {
@@ -39,7 +39,6 @@ interface SessionConfig {
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2' },
 	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
 ];
 
@@ -47,8 +46,7 @@ const SESSIONS: readonly SessionConfig[] = [
  * Per-session shell-tool scenarios. Each session triggers a shell tool call
  * on the first prompt and verifies the echoed marker appears in the chat
  * (which proves both that the command ran and that the reply was rendered).
- * Copilot CLI advertises `bash`/`pwsh`/`powershell`; the Local chat agent
- * advertises `run_in_terminal`.
+ * The Local chat agent advertises `run_in_terminal`.
  */
 interface ShellSessionConfig {
 	readonly name: string;
@@ -60,14 +58,12 @@ interface ShellSessionConfig {
 }
 
 const SHELL_SESSIONS: readonly ShellSessionConfig[] = [
-	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli-shell', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_SHELL_RESPONSE', scenarioFactory: shellEchoScenario },
 	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local-terminal', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_TERMINAL_RESPONSE', scenarioFactory: runInTerminalScenario },
 ];
 
 /**
- * Agent Host Copilot sessions in a chat editor of the VS Code window. They
- * replace the extension-host Copilot CLI rows above once that provider is
- * removed. The Agent Host's shell tool is covered by the
+ * Agent Host Copilot sessions in a chat editor of the VS Code window. The
+ * Agent Host's shell tool is covered by the
  * `Agents Window (local AgentHost, SDK sandbox)` suite.
  */
 const AGENT_HOST_SESSIONS: readonly SessionConfig[] = [
@@ -149,6 +145,8 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'chat.disableAIFeatures': false,
 		'chat.agentHost.claudeAgent.enabled': true,
 		'github.copilot.chat.backgroundAgent.enabled': true,
+		// The extension-host Copilot CLI provider is being retired; run as after its removal.
+		'github.copilot.chat.cli.legacyProvider.enabled': false,
 		'chat.tools.riskAssessment.enabled': false,
 		...settings,
 	}, undefined, '\t'));
@@ -194,13 +192,15 @@ async function openSession(app: Application, session: { readonly command: string
 		await app.workbench.quickaccess.runCommand(session.command);
 		await app.workbench.chat.waitForChatEditor(600);
 	} else {
-		// The chat view may already be open, so wait for the command to bind a
-		// new session to it rather than just for the view to exist. Otherwise
-		// the prompt can be sent into the outgoing session, which the view then
-		// replaces with an empty one.
+		// Wait for the command to bind a new local session to the view, not
+		// just any session. The view can open first with its default Agent Host
+		// Copilot session while the command still waits for the local chat
+		// command to register, as when this test is the first of the suite in
+		// a cold window. A prompt sent then goes to that session and never gets
+		// the local reply.
 		const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
 		await app.workbench.quickaccess.runCommand(session.command);
-		await app.workbench.chat.waitForChatViewSessionChange(previousSessionResource, 600);
+		await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
 	}
 }
 
@@ -208,11 +208,8 @@ async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: 
 	if (session.kind === 'editor') {
 		await chat.sendEditorMessage(message);
 		// Poll for the actual reply text rather than just waiting for a
-		// completed response bubble. Copilot CLI keeps the
-		// `chat-response-loading` class on the bubble even after streaming
-		// finishes, which would otherwise cause the follow-up assertion to
-		// time out. Each scenario emits a unique reply so a single text
-		// match unambiguously identifies the current response.
+		// completed response bubble. Each scenario emits a unique reply so a
+		// single text match unambiguously identifies the current response.
 		const text = (await chat.waitForEditorResponseText(expectedReply, 120_000, { waitForCommittedResource: !session.agentHost })).trim();
 		if (session.agentHost) {
 			// Agent Host chat editors keep their untitled resource, so there is

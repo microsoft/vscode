@@ -50,6 +50,7 @@ export const SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: SESSION_WORKING_DIRECTORIES_KEY, projected: true },
 	{ key: 'agentHost.additionalWorktrees', projected: false },
 	{ key: 'copilot.worktree.branchName', projected: false },
+	{ key: 'copilot.worktree.managedCleanup', projected: false },
 	{ key: 'copilot.worktree.path', projected: false },
 	{ key: 'copilot.worktree.repositoryRoot', projected: true },
 	{ key: 'copilot.worktree.symlinkPatterns', projected: false },

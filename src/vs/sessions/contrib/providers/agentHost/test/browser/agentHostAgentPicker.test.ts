@@ -8,7 +8,7 @@ import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/t
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -25,12 +25,13 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { IChatContextPickService } from '../../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatMode, IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode, IChatModes } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { INewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
+import { TestProductService, TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -44,6 +45,8 @@ import '../../browser/agentHostSessionConfigPicker.contribution.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.contribution.js';
 import '../../../../chat/browser/modelPicker.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { AGENT_PICKER_SPOTLIGHT_ID } from '../../../../../../workbench/contrib/chat/browser/onboarding/agentPickerSpotlight.js';
+import { onboardingScenarioRegistry } from '../../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +54,80 @@ suite('agentHostAgentPicker', () => {
 	const alpha: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://a', uri: 'agent://a', name: 'alpha' };
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
 	const agents: readonly AgentCustomization[] = [alpha, beta];
+
+	for (const status of [SessionStatus.Untitled, SessionStatus.Completed]) {
+		test(`offers the shared spotlight for an eligible Agents-window composer (${status})`, async () => {
+			const configuration = new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: true });
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const context = disposables.add(new ContextKeyService(configuration));
+			const phone = IsPhoneLayoutContext.bindTo(context);
+			const mode = observableValue<ReturnType<IChat['mode']['get']>>('agent', undefined);
+			const resource = URI.parse('agent-host-copilot:/spotlight');
+			const chat = upcastPartial<IChat>({ resource, mode });
+			const session = upcastPartial<ITestSessionWithChat>({
+				resource, sessionId: 'spotlight', providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				status: constObservable(status), activeChat: constObservable(chat),
+			});
+			const root = dom.append(document.body, dom.$('div'));
+			const button = dom.append(root, dom.$('button'));
+			button.style.cssText = 'width: 28px; height: 28px;';
+			disposables.add(toDisposable(() => root.remove()));
+			const modes = observableValue('modes', upcastPartial<IChatModes>({ custom: [], onDidChange: Event.None }));
+			const input = upcastPartial<ChatInputPart>({
+				currentModeObs: derived(reader => ({ ...ChatMode.Agent, isBuiltin: true, id: mode.read(reader)?.id ?? ChatMode.Agent.id })),
+				currentChatModesObs: modes,
+				attachContextButtonElement: button,
+				onDidChangeAttachContextButton: Event.None,
+				onDidActivateAttachContext: Event.None,
+			});
+			const widget = upcastPartial<IChatWidget>({ domNode: root, visible: true, input, inputPart: input });
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				getCustomAgents: () => [], getCustomizations: () => [], onDidChangeCustomAgents: Event.None,
+			});
+			const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
+			disposables.add(providers.registerProvider(provider));
+			disposables.add(new AgentHostAgentPickerContribution(
+				new NullActionViewItemService(),
+				focusedSessionHostServiceOf(constObservable(session)),
+				providers,
+				upcastPartial<IChatService>({ getSession: () => undefined }),
+				upcastPartial<IChatWidgetService>({
+					getWidgetBySessionResource: () => widget,
+					onDidAddWidget: Event.None, onDidRemoveWidget: Event.None,
+					onDidChangeWidgetVisibility: Event.None, onDidChangeFocusedSession: Event.None,
+				}),
+				disposables.add(new TestStorageService()), new NullLogService(), configuration, context,
+				upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
+				new TestExperimentTriggerTelemetryService(),
+				upcastPartial<INewSessionComposerService>({}),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+				TestProductService,
+			));
+			const scenario = onboardingScenarioRegistry.getScenario(AGENT_PICKER_SPOTLIGHT_ID)!;
+			const ready = () => scenario.trigger.kind === 'observable' && scenario.trigger.signal.get();
+			const frame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(button), resolve)));
+			await frame();
+			const noCustomAgents = ready();
+			modes.set(upcastPartial<IChatModes>({
+				custom: [{ ...ChatMode.Agent, id: alpha.uri, isBuiltin: false }], onDidChange: Event.None,
+			}), undefined);
+			await frame();
+			const defaultAgent = ready();
+			mode.set({ id: alpha.uri, kind: 'agent' }, undefined);
+			const customAgent = ready();
+			mode.set(undefined, undefined);
+			await frame();
+			const returnedToDefault = ready();
+			phone.set(true);
+			const mobile = ready();
+			phone.set(false);
+			await frame();
+			assert.deepStrictEqual({ noCustomAgents, defaultAgent, customAgent, returnedToDefault, mobile, desktop: ready() }, {
+				noCustomAgents: false, defaultAgent: true, customAgent: false, returnedToDefault: true, mobile: false, desktop: true,
+			});
+		});
+	}
 
 	function controls(context: ContextKeyService, menu: MenuId): string[] {
 		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
@@ -274,6 +351,8 @@ suite('agentHostAgentPicker', () => {
 					upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
 					new TestExperimentTriggerTelemetryService(),
 					upcastPartial<INewSessionComposerService>({ notifyUserAgentSelection: ({ sessionId, agent }) => userSelections.push(`${sessionId} ${agent?.uri ?? 'default'}`) }),
+					upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
+					TestProductService,
 				));
 				const snapshot = () => ({
 					mode: activeSession.get()?.mode.get()?.id,

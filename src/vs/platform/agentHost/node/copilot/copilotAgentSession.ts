@@ -50,6 +50,7 @@ import { getPlanActionDescription, type ChatInputRequestWithPlanReview, type IAg
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
+import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
@@ -110,7 +111,8 @@ import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostBrowserUseEnabledSettingId, AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { BROWSER_USE_PLUGIN_NAME } from './copilotBrowserUsePlugin.js';
 import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool.js';
 import { reportComputerUseActivation, reportComputerUseState } from './copilotComputerUseTelemetry.js';
@@ -696,6 +698,10 @@ export interface ICopilotAgentSessionOptions {
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
+	/** Called once, the first time this session starts root work: a sent message, or work the runtime starts itself. */
+	readonly onRootWorkStarted?: () => void;
+	/** Built-in plugin directories registered with the runtime, whose resources the agent reads like applied plugins. */
+	readonly builtinPluginDirectories?: readonly URI[];
 	/** Returns whether a host-published client membership includes this chat. */
 	readonly clientReachesChat?: (clientId: string, chat: URI) => boolean;
 	/** Reads the retained host snapshot this session uses for MCP enablement reconcile. */
@@ -1401,6 +1407,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private _hasCompletedTurn = false;
 	private _hasSentTurn = false;
+	private _rootWorkStarted = false;
 	private _completedTurnHistory: Promise<boolean> | undefined;
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -1440,6 +1447,24 @@ export class CopilotAgentSession extends Disposable {
 	 * does from creation, and for a resumed session from the first turn sent after resuming.
 	 */
 	get isHeldInUse(): boolean { return this._launchPlan.kind === 'create' || this._hasSentTurn; }
+	/** Whether this session has started root work. Until then it can be replaced without losing anything. */
+	get hasStartedRootWork(): boolean { return this._rootWorkStarted; }
+	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
+	/** The model router agent plan this session was launched with, compared by identity. */
+	get modelRouterAgents(): IModelRouterAgentPlan | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterAgents; }
+
+	/**
+	 * Notes that the root agent is doing work in this session, whoever started it: a sent message,
+	 * a request an extension sent through the SDK, or a notification that woke the agent. Child
+	 * agents and context-only events never count.
+	 */
+	private _noteRootWorkStarted(): void {
+		if (this._rootWorkStarted) {
+			return;
+		}
+		this._rootWorkStarted = true;
+		this._onRootWorkStarted?.();
+	}
 	/** Reuses persisted history to distinguish restored chats from a chat's first turn. */
 	get completedTurnHistory(): Promise<boolean> | undefined {
 		return this._launchPlan.kind === 'resume'
@@ -2042,6 +2067,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private readonly _onRootWorkStarted: (() => void) | undefined;
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -2260,6 +2286,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._onRootWorkStarted = options.onRootWorkStarted;
 		this._requestedModel = options.launchPlan.kind === 'create' ? options.launchPlan.model : options.launchPlan.fallback.model;
 		this._register(toDisposable(() => this._publishModelConfiguration(undefined)));
 		this._register(toDisposable(() => this._disposeLocalModelState()));
@@ -2340,10 +2367,10 @@ export class CopilotAgentSession extends Disposable {
 		]);
 		this._agentMergeRestrictedMcpServerNames = getAgentMergeRestrictedMcpServerNames(this._launchPlan);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
-		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => {
+		this._appliedPluginDirectories = [...this._appliedSnapshot.plugins.flatMap(plugin => {
 			const directory = plugin.pluginDir ?? plugin.resourceDir;
 			return directory?.scheme === Schemas.file ? [directory] : [];
-		});
+		}), ...(options.builtinPluginDirectories ?? [])];
 		const disabledMcpServers = new Set([
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
@@ -2415,7 +2442,9 @@ export class CopilotAgentSession extends Disposable {
 				? AgentHostGitHubMcpServerEnabledSettingId
 				: serverName === COMPUTER_USE_PLUGIN_NAME && provenance.source === 'builtin' && provenance.sourcePlugin === COMPUTER_USE_PLUGIN_NAME
 					? AgentHostComputerUseEnabledSettingId
-					: undefined,
+					: serverName === BROWSER_USE_PLUGIN_NAME && provenance.source === 'builtin' && provenance.sourcePlugin === BROWSER_USE_PLUGIN_NAME
+						? AgentHostBrowserUseEnabledSettingId
+						: undefined,
 			connectorName: serverName => this._copilotConnectorServers.get(serverName)?.connectorName,
 		}));
 
@@ -2784,6 +2813,14 @@ export class CopilotAgentSession extends Disposable {
 		this._hasSentTurn = true;
 
 		const turnId = generateUuid();
+		this.resetTurnState(turnId, undefined, AgentHostClientType.Unknown, undefined, true);
+		const turn = this._currentTurn.value;
+		if (turn) {
+			turn.messageCharLen = event.data.content.length;
+			turn.sdkSendInvoked = true;
+			turn.markRunning();
+			this._markPermissionPromptsReady(turn);
+		}
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -2793,13 +2830,6 @@ export class CopilotAgentSession extends Disposable {
 				origin: { kind: MessageKind.User },
 			},
 		});
-		this.resetTurnState(turnId, undefined, AgentHostClientType.Unknown, undefined, true);
-		const turn = this._currentTurn.value;
-		if (turn) {
-			turn.messageCharLen = event.data.content.length;
-			turn.markRunning();
-			this._markPermissionPromptsReady(turn);
-		}
 	}
 
 	/** Clears unpromoted steering, including messages still preparing, on abort or disposal. */
@@ -6751,6 +6781,7 @@ export class CopilotAgentSession extends Disposable {
 			turn.sdkSendInvoked = true;
 		}
 		this._hasSentTurn = true;
+		this._noteRootWorkStarted();
 		recorder?.markMilestone?.('sdkSend');
 		try {
 			const result = await measureAgentProviderOperation(recorder, 'sdkSend', operation);
@@ -10024,6 +10055,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			// A notification that wakes the root agent is root work, even while a host turn is only pending.
+			if (notification.startsTurn && !e.agentId) {
+				this._noteRootWorkStarted();
+			}
 			if (this._turnId) {
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
@@ -10046,6 +10081,11 @@ export class CopilotAgentSession extends Disposable {
 			this._failedExecutionIdlePending = false;
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
+			const turn = this._currentTurn.value;
+			if (turn) {
+				turn.sdkSendInvoked = true;
+				turn.markRunning();
+			}
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -10055,6 +10095,7 @@ export class CopilotAgentSession extends Disposable {
 					origin: { kind: MessageKind.SystemNotification },
 				},
 			});
+			this._onSteeringReady?.(this);
 		}));
 
 		// Route child messages before matching root steering or recording its SDK history boundary.
@@ -10077,6 +10118,7 @@ export class CopilotAgentSession extends Disposable {
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
 			this._failedExecutionIdlePending = false;
+			this._noteRootWorkStarted();
 			// Show a failure held from between turns only now, so that a newer
 			// failure from this message's own preparation replaces it.
 			this._showUnshownManagedPluginFailure();
@@ -13346,6 +13388,7 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
+				this._noteRootWorkStarted();
 				// The SDK starts the next turn only after it has emitted the failed
 				// execution's idle, so any idle from here on belongs to this turn.
 				this._failedExecutionIdlePending = false;
