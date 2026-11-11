@@ -1024,7 +1024,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async validateWorkspaceFoldersAndReload(fromCache: boolean): Promise<void> {
-		const validWorkspaceFolders = await this.toValidWorkspaceFolders(this.workspace.folders);
+		const folders = this.workspace.folders;
+		const validWorkspaceFolders = await this.toValidWorkspaceFolders(folders);
+		if (folders !== this.workspace.folders) {
+			// Folders changed (e.g. a folder location switch) while validating; the result is stale
+			return;
+		}
 		const { removed } = this.compareFolders(this.workspace.folders, validWorkspaceFolders);
 		if (removed.length) {
 			await this.updateWorkspaceConfiguration(validWorkspaceFolders, this.workspaceConfiguration.getConfiguration(), fromCache);
