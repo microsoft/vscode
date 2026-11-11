@@ -107,6 +107,12 @@ suite('Chat window', () => {
 			this.onActiveEditorChange.fire({ editor: this._active });
 			return undefined;
 		}
+		override async openEditors(editors: { editor: EditorInput; options?: { inactive?: boolean } }[]) {
+			for (const { editor, options } of editors) {
+				await this.openEditor(editor, options);
+			}
+			return undefined;
+		}
 		readonly immovable = new Set<EditorInput>();
 		/** Opens nothing, as a group whose open is cancelled; and closes nothing, as one whose close is vetoed. */
 		refuseOpen = false;
@@ -775,6 +781,39 @@ suite('Chat window', () => {
 			tab: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
 			beside: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a'], ['/c']] },
 			background: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
+		});
+	});
+
+	test('a chat opened in a window with editors resolved for it, such as those stashed for its session, opens them in the window\'s main part once the window takes the chat, with the active one active and one the window shows already not twice; not when the window does not take the chat', async () => {
+		const opened = async (when?: 'file in window' | 'not taken' | 'refused') => {
+			const { service, windows: [target] } = createService(['a']);
+			const file = editor();
+			const notes = editor();
+			target.main.group.honorsInactive = true;
+			if (when === 'file in window') {
+				target.main.group.open(file);
+			}
+			if (when === 'refused') {
+				target.main.group.refuseOpen = true;
+			}
+			if (when === 'not taken') {
+				Reflect.set(target.window.content, 'resolveChat', async () => undefined);
+			}
+			await service.open(URI.parse('test:/c'), { window: target.window, editors: { editors: [file, notes], activeEditor: file } });
+			const name = (input: EditorInput) => input === file ? 'file' : 'notes';
+			return { editors: target.main.group.testEditors.map(name), active: target.main.group.activeEditor && name(target.main.group.activeEditor) };
+		};
+
+		assert.deepStrictEqual({
+			taken: await opened(),
+			fileInWindow: await opened('file in window'),
+			notTaken: await opened('not taken'),
+			refused: await opened('refused'),
+		}, {
+			taken: { editors: ['file', 'notes'], active: 'file' },
+			fileInWindow: { editors: ['file', 'notes'], active: 'file' },
+			notTaken: { editors: [], active: null },
+			refused: { editors: [], active: null },
 		});
 	});
 

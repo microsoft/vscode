@@ -11,6 +11,7 @@ import { EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../comm
 import { ISerializedNode } from '../../../../base/browser/ui/grid/gridview.js';
 import { EditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { deepClone } from '../../../../base/common/objects.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -802,8 +803,19 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return undefined;
 		}
 
-		const editors = new Set<EditorInput>();
+		const editors: EditorInput[] = [];
 		let activeEditor: EditorInput | undefined;
+		const canonicalOf = (editor: EditorInput): EditorInput => {
+			const existing = editors.find(candidate => candidate.matches(editor));
+			if (existing) {
+				if (existing !== editor) {
+					editor.dispose();
+				}
+				return existing;
+			}
+			editors.push(editor);
+			return editor;
+		};
 		const collect = (node: ISerializedNode): void => {
 			if (node.type === 'branch') {
 				node.data.forEach(collect);
@@ -813,19 +825,27 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			if (!isSerializedEditorGroupModel(node.data)) {
 				return;
 			}
-			const model = this.instantiationService.createInstance(EditorGroupModel, node.data);
+			const model = this.instantiationService.createInstance(EditorGroupModel, deepClone(node.data));
 			try {
-				model.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => editors.add(editor));
-				if (node.data.id === state.main.activeGroup) {
-					activeEditor = model.activeEditor ?? undefined;
+				const groupActiveEditor = model.activeEditor ?? undefined;
+				for (const editor of model.getEditors(EditorsOrder.SEQUENTIAL)) {
+					const canonical = canonicalOf(editor);
+					if (node.data.id === state.main.activeGroup && editor === groupActiveEditor) {
+						activeEditor = canonical;
+					}
 				}
 			} finally {
 				model.dispose();
 			}
 		};
-		collect(state.main.serializedGrid.root);
+		try {
+			collect(state.main.serializedGrid.root);
+		} catch (error) {
+			editors.forEach(editor => editor.dispose());
+			throw error;
+		}
 
-		return { editors: [...editors], activeEditor };
+		return { editors, activeEditor };
 	}
 
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void {

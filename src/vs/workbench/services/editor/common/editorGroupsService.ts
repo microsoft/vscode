@@ -738,7 +738,7 @@ export interface IEditorWorkingSet {
 export interface IResolvedEditorWorkingSet {
 
 	/**
-	 * The editors of the main part's groups, in group and editor order, without duplicates.
+	 * The editors of the main part's groups, in group and editor order, with an editor shown in several groups listed once.
 	 */
 	readonly editors: readonly EditorInput[];
 

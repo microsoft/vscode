@@ -161,6 +161,7 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _panelViewBySession = new ResourceMap<string>();
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
+	private readonly _takenWorkingSets = new ResourceSet();
 	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
 	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
@@ -1399,8 +1400,8 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {
-		const visibleEditors = this._editorService.visibleEditors;
-		if (this._workingSets.has(sessionResource) && visibleEditors.length > 0 && visibleEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
+		const mainEditors = this._editorGroupsService.mainPart.groups.flatMap(group => group.editors);
+		if (this._workingSets.has(sessionResource) && mainEditors.length > 0 && mainEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
 			return;
 		}
 		this._deleteWorkingSet(sessionResource);
@@ -1420,11 +1421,15 @@ export abstract class BaseLayoutController extends Disposable {
 	private _takeStashedEditors(session: ISession, chatResource: URI): IStashedSessionEditors | undefined {
 		const key = this._ownerKeyForChat(session.resource, chatResource, session.mainChat.get().resource);
 		const workingSet = key && this._workingSets.get(key);
-		const resolved = workingSet && this._editorGroupsService.resolveWorkingSet(workingSet);
-		if (!key || !resolved) {
+		if (!key || !workingSet || this._takenWorkingSets.has(key)) {
+			return undefined;
+		}
+		const resolved = this._editorGroupsService.resolveWorkingSet(workingSet);
+		if (!resolved) {
 			return undefined;
 		}
 
+		this._takenWorkingSets.add(key);
 		let accepted = false;
 		return {
 			editors: resolved.editors,
@@ -1434,6 +1439,7 @@ export abstract class BaseLayoutController extends Disposable {
 				this._deleteWorkingSet(key);
 			},
 			dispose: () => {
+				this._takenWorkingSets.delete(key);
 				if (!accepted) {
 					resolved.editors.forEach(editor => editor.dispose());
 				}

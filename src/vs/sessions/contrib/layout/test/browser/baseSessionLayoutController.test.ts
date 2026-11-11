@@ -499,7 +499,7 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
 	});
 
-	test('[B2] switching away does not overwrite a session\'s saved working set while only the empty-file placeholder is visible', async () => {
+	test('[B2] switching away does not overwrite a session\'s saved working set while the main part shows only the empty-file placeholder', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });
 
@@ -514,7 +514,9 @@ suite('BaseLayoutController', () => {
 		harness.activeSessionObs.set(sessionA, undefined);
 		await timeout(0);
 
-		harness.visibleEditorsList = [store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts))];
+		const placeholder = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
+		harness.activeGroupEditors = [placeholder];
+		harness.visibleEditorsList = [placeholder, store.add(new TestStubEditorInput(URI.file('/repo/in-a-chat-window.ts')))];
 		harness.activeSessionObs.set(sessionB, undefined);
 		await timeout(0);
 
@@ -550,6 +552,34 @@ suite('BaseLayoutController', () => {
 			takenAgain: undefined,
 			ofTheActiveSession: undefined,
 		});
+	});
+
+	test('hands a session\'s stashed editors to one taker at a time until it accepts or disposes', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const first = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		const whileTaken = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		first?.dispose();
+		const afterDispose = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		afterDispose?.accept();
+		afterDispose?.dispose();
+
+		assert.deepStrictEqual({
+			first: first?.editors.length,
+			whileTaken,
+			afterDispose: afterDispose?.editors.length,
+			afterAccept: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
+		}, { first: 1, whileTaken: undefined, afterDispose: 1, afterAccept: undefined });
 	});
 
 	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
