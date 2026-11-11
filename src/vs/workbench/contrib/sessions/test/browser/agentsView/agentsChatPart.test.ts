@@ -333,8 +333,10 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('a peer chat whose provider is registered again closes once the session that replaces its session loaded without it, such as when it was deleted meanwhile', async () => {
-		const { original, peer, replacement, replacementLoading } = replacedPeerChat();
+	test('a peer chat whose provider is registered again waits for the session that replaces its session to list it, even once that says it loaded', async () => {
+		const { original, peer, replacing, replacementChats, replacementLoading, replacement } = replacedPeerChat();
+		// A session created again says it loaded before its chats are known
+		replacementLoading.set(false, undefined);
 		let sessions: readonly ISession[] = [original.session];
 		const { service, fireSessionsChanged } = createService({ sessions: () => sessions });
 		await service.openChat(original.session, peer);
@@ -343,11 +345,30 @@ suite('AgentsChatPartService', () => {
 		fireSessionsChanged([]);
 		sessions = [replacement];
 		fireSessionsChanged([replacement]);
-		const whileLoading = service.isShowing(peer);
-		replacementLoading.set(false, undefined);
+		await timeout(0);
+		const beforePeer = service.isShowing(peer);
+		replacementChats.set([replacing.mainChat.chat, replacing.chats.get('peer')!.chat], undefined);
+
+		assert.deepStrictEqual({ beforePeer, afterPeer: service.activeChat.get()?.session === replacement }, { beforePeer: true, afterPeer: true });
+	});
+
+	test('a peer chat whose provider is registered again closes as the session that replaces its session is archived', async () => {
+		const { original, peer, replacement } = replacedPeerChat();
+		const archived = observableValue('archived', false);
+		const archivable: ISession = { ...replacement, isArchived: archived };
+		let sessions: readonly ISession[] = [original.session];
+		const { service, fireSessionsChanged } = createService({ sessions: () => sessions });
+		await service.openChat(original.session, peer);
+
+		sessions = [];
+		fireSessionsChanged([]);
+		sessions = [archivable];
+		fireSessionsChanged([archivable]);
+		const beforeArchived = service.isShowing(peer);
+		archived.set(true, undefined);
 		await timeout(0);
 
-		assert.deepStrictEqual({ whileLoading, loaded: service.isShowing(peer) }, { whileLoading: true, loaded: false });
+		assert.deepStrictEqual({ beforeArchived, archived: service.isShowing(peer) }, { beforeArchived: true, archived: false });
 	});
 
 	test('opening a chat shows the chat part with the chat in a tab of its own; opening it again shows its tab', async () => {

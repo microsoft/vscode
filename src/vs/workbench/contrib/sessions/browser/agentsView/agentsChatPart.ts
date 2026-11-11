@@ -295,12 +295,15 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		}
 		if (this._knownSession) {
 			// A provider registered again replaces the sessions it had: the chat shows once the session that replaces its
-			// session lists it, such as a peer chat that its session's chats publish as it loads
+			// session lists it, such as a peer chat that its session's chats publish later
 			const replacement = this._sessionsManagementService.getSession(this._knownSession.resource);
 			if (replacement && replacement !== this._knownSession) {
-				// Once it loaded without the chat, the chat is gone, such as when deleted while the providers were away
-				if (isChatWindowChatGone(replacement, chatResource, reader)) {
+				// Its chats can list the chat later than its loading says, so only the session being archived ends the chat
+				// meanwhile: a chat deleted while the providers were away keeps its tab until it is closed
+				if (replacement.isArchived.read(reader)) {
 					this._end();
+				} else {
+					replacement.chats.read(reader);
 				}
 				return;
 			}
