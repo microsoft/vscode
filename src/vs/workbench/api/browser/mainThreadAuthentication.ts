@@ -366,6 +366,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		await this.dynamicAuthProviderStorageService.storeClientRegistration(details.id, URI.revive(details.authorizationServer).toString(true), details.clientId, details.clientSecret, details.label);
 	}
 
+	async $removeDynamicAuthenticationProvider(id: string): Promise<void> {
+		this.authenticationService.unregisterAuthenticationProvider(id);
+		await this.dynamicAuthProviderStorageService.removeDynamicProvider(id);
+	}
+
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}

@@ -478,6 +478,8 @@ function isMicrosoftAuthUrl(url: string | undefined): boolean {
 	return MICROSOFT_AUTH_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`));
 }
 
+class ClientRejectedError extends Error { }
+
 export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	id: string;
 	readonly label: string;
@@ -595,6 +597,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		if (sessions.length) {
 			const newTokens: IAuthorizationToken[] = [];
 			const removedTokens: IAuthorizationToken[] = [];
+			let clientRejected = false;
 			const tokenMap = new Map<string, IAuthorizationToken>(this._tokenStore.tokens.map(token => [token.access_token, token]));
 			for (const session of sessions) {
 				const token = tokenMap.get(session.accessToken);
@@ -622,6 +625,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 							newTokens.push(newToken);
 						} catch (err) {
 							this._logger.error(`Failed to refresh token: ${err}`);
+							clientRejected ||= err instanceof ClientRejectedError;
 						}
 
 					}
@@ -632,6 +636,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				// Since we updated the tokens, we need to re-filter the sessions
 				// to get the latest state
 				sessions = this._tokenStore.sessions.filter(session => arraysEqual([...session.scopes].sort(), sortedScopes));
+			}
+			if (clientRejected) {
+				// Forget the rejected client so the provider is recreated with a new one, also after a restart.
+				this._logger.warn(`Removing provider because client ID (${this._clientId}) was rejected during a silent token refresh.`);
+				await this._proxy.$removeDynamicAuthenticationProvider(this.id);
 			}
 			this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 			return sessions;
@@ -923,7 +932,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
 			if (!allowClientRegistration) {
 				this._logger.warn(`Client ID (${this._clientId}) was invalid while silently refreshing the token.`);
-				throw new Error(`Client ID was invalid while silently refreshing the token.`);
+				throw new ClientRejectedError(`Client ID was invalid while silently refreshing the token.`);
 			}
 			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
 			await this._generateNewClientId();

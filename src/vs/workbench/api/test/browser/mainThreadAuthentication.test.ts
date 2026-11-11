@@ -71,6 +71,7 @@ suite('MainThreadAuthentication', () => {
 
 		function createHost(sessionId: string, rpc?: RPCProtocol) {
 			const unregistered: string[] = [];
+			const removedProviders: string[] = [];
 			let clientRegistrationWrites = 0;
 			let stopped = false;
 			const proxy = upcastPartial<Proxied<ExtHostAuthenticationShape>>({
@@ -87,7 +88,8 @@ suite('MainThreadAuthentication', () => {
 			});
 			const dynamicStorage = upcastPartial<IDynamicAuthenticationProviderStorageService>({
 				onDidChangeTokens: Event.None,
-				storeClientRegistration: async () => { clientRegistrationWrites++; }
+				storeClientRegistration: async () => { clientRegistrationWrites++; },
+				removeDynamicProvider: async id => { removedProviders.push(id); }
 			});
 			const mainThread = disposables.add(new MainThreadAuthentication(
 				context, TestProductService, authenticationService,
@@ -97,7 +99,7 @@ suite('MainThreadAuthentication', () => {
 				dynamicStorage, undefined!, undefined!, undefined!, undefined!
 			));
 			return {
-				mainThread, unregistered,
+				mainThread, unregistered, removedProviders,
 				get clientRegistrationWrites() { return clientRegistrationWrites; },
 				stop: () => { stopped = true; mainThread.dispose(); }
 			};
@@ -130,6 +132,22 @@ suite('MainThreadAuthentication', () => {
 			assert.deepStrictEqual(host.unregistered, []);
 			host.stop();
 			assert.deepStrictEqual(host.unregistered, []);
+		});
+
+		test('removes a dynamic provider and its stored registration so it is recreated with a new client', async () => {
+			const host = createHost('first-host');
+			await registerDynamicProvider(host);
+			await host.mainThread.$removeDynamicAuthenticationProvider('dynamic-provider');
+			assert.deepStrictEqual({
+				registered: authenticationService.isAuthenticationProviderRegistered('dynamic-provider'),
+				unregistered: host.unregistered,
+				removedProviders: host.removedProviders,
+			}, {
+				registered: false,
+				unregistered: ['dynamic-provider'],
+				removedProviders: ['dynamic-provider'],
+			});
+			host.stop();
 		});
 
 		test('releases a registration when the provider is unregistered externally', async () => {
