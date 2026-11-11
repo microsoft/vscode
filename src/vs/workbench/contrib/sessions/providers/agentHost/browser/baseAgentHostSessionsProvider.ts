@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../../base/common/equals.js';
 import { getErrorMessage } from '../../../../../../base/common/errors.js';
-import { Emitter, Event, PauseableEmitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event, PauseableEmitter, Relay } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -112,6 +112,7 @@ import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../.
 import { IArtifactModel } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
+import { ISessionsListingScope, SessionsListingScopeFilter } from '../../../browser/sessionScope.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../common/sessionsProvider.js';
 import type { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
@@ -4575,7 +4576,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessions = this._register(new PauseableEmitter<ISessionChangeEvent>({ merge: mergeSessionChangeEvents }));
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = Event.map(
+	/** The changes of every session, also of those the listing scope hides: see {@link getAllSessions}. */
+	readonly onDidChangeAllSessions: Event<ISessionChangeEvent> = Event.map(
 		debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store),
 		change => ({
 			added: change.added.filter(session => !this._isUnpublishedDraft(session)),
@@ -4583,6 +4585,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			changed: change.changed.filter(session => !this._isUnpublishedDraft(session)),
 		}),
 	);
+	private readonly _listedSessionChanges = this._register(new Relay<ISessionChangeEvent>());
+	/** The changes of the sessions it lists: of every session, unless {@link setListingScope} scopes them. */
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._listedSessionChanges.event;
+	private readonly _listingScope = this._register(new MutableDisposable<SessionsListingScopeFilter>());
 	protected readonly _onDidChangeDraftSessions = this._register(new Emitter<void>());
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
@@ -4956,6 +4962,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IUriIdentityService protected readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
+		this._listedSessionChanges.input = this.onDidChangeAllSessions;
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
@@ -5527,7 +5534,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._activeSessionScopeRoots = undefined;
 	}
 
+	/**
+	 * Lists only the sessions of `scope` from then on, such as those of an editor window's folders, in {@link getSessions}
+	 * and {@link onDidChangeSessions}. Lookups, such as {@link getAllSessions} and {@link getSessionByResource}, still find
+	 * every session.
+	 */
+	setListingScope(scope: ISessionsListingScope): void {
+		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
+		this._listingScope.value = filter;
+		this._listedSessionChanges.input = filter.onDidChangeSessions;
+	}
+
 	getSessions(): ISession[] {
+		const listingScope = this._listingScope.value;
+		return listingScope ? listingScope.getSessions() : this.getAllSessions();
+	}
+
+	getAllSessions(): ISession[] {
 		this._ensureSessionCache();
 		// Filter at read time (rather than evicting from the cache) so a gate
 		// flip is instant in both directions: hidden sessions stay cached and
@@ -8102,7 +8125,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async listManagedWorktrees(knownRepositories: readonly URI[] = []): Promise<IAgentHostManagedWorktree[]> {
 		const workspaces = [
-			...this.getSessions().flatMap(session => session.workspace.get() ?? []),
+			...this.getAllSessions().flatMap(session => session.workspace.get() ?? []),
 			...this.recentWorkspacesService.getRecentWorkspaces().filter(recent => recent.providerId === this.id).map(recent => recent.workspace),
 		];
 		const repositories = new ResourceSet([

@@ -4113,14 +4113,13 @@ suite('Sessions - SessionsList', () => {
 
 		test('says so when no session of the scope is shown, also when the filters hide its sessions', () => {
 			const harness = createListHarness(disposables, [
-				createFolderSession('elsewhere', 'other', { root: 'file:///other' }),
 				createFolderSession('archived', 'vscode', { root: 'file:///work/vscode' }, undefined, { isArchived: true }),
 			]);
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
-				scopeFolders: constObservable([URI.parse('file:///work/vscode')]),
+				scoped: constObservable(true),
 				onSessionOpen: () => { },
 			}));
 			list.setExcludeArchived(true);
@@ -4134,131 +4133,7 @@ suite('Sessions - SessionsList', () => {
 
 		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
 
-		/** Sessions of the window's folder `file:///work/repo` and its worktree, and of other folders, in every section. */
-		function createScopeHarness() {
-			const group: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
-			const checkout = { root: 'file:///work/repo', repository: 'file:///work/repo' };
-			const harness = createListHarness(disposables, [
-				createFolderSession('checkout', 'repo', checkout, hoursAgo(1)),
-				createFolderSession('worktree', 'repo', { root: 'file:///work/repo', workingDirectory: 'file:///work/repo.worktrees/x', repository: 'file:///work/repo', worktree: 'file:///work/repo.worktrees/x' }, hoursAgo(2)),
-				createFolderSession('pinned-in', 'repo', checkout, hoursAgo(3)),
-				createFolderSession('grouped-in', 'repo', checkout, hoursAgo(4)),
-				createFolderSession('same-name', 'repo', { root: 'file:///elsewhere/repo' }, hoursAgo(5)),
-				createFolderSession('other', 'other', { root: 'file:///other' }, hoursAgo(6)),
-				createFolderSession('pinned-other', 'other', { root: 'file:///other' }, hoursAgo(7)),
-				createFolderSession('grouped-other', 'other', { root: 'file:///other' }, hoursAgo(8)),
-				createFolderSession('done-other', 'other', { root: 'file:///other' }, hoursAgo(9), { isArchived: true }),
-				createTestSession('chat', { isQuickChat: true, createdAt: hoursAgo(10) }).session,
-			], {
-				groups: [group],
-				memberships: new Map([['grouped-in', group.id], ['grouped-other', group.id]]),
-				pinnedSessionIds: new Set(['pinned-in', 'pinned-other']),
-			});
-			// Pinned, Done and Chats start collapsed: open them so that their sessions count as shown.
-			harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ pinned: false, archived: false, [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
-			return harness;
-		}
-
-		function openScopedList(harness: ReturnType<typeof createListHarness>, scopeFolders: IObservable<readonly URI[]> | undefined, grouping = SessionsGrouping.Workspace, findWidgetContainer?: HTMLElement) {
-			const container = harness.createContainer(400, 1400);
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => grouping,
-				sorting: () => SessionsSorting.Created,
-				scopeFolders,
-				findWidgetContainer,
-				onSessionOpen: () => { },
-			}));
-			list.setExcludeArchived(false);
-			list.layout(1400, 400);
-			return {
-				list,
-				snapshot: () => ({
-					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
-					showMore: [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')].map(label => label.textContent),
-				}),
-			};
-		}
-
-		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
-			test(`shows only the sessions of the scope, in every section (${grouping})`, () => {
-				const harness = createScopeHarness();
-				const scopeFolders = observableValue<readonly URI[]>('scopeFolders', [URI.parse('file:///work/repo')]);
-				const unscoped = openScopedList(harness, undefined, grouping);
-				const scoped = openScopedList(harness, scopeFolders, grouping);
-
-				const inScope = { unscoped: unscoped.snapshot(), scoped: scoped.snapshot() };
-				scopeFolders.set([], undefined);
-				const emptyWindow = scoped.snapshot();
-
-				const all = ['chat', 'checkout', 'done-other', 'grouped-in', 'grouped-other', 'other', 'pinned-in', 'pinned-other', 'same-name', 'worktree'];
-				assert.deepStrictEqual({ inScope, emptyWindow }, {
-					inScope: {
-						unscoped: { sessions: all, showMore: [] },
-						scoped: { sessions: ['checkout', 'grouped-in', 'pinned-in', 'worktree'], showMore: [] },
-					},
-					emptyWindow: { sessions: all, showMore: [] },
-				});
-			});
-		}
-
-		test('searches only the sessions of the scope', async () => {
-			const findWidgetContainer = mainWindow.document.createElement('div');
-			const scoped = openScopedList(createScopeHarness(), constObservable([URI.parse('file:///work/repo')]), SessionsGrouping.Workspace, findWidgetContainer);
-			scoped.list.openFind();
-			try {
-				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
-				assert.ok(findInput);
-				const find = (pattern: string) => {
-					findInput.value = pattern;
-					findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-					return scoped.snapshot().sessions;
-				};
-				assert.deepStrictEqual({ other: find('other'), checkout: find('checkout') }, { other: [], checkout: ['checkout'] });
-			} finally {
-				scoped.list.closeFind();
-				// Closing find disposes its widget after its hide animation.
-				await timeout(350);
-			}
-		});
-
-		test('marks only the sessions of the scope read from a section of a workspace name shared elsewhere', async () => {
-			const harness = createListHarness(disposables, [
-				createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1), { isRead: false }),
-				createFolderSession('outsider', 'repo', { root: 'file:///elsewhere/repo' }, hoursAgo(2), { isRead: false }),
-			]);
-			const contextMenus: (readonly IAction[])[] = [];
-			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
-				override showContextMenu(delegate: IContextMenuDelegate): void {
-					contextMenus.push(delegate.getActions());
-				}
-			});
-			const markSectionRead = async (scopeFolders: IObservable<readonly URI[]> | undefined) => {
-				harness.managementService.readSessions.length = 0;
-				const container = harness.createContainer(400, 1400);
-				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-					grouping: () => SessionsGrouping.Workspace,
-					sorting: () => SessionsSorting.Created,
-					scopeFolders,
-					onSessionOpen: () => { },
-				}));
-				list.layout(1400, 400);
-				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'repo');
-				assert.ok(row);
-				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-				await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
-				return harness.managementService.readSessions.map(session => session.sessionId).sort();
-			};
-
-			assert.deepStrictEqual({
-				unscoped: await markSectionRead(undefined),
-				scoped: await markSectionRead(constObservable([URI.parse('file:///work/repo')])),
-			}, {
-				unscoped: ['here', 'outsider'],
-				scoped: ['here'],
-			});
-		});
-
-		test('leaves out a comparison of other folders nested in a custom group', () => {
+		test('leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
 			const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
 			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
 			const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', { root: 'file:///other' }, hoursAgo(2 + index)));
@@ -4276,30 +4151,31 @@ suite('Sessions - SessionsList', () => {
 					sessionResource: session.resource,
 				})),
 			};
-			const harness = createListHarness(disposables, [createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1)), ...attempts], {
+			// The providers list only the sessions of the window's folder; lookups still find those of other folders
+			const harness = createListHarness(disposables, [createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1))], {
 				groups: [work, comparisonGroup],
 				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
 				comparisons: [comparison],
 			});
-			const render = (scopeFolders: IObservable<readonly URI[]> | undefined) => {
+			harness.managementService.unlistedSessions = attempts;
+			const render = (scoped: IObservable<boolean> | undefined) => {
 				const container = harness.createContainer(400, 1400);
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 					grouping: () => SessionsGrouping.Workspace,
 					sorting: () => SessionsSorting.Created,
-					scopeFolders,
+					scoped,
 					onSessionOpen: () => { },
 				}));
 				list.layout(1400, 400);
 				return {
 					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
 					comparison: !!container.querySelector('.session-comparison-group'),
-					placeholder: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].some(row => row.textContent?.includes('No session')),
 				};
 			};
 
-			assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable([URI.parse('file:///work/repo')])) }, {
-				unscoped: { sessions: ['attempt-1', 'attempt-2', 'here'], comparison: true, placeholder: false },
-				scoped: { sessions: ['here'], comparison: false, placeholder: true },
+			assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+				unscoped: { sessions: ['attempt-1', 'attempt-2', 'here'], comparison: true },
+				scoped: { sessions: ['here'], comparison: false },
 			});
 		});
 

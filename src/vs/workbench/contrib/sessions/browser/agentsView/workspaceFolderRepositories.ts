@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -14,6 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ISessionsListingScope } from '../sessionScope.js';
 
 /**
  * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a
@@ -49,12 +50,14 @@ export async function readFolderGitRepository(fileService: IFileService, folder:
 }
 
 /**
- * The git repositories of the local folders of the window's workspace (see {@link readFolderGitRepository}), which the
- * Sessions list of an editor window scopes its sessions to, with the folders themselves. Each folder's `.git` is read
- * once, as the folder joins the workspace, and again only after a read that failed; there are no watchers. A folder
- * that leaves the workspace stops counting at once.
+ * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, and
+ * the git repositories of its local folders (see {@link readFolderGitRepository}). Each folder's `.git` is read once, as
+ * the folder joins the workspace, and again only after a read that failed; there are no watchers. A folder that leaves
+ * the workspace stops counting at once.
  */
-export class WorkspaceFolderRepositories extends Disposable {
+export class WorkspaceFolderRepositories extends Disposable implements ISessionsListingScope {
+
+	readonly folders: IObservable<readonly URI[]>;
 
 	private readonly _repositories = observableValue<readonly URI[]>(this, []);
 	readonly repositories: IObservable<readonly URI[]> = this._repositories;
@@ -71,6 +74,7 @@ export class WorkspaceFolderRepositories extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this.folders = observableFromEvent(this, _workspaceContextService.onDidChangeWorkspaceFolders, () => _workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
 		void this._update();
 	}
