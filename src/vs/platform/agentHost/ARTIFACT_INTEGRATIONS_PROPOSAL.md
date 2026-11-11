@@ -753,13 +753,12 @@ The shared registry assigns explicit precedence among integrations eligible to s
 The chat UI uses one composer-owned context view to show whole-artifact details. This is a renderer choice, not a provider or protocol contract. Its conceptual layout is:
 
 ```text
-[ state icon | full title                               | Close ]
+[ state icon | full title       | general action icons | Close ]
 [ actual description: three lines, expandable                    ]
 [ list heading + automation | list heading + automation          ]
 [ independently scrollable | independently scrollable rows      ]
 [ automation without a single owning list                        ]
 [ pinned state actions: enabled first, first action primary      ]
-[ Open | Copy Link | Remove Artifact | other general actions     ]
        [ main: icon label | section: icon label | ... ]
 ```
 
@@ -770,13 +769,13 @@ For the initial chat UI:
 - Keep the surface **Calm** and **Focused**: one thing leads, the rest supports. The main part identifies the resource; sections give compact summaries; rich details appear on intent.
 - Order sections by stable integration precedence and provider-declared section order. Preserve provider identity in details/actions when needed to distinguish otherwise identical labels.
 - Do not synthesize a single business status from incompatible providers. A PR main part can say "Merged" while another integration's deployment section says "Pending"; both remain visible and meaningful.
-- The main part toggles whole-artifact details; Open is the first quiet footer action and preserves explicit navigation. Optional sections open that same panel and expand and focus their list or focus their action, including repeated clicks on the selected section. Do not nest all controls inside one clickable pill.
+- The main part toggles whole-artifact details; the linked title preserves explicit navigation. General actions such as Copy Link are icon-only buttons in the header toolbar before Close; their hover and accessible name give the action label, so they take no vertical space. Optional sections open that same panel and expand and focus their list or focus their action, including repeated clicks on the selected section. Do not nest all controls inside one clickable pill.
 - The overlay aligns with the input edges, sits above the pills, and does not reflow the transcript or composer. Another artifact switches the mounted context view and selection highlight. Escape or Close returns focus to the invoking control; outside clicks dismiss without reclaiming focus.
 - The interactive surface has dialog semantics, keyboard-accessible controls, an accessible text view and help using chat verbosity. Pill hovers only explain compact summaries; they do not own another action renderer or detail lease.
 - Render boolean and enum controls from descriptors. Show the automatic prompt destination next to automation configuration.
 - Keep state-dependent and general actions separate; retain provider-qualified IDs and grouping even when labels coincide. Both bars remain outside scrolling content. Enabled state actions precede disabled ones, preserving provider order within each group; the first state action uses the primary button style. Each automation rule appears once: beside its single owning list or in the row above state actions. Placement does not create another execution implementation.
 - Render freshness, unavailable states, blocked runs, and errors explicitly.
-- The Activities card omits skipped runs and the user's own clicks on general (footer) actions; it still lists automatic and agent-requested runs of those actions, and any whose outcome must be reconciled. A manual run records whether it was requested through a general action, so this survives the integration becoming unavailable.
+- The Activities card omits skipped runs and the user's own clicks on general (header) actions; it still lists automatic and agent-requested runs of those actions, and any whose outcome must be reconciled. A manual run records whether it was requested through a general action, so this survives the integration becoming unavailable.
 - Make state, controls, detail items, and activity available through the keyboard and accessible text, not just icon/color/hover. Preserve focus during live updates; if the focused item disappears, move focus to a neighboring item or the details container. Avoid announcing every poll.
 
 Use existing pill/action/menu/managed-hover primitives and theme tokens, extending the shared segment model where needed. Update the feature's accessibility help and accessible view for these interactions; respect verbosity preferences. Gate AI-owned surfaces with the existing AI enablement mechanisms.

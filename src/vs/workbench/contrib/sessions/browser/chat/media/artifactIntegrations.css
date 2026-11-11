@@ -50,8 +50,9 @@
 
 .artifact-details-header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: flex-start;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
 	flex-shrink: 0;
 }
 
@@ -71,7 +72,9 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.5;
 	min-width: 0;
-	flex: 1;
+	/* Below this width the actions move to their own row instead of squeezing the title, which keeps its icon. */
+	flex: 1 1 min(10em, calc(100% - var(--vscode-codiconFontSize) - var(--vscode-spacing-size120)));
+	overflow-wrap: break-word;
 }
 
 .artifact-details-title-link {
@@ -85,8 +88,17 @@
 
 .artifact-header-actions {
 	flex-shrink: 0;
-	max-width: 50%;
-	justify-content: flex-end;
+	flex-wrap: nowrap;
+	gap: var(--vscode-spacing-size20);
+	margin-left: auto;
+}
+
+.artifact-integration-panel .artifact-header-actions .monaco-button {
+	padding: var(--vscode-spacing-size20);
+}
+
+.artifact-integration-panel .artifact-header-actions .monaco-button .codicon {
+	margin: 0;
 }
 
 .artifact-details-scrollable {
@@ -134,12 +146,6 @@
 	min-width: 0;
 }
 
-.artifact-general-actions {
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	padding-top: var(--vscode-spacing-size60);
-	flex-shrink: 0;
-}
-
 .artifact-button-label {
 	overflow: hidden;
 	white-space: nowrap;
@@ -151,11 +157,6 @@
 	width: auto;
 	max-width: 100%;
 	gap: var(--vscode-spacing-size40);
-}
-
-.artifact-integration-panel .artifact-general-actions .monaco-button {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
 }
 
 .artifact-details-title-link:focus-visible,
