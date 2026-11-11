@@ -11,7 +11,7 @@ import { BrowserWorkspaceEditingService } from '../../browser/workspaceEditingSe
 import { UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IResolvedFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { extUri } from '../../../../../base/common/resources.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 
 suite('WorkspaceEditingService', () => {
 
@@ -157,6 +157,52 @@ suite('WorkspaceEditingService', () => {
 			await pending;
 
 			assert.deepStrictEqual(switched.map(u => u?.toString()), [undefined]);
+		});
+
+		function createServiceWithPendingTrust() {
+			const primary = URI.file('/work/project');
+			const alt = URI.file('/work/alt');
+			const trustInfo = new DeferredPromise<{ trusted: boolean }>();
+			const trusted: URI[] = [];
+			const switched: (URI | undefined)[] = [];
+			const currentLocations: (IResolvedFolderLocation | undefined)[] = [];
+			let folders = [{ uri: primary }];
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders }), setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ extUri },
+				{ getUriTrustInfo: () => trustInfo.p, setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
+				undefined, undefined, undefined,
+				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setCurrentLocation: (location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } }
+			));
+			return {
+				service, primary, alt, trustInfo,
+				changeWorkspace: () => { folders = [{ uri: URI.file('/work/other') }]; },
+				state: () => ({ trusted: trusted.map(u => u.toString()), switched: switched.map(u => u?.toString()), currentLocations: currentLocations.length })
+			};
+		}
+
+		test('a switch superseded while reading the primary trust grants no trust', async () => {
+			const fixture = createServiceWithPendingTrust();
+			const pending = fixture.service.setFolderLocation(fixture.primary, fixture.alt);
+			await timeout(0);
+			await fixture.service.setFolderLocation(fixture.primary, undefined);
+			fixture.trustInfo.complete({ trusted: true });
+			await pending;
+
+			assert.deepStrictEqual(fixture.state(), { trusted: [], switched: [undefined], currentLocations: 1 });
+		});
+
+		test('a workspace change while reading the primary trust grants no trust and does not switch', async () => {
+			const fixture = createServiceWithPendingTrust();
+			const pending = fixture.service.setFolderLocation(fixture.primary, fixture.alt);
+			await timeout(0);
+			fixture.changeWorkspace();
+			fixture.trustInfo.complete({ trusted: true });
+			await assert.rejects(() => pending);
+
+			assert.deepStrictEqual(fixture.state(), { trusted: [], switched: [], currentLocations: 0 });
 		});
 
 		test('the last invocation wins regardless of resolution order', async () => {
