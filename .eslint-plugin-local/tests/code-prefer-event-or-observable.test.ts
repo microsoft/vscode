@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint } from 'eslint';
 import { suite, test } from 'node:test';
 import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { resolve } from 'path';
 import rule from '../code-prefer-event-or-observable.ts';
 
@@ -112,9 +112,7 @@ new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang:
 });
 
 suite('code-prefer-event-or-observable configuration', () => {
-	const root = resolve(import.meta.dirname, '../..');
-	const eslint = new ESLint({ cwd: root });
-	const severities = (files: string[]) => Promise.all(files.map(async file => (await eslint.calculateConfigForFile(resolve(root, file)))?.rules['local/code-prefer-event-or-observable']));
+	const severities = (files: string[]) => Promise.all(files.map(async file => (await getRepositoryFileRules(file))?.['local/code-prefer-event-or-observable']));
 
 	test('is opt-in', async () => {
 		assert.deepStrictEqual(await severities(['src/vs/workbench/common/example.ts']), [undefined]);
@@ -133,6 +131,6 @@ suite('code-prefer-event-or-observable configuration', () => {
 			'src/vs/workbench/api/browser/mainThreadAuthentication.ts',
 			'src/vs/workbench/api/test/browser/mainThreadMcp.test.ts',
 		];
-		assert.deepStrictEqual(await severities(files), [[2], [2], [2], [2], [2], undefined, undefined, undefined, undefined, undefined]);
+		assert.deepStrictEqual(await severities(files), [['error'], ['error'], ['error'], ['error'], ['error'], undefined, undefined, undefined, undefined, undefined]);
 	});
 });

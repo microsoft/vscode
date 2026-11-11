@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint } from 'eslint';
 import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
 import rule from '../code-no-private-agent-host-meta-import.ts';
@@ -227,8 +227,7 @@ new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang:
 });
 
 test('private agent-host metadata boundary is registered for all feature locations', async () => {
-	const eslint = new ESLint({ cwd: repositoryRoot });
 	const filenames = [...featureFiles, `${metadataDirectory}/agentToolCallMeta.ts`, 'build/agentHost/feature.ts'];
-	const configurations = await Promise.all(filenames.map(filename => eslint.calculateConfigForFile(filename)));
-	assert.deepStrictEqual(configurations.map(configuration => configuration.rules['local/code-no-private-agent-host-meta-import']), filenames.map(() => [2]));
+	const configurations = await Promise.all(filenames.map(filename => getRepositoryFileRules(filename)));
+	assert.deepStrictEqual(configurations.map(configuration => configuration?.['local/code-no-private-agent-host-meta-import']), filenames.map(() => ['error']));
 });

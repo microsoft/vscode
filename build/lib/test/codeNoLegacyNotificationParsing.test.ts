@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint } from 'eslint';
 import { suite, test } from 'node:test';
 import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../oxlintConfig.ts';
 import * as path from 'path';
-import eslintRule from '../../../.eslint-plugin-local/code-no-legacy-notification-parsing.ts';
+import rule from '../../../.eslint-plugin-local/code-no-legacy-notification-parsing.ts';
 
-// oxlint runs ESLint rule modules through its ESLint-compatible JS plugin API, but its types differ from ESLint's.
-const rule = eslintRule as unknown as Parameters<RuleTester['run']>[1];
 
 RuleTester.describe = suite;
 RuleTester.it = test;
@@ -119,12 +117,12 @@ const repositoryFiles = [
 	'src/vs/workbench/api/browser/mainThreadSomethingElse.ts',
 	'src/vs/workbench/test/common/another.test.ts',
 ];
-const eslint = new ESLint({ cwd: root });
-const repositoryConfigurations = await Promise.all(repositoryFiles.map(file => eslint.calculateConfigForFile(path.join(root, file))));
-const repositoryOptions = repositoryConfigurations[0].rules['local/code-no-legacy-notification-parsing'].slice(1);
+const repositoryConfigurations = await Promise.all(repositoryFiles.map(file => getRepositoryFileRules(file)));
+// The options come from the configuration, so they are JSON values.
+const repositoryOptions = repositoryConfigurations[0]!['local/code-no-legacy-notification-parsing'].slice(1) as NonNullable<RuleTester.ValidTestCase['options']>;
 
 test('notification capability restriction is enabled for core in the repository config', () => {
-	assert.deepStrictEqual(repositoryConfigurations.map(configuration => configuration.rules['local/code-no-legacy-notification-parsing']), repositoryFiles.map(() => [2, ...repositoryOptions]));
+	assert.deepStrictEqual(repositoryConfigurations.map(configuration => configuration?.['local/code-no-legacy-notification-parsing']), repositoryFiles.map(() => ['error', ...repositoryOptions]));
 });
 
 new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-no-legacy-notification-parsing with the repository options', rule, {

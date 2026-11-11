@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TSESTree } from '@typescript-eslint/utils';
-import type * as eslint from 'eslint';
-import type { Node } from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Scope, Variable, Visitor } from '@oxlint/plugins';
 import { dirname, resolve } from 'path';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
@@ -14,11 +12,11 @@ const fsModules = new Set(['fs', 'node:fs', 'original-fs']);
 
 type Binding = { kind: 'fs' | 'module' | 'requireFactory' | 'require' } | { kind: 'sync' | 'syncBind'; name: string };
 
-function propertyName(node: TSESTree.Node): string | undefined {
+function propertyName(node: ESTree.Node): string | undefined {
 	return node.type === 'Identifier' ? node.name : node.type === 'Literal' && typeof node.value === 'string' ? node.value : undefined;
 }
 
-function moduleBinding(node: TSESTree.Node, filename: string): Binding | undefined {
+function moduleBinding(node: ESTree.Node, filename: string): Binding | undefined {
 	const value = node.type === 'Literal' ? node.value
 		: node.type === 'TemplateLiteral' && node.expressions.every(expression => expression.type === 'Literal' && typeof expression.value === 'string')
 			? node.quasis.map((part, index) => {
@@ -61,8 +59,8 @@ function memberBinding(binding: Binding | undefined, name: string | undefined): 
 	return binding?.kind === 'module' && name === 'createRequire' ? { kind: 'requireFactory' } : undefined;
 }
 
-export default new class implements eslint.Rule.RuleModule {
-	readonly meta: eslint.Rule.RuleMetaData = {
+export default new class implements CreateRule {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		docs: { description: 'Prevent blocking filesystem operations in production code.' },
 		messages: {
@@ -71,14 +69,14 @@ export default new class implements eslint.Rule.RuleModule {
 		schema: [],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		function resolveBinding(node: TSESTree.Node | null | undefined, visited = new Set<eslint.Scope.Variable>()): Binding | undefined {
+	create(context: Context): Visitor {
+		function resolveBinding(node: ESTree.Node | null | undefined, visited = new Set<Variable>()): Binding | undefined {
 			if (!node) {
 				return undefined;
 			}
 			switch (node.type) {
 				case 'Identifier': {
-					let scope: eslint.Scope.Scope | null = context.sourceCode.getScope(node as Node);
+					let scope: Scope | null = context.sourceCode.getScope(node);
 					while (scope) {
 						const variable = scope.set.get(node.name);
 						if (variable) {
@@ -87,7 +85,7 @@ export default new class implements eslint.Rule.RuleModule {
 							}
 							visited.add(variable);
 							for (const definition of variable.defs) {
-								const declaration = definition.node as TSESTree.Node;
+								const declaration = definition.node;
 								if (declaration.type === 'ImportSpecifier' || declaration.type === 'ImportDefaultSpecifier' || declaration.type === 'ImportNamespaceSpecifier') {
 									const parent = declaration.parent;
 									if (parent.type !== 'ImportDeclaration' || parent.importKind === 'type' || (declaration.type === 'ImportSpecifier' && declaration.importKind === 'type')) {
@@ -115,7 +113,7 @@ export default new class implements eslint.Rule.RuleModule {
 							}
 							for (const reference of variable.references) {
 								if (reference.isWrite() && reference.writeExpr) {
-									const binding = resolveBinding(reference.writeExpr as TSESTree.Node, visited);
+									const binding = resolveBinding(reference.writeExpr, visited);
 									if (binding) {
 										return binding;
 									}
@@ -158,22 +156,20 @@ export default new class implements eslint.Rule.RuleModule {
 		// cannot report, so candidate calls are only resolved (which requires costly scope analysis) at the end
 		// and only if such a specifier was seen.
 		let hasFsModule = false;
-		const candidates: TSESTree.CallExpression[] = [];
-		const checkModule = (node: TSESTree.Node | undefined) => {
+		const candidates: ESTree.CallExpression[] = [];
+		const checkModule = (node: ESTree.Node | undefined) => {
 			hasFsModule ||= !!node && moduleBinding(node, context.filename)?.kind === 'fs';
 		};
 
 		return {
-			ImportDeclaration: node => checkModule((node as TSESTree.ImportDeclaration).source),
-			ImportExpression: node => checkModule((node as TSESTree.ImportExpression).source),
-			TSImportEqualsDeclaration: (rawNode: Node) => {
-				const node = rawNode as TSESTree.Node;
+			ImportDeclaration: node => checkModule(node.source),
+			ImportExpression: node => checkModule(node.source),
+			TSImportEqualsDeclaration: node => {
 				if (node.type === 'TSImportEqualsDeclaration' && node.moduleReference.type === 'TSExternalModuleReference') {
 					checkModule(node.moduleReference.expression);
 				}
 			},
-			CallExpression: rawNode => {
-				const node = rawNode as TSESTree.CallExpression;
+			CallExpression: node => {
 				checkModule(node.arguments[0]);
 				candidates.push(node);
 			},
@@ -184,7 +180,7 @@ export default new class implements eslint.Rule.RuleModule {
 				for (const node of candidates) {
 					const binding = resolveBinding(node.callee);
 					if (binding?.kind === 'sync') {
-						context.report({ node: node as Node, messageId: 'syncFs', data: { name: binding.name } });
+						context.report({ node, messageId: 'syncFs', data: { name: binding.name } });
 					}
 				}
 			},

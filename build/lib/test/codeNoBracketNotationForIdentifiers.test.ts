@@ -5,10 +5,8 @@
 
 import { suite, test } from 'node:test';
 import { RuleTester } from 'oxlint/plugins-dev';
-import eslintRule from '../../../.eslint-plugin-local/code-no-bracket-notation-for-identifiers.ts';
+import rule from '../../../.eslint-plugin-local/code-no-bracket-notation-for-identifiers.ts';
 
-// oxlint runs ESLint rule modules through its ESLint-compatible JS plugin API, but its types differ from ESLint's.
-const rule = eslintRule as unknown as Parameters<RuleTester['run']>[1];
 
 RuleTester.describe = suite;
 RuleTester.it = test;

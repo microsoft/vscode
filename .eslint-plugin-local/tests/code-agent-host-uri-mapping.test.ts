@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint } from 'eslint';
 import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
 import rule from '../code-agent-host-uri-mapping.ts';
@@ -120,8 +120,7 @@ new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang:
 });
 
 test('agent-host URI mapping ratchet is scoped to workbench and sessions', async () => {
-	const eslint = new ESLint({ cwd: repositoryRoot });
 	const filenames = [...featureFiles, 'src/vs/workbench/contrib/files/browser/consumer.ts', 'src/vs/platform/agentHost/common/agentHostUri.ts'];
-	const configurations = await Promise.all(filenames.map(filename => eslint.calculateConfigForFile(filename)));
-	assert.deepStrictEqual(configurations.map(configuration => configuration.rules['local/code-agent-host-uri-mapping']), [[2], [2], [2], undefined]);
+	const configurations = await Promise.all(filenames.map(filename => getRepositoryFileRules(filename)));
+	assert.deepStrictEqual(configurations.map(configuration => configuration?.['local/code-agent-host-uri-mapping']), [['error'], ['error'], ['error'], undefined]);
 });

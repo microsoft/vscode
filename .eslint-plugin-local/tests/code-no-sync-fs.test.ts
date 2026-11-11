@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint } from 'eslint';
 import * as fs from 'fs';
 import { suite, test } from 'node:test';
 import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { resolve } from 'path';
 import rule from '../code-no-sync-fs.ts';
 
@@ -88,13 +88,11 @@ new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang:
 });
 
 suite('code-no-sync-fs production configuration', () => {
-	const root = resolve(import.meta.dirname, '../..');
-	const eslint = new ESLint({ cwd: root });
-	const severities = (files: string[]) => Promise.all(files.map(async file => (await eslint.calculateConfigForFile(resolve(root, file)))?.rules['local/code-no-sync-fs']));
+	const severities = (files: string[]) => Promise.all(files.map(async file => (await getRepositoryFileRules(file))?.['local/code-no-sync-fs']));
 
 	test('enforces core and built-in extension production code', async () => {
 		const files = ['src/vs/workbench/node/example.ts', 'src/vs/platform/agentHost/node/example.ts', 'src/vs/base/node/example.ts', 'extensions/git/src/example.ts', 'extensions/copilot/src/platform/example.ts'];
-		assert.deepStrictEqual(await severities(files), files.map(() => [2]));
+		assert.deepStrictEqual(await severities(files), files.map(() => ['error']));
 	});
 
 	test('allows tests and development scripts', async () => {
@@ -104,12 +102,12 @@ suite('code-no-sync-fs production configuration', () => {
 
 	test('allows the isolated askpass process without exempting the Git extension or extension-editing runtime', async () => {
 		const files = ['extensions/git/src/askpass-main.ts', 'extensions/git/src/askpassManager.ts', 'extensions/git/src/ipc/ipcServer.ts', 'extensions/extension-editing/src/extensionLinter.ts'];
-		assert.deepStrictEqual(await severities(files), [undefined, [2], [2], [2]]);
+		assert.deepStrictEqual(await severities(files), [undefined, ['error'], ['error'], ['error']]);
 	});
 
 	test('allows bootstrap entry points and the AMD loader without exempting nested production files', async () => {
 		const files = ['src/bootstrap-esm.ts', 'src/bootstrap-node.ts', 'src/mainImpl.ts', 'src/server-main.ts', 'src/future-bootstrap.ts', 'src/vs/amdX.ts', 'src/vs/code/electron-main/main.ts', 'src/vs/platform/agentHost/node/example.ts'];
-		assert.deepStrictEqual(await severities(files), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, [2]]);
+		assert.deepStrictEqual(await severities(files), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, ['error']]);
 	});
 
 	test('allows designated core startup/shutdown files without exempting their directories or helper callers', async () => {
@@ -126,6 +124,6 @@ suite('code-no-sync-fs production configuration', () => {
 			'src/vs/server/node/example.ts',
 			'src/vs/workbench/api/node/example.ts',
 		];
-		assert.deepStrictEqual(await severities(files), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, [2], [2], [2], [2]]);
+		assert.deepStrictEqual(await severities(files), [undefined, undefined, undefined, undefined, undefined, undefined, undefined, ['error'], ['error'], ['error'], ['error']]);
 	});
 });
