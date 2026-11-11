@@ -7,8 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { describeModelRouterModel, describeModelRouterSituation, modelRouterWorkspaceSituation, summarizeModelRouterAttachments } from '../../common/modelRouterSituation.js';
-import { MessageAttachmentKind, withSessionGitHubState, withSessionGitState, type MessageAttachment } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, withFolderGitHubState, withFolderScopeGitState, withSessionGitHubState, withSessionGitState, type MessageAttachment } from '../../common/state/sessionState.js';
 
 suite('modelRouterSituation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,16 +39,27 @@ suite('modelRouterSituation', () => {
 		});
 	});
 
-	test('reads the workspace, repository, uncommitted files and pull request from a session\'s state', () => {
+	test('reads the workspace, repository, changed files and pull request of the chat\'s own folder', () => {
 		const folder = 'file:///Users/dev/shop-checkout';
-		const meta = withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestState: 'open' });
+		const other = 'file:///Users/dev/shop-docs';
+		const session = (pullRequestBranchName: string) => ({
+			_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestUrls: ['https://github.com/contoso/shop/pull/7'], pullRequestBranchName, pullRequestState: 'open' }),
+			workingDirectories: [folder],
+		});
+		const withPeerFolder = withFolderScopeGitState(withFolderGitHubState(session('feature')._meta, getWorkingDirectoryKey(other), { owner: 'contoso', repo: 'docs' }, other), getWorkingDirectoryScopeId([other]), { branchName: 'main', uncommittedChanges: 12 }, [other]);
 		assert.deepStrictEqual({
-			full: modelRouterWorkspaceSituation({ _meta: meta, workingDirectories: [folder] }),
-			folderOnly: modelRouterWorkspaceSituation({ _meta: withSessionGitState(undefined, { uncommittedChanges: 0 }), workingDirectories: [folder] }),
-			noSession: modelRouterWorkspaceSituation(undefined),
+			full: modelRouterWorkspaceSituation(session('feature'), [folder]),
+			pullRequestOfAnotherBranch: modelRouterWorkspaceSituation(session('old-feature'), [folder]),
+			peerChatFolder: modelRouterWorkspaceSituation({ _meta: withPeerFolder, workingDirectories: [folder] }, [other]),
+			folderWithoutState: modelRouterWorkspaceSituation(session('feature'), ['file:///Users/dev/elsewhere']),
+			noFolder: modelRouterWorkspaceSituation(session('feature'), undefined),
+			noSession: modelRouterWorkspaceSituation(undefined, [folder]),
 		}, {
 			full: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
-			folderOnly: { workspace: 'shop-checkout' },
+			pullRequestOfAnotherBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
+			peerChatFolder: { workspace: 'shop-docs', repository: 'contoso/docs', uncommittedFiles: 12 },
+			folderWithoutState: { workspace: 'elsewhere' },
+			noFolder: {},
 			noSession: {},
 		});
 	});
@@ -90,11 +102,13 @@ suite('modelRouterSituation', () => {
 			describeModelRouterModel(model({ _meta: { priceCategory: 'very_high' }, configSchema: windows(200_000, 1_000_000) })),
 			describeModelRouterModel(model({ _meta: { priceCategory: 'low' } })),
 			describeModelRouterModel(model({ configSchema: windows(128_000, 272_000) })),
+			describeModelRouterModel(model({ maxContextWindow: 128_000 })),
 			describeModelRouterModel(model({})),
 		], [
 			'very high cost, context window 200K or 1M',
 			'low cost',
 			'context window 128K or 272K',
+			'context window 128K',
 			undefined,
 		]);
 	});

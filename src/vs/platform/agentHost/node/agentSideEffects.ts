@@ -2265,7 +2265,7 @@ export class AgentSideEffects extends Disposable {
 			let model: ModelSelection | undefined;
 			let routed: IRoutedTurnModel | undefined;
 			if (message.model && isModelRouterModelId(message.model.id)) {
-				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, message.agent, this._modelRouterSituation(sessionChannel, turnChannel, message.attachments), clientOperationContext);
+				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, message.agent, this._modelRouterSituation(sessionChannel, turnChannel, message.attachments, resolvedWorkingDirectories), clientOperationContext);
 				if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 					await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 					return;
@@ -2463,11 +2463,13 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/** Read from state the host already has. None of it is content. */
-	private _modelRouterSituation(sessionChannel: ProtocolURI, turnChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined): IModelRouterSituation {
+	private _modelRouterSituation(sessionChannel: ProtocolURI, turnChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined, resolvedWorkingDirectories: readonly URI[] | undefined): IModelRouterSituation {
 		const summary = summarizeModelRouterAttachments(attachments);
 		const mode = getConfiguredSessionMode(this._agentConfigService.getChatConfigState({ session: sessionChannel, chat: turnChannel }));
+		// The chat's own folders: a peer chat can work somewhere else than its session.
+		const workingDirectories = resolvedWorkingDirectories?.map(directory => directory.toString()) ?? this._agentConfigService.getEffectiveWorkingDirectories(turnChannel);
 		return {
-			...modelRouterWorkspaceSituation(this._stateManager.getSessionState(sessionChannel)),
+			...modelRouterWorkspaceSituation(this._stateManager.getSessionState(sessionChannel), workingDirectories),
 			...(summary.length ? { attachments: summary } : {}),
 			...(mode && mode !== 'interactive' ? { mode } : {}),
 		};

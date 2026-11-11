@@ -7,9 +7,10 @@ import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentModelInfo } from './agent.js';
 import type { SessionMode } from './agentHostSchema.js';
+import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { readAgentModelPricingMeta } from './meta/agentModelMeta.js';
 import { modelContextSizes } from './modelRouter.js';
-import { MessageAttachmentKind, readSessionFolderGitHubState, readSessionGitState, type MessageAttachment, type SessionState } from './state/sessionState.js';
+import { hasSessionPullRequestForBranch, MessageAttachmentKind, readFolderScopeGitState, readSessionGitHubState, readSessionGitState, readWorkingDirectoryScopeId, type MessageAttachment, type SessionState } from './state/sessionState.js';
 
 export interface IModelRouterAttachmentSummary {
 	readonly kind: string;
@@ -58,19 +59,28 @@ export function summarizeModelRouterAttachments(attachments: readonly MessageAtt
 	return [...byKind].map(([kind, { count, lines }]) => ({ kind, count, ...(lines ? { lines } : {}) }));
 }
 
-export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta' | 'workingDirectories'> | undefined): Pick<IModelRouterSituation, 'workspace' | 'repository' | 'uncommittedFiles' | 'pullRequest'> {
-	if (!session) {
+/**
+ * Where a turn's work happens. `workingDirectories` are the chat's own, which for a peer chat can
+ * be another folder than the session's.
+ */
+export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta' | 'workingDirectories'> | undefined, workingDirectories: readonly string[] | undefined): Pick<IModelRouterSituation, 'workspace' | 'repository' | 'uncommittedFiles' | 'pullRequest'> {
+	const folder = workingDirectories?.[0];
+	if (!session || !folder) {
 		return {};
 	}
-	const folder = session.workingDirectories?.[0];
-	const workspace = folder ? basename(URI.parse(folder)) : undefined;
-	const git = readSessionGitState(session._meta);
-	const gitHub = readSessionFolderGitHubState(session);
+	const workspace = basename(URI.parse(folder));
+	const sessionFolder = session.workingDirectories?.[0];
+	const isSessionFolder = sessionFolder !== undefined && getWorkingDirectoryKey(sessionFolder) === getWorkingDirectoryKey(folder);
+	const git = readFolderScopeGitState(session._meta, readWorkingDirectoryScopeId(session._meta, workingDirectories))
+		?? (isSessionFolder ? readSessionGitState(session._meta) : undefined);
+	const gitHub = readSessionGitHubState(session._meta, folder);
+	// A stored pull request can be one of a branch the checkout has since left.
+	const pullRequest = git && hasSessionPullRequestForBranch(gitHub, git.branchName) ? gitHub?.pullRequestState : undefined;
 	return {
 		...(workspace ? { workspace } : {}),
 		...(gitHub?.owner && gitHub.repo ? { repository: `${gitHub.owner}/${gitHub.repo}` } : {}),
 		...(git?.uncommittedChanges ? { uncommittedFiles: git.uncommittedChanges } : {}),
-		...(gitHub?.pullRequestState ? { pullRequest: gitHub.pullRequestState } : {}),
+		...(pullRequest ? { pullRequest } : {}),
 	};
 }
 
@@ -127,7 +137,9 @@ function formatContextWindow(tokens: number): string {
 /** A model's cost and context window, as the decision is told them. */
 export function describeModelRouterModel(model: IAgentModelInfo): string | undefined {
 	const priceCategory = readAgentModelPricingMeta(model).priceCategory?.replace(/[_-]+/g, ' ').trim().toLowerCase();
-	const contextSizes = modelContextSizes(model);
+	const selectable = modelContextSizes(model);
+	// A model with one window has no size to choose, so its window is only on the model itself.
+	const contextSizes = selectable.length ? selectable : model.maxContextWindow && model.maxContextWindow > 0 ? [model.maxContextWindow] : [];
 	const facts = [
 		...(priceCategory ? [`${priceCategory} cost`] : []),
 		...(contextSizes.length ? [`context window ${contextSizes.length > 1 ? `${formatContextWindow(contextSizes[0])} or ${formatContextWindow(contextSizes[contextSizes.length - 1])}` : formatContextWindow(contextSizes[0])}`] : []),
