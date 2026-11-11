@@ -7,8 +7,10 @@ import assert from 'assert';
 import type { IPty } from 'node-pty';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { interruptAtEveryStep } from '../../../../base/test/common/interruptAtEveryStep.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -26,7 +28,7 @@ suite('TerminalProcess startup disposal', () => {
 		isScreenReaderOptimized: false
 	};
 
-	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd(), throttle?: () => Promise<void>) {
+	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd(), throttle?: () => Promise<void>, disposables: Pick<DisposableStore, 'add'> = store) {
 		let spawnAttempts = 0;
 		class TestTerminalProcess extends TerminalProcess {
 			protected override _throttleKillSpawn(): Promise<void> {
@@ -40,9 +42,9 @@ suite('TerminalProcess startup disposal', () => {
 				}
 			}
 		}
-		const log = store.add(new Log());
+		const log = disposables.add(new Log());
 		const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-		const terminal = store.add(new TestTerminalProcess(
+		const terminal = disposables.add(new TestTerminalProcess(
 			shellLaunchConfig ?? { executable: process.execPath, args: ['-e', 'setTimeout(() => process.exit(0), 250)'] },
 			cwd, 80, 24, env, env, options, log, { applicationName: 'vscode' } as IProductService
 		));
@@ -117,6 +119,20 @@ suite('TerminalProcess startup disposal', () => {
 			fixture.cleanup();
 		}
 	});
+
+	(isWindows ? test.skip : test)('does not spawn or leak when disposed at any step of startup', () => interruptAtEveryStep(runStore => {
+		const fixture = createTerminal(undefined, process.cwd(), undefined, runStore);
+		let interrupted = false;
+		const start = async () => {
+			await fixture.terminal.start();
+			if (interrupted) {
+				assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 0, nativePtyPresent: false, titlePolling: false });
+			} else {
+				fixture.cleanup();
+			}
+		};
+		return { promise: start(), interrupt: () => { interrupted = true; fixture.terminal.dispose(); } };
+	}, { step: 'macrotask' }));
 
 	test('does not spawn after disposal while spawn throttling is pending', async () => {
 		const started = new DeferredPromise<void>();

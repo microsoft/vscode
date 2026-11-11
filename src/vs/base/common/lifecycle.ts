@@ -230,6 +230,13 @@ export function setDisposableTracker(tracker: IDisposableTracker | null): void {
 	disposableTracker = tracker;
 }
 
+/**
+ * The tracker that {@link setDisposableTracker} installed, if any.
+ */
+export function getDisposableTracker(): IDisposableTracker | null {
+	return disposableTracker;
+}
+
 if (TRACK_DISPOSABLES) {
 	const __is_disposable_tracked__ = '__is_disposable_tracked__';
 	setDisposableTracker(new class implements IDisposableTracker {
