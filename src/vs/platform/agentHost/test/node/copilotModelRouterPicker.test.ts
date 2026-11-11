@@ -68,6 +68,15 @@ suite('DecisionsModelRouterPicker', () => {
 		});
 	});
 
+	test('gives up the facts before any of the message when the request is too large', () => {
+		const built = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', situation: ['x'.repeat(modelRouterRequestLimits.request)] }));
+		assert.deepStrictEqual({ context: built.context, explained: built.questions.map(question => question.instructions.includes('facts about it')), fits: serializedBytes(built) <= modelRouterRequestLimits.request }, {
+			context: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nfix this' },
+			explained: [false, false],
+			fits: true,
+		});
+	});
+
 	test('caps the prompt and recent turns in bytes after JSON escaping', () => {
 		// Each control character is one byte as text and six once escaped.
 		const control = '\u0001'.repeat(64 * 1024);

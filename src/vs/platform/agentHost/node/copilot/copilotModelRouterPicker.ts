@@ -98,23 +98,25 @@ export function truncateToEscapedBytes(text: string, maxBytes: number): string {
 
 export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest): IAgentDecisionsRequest {
 	const { followUp } = request;
-	const situation = request.situation?.length ? request.situation : undefined;
+	let situation = request.situation?.length ? request.situation : undefined;
 	const routes = request.candidates.map(candidate => `${candidate.name}: ${describeRoute(candidate)}`).join('\n');
 	const guidance = request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : '';
-	const questions: IAgentDecisionQuestion[] = [{
-		kind: 'choice',
-		name: 'model',
-		instructions: `${agentFraming}${situation ? situationNote : ''}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}`,
-		options: rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}${candidate.facts ? ` (${candidate.facts})` : ''}. Use for: ${describeRoute(candidate)}` })),
-	}];
-	if (request.askEffort) {
-		questions.push({
-			kind: 'score',
+	const options = rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}${candidate.facts ? ` (${candidate.facts})` : ''}. Use for: ${describeRoute(candidate)}` }));
+	const levels = effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion }));
+	const questions = (): IAgentDecisionQuestion[] => [
+		{
+			kind: 'choice',
+			name: 'model',
+			instructions: `${agentFraming}${situation ? situationNote : ''}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}`,
+			options,
+		},
+		...(request.askEffort ? [{
+			kind: 'score' as const,
 			name: 'effort',
 			instructions: `${agentFraming}${situation ? situationNote : ''}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}${followUp ? `\n\n${followUpEffortNote}` : ''}`,
-			levels: effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion })),
-		});
-	}
+			levels,
+		}] : []),
+	];
 	let prompt = truncateToEscapedBytes(request.text, modelRouterRequestLimits.prompt);
 	let recentTurns = followUp?.recentTurns.map(turn => {
 		const prompt = truncateToEscapedBytes(turn.prompt, modelRouterRequestLimits.recentTurn / 2);
@@ -125,15 +127,18 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 		context: followUp
 			? { kind: 'json', value: { request: prompt, ...(situation ? { situation } : {}), ...followUp, recentTurns } }
 			: { kind: 'text', text: `${firstTurnLead}${prompt}${situation ? `\n\n${situationLead}${situation.map(line => `- ${line}`).join('\n')}` : ''}` },
-		questions,
+		questions: questions(),
 		timeoutMs: DECISION_TIMEOUT_MS,
 		purpose: 'vscode.modelRouter.route',
 	});
 	let built = build();
 	// The caps above keep requests well under the limit; this only guards against long route text.
-	while (escapedBytes(built) > modelRouterRequestLimits.request && (recentTurns.length || prompt.length)) {
+	// The facts about the request go before any of the user's message does.
+	while (escapedBytes(built) > modelRouterRequestLimits.request && (recentTurns.length || situation || prompt.length)) {
 		if (recentTurns.length) {
 			recentTurns = recentTurns.slice(1);
+		} else if (situation) {
+			situation = undefined;
 		} else {
 			prompt = prompt.slice(0, Math.floor(prompt.length / 2));
 		}
@@ -141,7 +146,7 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 	}
 	// Routing without the user's request, or over the limit, would be a guess, so the router falls back instead.
 	if (escapedBytes(built) > modelRouterRequestLimits.request || (request.text.trim() && !prompt.trim())) {
-		throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'The route descriptions leave no room for the request');
+		throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'The router\'s routes and guidance leave no room for the request');
 	}
 	return built;
 }

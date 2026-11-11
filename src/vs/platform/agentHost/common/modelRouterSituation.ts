@@ -133,7 +133,7 @@ export function describeModelRouterSituation(situation: IModelRouterSituation | 
 	}
 	const lines: string[] = [];
 	if (situation.attachments?.length) {
-		lines.push(`Attached: ${situation.attachments.map(({ kind, count, lines }) => `${countOfKind(count, oneLine(kind) ?? 'attachment')}${lines ? ` (${plural(lines, 'line')})` : ''}`).join(', ')}`);
+		lines.push(`Attached: ${situation.attachments.map(({ kind, count, lines: selectedLines }) => `${countOfKind(count, oneLine(kind) ?? 'attachment')}${selectedLines ? ` (${plural(selectedLines, 'line')})` : ''}`).join(', ')}`);
 	}
 	if (situation.mode) {
 		lines.push(modeDescriptions[situation.mode]);

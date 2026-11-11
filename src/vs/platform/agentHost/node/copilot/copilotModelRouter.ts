@@ -173,7 +173,7 @@ interface IRouteContext {
 	readonly router: IModelRouter;
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly candidates: readonly IModelRouterCandidate[];
-	readonly situation: Pick<IModelRouterPickRequest, 'situation'>;
+	readonly situation: readonly string[] | undefined;
 	/** The chat already runs on a long context window, which a later turn must not take away. */
 	readonly keepLongContext: boolean;
 }
@@ -212,7 +212,7 @@ export class CopilotModelRouter {
 				const facts = describeModelRouterModel(route.model);
 				return { id: routeKey(route), name: route.model.name, when: route.route.when, examples: route.route.examples, ...(facts ? { facts } : {}) };
 			}),
-			situation: situation.length ? { situation } : {},
+			situation: situation.length ? situation : undefined,
 			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
@@ -251,7 +251,7 @@ export class CopilotModelRouter {
 			if (!request.picker) {
 				throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'No decision model');
 			}
-			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat, ...context.situation });
+			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat, situation: context.situation });
 		} catch (error) {
 			this._logService.warn(`[ModelRouter] ${request.chat}: pick failed; using ${fallback.model.id}`, error);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
@@ -286,7 +286,7 @@ export class CopilotModelRouter {
 				guidance: router.guidance,
 				askEffort: this._asksEffort(context),
 				chat: request.chat,
-				...context.situation,
+				situation: context.situation,
 				followUp: {
 					currentModel: routeKey(current),
 					currentEffort,
