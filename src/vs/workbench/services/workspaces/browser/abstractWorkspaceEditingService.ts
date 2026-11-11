@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
@@ -76,6 +78,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService protected readonly logService: ILogService,
+		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService,
 	) {
 		super();
 	}
@@ -122,6 +125,32 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Finally pick a good default
 		return `workspace.${WORKSPACE_EXTENSION}`;
+	}
+
+	async setFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
+		}
+
+		let resolved: IResolvedFolderLocation | undefined;
+		if (location && !this.uriIdentityService.extUri.isEqual(location, primary)) {
+			if (primary.scheme !== Schemas.file || location.scheme !== Schemas.file) {
+				throw new Error(localize('folderLocationLocalOnly', "Folder locations are only supported for local folders."));
+			}
+
+			resolved = await this.workspaceFolderLocationService.resolveLocation(primary, location, CancellationToken.None);
+			if (!resolved) {
+				throw new Error(localize('folderLocationUnknown', "'{0}' is not an alternate location of '{1}'.", location.toString(), primary.toString()));
+			}
+
+			// A built-in provider vouches for its locations: they inherit the trust of the primary location
+			if (resolved.builtIn && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+				await this.workspaceTrustManagementService.setUrisTrust([location], true);
+			}
+		}
+
+		await this.contextService.setFolderLocation(primary, location);
+		this.workspaceFolderLocationService.setCurrentLocation(resolved);
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
