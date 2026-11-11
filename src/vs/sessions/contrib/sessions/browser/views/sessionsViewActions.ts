@@ -1231,57 +1231,20 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		return;
 	}
 	const undo = modelService.setInboxState(targets, action);
-	const message = action === 'done' ? localize('inboxCleared', "{0} cleared from inbox", targets.length)
-		: action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
-			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
-				: localize('inboxSnoozed', "{0} snoozed", targets.length);
-	if (targets.length === 1 && action !== 'done') {
+	const message = action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
+		: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
+			: localize('inboxSnoozed', "{0} snoozed", targets.length);
+	if (targets.length === 1) {
 		status(message);
 		return;
 	}
 	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
 		message,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
-		showCountdown: action !== 'done',
+		showCountdown: true,
 		undo: async () => { undo(); status(localize('inboxTriageUndone', "Inbox change undone.")); },
 	});
 }
-
-registerAction2(class ClearInboxSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.inboxDone',
-			title: localize2('inboxClear', "Clear from Inbox"),
-			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
-			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
-				id,
-				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
-				order: id === Menus.SessionItemToolbar ? 4 : 2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(),
-					id === Menus.SessionItemToolbar ? SessionItemInboxStateContext.isEqualTo('') : SessionItemInboxStateContext.notEqualsTo('done')),
-			})),
-			keybinding: {
-				primary: KeyCode.Delete,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-			},
-		});
-	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-		const viewsService = accessor.get(IViewsService);
-		if (viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping !== SessionsGrouping.Inbox) {
-			return;
-		}
-		const sessions = getSessionActionTargets(accessor, context).filter(session => !session.isArchived.get());
-		triageSessions(accessor.get(ISessionsListModelService), viewsService, sessions, 'done');
-		const sessionsService = accessor.get(ISessionsService);
-		for (const session of sessions) {
-			sessionsService.closeSession(session);
-		}
-	}
-});
 
 registerAction2(class ResumeInboxSessionAction extends Action2 {
 	constructor() {
@@ -1479,7 +1442,6 @@ KeybindingsRegistry.registerKeybindingRule({
 		IsSessionsWindowContext,
 		FocusedViewContext.isEqualTo(SessionsViewId),
 		WorkbenchListFocusContextKey,
-		InboxModeContext.negate(),
 	),
 	primary: KeyCode.Delete,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
@@ -1516,19 +1478,6 @@ registerAction2(class ImportSessionAction extends Action2 {
 	}
 });
 
-for (const id of [Menus.SessionItemToolbar, SessionItemContextMenuId]) {
-	MenuRegistry.appendMenuItem(id, {
-		command: {
-			id: ARCHIVE_SESSION_COMMAND_ID,
-			title: localize2('inboxArchiveSession', "Archive Session"),
-			icon: Codicon.archive,
-		},
-		group: id === Menus.SessionItemToolbar ? 'navigation' : '4_manage',
-		order: id === Menus.SessionItemToolbar ? 3 : 2.5,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate()),
-	});
-}
-
 abstract class BaseArchiveSessionAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
@@ -1540,12 +1489,12 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(InboxModeContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionIsArchivedContext.negate()),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_state',
 				order: 3,
-				when: ContextKeyExpr.and(InboxModeContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionIsArchivedContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/1_state',

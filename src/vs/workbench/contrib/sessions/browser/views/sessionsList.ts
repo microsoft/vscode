@@ -71,6 +71,7 @@ import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprova
 import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
 import { IVoicePlaybackService } from '../../../chat/common/voicePlaybackService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import * as aria from '../../../../../base/browser/ui/aria/aria.js';
@@ -4811,12 +4812,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
+		const acknowledgeChat = (resource: URI) => {
+			if (!this.visible || !this.isInboxLayout()) {
+				return;
+			}
+			const target = this._sessionsManagementService.getSessionForChatResource(resource);
+			if (target) {
+				this.acknowledgeInboxSessions([target.session]);
+			}
+		};
+		this._register(chatService.onDidAcceptRequest(event => acknowledgeChat(event.chatSessionResource)));
+		this._register(chatService.onDidPerformUserAction(event => acknowledgeChat(event.sessionResource)));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
 		}
@@ -4917,7 +4930,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
-				isWorkspaceScoped: () => typeof this.filters.inboxScope.workspace === 'object',
+				isWorkspaceScoped: () => this.filters.hasInboxWorkspaceScope,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
 				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
@@ -4927,6 +4940,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getEnvironmentBadgeLabel: s => this.getEnvironmentBadgeLabel(s),
 				slotPanes: this._sessionsService.slotPanes,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
+				handleToolbarAction: async (action, session) => {
+					if (!this.isInboxLayout()) {
+						return false;
+					}
+					const sessions = this.getMultiSelectedSessions(session);
+					await action.run(sessions);
+					this.acknowledgeInboxSessions(sessions, action.id);
+					return true;
+				},
 				showHover: true,
 				useCompactQuickChatRows: true,
 				compact: () => this.isCompact(),
@@ -5167,7 +5189,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					widgetAriaLabel: label,
 					getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 					grouping: this.options.grouping,
-					isWorkspaceScoped: () => typeof this.filters.inboxScope.workspace === 'object',
+					isWorkspaceScoped: () => this.filters.hasInboxWorkspaceScope,
 					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
@@ -5821,7 +5843,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.groupDepths.clear();
 		const topLevelGroupIds = topLevelGroups.filter(group => !comparisonsByGroupId.has(group.id)).map(group => getSessionGroupSectionId(group.id));
 
-		const archivedSectionLabel = getChatSessionArchivedSectionLabel(inbox ? ChatSessionArchiveActionWording.Archive : getChatSessionArchiveActionWording(this.configurationService));
+		const archivedSectionLabel = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
@@ -5890,7 +5912,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
 				const sectionId = inbox
-					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? SessionInboxSection.Working
+					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? (comparisonSessions.length === 0 ? SessionInboxSection.Working : undefined)
 					: grouping === SessionsGrouping.Date
 						? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
 						: environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
@@ -6309,13 +6331,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 					if (id === SessionInboxSection.ReadyForYou) {
 						rendered = { ...rendered, collapsed: false };
 						if (section.sessions.length === 0) {
-							const hasCleared = sections.some(section => section.id === SessionInboxSection.Done && section.sessions.length > 0);
 							rendered = {
 								...rendered, children: [{
 									element: {
 										placeholder: true as const, sectionId: id,
-										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : hasCleared ? localize('inboxEmptyHistory', "No new activity. See Cleared below.") : localize('inboxEmpty', "Your inbox is clear"),
-										hover: hasCleared ? localize('inboxHistoryHelp', "Cleared includes completed turns from before Inbox mode was enabled. These sessions are not archived or necessarily finished. Choose Return to Inbox on a session to bring it back.") : undefined,
+										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : localize('inboxEmpty', "Your inbox is clear"),
 									},
 								}]
 							};
@@ -7664,6 +7684,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const trimmed = title.trim();
 			if (trimmed && !this._store.isDisposed) {
 				await this._sessionsManagementService.renameSession(target, trimmed);
+				this.acknowledgeInboxSessions([target]);
 			}
 		});
 	}
@@ -8449,6 +8470,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const menuGroups = menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([group, actions]): [string, IAction[]] => [group, actions.map(wrapAction)]);
+		const acknowledgingActions = new Set<string>();
+		const collectAcknowledgingActions = (actions: readonly IAction[]) => {
+			for (const action of actions) {
+				if (action instanceof SubmenuAction) {
+					collectAcknowledgingActions(action.actions);
+				} else if (action.id !== RENAME_SESSION_COMMAND_ID) {
+					acknowledgingActions.add(action.id);
+				}
+			}
+		};
+		for (const [group, actions] of menuGroups) {
+			if (group !== 'navigation') {
+				collectAcknowledgingActions(actions);
+			}
+		}
 		// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
 		const actions = joinContextMenuGroups([...menuGroups, [SessionItemOrganizeMenuGroup, this.options.grouping() === SessionsGrouping.Inbox ? [] : this.getGroupSessionActions(selectedSessions)]]);
 		if (actions.length === 0) {
@@ -8459,6 +8495,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
+			getActionsContext: this.isInboxLayout() ? () => element : undefined,
+			actionRunner: this.isInboxLayout() ? disposables.add(new SessionItemActionRunner(() => selectedSessions, async action => {
+				await action.run();
+				if (acknowledgingActions.has(action.id)) {
+					this.acknowledgeInboxSessions(selectedSessions, action.id);
+				}
+				return true;
+			})) : undefined,
 			getKeyBinding: action => this.options.grouping() === SessionsGrouping.Inbox
 				? this.keybindingService.lookupKeybinding(action.id, contextKeyService, true) ?? undefined
 				: this.keybindingService.lookupKeybinding(action.id) ?? undefined,
@@ -8851,6 +8895,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private getInboxSection(session: ISession): SessionInboxSection {
 		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session), undefined, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
+	}
+
+	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
+		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze') {
+			return;
+		}
+		const targets = sessions.filter(session => !session.isArchived.get() && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
+		if (targets.length) {
+			this._sessionsListModelService.setInboxState(targets, 'done');
+		}
 	}
 
 	private canMergeInboxPullRequest(session: ISession, reader?: IReader): boolean {
@@ -9909,19 +9963,18 @@ export function groupSessionsForList(
 	}
 
 	if (archived.length > 0) {
-		sections.push({ id: 'archived', label: grouping === SessionsGrouping.Inbox ? getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.Archive) : archivedSectionLabel, sessions: archived });
+		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });
 	}
 
 	return sections;
 }
 
-function getSessionInboxSectionLabel(section: SessionInboxSection): string {
+function getSessionInboxSectionLabel(section: typeof sessionInboxSections[number]): string {
 	switch (section) {
 		case SessionInboxSection.ReadyForYou: return localize('inboxSection', "Inbox");
 		case SessionInboxSection.ReadyToMerge: return localize('inboxReadyToMerge', "Ready to merge");
 		case SessionInboxSection.Working: return localize('inboxWorking', "Working");
 		case SessionInboxSection.OnHold: return localize('inboxOnHold', "On hold");
-		case SessionInboxSection.Done: return localize('inboxCleared', "Cleared");
 	}
 }
 

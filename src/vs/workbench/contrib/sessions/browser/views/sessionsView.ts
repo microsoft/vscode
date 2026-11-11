@@ -843,7 +843,6 @@ export class SessionsView extends ViewPane {
 							id: Menus.SessionsViewFilter,
 							group: '3_visibility',
 							order: 1,
-							when: SessionsViewGroupingContext.notEqualsTo(SessionsGrouping.Inbox),
 						}]
 					});
 				}
@@ -852,16 +851,6 @@ export class SessionsView extends ViewPane {
 					sessionsControl.setExcludeArchived(!excluding);
 					archivedContextKeyInstance.set(excluding); // was excluding → now showing
 				}
-			}));
-			this.archivedFilterRegistration.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-				command: {
-					id: 'sessionsViewPane.filterArchived',
-					title: localize('showArchived', "Show Archived"),
-					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
-				},
-				group: '3_visibility',
-				order: 1,
-				when: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox),
 			}));
 		};
 		registerArchivedFilter();
