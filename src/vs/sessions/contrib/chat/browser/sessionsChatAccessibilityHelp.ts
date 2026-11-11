@@ -316,7 +316,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
 		if (configurationService.getValue<boolean>(SESSIONS_LIST_INLINE_ACTIONS_SETTING) && !configurationService.getValue<boolean>('chat.disableAIFeatures')) {
-			content.push(localize('sessionsChat.sessionsListInlineActions', "With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata. Use Tab or Shift+Tab to reach the button, and Enter or Space to activate it. The request runs in the background without opening the chat. A session row acts on its main chat; a nested chat row acts on that chat, even when multiple sessions are selected. Enabling this setting does not enable Agent Merge or change permissions."));
+			content.push(localize('sessionsChat.sessionsListInlineActions', "With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata. Use Tab or Shift+Tab to reach the button, and Enter or Space to activate it. The request runs in the background without opening the chat. While sending, the button shows Sending... and is disabled. If sending fails, an error notification appears and the action remains available to retry. A session row acts on its main chat; a nested chat row acts on that chat, even when multiple sessions are selected. Enabling this setting does not enable Agent Merge or change permissions."));
 		}
 		content.push(promoteNewChatAction
 			? archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
