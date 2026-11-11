@@ -47,7 +47,6 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
-		@ILabelService private readonly _labelService: ILabelService,
 	) { }
 
 	async provideLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
@@ -83,7 +82,9 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 		if (!backlink || !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), locationGitFile)) {
 			return undefined;
 		}
-		return { uri: location, label: basename(location), description: this._labelService.getUriLabel(location, { noPrefix: true }), icon: SESSION_WORKTREE_ICON };
+		// Its branch, from the entry's HEAD: read again each time the location is resolved, such as on each switch to it
+		const head = await this._readOrUndefined(async () => (await this._fileService.readFile(joinPath(entry, 'HEAD'))).value.toString());
+		return { uri: location, label: basename(location), description: head !== undefined ? parseGitHead(head) : undefined, icon: SESSION_WORKTREE_ICON };
 	}
 
 	/** The path a link file names, absolute and normalized: its content, or the `pattern`'s `path` group of it, relative to `base`. */
@@ -115,6 +116,16 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 			throw error;
 		}
 	}
+}
+
+/** The branch a git HEAD names (`ref: refs/heads/<branch>`), the short commit of a detached one, or `undefined`. */
+export function parseGitHead(head: string): string | undefined {
+	const content = head.trim();
+	const branch = /^ref:\s*refs\/heads\/(?<branch>.+)$/.exec(content)?.groups?.branch;
+	if (branch) {
+		return branch;
+	}
+	return /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i.test(content) ? content.slice(0, 7) : undefined;
 }
 
 function isFileNotFound(error: unknown): boolean {
