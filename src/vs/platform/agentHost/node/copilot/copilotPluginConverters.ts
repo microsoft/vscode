@@ -18,6 +18,7 @@ import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotC
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
+import type { IInstalledModelRouterHelper, IModelRouterHelper } from '../../common/modelRouterHelpers.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
@@ -256,6 +257,58 @@ export async function toSdkCustomAgents(
 		}
 	}
 	return clientToolNames ? mapCopilotCustomAgentTools(configs, clientToolNames) : configs;
+}
+
+export interface IModelRouterHelperProjection {
+	readonly agents: CustomAgentConfig[];
+	/** The helpers the session has, for the main agent's briefing. */
+	readonly installed: IInstalledModelRouterHelper[];
+	/** Roles left out, each with the reason, for the log. */
+	readonly omitted: string[];
+}
+
+/**
+ * Adds a model router playbook's helpers to a session's custom agents. A role the router describes
+ * becomes an agent of its own. A role that reuses an authored agent puts that agent on the role's
+ * model; it must match exactly one agent by authored name. A role's model is required, so its
+ * helper fails rather than running on another model.
+ */
+export function withModelRouterHelpers(agents: readonly CustomAgentConfig[], helpers: readonly IModelRouterHelper[], reservedNames: ReadonlySet<string>): IModelRouterHelperProjection {
+	const result: CustomAgentConfig[] = [...agents];
+	const installed: IInstalledModelRouterHelper[] = [];
+	const omitted: string[] = [];
+	const model = (helper: IModelRouterHelper): Partial<CustomAgentConfig> => ({
+		...(helper.model ? { model: helper.model, modelPolicy: 'required' } : {}),
+		...(isCustomAgentReasoningEffort(helper.effort) ? { reasoningEffort: helper.effort } : {}),
+	});
+	for (const helper of helpers) {
+		if (helper.agent) {
+			const wanted = helper.agent.toLowerCase();
+			const matches = result.flatMap((agent, index) => (agent.displayName ?? agent.name).toLowerCase() === wanted ? [index] : []);
+			if (matches.length !== 1) {
+				omitted.push(`${helper.name}: ${matches.length === 0 ? 'no' : 'more than one'} custom agent is named "${helper.agent}"`);
+				continue;
+			}
+			const agent = result[matches[0]];
+			result[matches[0]] = { ...agent, ...model(helper) };
+			installed.push({ name: agent.displayName ?? agent.name, agentType: agent.name, description: helper.description });
+			continue;
+		}
+		if (reservedNames.has(helper.name) || result.some(agent => agent.name === helper.name)) {
+			omitted.push(`${helper.name}: an agent with that name already exists`);
+			continue;
+		}
+		result.push({
+			name: helper.name,
+			displayName: helper.name,
+			description: customAgentDescription(helper.name, helper.description),
+			...model(helper),
+			tools: null,
+			prompt: helper.description,
+		});
+		installed.push({ name: helper.name, agentType: helper.name, description: helper.description });
+	}
+	return { agents: result, installed, omitted };
 }
 
 /** Projects authored tool references without rereading or mutating the parsed agent configurations. */

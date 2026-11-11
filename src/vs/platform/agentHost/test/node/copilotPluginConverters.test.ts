@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { CustomAgentConfig } from '@github/copilot-sdk';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,7 +16,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, withModelRouterHelpers, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -778,6 +779,53 @@ suite('copilotPluginConverters', () => {
 				},
 				{ name: getSdkCustomAgentName(siblingUri), displayName: 'sibling', description: 'sibling', tools: null, prompt: 'Sibling agent' },
 			]);
+		});
+	});
+
+	// ---- withModelRouterHelpers ------------------------------------------
+
+	suite('withModelRouterHelpers', () => {
+
+		test('adds described roles, puts reused agents on the role\'s model, and leaves out what it cannot place', () => {
+			const authored: CustomAgentConfig[] = [
+				{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', model: 'own-model', tools: ['read'], prompt: 'Write tests.' },
+				{ name: 'vscode-agent-2', displayName: 'Twin', description: 'Twin', prompt: 'One.' },
+				{ name: 'vscode-agent-3', displayName: 'twin', description: 'twin', prompt: 'Two.' },
+			];
+			const result = withModelRouterHelpers(authored, [
+				{ name: 'reviewer', description: 'Reviews a\nchange.', model: 'gpt', modelName: 'GPT', effort: 'high' },
+				{ name: 'tester', description: 'Writes tests.', agent: 'test writer', model: 'sonnet' },
+				{ name: 'plain', description: 'No model of its own.' },
+				{ name: 'missing', description: '', agent: 'Nobody' },
+				{ name: 'ambiguous', description: '', agent: 'Twin' },
+				{ name: 'explore', description: 'Clashes with a built-in agent.' },
+			], new Set(['explore']));
+			assert.deepStrictEqual(result, {
+				agents: [
+					// The agent keeps its instructions and tools; the role's model replaces its own and is required.
+					{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', model: 'sonnet', modelPolicy: 'required', tools: ['read'], prompt: 'Write tests.' },
+					authored[1],
+					authored[2],
+					{ name: 'reviewer', displayName: 'reviewer', description: 'reviewer: Reviews a change.', model: 'gpt', modelPolicy: 'required', reasoningEffort: 'high', tools: null, prompt: 'Reviews a\nchange.' },
+					{ name: 'plain', displayName: 'plain', description: 'plain: No model of its own.', tools: null, prompt: 'No model of its own.' },
+				],
+				installed: [
+					{ name: 'reviewer', agentType: 'reviewer', description: 'Reviews a\nchange.' },
+					// A reused agent is started by its generated name, not its authored one.
+					{ name: 'Test Writer', agentType: 'vscode-agent-1', description: 'Writes tests.' },
+					{ name: 'plain', agentType: 'plain', description: 'No model of its own.' },
+				],
+				omitted: [
+					'missing: no custom agent is named "Nobody"',
+					'ambiguous: more than one custom agent is named "Twin"',
+					'explore: an agent with that name already exists',
+				],
+			});
+		});
+
+		test('changes nothing without helpers', () => {
+			const authored: CustomAgentConfig[] = [{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', prompt: 'Write tests.' }];
+			assert.deepStrictEqual(withModelRouterHelpers(authored, [], new Set()), { agents: authored, installed: [], omitted: [] });
 		});
 	});
 

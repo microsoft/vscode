@@ -30,6 +30,7 @@ const files: Record<string, string> = {
 	[URI.file(goodPath).fsPath]: good,
 	[URI.file('/home/.agents/model-routers/bad.model-router.yaml').fsPath]: 'version: 1\ndescription: Bad.\nroutes:\n  - model: haiku\n    when: "unclosed\n',
 	[URI.file('/home/.agents/model-routers/workday.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Big.\n    main: haiku\n  quick:\n    when: Small.\n    main: haiku\n',
+	[URI.file('/home/.agents/model-routers/team.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nroles:\n  reviewer:\n    description: Reviews.\n    model: haiku\n    effort: high\n  tester:\n    agent: Test Writer\n    model: gone\n  spare:\n    description: Unused.\nplaybooks:\n  feature:\n    when: Big.\n    main: haiku\n    uses: [reviewer, tester]\n  quick:\n    when: Small.\n    main: haiku\n',
 };
 
 suite('check_model_router', () => {
@@ -106,6 +107,23 @@ suite('check_model_router', () => {
 			routes: [
 				{ route: 1, playbook: 'feature', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
 				{ route: 2, playbook: 'quick', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
+			],
+		});
+	});
+
+	test('lists the helpers a playbook brings, each with the model it would run on', async () => {
+		const result = JSON.parse((await call({ path: '/home/.agents/model-routers/team.model-router.yaml' })).textResultForLlm);
+		assert.deepStrictEqual({ diagnostics: result.router.diagnostics, helpers: result.router.routes.map((route: { helpers?: unknown }) => route.helpers) }, {
+			diagnostics: [
+				{ severity: 'warning', message: 'Role `tester` (gone) runs on its agent\'s model, else the chat\'s: none of its models are available on this account.' },
+				{ severity: 'warning', message: 'Role `spare` is not used by any playbook.' },
+			],
+			helpers: [
+				[
+					{ name: 'reviewer', matched: 'haiku', effort: 'high' },
+					{ name: 'tester', agent: 'Test Writer', matched: 'the model its agent file names, else the chat\'s model' },
+				],
+				undefined,
 			],
 		});
 	});

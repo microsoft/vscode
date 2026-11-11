@@ -63,12 +63,14 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
-import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId } from '../../common/modelRouter.js';
+import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, type IModelRouter } from '../../common/modelRouter.js';
+import { resolveModelRouterHelperPlan } from '../../common/modelRouterHelpers.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
 import { DecisionsGate } from '../../common/decisionsGate.js';
 import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
+import { CopilotModelRouterHelpers } from './copilotModelRouterHelpers.js';
 import { CopilotModelRouterCatalog, findModelRouter, firstModelRouterError, UserModelRouterSource } from './copilotModelRouterCatalog.js';
 import { createCopilotModelRouterTools } from './copilotModelRouterTools.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
@@ -1236,7 +1238,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _scopedModelCatalogs = new WeakMap<IAgentHostCredentialSource, IScopedCopilotModelCatalog>();
 	/** The user's model routers, while the setting is on. */
 	private readonly _modelRouterCatalog = this._register(new MutableDisposable<CopilotModelRouterCatalog>());
+	private readonly _modelRouterCatalogListener = this._register(new MutableDisposable());
 	private _modelRouter: CopilotModelRouter | undefined;
+	/** Which model router helpers each chat has. Routing never reads this; launches do. */
+	private readonly _modelRouterHelpers = new CopilotModelRouterHelpers();
 	/** One decisions gate per client and account, so a restarted client or a new account starts fresh. */
 	private readonly _decisionsGates = new WeakMap<CopilotClient, LRUCache<string, DecisionsGate>>();
 	private readonly _scopedModelClients = this._register(new DisposableMap<IAgentHostCredentialSource, ScopedCopilotClient>());
@@ -4156,10 +4161,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (enabled) {
 			const source = this._instantiationService.createInstance(UserModelRouterSource, this._modelRouterFolders(), this._environmentService.userHome);
 			const catalog = this._instantiationService.createInstance(CopilotModelRouterCatalog, [source]);
-			catalog.onDidChange(() => this._publishModels());
+			this._modelRouterCatalogListener.value = catalog.onDidChange(() => this._publishModels());
 			this._modelRouterCatalog.value = catalog;
 			this._modelRouter ??= this._instantiationService.createInstance(CopilotModelRouter);
 		} else {
+			this._modelRouterCatalogListener.clear();
 			this._modelRouterCatalog.clear();
 			this._publishModels();
 		}
@@ -4214,6 +4220,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async resolveTurnModel(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution> {
+		const chatKey = chat.toString();
+		// Before any await: a later turn must never see this turn's helpers, nor this turn an earlier one's.
+		this._modelRouterHelpers.enterTurn(chatKey, request.turnId);
 		const catalog = this._modelRouterCatalog.value;
 		if (!catalog || !this._modelRouter) {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
@@ -4224,15 +4233,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const snapshot = await catalog.whenSettled(token);
 		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
-		return this._modelRouter.resolve({
-			chat: chat.toString(),
+		const file = findModelRouter(snapshot, chat, request.selection.id);
+		const resolution = await this._modelRouter.resolve({
+			chat: chatKey,
 			modelId: request.selection.id,
-			file: findModelRouter(snapshot, chat, request.selection.id),
+			file,
 			text: request.text,
 			models,
 			previousTurns: request.previousTurns,
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
+		return this._withModelRouterHelpers(chatKey, request.turnId, file?.router, models, resolution);
+	}
+
+	/**
+	 * Offers the helpers of the playbook a turn was routed to as the chat's helpers. They are
+	 * taken only for a chat that has not started work yet; the routing result itself is unchanged.
+	 */
+	private _withModelRouterHelpers(chatKey: string, turnId: string, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], resolution: IAgentTurnModelResolution): IAgentTurnModelResolution {
+		const playbook = resolution.routed?.playbook;
+		const plan = router && playbook ? resolveModelRouterHelperPlan(router, playbook, models) : undefined;
+		const taken = this._modelRouterHelpers.setCandidate(chatKey, turnId, plan);
+		if (!plan || resolution.routed?.kept) {
+			return resolution;
+		}
+		if (taken) {
+			const helpers = plan.helpers.map(helper => helper.modelName ? `${helper.agent ?? helper.name} (${helper.modelName})` : helper.agent ?? helper.name);
+			this._logService.info(`[ModelRouter] ${chatKey}: playbook ${plan.playbook}; helpers=${helpers.join(', ') || 'none'}`);
+			return helpers.length
+				? { ...resolution, notices: [...resolution.notices, localize('modelRouter.helpers', "The {0} playbook brings these helpers to this chat: {1}.", plan.playbook, helpers.join(', '))] }
+				: resolution;
+		}
+		// The chat started work before this playbook was chosen, and a chat's helpers are decided once.
+		if (plan.helpers.length && !this._modelRouterHelpers.isFresh(chatKey) && !this._modelRouterHelpers.hasCommittedPlan(chatKey)) {
+			return { ...resolution, notices: [...resolution.notices, localize('modelRouter.helpersUnavailable', "The {0} playbook's helpers are set up when a chat starts, so they are not available in this chat. Start a new chat to use them.", plan.playbook)] };
+		}
+		return resolution;
 	}
 
 	/** A custom agent's name when its file names a model, which the runtime runs it on instead of a router's pick. */
@@ -6552,6 +6588,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runs (which re-records the same scope for an idempotent duplicate) so
 		// the check reflects what existed walking in, not what this call added.
 		const preexisting = this._chatOwners.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
+		// A chat created new can still take a model router's helpers; a fork or an import arrives with history.
+		if (!preexisting && !options.fork && !options.importConversation) {
+			this._modelRouterHelpers.markFresh(chatKey);
+		}
 		this._rememberChatScope(chat, context.owner, context.resource);
 		try {
 			const resolved = this._resolveExplicitChatContext(chat, context);
@@ -6604,6 +6644,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// operation that follows it fails (e.g. `_resumeSession` records one
 		// unconditionally before resuming) — drop any such ghost entry.
 		this._chatBackings.delete(chatKey);
+		this._modelRouterHelpers.forget(chatKey);
 		this._pendingModelSelections.delete(chatKey);
 		this._persistedChatHistory.delete(chatKey);
 		this._credentialSources.delete(chatKey);
@@ -8333,7 +8374,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
-			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined);
+			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
+			// A session that has not started work, launched before the chat's helpers were known or with another turn's.
+			?? (!entry.isEphemeral && !entry.hasStartedRootWork && entry.modelRouterHelpers !== this._modelRouterHelpers.planFor(context.chatKey) ? 'modelRouterHelpersChanged' : undefined);
 	}
 
 	private async _refreshSessionConfiguration(
@@ -8726,6 +8769,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
+		// A turn that was not routed, or another turn than the one routed, sends without that routing's helpers.
+		this._modelRouterHelpers.enterTurn(chat.toString(), turnId);
 		const context = this._resolveSendChatContext(chat, operationContext);
 		const sendContext = operationContext && !URI.isUri(operationContext) ? operationContext : undefined;
 		const stageRecorder = sendContext?.sendStageRecorder;
@@ -9545,6 +9590,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._canvasHandoffs.delete(chat);
 			this._invalidateCanvasContinuity(chat, true);
 			this._chatBackings.delete(chatKey);
+			this._modelRouterHelpers.forget(chatKey);
 			this._pendingModelSelections.delete(chatKey);
 			this._persistedChatHistory.delete(chatKey);
 			this._readOnlyChatInputErrors.delete(chatKey);
@@ -9816,6 +9862,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * like a turn, so Stop releases it even while it waits on a plugin sync.
 	 */
 	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		this._modelRouterHelpers.enterTurn(chat.toString(), turnId);
 		const initial = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChatTurn(initial, 'prepareTurn', turnId, async token => {
 			const beforePin = this._resolveSendChatContext(chat, operationContext);
@@ -10517,9 +10564,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
 		const { owner, chatChannelUri } = identity;
+		// The session keeps exactly the plan object it is launched with: a later check compares by identity.
+		const chatKey = chatChannelUri.toString();
+		const modelRouterHelpers = launchPlan.isEphemeral ? undefined : this._modelRouterHelpers.planFor(chatKey);
 		const workspace = launchPlan.workingDirectory && toCopilotWorkspace(launchPlan.workingDirectory);
 		launchPlan = {
 			...launchPlan,
+			modelRouterHelpers,
 			workspace,
 			virtualWorkspaceClientId: () => this._activeClients.get(owner.get())?.clientIdForChat(chatChannelUri.toString()),
 			virtualSessionFs: workspace?.kind === 'virtual' ? this._instantiationService.createInstance(
@@ -10560,6 +10611,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				pathMapper: createCopilotSessionPathMapper(workspace, resourceJoinPath(this._copilotHomeService.home, 'session-state', launchPlan.sessionId)),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
+				// The first session of a chat to start work fixes the chat's helpers to the ones it was launched with.
+				onRootWorkStarted: () => this._modelRouterHelpers.commit(chatKey, modelRouterHelpers),
 				builtinPluginDirectories: this._builtinPluginDirectories,
 				activeClientToolSet: launchPlan.activeClientToolSet,
 				currentActiveClientToolSet: () => {

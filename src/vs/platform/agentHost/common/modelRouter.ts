@@ -47,6 +47,26 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  *     main: claude-haiku-5.5
  * ```
  *
+ * A playbook can also bring helpers: `uses` lists `roles` its main agent can start as subagents,
+ * each on its own model, and `guidance` says how the user wants the work done. Routing never reads
+ * these; `modelRouterHelpers.ts` does.
+ *
+ * ```yaml
+ * roles:
+ *   reviewer:
+ *     description: Reviews a change for bugs and missed cases.
+ *     model: gpt-5.5
+ *   tester:
+ *     agent: Test Writer
+ *     model: claude-sonnet-5
+ * playbooks:
+ *   feature:
+ *     when: Building something new or changing behavior across files.
+ *     main: claude-opus-5.5
+ *     uses: [reviewer, tester]
+ *     guidance: Plan first. Have the reviewer check the change before you finish.
+ * ```
+ *
  * Only a documented subset of YAML is accepted (block maps and lists, flow lists of values,
  * plain and quoted values, `|` and `>` text, comments), and it is checked strictly, because the
  * shared YAML parser is lenient about malformed input.
@@ -97,6 +117,22 @@ export interface IModelRouterRoute {
 	readonly contextSize?: ModelRouterContextSize;
 	/** The playbook's name, when the route was written as one. A playbook is identified by it, a plain route by its model. */
 	readonly name?: string;
+	/** The roles the playbook's main agent can start as helpers, by name. */
+	readonly uses?: readonly string[];
+	/** How the user wants the work done, given to the playbook's main agent. */
+	readonly helperGuidance?: string;
+}
+
+/** A helper a playbook's main agent can start as a subagent. */
+export interface IModelRouterRole {
+	readonly name: string;
+	/** What the helper is for: shown to the main agent, and the helper's own instructions unless it reuses an agent. */
+	readonly description: string;
+	/** A custom agent the role reuses, by its authored name. Its file supplies the instructions and tools. */
+	readonly agent?: string;
+	/** Model ids in preference order; empty leaves the helper on its agent's model, else the chat's. */
+	readonly models: readonly string[];
+	readonly effort?: ModelRouterEffortLevel;
 }
 
 export interface IModelRouter {
@@ -111,6 +147,8 @@ export interface IModelRouter {
 	/** Sent with every routing decision; empty when the file has none. */
 	readonly guidance: string;
 	readonly routes: readonly IModelRouterRoute[];
+	/** The helpers playbooks can use. The routing engine never reads them. */
+	readonly roles?: readonly IModelRouterRole[];
 }
 
 export const enum ModelRouterDiagnosticSeverity {
@@ -141,11 +179,16 @@ interface IRange {
 	readonly endOffset: number;
 }
 
-const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes', 'playbooks']);
+const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes', 'playbooks', 'roles']);
 /** Keys the format reserves for later versions; a router using them still loads. */
 const reservedTopLevelKeys = new Set(['subagents', 'phases', 'mid-turn']);
 const routeKeys = new Set(['model', 'when', 'examples', 'effort', 'context-size']);
-const playbookKeys = new Set(['main', 'when', 'examples', 'effort', 'context-size']);
+const playbookKeys = new Set(['main', 'when', 'examples', 'effort', 'context-size', 'uses', 'guidance']);
+const roleKeys = new Set(['description', 'agent', 'model', 'effort']);
+/** The most guidance a playbook gives its main agent: it is part of every request of the chat. */
+const MAX_PLAYBOOK_GUIDANCE_CHARS = 4000;
+/** The most helpers one playbook can use. */
+const MAX_PLAYBOOK_ROLES = 8;
 const effortLevels: ReadonlySet<string> = new Set(reasoningEffortLevels);
 
 /** The router name a file name implies: `daily-driver.model-router.yaml` → `daily-driver`. */
@@ -338,9 +381,13 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		}
 		entries = items.map((item, index) => ({ item, label: `Route ${index + 1}` }));
 	}
+	const roles = parseRoles(values.get('roles')?.value, report);
+	if (roles.length && !playbooksProperty) {
+		report.warning('`roles` are used by playbooks, and this router has none, so they are ignored.', values.get('roles')?.key);
+	}
 	const seenModels = new Map<string, number>();
 	entries.forEach((entry, index) => {
-		const route = parseRoute(entry, report);
+		const route = parseRoute(entry, roles, report);
 		if (!route) {
 			return;
 		}
@@ -371,6 +418,7 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 			name, description, effort, switching, guidance, routes,
 			...(displayName ? { displayName } : {}),
 			...(contextSize ? { contextSize } : {}),
+			...(roles.length && playbooksProperty ? { roles } : {}),
 		},
 		diagnostics,
 		name,
@@ -403,7 +451,7 @@ interface IRouteEntry {
 	readonly playbook?: YamlScalarNode;
 }
 
-function parseRoute({ item, label, playbook }: IRouteEntry, report: IReporter): IModelRouterRoute | undefined {
+function parseRoute({ item, label, playbook }: IRouteEntry, roles: readonly IModelRouterRole[], report: IReporter): IModelRouterRoute | undefined {
 	const modelKey = playbook ? 'main' : 'model';
 	if (playbook && !NAME_PATTERN.test(playbook.value)) {
 		report.error('Playbook names are lowercase letters, digits and single hyphens, like `bug-fix`.', playbook);
@@ -451,7 +499,83 @@ function parseRoute({ item, label, playbook }: IRouteEntry, report: IReporter): 
 
 	const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
 	const contextSize = parseContextSize(values.get('context-size')?.value, `${label}'s \`context-size\``, report);
-	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(playbook ? { name: playbook.value } : {}) };
+	if (!playbook) {
+		return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}) };
+	}
+
+	const usesProperty = values.get('uses');
+	const uses = usesProperty ? scalarList(usesProperty.value) : [];
+	if (!uses) {
+		report.error(`${label}'s \`uses\` is a list of role names.`, usesProperty?.value);
+		return undefined;
+	}
+	for (const name of uses) {
+		if (!roles.some(role => role.name === name)) {
+			report.error(`${label} uses \`${name}\`, which is not in \`roles\`.`, usesProperty?.value);
+		}
+	}
+	if (new Set(uses).size !== uses.length) {
+		report.error(`${label}'s \`uses\` names a role more than once.`, usesProperty?.value);
+	}
+	if (uses.length > MAX_PLAYBOOK_ROLES) {
+		report.error(`${label} uses ${uses.length} roles; a playbook can use at most ${MAX_PLAYBOOK_ROLES}.`, usesProperty?.value);
+	}
+	const guidanceProperty = values.get('guidance');
+	const helperGuidance = guidanceProperty ? scalar(guidanceProperty.value)?.trim() : '';
+	if (helperGuidance === undefined) {
+		report.error(`${label}'s \`guidance\` is text.`, guidanceProperty?.value);
+		return undefined;
+	}
+	if (helperGuidance.length > MAX_PLAYBOOK_GUIDANCE_CHARS) {
+		report.error(`${label}'s \`guidance\` is too long: at most ${MAX_PLAYBOOK_GUIDANCE_CHARS} characters.`, guidanceProperty?.value);
+	}
+	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), name: playbook.value, ...(uses.length ? { uses } : {}), ...(helperGuidance ? { helperGuidance } : {}) };
+}
+
+function parseRoles(node: YamlNode | undefined, report: IReporter): IModelRouterRole[] {
+	if (!node) {
+		return [];
+	}
+	if (node.type !== 'map') {
+		report.error('`roles` is a map of names, each with a `description` or an `agent` to reuse.', node);
+		return [];
+	}
+	const roles: IModelRouterRole[] = [];
+	for (const property of node.properties) {
+		const name = property.key.value;
+		const label = `Role \`${name}\``;
+		if (!NAME_PATTERN.test(name)) {
+			report.error('Role names are lowercase letters, digits and single hyphens, like `reviewer`.', property.key);
+			continue;
+		}
+		if (property.value.type !== 'map') {
+			report.error(`${label} needs a \`description\`, or an \`agent\` to reuse.`, property.value);
+			continue;
+		}
+		const values = new Map(property.value.properties.map(child => [child.key.value, child]));
+		for (const child of property.value.properties) {
+			if (!roleKeys.has(child.key.value)) {
+				report.warning(`Unknown key \`${child.key.value}\` in role \`${name}\` is ignored.`, child.key);
+			}
+		}
+		const descriptionProperty = values.get('description');
+		const description = descriptionProperty ? scalar(descriptionProperty.value)?.trim() : '';
+		const agentProperty = values.get('agent');
+		const agent = agentProperty ? scalar(agentProperty.value)?.trim() : '';
+		if (description === undefined || agent === undefined || (!description && !agent)) {
+			report.error(`${label} needs a \`description\`, or an \`agent\` to reuse.`, descriptionProperty?.value ?? agentProperty?.value ?? property.value);
+			continue;
+		}
+		const modelProperty = values.get('model');
+		const models = modelProperty ? scalarList(modelProperty.value) : [];
+		if (!models || models.some(model => !isModelReference(model))) {
+			report.error(`${label}'s \`model\` is a model id, or a list of them in preference order.`, modelProperty?.value);
+			continue;
+		}
+		const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
+		roles.push({ name, description, ...(agent ? { agent } : {}), models, ...(effort ? { effort } : {}) });
+	}
+	return roles;
 }
 
 function parseEffort(node: YamlNode | undefined, keywords: readonly string[], fallback: string | undefined, label: string, report: IReporter): string | undefined {

@@ -305,6 +305,26 @@ const modelRouterPlaybookExample = [
 	'    main: claude-haiku-5.5',
 ].join('\n');
 
+const modelRouterHelpersExample = [
+	'roles:',
+	'  reviewer:',
+	'    description: Reviews a change for bugs, missed cases and unclear names. Reports findings; changes nothing.',
+	'    model: [gpt-5.5, gpt-5]',
+	'    effort: high',
+	'  tester:',
+	'    agent: Test Writer        # a custom agent the user already has',
+	'    model: claude-sonnet-5',
+	'playbooks:',
+	'  feature:',
+	'    when: Building something new or changing behavior across files.',
+	'    main: claude-opus-5.5',
+	'    uses: [reviewer, tester]',
+	'    guidance: Plan first. Before you finish, have the reviewer check the change.',
+	'  quick:',
+	'    when: Questions, lookups and small one-file edits.',
+	'    main: claude-haiku-5.5',
+].join('\n');
+
 const modelRouterSkillContent = `# Model router
 
 A model router is a YAML file that VS Code lists as a model in the model picker. When a chat uses it, each turn asks a decision model which route fits the request and runs the turn on that route's model. Use this skill to create, edit or fix one.
@@ -343,6 +363,19 @@ ${modelRouterPlaybookExample}
 - A playbook is a route with a name. \`main\` is its model (what \`model\` is in a route); \`when\`, \`examples\`, \`effort\` and \`context-size\` work as they do in a route. Names are lowercase letters, digits and single hyphens.
 - A file has \`playbooks\` or \`routes\`, not both. One playbook is enough, and two playbooks may use the same model.
 - A playbook is chosen from the first message of a chat and kept for that chat, so \`switching: auto\` can't be used with playbooks. Put first the playbook to use when the router can't tell which one fits.
+
+### Helpers (preview)
+
+A playbook can bring helpers: subagents its main agent can start, each on its own model.
+
+\`\`\`yaml
+${modelRouterHelpersExample}
+\`\`\`
+
+- \`roles\` is a map at the top of the file. Each role has a \`description\`, which tells the main agent what the helper is for and is the helper's own instructions. Or it has an \`agent\`: the name of a custom agent the user already has, whose file supplies the instructions and tools. \`model\` (an id or a list, like \`main\`) and \`effort\` are optional; without \`model\` the helper keeps its agent's model, else the chat's.
+- A playbook lists the roles it brings in \`uses\`, at most 8. \`guidance\` on a playbook says how the user wants that kind of work done; the main agent reads it, the decision model does not.
+- A chat's helpers are decided by its first message and kept for that chat. A router chosen in a chat that already has messages picks models but brings no helpers; start a new chat to get them. They are also lost when VS Code restarts.
+- The check lists each playbook's \`helpers\` with the model each would run on. It can't see whether an \`agent\` exists: a role whose agent is missing, or matches more than one, is left out when the chat starts.
 
 ## YAML rules
 

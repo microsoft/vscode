@@ -150,6 +150,7 @@ import { getCopilotAutoTier, getCopilotCustomAgents, getCopilotAgentSelectionNam
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { autoModeTiers, getAdvertisedAutoModeTierSupport, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
+import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -21571,7 +21572,7 @@ suite('CopilotAgent', () => {
 		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const } });
 
 		/** Creates an agent whose SDK sessions are recorded and which fails if anything resumes an unclaimed warm session. */
-		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly rootConfig?: Record<string, unknown> }) {
+		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly rootConfig?: Record<string, unknown>; readonly userHome?: URI; readonly fileService?: FileService }) {
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const sdkSessions: MockCopilotSession[] = [];
 			const launchConfigs: Parameters<ITestCopilotClient['createSession']>[0][] = [];
@@ -21589,7 +21590,7 @@ suite('CopilotAgent', () => {
 			};
 			client.resumeSession = async () => { throw new Error('An unclaimed warm session must never be resumed'); };
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService, userHome: options?.workspacelessHome, rootConfig: options?.rootConfig });
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService, userHome: options?.userHome ?? options?.workspacelessHome, rootConfig: options?.rootConfig, fileService: options?.fileService });
 			await agent.authenticate('https://api.github.com', 'token');
 			const session = AgentSession.uri('copilotcli', name);
 			const chat = defaultChatUri(session);
@@ -21606,6 +21607,84 @@ suite('CopilotAgent', () => {
 				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, prewarm: [...prewarm], deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
 			};
 		}
+
+		suite('model router helpers', () => {
+			const userHome = URI.file('/router-home');
+			const routerFile = (playbook: string[]) => [
+				'version: 1',
+				'description: Test.',
+				'roles:',
+				'  reviewer:',
+				'    description: Reviews a change.',
+				'    model: claude-sonnet',
+				'playbooks:',
+				'  feature:',
+				'    when: Building.',
+				'    main: claude-sonnet',
+				...playbook,
+				'',
+			].join('\n');
+
+			async function createRoutedAgent(name: string, playbook: string[]) {
+				const fileService = createInMemoryFileService(disposables, Schemas.file);
+				await fileService.writeFile(joinPath(userHome, '.agents', 'model-routers', 'team.model-router.yaml'), VSBuffer.fromString(routerFile(playbook)));
+				const h = await createWarmableAgent(name, undefined, { model: { id: 'claude-sonnet' }, rootConfig: { [ModelRouterEnabledConfigKey]: true }, userHome, fileService });
+				afterTest(() => disposeAgent(h.agent));
+				/** Routes a turn as the host does, then sends it on the model the router chose. */
+				const send = async (turnId: string, routed = true) => {
+					const notices = routed
+						? (await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None)).notices
+						: [];
+					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
+					return notices;
+				};
+				const launches = () => h.launchConfigs.map(config => ({
+					helpers: (config.customAgents ?? []).filter(agent => agent.name === 'reviewer').map(agent => ({ model: agent.model, modelPolicy: agent.modelPolicy })),
+					briefed: config.systemMessage?.content?.includes('<model_router_playbook>') === true,
+				}));
+				return { ...h, send, launches };
+			}
+
+			test('a warm session is replaced once when the first message is routed to a playbook with helpers', async () => {
+				const h = await createRoutedAgent('router-helpers', ['    uses: [reviewer]', '    guidance: Plan first.']);
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const first = await h.send('turn-1');
+				const second = await h.send('turn-2');
+				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					first: ['The feature playbook brings these helpers to this chat: reviewer (Claude Sonnet).'],
+					// The chat's helpers are decided; routing it again changes and announces nothing.
+					second: [],
+					prewarm: ['modelRouterHelpersChanged'],
+					launches: [
+						{ helpers: [], briefed: false },
+						{ helpers: [{ model: 'claude-sonnet', modelPolicy: 'required' }], briefed: true },
+					],
+					sends: [0, 2],
+				});
+			});
+
+			test('a playbook that brings nothing claims the warm session', async () => {
+				const h = await createRoutedAgent('router-no-helpers', []);
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const notices = await h.send('turn-1');
+				assert.deepStrictEqual({ notices, prewarm: h.state().prewarm, launches: h.launches() }, { notices: [], prewarm: ['used'], launches: [{ helpers: [], briefed: false }] });
+			});
+
+			test('a routed turn that is never sent gives its helpers to no other turn', async () => {
+				const h = await createRoutedAgent('router-cancelled', ['    uses: [reviewer]']);
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				// turn-1 is routed and then cancelled; turn-2 is sent on a hand-picked model and never routed.
+				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
+				await h.send('turn-2', false);
+				// The chat has started work without helpers, so a router picked later brings none and says so.
+				const later = await h.send('turn-3');
+				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, launches: h.launches() }, {
+					later: ['The feature playbook\'s helpers are set up when a chat starts, so they are not available in this chat. Start a new chat to use them.'],
+					prewarm: ['used'],
+					launches: [{ helpers: [], briefed: false }],
+				});
+			});
+		});
 
 		test('warming launches and starts MCP without announcing the chat, and the first send claims it', async () => {
 			const h = await createWarmableAgent('warm-claim');
