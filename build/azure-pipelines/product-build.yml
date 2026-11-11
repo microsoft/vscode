@@ -255,13 +255,8 @@ variables:
     value: https://vscode.documents.azure.com/
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
-  # CI builds do not produce shipping artifacts, so skip the policy-injected
-  # Component Detection that would otherwise replace the 1ES PT one.
   - name: skipComponentGovernanceDetection
-    ${{ if eq(variables.VSCODE_CIBUILD, true) }}:
-      value: true
-    ${{ else }}:
-      value: false
+    value: false
   - name: ComponentDetection.Timeout
     value: 600
   - name: Codeql.SkipTaskAutoInjection
@@ -309,50 +304,37 @@ resources:
       ref: main
 
 extends:
-  # CI builds only validate commits and never publish, so they use the unofficial
-  # template with all SDL tooling disabled. Product builds keep the official one.
-  ${{ if eq(variables.VSCODE_CIBUILD, true) }}:
-    template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
-  ${{ else }}:
-    template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
-      ${{ if eq(variables.VSCODE_CIBUILD, true) }}:
-        # Job-level settings take precedence over these, so no CI job may set `enabled: true` for a tool
-        enableAllTools: false
-        publishLogs:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
+      codeql:
+        runSourceLanguagesInSourceAnalysis: true
+        compiled:
           enabled: false
-        sdtReport:
-          enabled: false
-      ${{ else }}:
-        sourceRepositoriesToScan:
-          exclude:
-            - repository: distro
-            - repository: capi
-            - repository: encrypt
-            - repository: vsda
-            - repository: regexp
-            - repository: vscode_loc
-        tsa:
-          enabled: true
-          configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
-        binskim:
-          analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
-        codeql:
-          runSourceLanguagesInSourceAnalysis: true
-          compiled:
-            enabled: false
-            justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
-        credscan:
-          suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
-        eslint:
-          enabled: true
-          enableExclusions: true
-          exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-        antimalwareScan:
-          scanTimeoutInMinutes: '10'
-        sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
-        createAdoIssuesForJustificationsForDisablement: false
+          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      antimalwareScan:
+        scanTimeoutInMinutes: '10'
+      sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
+      createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
