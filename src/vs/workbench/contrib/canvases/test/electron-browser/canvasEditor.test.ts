@@ -428,7 +428,7 @@ suite('CanvasEditor', () => {
 		const results: { transition: string; offered: boolean; reloads: boolean[]; message: string | null | undefined }[] = [];
 		for (const transition of ['source', 'membership', 'owner', 'clear', 'dispose']) {
 			const harness = createHarness();
-			await harness.show();
+			harness.editor.setVisible(true);
 			await harness.open();
 			await harness.modelAttached.p;
 			await timeout(0);

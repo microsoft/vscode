@@ -346,11 +346,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 			|| (reload && (!presentation.model || !this.isLiveSource(reference, source)))) {
 			throw new CancellationError();
 		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return { model: await presentation.modelPromise.value, reused: true };
-		}
 		if (!reload && presentation.model && isEqual(presentation.modelSource, source)) {
 			return { model: presentation.model, reused: true };
+		}
+		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
+			return { model: await presentation.modelPromise.value, reused: true };
 		}
 		if (presentation.model) {
 			return { model: await this.navigatePresentationModel(presentation, presentation.model, source, reload), reused: false };
