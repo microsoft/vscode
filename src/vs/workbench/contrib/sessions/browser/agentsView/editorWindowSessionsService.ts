@@ -22,6 +22,7 @@ import { ISessionOpenTelemetryService, SESSION_OPEN_TIMEOUT_MS } from '../sessio
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ICloseChatOptions, IOpenChatOptions, IOpenNewChatInSessionOptions, IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions, IOpenSessionsOptions, ISessionNavigationRequest, ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
 
 /**
  * The sessions of an editor window with the Sessions view, for the UI the Agents window shares with it, such as the chat
@@ -47,6 +48,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionOpenTelemetryService private readonly _sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
 	) {
 		super();
 	}
@@ -108,10 +110,19 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		if (!session) {
-			return;
+		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
+		const hold = this._providers.acquire();
+		try {
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(sessionResource));
+			if (session) {
+				await this._openSession(session, options);
+			}
+		} finally {
+			hold.dispose();
 		}
+	}
+
+	private async _openSession(session: ISession, options: IOpenSessionOptions | undefined): Promise<void> {
 		// As the Agents window reports opening a session: until its chat shows and the session loaded. The wait for the session
 		// to load ends just after the attempt timed out, which the telemetry service reports.
 		const cts = new CancellationTokenSource();

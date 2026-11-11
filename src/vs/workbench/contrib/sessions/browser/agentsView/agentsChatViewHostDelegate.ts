@@ -15,8 +15,9 @@ import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsViewAvailable } from './agentsView.js';
+import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
 
-/** How long it waits for a session to load, or for the widget of a chat it shows to be created. */
+/** How long it waits for the widget of a chat it shows to be created. */
 const WAIT_TIMEOUT = 5_000;
 
 /**
@@ -33,6 +34,7 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
 	) { }
 
 	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */
@@ -53,12 +55,18 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 		if (!this._available) {
 			return undefined;
 		}
-		const owner = await this._findSession(sessionResource);
-		if (!owner) {
-			return undefined;
+		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
+		const hold = this._providers.acquire();
+		try {
+			const owner = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
+			if (!owner) {
+				return undefined;
+			}
+			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus });
+			return await this._waitForWidget(owner.chat.resource);
+		} finally {
+			hold.dispose();
 		}
-		await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus });
-		return this._waitForWidget(owner.chat.resource);
 	}
 
 	async toggle(): Promise<void> {
@@ -81,28 +89,6 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 
 	private _composerTarget(): INewSessionTarget | undefined {
 		return getAgentsChatPartComposerTarget(this._workspaceContextService);
-	}
-
-	/** The session of the chat of `resource`, as the sessions load: a chat no session has, such as a local chat, has none. */
-	private async _findSession(resource: URI) {
-		const find = () => this._sessionsManagementService.getSessionForChatResource(resource);
-		const found = find();
-		if (found) {
-			return found;
-		}
-		const store = new DisposableStore();
-		try {
-			return await raceTimeout(new Promise<ReturnType<typeof find>>(resolve => {
-				store.add(this._sessionsManagementService.onDidChangeSessions(() => {
-					const session = find();
-					if (session) {
-						resolve(session);
-					}
-				}));
-			}), WAIT_TIMEOUT);
-		} finally {
-			store.dispose();
-		}
 	}
 
 	/** The widget of the chat of `resource`, once the chat part's view of the chat creates it. */

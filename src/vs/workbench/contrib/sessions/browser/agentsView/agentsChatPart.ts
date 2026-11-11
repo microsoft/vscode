@@ -105,7 +105,7 @@ export interface IAgentsChatPartService {
 	hasComposer(): boolean;
 
 	/** Closes the tabs of new-session composers with nothing typed or attached, and no send under way. */
-	closeIdleComposers(): void;
+	closeIdleComposers(): Promise<void>;
 
 	/** Moves focus into the chat part. */
 	focus(): void;
@@ -293,6 +293,16 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 			}
 			return;
 		}
+		if (this._knownSession) {
+			// A provider registered again replaces the sessions it had: the chat shows once the session that replaces its
+			// session lists it, such as a peer chat that its session's chats publish later
+			const replacement = this._sessionsManagementService.getSession(this._knownSession.resource);
+			if (replacement && replacement !== this._knownSession) {
+				replacement.chats.read(reader);
+				replacement.loading.read(reader);
+				return;
+			}
+		}
 		if (this._knownSession && isChatWindowChatGone(this._knownSession, chatResource, reader)) {
 			this._end();
 		}
@@ -448,12 +458,19 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		return !!this._findChat(chatResource);
 	}
 
-	closeIdleComposers(): void {
+	async closeIdleComposers(): Promise<void> {
+		const closes: Promise<unknown>[] = [];
 		for (const chat of [...this._chats.values()]) {
 			if (chat.isIdleComposer) {
-				this._closeChat(chat);
+				const group = this._groupOf(chat.input);
+				if (group) {
+					closes.push(group.closeEditor(chat.input));
+				} else {
+					this._chats.deleteAndDispose(chat.input);
+				}
 			}
 		}
+		await Promise.all(closes);
 	}
 
 	hasComposer(): boolean {

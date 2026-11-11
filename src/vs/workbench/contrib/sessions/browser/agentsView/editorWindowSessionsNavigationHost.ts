@@ -12,6 +12,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
+import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
 
 /**
  * The navigation of an editor window with the Sessions view: sessions and chats open in tabs of its chat part, beside the
@@ -26,6 +27,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationHo
 	constructor(
 		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
 	) { }
 
 	get mainWindowHost(): ISessionHost {
@@ -33,9 +35,15 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationHo
 	}
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		if (session) {
-			await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
+		const hold = this._providers.acquire();
+		try {
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(sessionResource));
+			if (session) {
+				await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+			}
+		} finally {
+			hold.dispose();
 		}
 	}
 

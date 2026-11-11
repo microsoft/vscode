@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -17,6 +17,7 @@ import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import { registerCopilotChatSessionsProviders } from '../../copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
 import { DevContainerAgentHostService } from '../../remoteAgentHost/browser/devContainerAgentHostService.js';
@@ -35,19 +36,76 @@ function registerAgentsViewProviders(accessor: ServicesAccessor): IDisposable {
 	return disposables;
 }
 
-/** How long the providers stay registered after neither the Sessions view nor the chat part shows, in case either shows again. */
+/** How long the providers stay registered once nothing holds them, such as after neither the Sessions view nor the chat part shows. */
 export const AGENTS_VIEW_PROVIDERS_RELEASE_DELAY = 60_000;
 
 /**
- * Registers the sessions providers of the Sessions view of an editor window while that view or the chat part, which shows
+ * Registers the sessions providers of the Sessions view of an editor window while something holds them, and releases them
+ * {@link AGENTS_VIEW_PROVIDERS_RELEASE_DELAY} after nothing does, so the window stops following the sessions of the agent
+ * host. The chats of the chat part's tabs find their sessions again once the providers return, as a provider going away
+ * hides its sessions without removing them.
+ *
+ * A new-session composer of the chat part holds them too, as its draft session is its provider's: one with nothing typed or
+ * attached closes as they are released, and one with input holds them until it is sent or closed.
+ */
+export class AgentsViewProvidersService extends Disposable implements IAgentsViewProvidersService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private _holds = 0;
+	private readonly _registration = this._register(new MutableDisposable());
+	private readonly _release = this._register(new MutableDisposable());
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+	) {
+		super();
+	}
+
+	acquire(): IDisposable {
+		this._holds++;
+		this._release.clear();
+		this._registration.value ??= this._instantiationService.invokeFunction(registerAgentsViewProviders);
+		let held = true;
+		return toDisposable(() => {
+			if (held) {
+				held = false;
+				if (--this._holds === 0 && !this._store.isDisposed) {
+					this._releaseLater();
+				}
+			}
+		});
+	}
+
+	private _releaseLater(): void {
+		this._release.value = disposableTimeout(() => {
+			this._release.clear();
+			void this._releaseUnheld();
+		}, AGENTS_VIEW_PROVIDERS_RELEASE_DELAY);
+	}
+
+	private async _releaseUnheld(): Promise<void> {
+		if (this._holds > 0) {
+			return;
+		}
+		// A composer the user left without typing anything goes, so the providers can go too
+		await this._chatPart.closeIdleComposers();
+		if (this._store.isDisposed || this._holds > 0 || this._release.value) {
+			return;
+		}
+		if (this._chatPart.hasComposer()) {
+			this._releaseLater();
+		} else {
+			this._registration.clear();
+		}
+	}
+}
+
+/**
+ * Holds the sessions providers of the Sessions view of an editor window while that view or the chat part, which shows
  * sessions too, shows, while {@link ChatConfiguration.AgentsViewEnabled} is on. The setting is read once, as the window
  * starts: with it off, this does nothing else.
- *
- * Once neither shows, it releases them after {@link AGENTS_VIEW_PROVIDERS_RELEASE_DELAY}, so the window stops following the
- * sessions of the agent host, and registers them again as either shows. The chats of the chat part's tabs then find their
- * sessions again, as a provider going away hides its sessions without removing them. A new-session composer of the chat part
- * holds them, as its draft session is its provider's: one with nothing typed or attached closes then, and one with input
- * holds them until it is sent or closed.
  */
 export class AgentsViewProvidersContribution extends Disposable implements IWorkbenchContribution {
 
@@ -63,37 +121,18 @@ export class AgentsViewProvidersContribution extends Disposable implements IWork
 			return;
 		}
 
-		const { viewsService, layoutService, lifecycleService, chatPartService } = instantiationService.invokeFunction(accessor => ({
+		const { viewsService, layoutService, lifecycleService, providersService } = instantiationService.invokeFunction(accessor => ({
 			viewsService: accessor.get(IViewsService),
 			layoutService: accessor.get(IWorkbenchLayoutService),
 			lifecycleService: accessor.get(ILifecycleService),
-			chatPartService: accessor.get(IAgentsChatPartService),
+			providersService: accessor.get(IAgentsViewProvidersService),
 		}));
-		const registration = this._register(new MutableDisposable());
-		const release = this._register(new MutableDisposable());
-		const isShown = () => viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART);
-		const releaseLater = () => {
-			release.value = disposableTimeout(() => {
-				if (isShown()) {
-					release.clear();
-					return;
-				}
-				// A composer the user left without typing anything goes, so the providers can go too
-				chatPartService.closeIdleComposers();
-				if (chatPartService.hasComposer()) {
-					releaseLater();
-				} else {
-					release.clear();
-					registration.clear();
-				}
-			}, AGENTS_VIEW_PROVIDERS_RELEASE_DELAY);
-		};
+		const shown = this._register(new MutableDisposable());
 		const update = () => {
-			if (isShown()) {
-				release.clear();
-				registration.value ??= instantiationService.invokeFunction(registerAgentsViewProviders);
-			} else if (registration.value && !release.value) {
-				releaseLater();
+			if (viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
+				shown.value ??= providersService.acquire();
+			} else {
+				shown.clear();
 			}
 		};
 		this._register(viewsService.onDidChangeViewVisibility(e => {
@@ -116,4 +155,5 @@ export class AgentsViewProvidersContribution extends Disposable implements IWork
 }
 
 registerSingleton(IDevContainerAgentHostService, DevContainerAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentsViewProvidersService, AgentsViewProvidersService, InstantiationType.Delayed);
 registerWorkbenchContribution2(AgentsViewProvidersContribution.ID, AgentsViewProvidersContribution, WorkbenchPhase.BlockStartup);

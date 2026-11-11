@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,7 +22,7 @@ import { IContentPart, IEditorGroupsService } from '../../../../../services/edit
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
-import { ISession } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
@@ -35,6 +35,8 @@ import { isChatWindowComposerResource } from '../../../browser/chatEditor/chatWi
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { buildTestSession } from '../../common/testSessionBuilder.js';
 
 /** An editor group that keeps its editors in memory, as the chat part's groups do, without rendering them. */
 class FakeGroup {
@@ -141,7 +143,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean }) {
+	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[] }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -211,8 +213,16 @@ suite('AgentsChatPartService', () => {
 			onDidAcceptNewSessionRequest: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			getSessions: () => [],
-			getSession: () => undefined,
-			getSessionForChatResource: () => undefined,
+			getSession: resource => options?.sessions?.().find(candidate => isEqual(candidate.resource, resource)),
+			getSessionForChatResource: resource => {
+				for (const candidate of options?.sessions?.() ?? []) {
+					const chat = candidate.chats.get().find(chat => isEqual(chat.resource, resource));
+					if (chat) {
+						return { session: candidate, chat };
+					}
+				}
+				return undefined;
+			},
 			createNewSessionSlot: () => {
 				liveSlots++;
 				return upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: constObservable(undefined), dispose: () => { liveSlots--; } });
@@ -237,6 +247,7 @@ suite('AgentsChatPartService', () => {
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
+			fireSessionsChanged: (added: readonly ISession[]) => sessionsChanged.fire({ added, removed: [], changed: [] } as never),
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),
 			/** The tabs of each group, the active one of each, and whether the layout shows the chat part. */
 			layout: () => ({
@@ -274,6 +285,39 @@ suite('AgentsChatPartService', () => {
 		}
 
 		assert.deepStrictEqual(state(), { tabs: 0, liveSlots: 0, sessionListeners: baseline, visible: false });
+	});
+
+	test('a peer chat whose provider is registered again follows the session that replaces its session, once that lists the chat', async () => {
+		const spec = { id: 'parent', title: 'Parent', chats: [{ id: 'peer', title: 'Peer' }] };
+		const original = buildTestSession(spec);
+		const peer = original.chats.get('peer')!.chat.resource;
+		// The session of the provider registered again lists its peer chats only later
+		const replacing = buildTestSession(spec);
+		const replacementChats = observableValue<readonly IChat[]>('chats', [replacing.mainChat.chat]);
+		const replacement: ISession = { ...replacing.session, chats: replacementChats };
+		let sessions: readonly ISession[] = [original.session];
+		const { service, fireSessionsChanged } = createService({ sessions: () => sessions });
+		await service.openChat(original.session, peer);
+		const shown = () => {
+			const active = service.activeChat.get();
+			return { session: active?.session === original.session ? 'original' : active?.session === replacement ? 'replacement' : 'none', chat: active?.chat === original.chats.get('peer')!.chat ? 'original' : active?.chat === replacing.chats.get('peer')!.chat ? 'replacement' : 'none' };
+		};
+
+		// Its provider goes, which hides its sessions without removing them
+		sessions = [];
+		fireSessionsChanged([]);
+		const whileGone = shown();
+		// Its provider returns, without the peer chat yet
+		sessions = [replacement];
+		fireSessionsChanged([replacement]);
+		const beforePeer = { ...shown(), showing: service.isShowing(peer) };
+		replacementChats.set([replacing.mainChat.chat, replacing.chats.get('peer')!.chat], undefined);
+
+		assert.deepStrictEqual({ whileGone, beforePeer, afterPeer: shown() }, {
+			whileGone: { session: 'original', chat: 'original' },
+			beforePeer: { session: 'original', chat: 'original', showing: true },
+			afterPeer: { session: 'replacement', chat: 'replacement' },
+		});
 	});
 
 	test('opening a chat shows the chat part with the chat in a tab of its own; opening it again shows its tab', async () => {
