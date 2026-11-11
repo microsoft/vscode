@@ -3970,6 +3970,12 @@ export interface ITestControllerPatch {
 	capabilities?: TestControllerCapability;
 }
 
+export type TestRunUpdate =
+	| { type: 'tests'; tests: ITestItem.Serialized[] }
+	| { type: 'state'; taskId: string; testId: string; state: TestResultState; duration?: number }
+	| { type: 'messages'; taskId: string; testId: string; messages: ITestMessage.Serialized[] }
+	| { type: 'output'; taskId: string; output: string | VSBuffer; location?: ILocationDto; testId?: string };
+
 export interface MainThreadTestingShape {
 	// --- test lifecycle:
 
@@ -3999,6 +4005,9 @@ export interface MainThreadTestingShape {
 
 
 	// --- test run handling:
+
+	/** Applies ordered test run updates sent in a single message. */
+	$applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>): void;
 
 	/** Request by an extension to run tests. */
 	$runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string>;
