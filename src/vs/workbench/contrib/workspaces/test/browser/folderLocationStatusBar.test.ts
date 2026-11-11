@@ -155,14 +155,29 @@ suite('FolderLocationStatusBarContribution', () => {
 			assert.strictEqual(signal(), false);
 		});
 
-		test('observation ends once the introduction is ready', async () => {
-			const { fixture, signal, element, frames } = setup({ value: false });
+		test('readiness follows visibility while the introduction is queued, and observation ends once it was shown', async () => {
+			const shown = { value: false };
+			const { fixture, signal, element, frames } = setup(shown);
 			fixture.switchTo();
 			await frames(5);
 			assert.strictEqual(signal(), true);
 
 			element.style.display = 'none';
 			element.style.width = '20px';
+			await frames(5);
+			assert.strictEqual(signal(), false);
+
+			element.style.display = 'block';
+			element.style.width = '30px';
+			await frames(5);
+			assert.strictEqual(signal(), true);
+
+			shown.value = true;
+			element.style.display = 'none';
+			element.style.width = '40px';
+			await frames(5);
+			element.style.display = 'block';
+			element.style.width = '50px';
 			await frames(5);
 			assert.strictEqual(signal(), true);
 		});
