@@ -18,7 +18,7 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService): boolean {
 	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
 		&& !isUserProvidedModel(model, languageModelsService)
-		&& !languageModelsService.lookupLanguageModel(model.identifier);
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier);
 }
 
 /**
