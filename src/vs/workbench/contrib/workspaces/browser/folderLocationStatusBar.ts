@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -115,12 +116,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(location) ${location.label}`,
+			text: `$(${location.icon?.id ?? Codicon.location.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", location.label),
-			tooltip: location.description
-				? localize('folderLocationTooltipWithDescription', "Folder location: {0}. Select to return to {1}.", location.description, primaryName)
-				: localize('folderLocationTooltip', "Folder location: {0}. Select to return to {1}.", location.label, primaryName),
-			command: RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID,
+			tooltip: localize('folderLocationTooltip', "The folder '{0}' is at the location '{1}'{2}. Files, search, terminals and extensions use this location, but open editors stay where they are.", primaryName, location.label, location.description ? `: ${location.description}` : ''),
 			kind: 'prominent' as const
 		};
 
