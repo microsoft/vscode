@@ -718,6 +718,14 @@ suite('AutomationsCardsWidget', () => {
 	suiteSetup(() => archiveActionRegistration = registerAction2(ArchiveSessionAction));
 	suiteTeardown(() => archiveActionRegistration.dispose());
 
+	// Animation frames stay real: a frame requested from a faked clock and dropped by restore()
+	// leaves the window's shared animation frame runner blocked for every later test.
+	function useFakeTimersWithRealAnimationFrames() {
+		const clock = useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		return clock;
+	}
+
 	function getSessionAction(widget: AutomationsCardsWidget, label: string): HTMLElement | undefined {
 		return [...widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .action-label')]
 			.find(element => element.getAttribute('aria-label') === label || element.title === label);
@@ -1236,8 +1244,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('refreshes every 60 seconds while visible without refreshing on window focus or overlapping requests', async () => {
-		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
+		const clock = useFakeTimersWithRealAnimationFrames();
 		const { widget, automationService, windowFocus } = setup();
 		await clock.tickAsync(0);
 		await clock.tickAsync(30_000);
@@ -1265,8 +1272,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('a manual refresh in its history phase postpones the timer until 60 seconds after completion', async () => {
-		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
+		const clock = useFakeTimersWithRealAnimationFrames();
 		const { widget, automationService, instantiationService } = setup();
 		await clock.tickAsync(59_000);
 		const pending = new DeferredPromise<void>();
@@ -1292,8 +1298,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('automatic refresh failures are logged without toasts while explicit refresh reports the error', async () => {
-		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
+		const clock = useFakeTimersWithRealAnimationFrames();
 		const { widget, automationService, logService, refreshErrors, instantiationService } = setup();
 		const failure = new Error('Offline');
 		automationService.refreshFailure = failure;
@@ -2186,8 +2191,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('run feedback survives acknowledgement and refresh until the new run session appears', async () => {
-		const clock = useFakeTimers();
-		disposables.add(toDisposable(() => clock.restore()));
+		const clock = useFakeTimersWithRealAnimationFrames();
 		const { automationService, runner, widget } = setup();
 		automationService.setAutomations([automation()]);
 		const previousRun = run({ status: 'failed', sessionResource: undefined });

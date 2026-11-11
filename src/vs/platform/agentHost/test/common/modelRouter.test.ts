@@ -83,6 +83,35 @@ suite('modelRouter', () => {
 			});
 		});
 
+		test('parses playbooks as named routes, which may share a model', () => {
+			const parsed = parseModelRouter('version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Building.\n    main: [opus, sonnet]\n    effort: high\n  bug-fix:\n    when: Fixing.\n    main: opus\n', 'workday.model-router.yaml');
+			assert.deepStrictEqual({ routes: parsed.router?.routes, diagnostics: parsed.diagnostics }, {
+				routes: [
+					{ models: ['opus', 'sonnet'], when: 'Building.', examples: [], effort: 'high', name: 'feature' },
+					{ models: ['opus'], when: 'Fixing.', examples: [], name: 'bug-fix' },
+				],
+				diagnostics: [],
+			});
+		});
+
+		test('checks playbooks', () => {
+			const playbooks = (text: string) => errors(`version: 1\ndescription: Test.\n${text}\n`);
+			const one = 'playbooks:\n  one:\n    when: A.\n    main: a';
+			assert.deepStrictEqual({
+				single: playbooks(one),
+				both: playbooks(`routes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n${one}`),
+				switching: playbooks(`switching: auto\n${one}`),
+				badName: playbooks('playbooks:\n  Bug_Fix:\n    when: A.\n    main: a'),
+				noMain: playbooks('playbooks:\n  one:\n    when: A.\n    model: a'),
+			}, {
+				single: [],
+				both: ['Write the router as `playbooks` or as `routes`, not both.'],
+				switching: ['A playbook is chosen once and kept for the chat, so `switching: auto` can\'t be used with `playbooks`.'],
+				badName: ['Playbook names are lowercase letters, digits and single hyphens, like `bug-fix`.'],
+				noMain: ['Playbook `one` needs `main`: a model id like `claude-haiku-5.5` or `anthropic/claude-haiku-4-5`, or a list of them in preference order.'],
+			});
+		});
+
 		test('reads a file saved with a byte order mark', () => {
 			assert.deepStrictEqual(parseModelRouter(`\uFEFF${valid}`, 'daily-driver.model-router.yaml'), parseModelRouter(valid, 'daily-driver.model-router.yaml'));
 		});
@@ -245,6 +274,22 @@ suite('modelRouter', () => {
 				'Route 2 (gone) is skipped: none of its models are available on this account.',
 				'Only 1 of this router\'s models is available, so there is nothing to route between.',
 			]);
+		});
+
+		test('resolves playbooks by name, so two can run on the same model', () => {
+			const playbooks = router([
+				{ models: ['a'], when: 'A.', examples: [], name: 'feature' },
+				{ models: ['gone', 'a'], when: 'B.', examples: [], name: 'bug-fix' },
+				{ models: ['gone'], when: 'C.', examples: [], name: 'quick' },
+			]);
+			const result = resolveModelRouter(playbooks, [model('a')]);
+			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics) }, {
+				routes: [['feature', 'a'], ['bug-fix', 'a']],
+				diagnostics: [
+					'Playbook `bug-fix` uses `a` because `gone` is not available.',
+					'Playbook `quick` (gone) is skipped: none of its models are available on this account.',
+				],
+			});
 		});
 
 		test('applies `context-size` only to models that offer a larger window', () => {

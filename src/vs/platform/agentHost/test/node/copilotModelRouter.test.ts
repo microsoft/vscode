@@ -206,4 +206,36 @@ suite('CopilotModelRouter', () => {
 			handPicked: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } }, kept: undefined },
 		});
 	});
+
+	test('picks a playbook by name, even when two run on the same model, and keeps it for the chat', async () => {
+		const content = 'version: 1\ndescription: Test.\neffort: off\nplaybooks:\n  feature:\n    when: Building.\n    main: opus\n  bug-fix:\n    when: Fixing.\n    main: opus\n';
+		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+		const picker = new FakePicker({ model: 'bug-fix', confidence: 0.9, probabilities: { 'bug-fix': 0.9, feature: 0.1 } });
+		const route = (previousTurns: Turn[]) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix the crash', models, previousTurns, picker });
+		const picked = await route([]);
+		const kept = await route([routedTurn({ router: 'daily', chosenModel: 'opus', playbook: 'bug-fix' })]);
+		assert.deepStrictEqual({ candidates: picker.requests[0].candidates.map(candidate => candidate.id), picked: picked.routed, kept: kept.routed, picks: picker.requests.length }, {
+			candidates: ['feature', 'bug-fix'],
+			picked: { router: 'daily', chosenModel: 'opus', playbook: 'bug-fix', preference: 'Fixing.', firstTurnOnly: true },
+			kept: { router: 'daily', chosenModel: 'opus', playbook: 'bug-fix', kept: true, firstTurnOnly: true },
+			picks: 1,
+		});
+	});
+
+	test('a kept playbook whose model has changed keeps an effort that model has', async () => {
+		const content = 'version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Building.\n    main: [big, haiku]\n';
+		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+		// The chat's first turn ran on `big` at an effort only that model has.
+		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'big', playbook: 'feature', effort: 'xhigh' })];
+		const selectionWith = async (available: IAgentModelInfo[]) => (await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'go on', models: available, previousTurns, picker: undefined })).selection;
+		assert.deepStrictEqual({
+			sameModel: await selectionWith([model('big', ['low', 'high', 'xhigh']), ...models]),
+			otherModel: await selectionWith(models),
+			modelWithoutEfforts: await selectionWith([model('haiku')]),
+		}, {
+			sameModel: { id: 'big', config: { [ReasoningEffortConfigKey]: 'xhigh' } },
+			otherModel: { id: 'haiku', config: { [ReasoningEffortConfigKey]: 'high' } },
+			modelWithoutEfforts: { id: 'haiku' },
+		});
+	});
 });
