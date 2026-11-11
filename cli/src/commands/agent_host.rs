@@ -60,19 +60,21 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///   endpoint registry and either prints info about the live supervisor
 ///   (`Reuse`), or starts a new supervisor (`SpawnFresh`) — daemonized by
 ///   default, or run inline in this process when `--foreground` is set.
+///   GitHub environments skip registry reuse and always start their own supervisor.
 ///
 /// * **Supervisor** (when [`SUPERVISOR_ENV`] is set): binds the public TCP
 ///   listener, publishes a registry entry recording this process's PID +
 ///   port, runs the proxy accept loop, and manages the underlying VS Code
 ///   server as a regular child process so the supervisor can kill+respawn
 ///   it on update.
-pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
-	if args.github_environment {
-		args.foreground = true;
-		return run_supervisor(ctx, args).await;
-	}
+pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
 	if std::env::var_os(SUPERVISOR_ENV).is_some() {
 		return run_supervisor(ctx, args).await;
+	}
+	if args.github_environment {
+		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
+		github_environment_credential(&ctx).await?;
+		return start_supervisor(ctx, args).await;
 	}
 	run_foreground(ctx, args).await
 }
@@ -259,7 +261,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	let platform: Platform = PreReqChecker::new().verify().await?;
 	let github_environment = if args.github_environment {
-		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 		Some(github_environment_config(&ctx, &args).await?)
 	} else {
 		None
@@ -442,18 +443,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	Ok(0)
 }
 
-async fn github_environment_config(
-	ctx: &CommandContext,
-	args: &AgentHostArgs,
-) -> Result<GithubEnvironmentConfig, AnyError> {
-	if args
-		.name
-		.as_deref()
-		.is_some_and(|name| name.trim().is_empty())
-	{
-		return Err(wrap("", "GitHub environment name must not be empty").into());
-	}
-	let paths = github_environment_paths(&ctx.log, &args.github_environment_root)?;
+async fn github_environment_credential(ctx: &CommandContext) -> Result<String, AnyError> {
 	let mut auth = Auth::with_namespace(
 		&ctx.paths,
 		ctx.log.clone(),
@@ -473,6 +463,22 @@ async fn github_environment_config(
 	if credential.is_empty() {
 		return Err(wrap("", "GitHub environment access token must not be empty").into());
 	}
+	Ok(credential)
+}
+
+async fn github_environment_config(
+	ctx: &CommandContext,
+	args: &AgentHostArgs,
+) -> Result<GithubEnvironmentConfig, AnyError> {
+	if args
+		.name
+		.as_deref()
+		.is_some_and(|name| name.trim().is_empty())
+	{
+		return Err(wrap("", "GitHub environment name must not be empty").into());
+	}
+	let paths = github_environment_paths(&ctx.log, &args.github_environment_root)?;
+	let credential = github_environment_credential(ctx).await?;
 	#[derive(serde::Deserialize)]
 	struct GithubUser {
 		id: u64,
