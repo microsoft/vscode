@@ -125,6 +125,19 @@ export class ChatWindowSessionDropTarget extends Themable {
 		this._overlayStore.clear();
 	}
 
+	/** The session of a drag from another window, whose payload is only in the data transfer. */
+	private _readSessionPayload(e: DragEvent): DraggedSessionIdentifier[] {
+		try {
+			const payload = JSON.parse(e.dataTransfer?.getData(SessionsDataTransfers.SESSION) || '{}');
+			if (typeof payload.sessionId === 'string' && typeof payload.resource === 'string') {
+				return [new DraggedSessionIdentifier(payload.sessionId, URI.parse(payload.resource))];
+			}
+		} catch {
+			// Not a session payload
+		}
+		return [];
+	}
+
 	private _handleDrop(e: DragEvent): void {
 		const chats: URI[] = [];
 		const chat = getSessionChatDragData(e);
@@ -135,7 +148,7 @@ export class ChatWindowSessionDropTarget extends Themable {
 				chats.push(resource);
 			}
 		} else {
-			const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype) ?? [];
+			const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype) ?? this._readSessionPayload(e);
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 			for (const item of dragged) {
 				const resolved = item.resource && this._resolveSessionChat(item.resource);

@@ -108,6 +108,20 @@ suite('Chat Window Session Drop Target', () => {
 		assert.deepStrictEqual(opened, [{ chat: chatResource.toString(), tabOf: openChatResource.toString(), exactChat: true }]);
 	});
 
+	test('a session row dragged from another window opens its chat from the typed payload on drop', async () => {
+		const { element, opened } = setup();
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData('application/vnd.code.session', JSON.stringify({ sessionId: 'session', resource: sessionResource.toString() }));
+
+		element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		const overlay = element.querySelector<HTMLElement>(overlaySelector);
+		assert.ok(overlay);
+		overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual(opened, [{ chat: chatResource.toString(), tabOf: openChatResource.toString(), exactChat: true }]);
+	});
+
 	test('an archived session shows no indicator, and a drop opens nothing', async () => {
 		const { element, opened } = setup(true);
 		const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
