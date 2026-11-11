@@ -59,9 +59,11 @@ suite('AgentsViewFolderLocation', () => {
 		// Points to an entry that git does not have
 		'/work/ghost/.git': 'gitdir: /work/vscode/.git/worktrees/ghost\n',
 		'/work/other.worktrees/x/.git': 'gitdir: /work/other/.git/worktrees/x\n',
+		// An ordinary checkout of another repository
+		'/work/ordinary/.git': true,
 		'/work/denied/.git': false,
 	};
-	const folders = ['/work/vscode', '/work/vscode/src', '/work/vscode.worktrees/feature', '/work/forged', '/work/ghost', '/work/other.worktrees/x', '/work/plain', '/work/denied'];
+	const folders = ['/work/vscode', '/work/vscode/src', '/work/vscode.worktrees/feature', '/work/forged', '/work/ghost', '/work/other.worktrees/x', '/work/ordinary', '/work/plain', '/work/denied'];
 	const lookup = (resource: URI) => {
 		const entry = entries[resource.path];
 		if (entry === false) {
@@ -158,9 +160,10 @@ suite('AgentsViewFolderLocation', () => {
 			forgedWithoutBacklink: await resolve('/work/forged'),
 			entryGitDoesNotHave: await resolve('/work/ghost'),
 			otherRepository: await resolve('/work/other.worktrees/x'),
+			ordinaryCheckout: await resolve('/work/ordinary'),
 			plain: await resolve('/work/plain'),
 			unreadable: await resolve('/work/denied').then(() => 'read', () => 'throws'),
-		}, { linked: 'feature', itself: 'none', forgedWithoutBacklink: 'none', entryGitDoesNotHave: 'none', otherRepository: 'none', plain: 'none', unreadable: 'throws' });
+		}, { linked: 'feature', itself: 'none', forgedWithoutBacklink: 'none', entryGitDoesNotHave: 'none', otherRepository: 'none', ordinaryCheckout: 'none', plain: 'none', unreadable: 'throws' });
 	});
 
 	test('opening a session moves the folder to its linked checkout or back, and keeps it for a session elsewhere, a missing or unreadable folder', async () => {
@@ -175,6 +178,7 @@ suite('AgentsViewFolderLocation', () => {
 			inFolder: await moved(sessionIn('/work/vscode/src')),
 			backToPrimary: await moved(sessionIn('/work/vscode'), { location: '/work/vscode.worktrees/feature' }),
 			elsewhere: await moved(sessionIn('/work/plain')),
+			ordinaryCheckout: await moved(sessionIn('/work/ordinary')),
 			missing: await moved(sessionIn('/work/vscode.worktrees/gone', '/work/vscode')),
 			unreadable: await moved(sessionIn('/work/denied')),
 			multiRoot: await moved(sessionIn('/work/vscode.worktrees/feature'), { workbenchState: WorkbenchState.WORKSPACE }),
@@ -184,6 +188,7 @@ suite('AgentsViewFolderLocation', () => {
 			inFolder: 'primary',
 			backToPrimary: 'primary',
 			elsewhere: 'primary',
+			ordinaryCheckout: 'primary',
 			missing: 'primary, info: The folder /work/vscode.worktrees/gone of this session no longer exists.',
 			unreadable: 'primary, error: Could not move the folder to /work/denied',
 			multiRoot: 'none',
@@ -200,7 +205,7 @@ suite('AgentsViewFolderLocation', () => {
 			return reads - before;
 		};
 
-		assert.deepStrictEqual({ elsewhere: await readsOf('/work/plain'), failing: await readsOf('/work/denied') }, { elsewhere: 1, failing: 2 });
+		assert.deepStrictEqual({ elsewhere: await readsOf('/work/plain'), ordinaryCheckout: await readsOf('/work/ordinary'), failing: await readsOf('/work/denied') }, { elsewhere: 1, ordinaryCheckout: 1, failing: 2 });
 	});
 
 	test('a failure is reported where the open starts, which does not reject', async () => {
