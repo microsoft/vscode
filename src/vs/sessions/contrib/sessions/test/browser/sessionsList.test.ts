@@ -275,6 +275,11 @@ suite('Sessions - SessionsList', () => {
 					reads++;
 					return super.getSessions();
 				}
+				// Also a read of the catalogue, such as to keep the order of every live section
+				override getAllSessions(): ISession[] {
+					reads++;
+					return [...this.sessions, ...this.unlistedSessions];
+				}
 			}([original]);
 			const harness = createListHarness(disposables, [original], instantiationService => {
 				instantiationService.stub(ISessionsManagementService, management);
