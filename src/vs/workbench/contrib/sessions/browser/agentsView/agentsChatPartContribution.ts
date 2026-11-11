@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AgentsViewLocationSessions } from './agentsViewLocationSessions.js';
 import { IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -81,6 +82,8 @@ export class AgentsChatPartContribution extends Disposable {
 			visible.set(layoutService.isVisible(Parts.CHAT_PART));
 			// Its folder location provider, and the return from a session's location as AI features are disabled
 			folderLocationService.start();
+			// The session last picked at a location the user picks shows in the chat part
+			this._register(instantiationService.createInstance(AgentsViewLocationSessions));
 			return restored;
 		}).catch(onUnexpectedError);
 	}
