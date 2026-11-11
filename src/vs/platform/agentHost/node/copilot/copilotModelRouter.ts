@@ -21,7 +21,6 @@ export interface IModelRouterCandidate {
 	readonly name: string;
 	readonly when: string;
 	readonly examples: readonly string[];
-	/** What the model costs and how much it can read, when known. */
 	readonly facts?: string;
 }
 
@@ -44,7 +43,6 @@ export interface IModelRouterPickRequest {
 	/** Whether to also ask how much reasoning effort the request needs. */
 	readonly askEffort: boolean;
 	readonly followUp?: IModelRouterFollowUp;
-	/** Facts about the turn besides its message, as lines of text. */
 	readonly situation?: readonly string[];
 	readonly chat: string;
 }
@@ -163,7 +161,6 @@ export interface IModelRouterRouteRequest {
 	readonly text: string;
 	readonly models: readonly IAgentModelInfo[];
 	readonly previousTurns: readonly Turn[];
-	/** Facts about the turn besides its message, for the decision. */
 	readonly situation?: IModelRouterSituation;
 	/** Asks the decision model; without one, a first turn uses the router's first route. */
 	readonly picker: IModelRouterPicker | undefined;
@@ -176,7 +173,6 @@ interface IRouteContext {
 	readonly router: IModelRouter;
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly candidates: readonly IModelRouterCandidate[];
-	/** Facts about the turn for the decision, when there are any. */
 	readonly situation: Pick<IModelRouterPickRequest, 'situation'>;
 	/** The chat already runs on a long context window, which a later turn must not take away. */
 	readonly keepLongContext: boolean;

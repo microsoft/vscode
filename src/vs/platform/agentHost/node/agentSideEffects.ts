@@ -2462,11 +2462,7 @@ export class AgentSideEffects extends Disposable {
 		return `${channel}\0${turnId}`;
 	}
 
-	/**
-	 * What a model router is told about a turn besides its message: what is attached, the mode
-	 * the user chose, and where the work happens. It is all read from state the host already
-	 * has, and none of it is the content of a file or an attachment.
-	 */
+	/** Read from state the host already has. None of it is content. */
 	private _modelRouterSituation(sessionChannel: ProtocolURI, turnChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined): IModelRouterSituation {
 		const summary = summarizeModelRouterAttachments(attachments);
 		const mode = getConfiguredSessionMode(this._agentConfigService.getChatConfigState({ session: sessionChannel, chat: turnChannel }));

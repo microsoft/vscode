@@ -11,35 +11,22 @@ import { readAgentModelPricingMeta } from './meta/agentModelMeta.js';
 import { modelContextSizes } from './modelRouter.js';
 import { MessageAttachmentKind, readSessionFolderGitHubState, readSessionGitState, type MessageAttachment, type SessionState } from './state/sessionState.js';
 
-/*
- * What a model router's decision is told about a turn besides its message. A short message such as
- * "fix this" says little on its own: what is attached, how the user asked the agent to work and
- * where the work happens say more. These are facts only, never the content of an attachment, a
- * file or the working tree.
- */
-
-/** Attachments of one kind. */
 export interface IModelRouterAttachmentSummary {
-	/** What the attachments are, such as `image`, `document`, `selection` or `directory`. */
 	readonly kind: string;
 	readonly count: number;
-	/** Lines the user selected, summed over the attachments that say. */
+	/** Selected lines, summed over the attachments. */
 	readonly lines?: number;
 }
 
+/** Facts a model router's decision is told about a turn besides its message. Never content. */
 export interface IModelRouterSituation {
 	readonly attachments?: readonly IModelRouterAttachmentSummary[];
-	/** How the user asked the agent to approach the turn. `interactive`, the default, says nothing and is left out. */
 	readonly mode?: Exclude<SessionMode, 'interactive'>;
-	/** The custom agent the user selected, by name. */
 	readonly agent?: string;
-	/** The working folder's name. */
 	readonly workspace?: string;
-	/** The GitHub repository, as `owner/repo`. */
+	/** As `owner/repo`. */
 	readonly repository?: string;
-	/** How many files have uncommitted changes. */
 	readonly uncommittedFiles?: number;
-	/** The pull request of the branch being worked on, when it has one. */
 	readonly pullRequest?: 'open' | 'closed' | 'merged';
 }
 
@@ -56,7 +43,6 @@ function attachmentKind(attachment: MessageAttachment): string {
 	}
 }
 
-/** Counts a message's attachments by kind. It reads what the message says about them, not their content. */
 export function summarizeModelRouterAttachments(attachments: readonly MessageAttachment[] | undefined): IModelRouterAttachmentSummary[] {
 	const byKind = new Map<string, { count: number; lines: number }>();
 	for (const attachment of attachments ?? []) {
@@ -72,7 +58,6 @@ export function summarizeModelRouterAttachments(attachments: readonly MessageAtt
 	return [...byKind].map(([kind, { count, lines }]) => ({ kind, count, ...(lines ? { lines } : {}) }));
 }
 
-/** What a session's state says about where a turn's work happens. */
 export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta' | 'workingDirectories'> | undefined): Pick<IModelRouterSituation, 'workspace' | 'repository' | 'uncommittedFiles' | 'pullRequest'> {
 	if (!session) {
 		return {};
@@ -96,13 +81,10 @@ const modeDescriptions: Record<NonNullable<IModelRouterSituation['mode']>, strin
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
-/**
- * How many changed files are worth telling. Most working trees have a few, and telling a small
- * count made the decision read a quick question as larger work.
- */
+/** A smaller count made the decision read a quick question as larger work. */
 const MIN_UNCOMMITTED_FILES_TOLD = 10;
 
-/** The lines a decision is given about a turn, or none when nothing is known. */
+/** The lines a decision is given about a turn. */
 export function describeModelRouterSituation(situation: IModelRouterSituation | undefined): string[] {
 	if (!situation) {
 		return [];
@@ -118,7 +100,6 @@ export function describeModelRouterSituation(situation: IModelRouterSituation | 
 		lines.push(`Custom agent chosen by the user: ${situation.agent}`);
 	}
 	const workspace = situation.workspace && situation.repository ? `${situation.workspace} (${situation.repository})` : situation.workspace ?? situation.repository;
-	// Only what bears on a request is told: many changed files, and a pull request that is still open.
 	const workingTree = [
 		...(situation.uncommittedFiles && situation.uncommittedFiles >= MIN_UNCOMMITTED_FILES_TOLD ? [`${plural(situation.uncommittedFiles, 'file')} with uncommitted changes`] : []),
 		...(situation.pullRequest === 'open' ? ['the branch has an open pull request'] : []),
@@ -133,7 +114,7 @@ function formatContextWindow(tokens: number): string {
 	return tokens >= 1_000_000 ? `${Math.round(tokens / 100_000) / 10}M` : `${Math.round(tokens / 1000)}K`;
 }
 
-/** What a decision is told about a model besides its name: what it costs and how much it can read. */
+/** A model's cost and context window, as the decision is told them. */
 export function describeModelRouterModel(model: IAgentModelInfo): string | undefined {
 	const priceCategory = readAgentModelPricingMeta(model).priceCategory?.replace(/[_-]+/g, ' ').trim().toLowerCase();
 	const contextSizes = modelContextSizes(model);

@@ -30,10 +30,9 @@ const followUpEffortNote = 'This is a follow-up in an ongoing chat; recentTurns 
 /** A first turn's message goes as plain text, as the Decisions API expects its input; this routes better than a JSON field. */
 const firstTurnLead = 'A user sent this message to an AI coding agent:\n\n';
 
-/** Facts about the turn follow the message under their own heading, so they are not read as the user's words. */
+/** Under their own heading, so the facts are not read as the user's words. */
 const situationLead = 'Facts about this request, which are not part of the message:\n';
 
-/** Tells the decision what the facts are for. Sent only when there are facts, so a request without them is unchanged. */
 const situationNote = ' The request comes with facts about it, such as what is attached, the mode the user chose and the workspace. Use them together with the message to judge the work.';
 
 const effortCriteria: readonly string[] = [

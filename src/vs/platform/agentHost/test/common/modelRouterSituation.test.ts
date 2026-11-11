@@ -43,7 +43,6 @@ suite('modelRouterSituation', () => {
 		const meta = withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestState: 'open' });
 		assert.deepStrictEqual({
 			full: modelRouterWorkspaceSituation({ _meta: meta, workingDirectories: [folder] }),
-			// A clean tree and a folder that is no repository leave those facts out.
 			folderOnly: modelRouterWorkspaceSituation({ _meta: withSessionGitState(undefined, { uncommittedChanges: 0 }), workingDirectories: [folder] }),
 			noSession: modelRouterWorkspaceSituation(undefined),
 		}, {
@@ -64,7 +63,6 @@ suite('modelRouterSituation', () => {
 				uncommittedFiles: 12,
 				pullRequest: 'open',
 			}),
-			// A few changed files and a pull request that is no longer open say nothing about a request.
 			quietTree: describeModelRouterSituation({ workspace: 'shop-checkout', uncommittedFiles: 9, pullRequest: 'merged' }),
 			autopilot: describeModelRouterSituation({ mode: 'autopilot', repository: 'contoso/shop' }),
 			empty: describeModelRouterSituation({}),
