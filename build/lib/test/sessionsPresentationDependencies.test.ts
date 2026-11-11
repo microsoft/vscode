@@ -242,7 +242,7 @@ suite('Sessions presentation entry isolation', () => {
 	test('background assets stay in regular workbenches and out of the mobile package', async () => {
 		const backgrounds = ['koi-dark-static.webp', 'koi-dark.webp', 'koi-light-static.webp', 'koi-light.webp']
 			.map(file => `vs/sessions/services/chatBackground/browser/media/${file}`);
-		const resources = await Promise.all((['web', 'desktop', 'server-web', 'mobile-preview'] as const).map(target =>
+		const resources = await Promise.all((['web', 'desktop', 'server-web', 'mobile'] as const).map(target =>
 			getResourcePaths(path.join(repositoryRoot, 'src'), target)));
 		assert.deepStrictEqual(resources.map(files => files.filter(file => backgrounds.includes(file))), [
 			backgrounds, backgrounds, backgrounds, [],

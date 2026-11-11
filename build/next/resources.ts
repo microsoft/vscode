@@ -164,7 +164,7 @@ const webResourcePatterns = [
 	'vs/workbench/services/extensionManagement/common/media/*.png',
 ];
 
-const mobilePreviewResourcePatterns = [
+const mobileResourcePatterns = [
 	'vs/editor/common/languages/highlights/*.scm',
 	'vs/editor/common/languages/injections/*.scm',
 	'vs/workbench/browser/media/code-icon.svg',
@@ -191,8 +191,8 @@ function getResourcePatternsForTarget(target: BuildTarget): string[] {
 			return serverWebResourcePatterns;
 		case 'web':
 			return webResourcePatterns;
-		case 'mobile-preview':
-			return mobilePreviewResourcePatterns;
+		case 'mobile':
+			return mobileResourcePatterns;
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}

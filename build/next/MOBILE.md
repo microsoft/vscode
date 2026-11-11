@@ -4,32 +4,34 @@ The opt-in mobile target packages the dedicated Agents entry without adding
 it to the ordinary editor, Agents, desktop or server outputs.
 
 ```sh
-pnpm run bundle-mobile-preview
+pnpm run bundle-mobile
 ```
 
-The output is `out-mobile-preview/`, containing:
+The output is `out-mobile/`, containing:
 
 - `out/`: the mobile entry, its own localization tables, workers and resources;
 - `node_modules/`: explicitly selected browser runtime dependencies;
 - `extensions/`: GitHub authentication and selected language/theme extensions;
-- `mobile-preview.json`: source commit, quality, asset hashes, entry points and
+- `mobile.json`: source commit, quality, asset hashes, entry points and
   measured sizes.
 
 The build requires a source commit. In Git worktrees, supply it through the same
 environment variable used by CI:
 
 ```sh
-BUILD_SOURCEVERSION="$(git rev-parse HEAD)" pnpm run bundle-mobile-preview
+BUILD_SOURCEVERSION="$(git rev-parse HEAD)" pnpm run bundle-mobile
 ```
 
 Local packages use quality `dev`. Product builds require the normal quality
 mixin to agree with `VSCODE_QUALITY`. Asset hashes describe package integrity and
 local cache invalidation; they are not a separate production release identifier.
 This build target alone does not publish or release anything.
+The target name `mobile` identifies the package, independently of its release
+quality or rollout status.
 
 ## Boundaries and size checks
 
-[mobilePreviewPolicy.json](mobilePreviewPolicy.json) defines the reviewed
+[mobilePolicy.json](mobilePolicy.json) defines the reviewed
 contribution list, forbidden dependencies, extensions, runtime libraries and
 compressed-size limits. The build examines transitive bundle inputs, not only
 the entry's direct imports. An unknown contribution or unpackaged dependency
@@ -54,7 +56,7 @@ The temporary ceilings are 5,600,000 gzip bytes for the main JavaScript and
 6,200,000 gzip bytes for the initial bundle. They accommodate the reviewed
 current-main baseline after removing chat backgrounds; the stylesheet, runtime
 and extension ceilings remain unchanged. These are growth guards for the
-preview, not mobile performance targets. Reducing the actual downloads needed
+current package, not mobile performance targets. Reducing the actual downloads needed
 for a usable session list and composer requires separate startup measurements
 and loading changes.
 
@@ -75,7 +77,7 @@ manifest before writing anything. A failed build never leaves a success manifest
 for partial output.
 
 ```sh
-node --test build/next/test/mobilePreview.test.ts build/next/test/resources.test.ts build/next/test/bundle.test.ts
+node --test build/next/test/mobile.test.ts build/next/test/resources.test.ts build/next/test/bundle.test.ts
 pnpm -C build run typecheck
 ```
 

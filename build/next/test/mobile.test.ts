@@ -12,27 +12,27 @@ import { gzipSync } from 'node:zlib';
 import * as esbuild from 'esbuild';
 import ts from 'typescript';
 import {
-	checkMobilePreviewBudgets, checkMobilePreviewDependencies, checkMobilePreviewPath, mobilePreviewDirectory,
-	mobilePreviewEntryPoint, mobilePreviewManifestName, mobilePreviewPlugin, mobilePreviewQuality,
-	packageMobilePreviewExtensions, prepareMobilePreview, readMobilePreviewExtensions,
-	writeMobilePreviewManifest, type MobilePreviewAsset,
-} from '../mobilePreview.ts';
+	checkMobileBudgets, checkMobileDependencies, checkMobilePath, mobileDirectory,
+	mobileEntryPoint, mobileManifestName, mobilePlugin, mobileQuality,
+	packageMobileExtensions, prepareMobile, readMobileExtensions,
+	writeMobileManifest, type MobileAsset,
+} from '../mobile.ts';
 import { getBundleOptions } from '../bundle.ts';
 import { getBootstrapEntryPointsForTarget } from '../../lib/esbuild.ts';
 import { writePnpmLockfile } from '../../lib/test/pnpmLockfileFixture.ts';
 import { getResourcePaths } from '../resources.ts';
-import policy from '../mobilePreviewPolicy.json' with { type: 'json' };
+import policy from '../mobilePolicy.json' with { type: 'json' };
 import packageJson from '../../../package.json' with { type: 'json' };
 
 const entrypoints = {
-	workbench: `out/${mobilePreviewEntryPoint}.js`,
-	stylesheet: `out/${mobilePreviewEntryPoint}.css`,
+	workbench: `out/${mobileEntryPoint}.js`,
+	stylesheet: `out/${mobileEntryPoint}.css`,
 	nls: 'out/nls.messages.js',
 };
 const build = { commit: '0123456789abcdef0123456789abcdef01234567', version: '1.0.0', date: '2026-10-05T00:00:00Z', quality: 'dev' as const };
 
 async function createFixture(t: TestContext) {
-	const directory = path.resolve(import.meta.dirname, '../../../.build/mobile-preview-tests');
+	const directory = path.resolve(import.meta.dirname, '../../../.build/mobile-tests');
 	await fs.mkdir(directory, { recursive: true });
 	const root = await fs.mkdtemp(path.join(directory, 'fixture-'));
 	t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -40,18 +40,18 @@ async function createFixture(t: TestContext) {
 		await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
 		await fs.writeFile(path.join(root, file), contents);
 	};
-	const preview = path.join(root, mobilePreviewDirectory);
-	const out = `${mobilePreviewDirectory}/out`;
-	return { root, preview, out, write };
+	const mobileRoot = path.join(root, mobileDirectory);
+	const out = `${mobileDirectory}/out`;
+	return { root, mobileRoot, out, write };
 }
 
-function asset(file: string, gzipBytes = 1): MobilePreviewAsset {
+function asset(file: string, gzipBytes = 1): MobileAsset {
 	return { path: file, bytes: gzipBytes, gzipBytes, sha256: '0'.repeat(64) };
 }
 
-suite('isolated mobile preview', () => {
-	test('preview bootstrap excludes native entries without changing standard targets', () => {
-		assert.deepStrictEqual(['desktop', 'server', 'server-web', 'web', 'mobile-preview'].map(target =>
+suite('isolated mobile package', () => {
+	test('mobile bootstrap excludes native entries without changing standard targets', () => {
+		assert.deepStrictEqual(['desktop', 'server', 'server-web', 'web', 'mobile'].map(target =>
 			getBootstrapEntryPointsForTarget(target as Parameters<typeof getBootstrapEntryPointsForTarget>[0])), [
 			['main', 'mainImpl', 'cli', 'bootstrap-fork'],
 			['server-main', 'server-cli', 'bootstrap-fork'],
@@ -64,69 +64,73 @@ suite('isolated mobile preview', () => {
 	test('refuses alternate output paths before changing any files', async t => {
 		const { root, write } = await createFixture(t);
 		await write('out/keep', 'normal output');
-		for (const out of ['out', 'out-build', 'out-vscode-web', '.', '../out', `${mobilePreviewDirectory}/out/../other`]) {
-			await assert.rejects(prepareMobilePreview(root, out), /output must be/);
+		await write('out-mobile-preview/keep', 'previous output');
+		for (const out of ['out', 'out-build', 'out-vscode-web', 'out-mobile-preview/out', '.', '../out', `${mobileDirectory}/out/../other`]) {
+			await assert.rejects(prepareMobile(root, out), /output must be/);
 		}
-		assert.equal(await fs.readFile(path.join(root, 'out/keep'), 'utf8'), 'normal output');
+		assert.deepStrictEqual({
+			normal: await fs.readFile(path.join(root, 'out/keep'), 'utf8'),
+			previous: await fs.readFile(path.join(root, 'out-mobile-preview/keep'), 'utf8'),
+		}, { normal: 'normal output', previous: 'previous output' });
 	});
 
 	test('refuses an existing directory without its ownership marker', async t => {
 		const { root, out, write } = await createFixture(t);
-		await write(`${mobilePreviewDirectory}/unrelated.txt`, 'keep');
-		await assert.rejects(prepareMobilePreview(root, out), /unowned/);
-		assert.equal(await fs.readFile(path.join(root, mobilePreviewDirectory, 'unrelated.txt'), 'utf8'), 'keep');
+		await write(`${mobileDirectory}/unrelated.txt`, 'keep');
+		await assert.rejects(prepareMobile(root, out), /unowned/);
+		assert.equal(await fs.readFile(path.join(root, mobileDirectory, 'unrelated.txt'), 'utf8'), 'keep');
 	});
 
 	test('does not follow a symlinked ownership marker', { skip: process.platform === 'win32' ? 'File symlinks require elevated privileges' : false }, async t => {
-		const { root, out, preview, write } = await createFixture(t);
-		await write('marker.json', '{"schemaVersion":1,"kind":"sessions-mobile-preview"}');
-		await fs.mkdir(preview);
-		await fs.symlink(path.join(root, 'marker.json'), path.join(preview, '.mobile-preview-build.json'));
-		await assert.rejects(prepareMobilePreview(root, out), /unowned/);
-		assert.equal(await fs.readFile(path.join(root, 'marker.json'), 'utf8'), '{"schemaVersion":1,"kind":"sessions-mobile-preview"}');
+		const { root, out, mobileRoot, write } = await createFixture(t);
+		await write('marker.json', '{"schemaVersion":1,"kind":"sessions-mobile"}');
+		await fs.mkdir(mobileRoot);
+		await fs.symlink(path.join(root, 'marker.json'), path.join(mobileRoot, '.mobile-build.json'));
+		await assert.rejects(prepareMobile(root, out), /unowned/);
+		assert.equal(await fs.readFile(path.join(root, 'marker.json'), 'utf8'), '{"schemaVersion":1,"kind":"sessions-mobile"}');
 	});
 
 	for (const location of ['', 'out', 'node_modules', 'extensions']) {
 		test(`refuses a symlink at the ${location || 'package root'} boundary`, async t => {
-			const { root, out, preview } = await createFixture(t);
+			const { root, out, mobileRoot } = await createFixture(t);
 			const other = path.join(root, 'elsewhere');
 			await fs.mkdir(other);
 			if (location) {
-				await prepareMobilePreview(root, out);
+				await prepareMobile(root, out);
 			}
-			await fs.symlink(other, path.join(preview, location), 'junction');
-			await assert.rejects(prepareMobilePreview(root, out), /regular directory/);
+			await fs.symlink(other, path.join(mobileRoot, location), 'junction');
+			await assert.rejects(prepareMobile(root, out), /regular directory/);
 		});
 	}
 
 	test('invalidates completed output before a rebuild and clears only owned libraries', async t => {
-		const { root, out, write, preview } = await createFixture(t);
-		const release = await prepareMobilePreview(root, out);
-		await write(`${mobilePreviewDirectory}/${mobilePreviewManifestName}`, '{}');
-		await write(`${mobilePreviewDirectory}/node_modules/old.js`, 'old');
-		await write(`${mobilePreviewDirectory}/extensions/old/package.json`, '{}');
+		const { root, out, write, mobileRoot } = await createFixture(t);
+		const release = await prepareMobile(root, out);
+		await write(`${mobileDirectory}/${mobileManifestName}`, '{}');
+		await write(`${mobileDirectory}/node_modules/old.js`, 'old');
+		await write(`${mobileDirectory}/extensions/old/package.json`, '{}');
 		await write('out-build/nls.messages.json', 'original');
 		await release();
-		const releaseRebuild = await prepareMobilePreview(root, out);
+		const releaseRebuild = await prepareMobile(root, out);
 		await releaseRebuild();
 		assert.deepStrictEqual({
-			contents: (await fs.readdir(preview)).sort(),
+			contents: (await fs.readdir(mobileRoot)).sort(),
 			normalNls: await fs.readFile(path.join(root, 'out-build/nls.messages.json'), 'utf8'),
-		}, { contents: ['.mobile-preview-build.json'], normalNls: 'original' });
+		}, { contents: ['.mobile-build.json'], normalNls: 'original' });
 	});
 
 	test('concurrent builds cannot invalidate each other or publish mixed artifacts', async t => {
-		const { root, out, write, preview } = await createFixture(t);
-		const release = await prepareMobilePreview(root, out);
-		await write(`${mobilePreviewDirectory}/${mobilePreviewManifestName}`, 'first build');
-		await assert.rejects(prepareMobilePreview(root, out), /build lock/);
-		assert.equal(await fs.readFile(path.join(preview, mobilePreviewManifestName), 'utf8'), 'first build');
+		const { root, out, write, mobileRoot } = await createFixture(t);
+		const release = await prepareMobile(root, out);
+		await write(`${mobileDirectory}/${mobileManifestName}`, 'first build');
+		await assert.rejects(prepareMobile(root, out), /build lock/);
+		assert.equal(await fs.readFile(path.join(mobileRoot, mobileManifestName), 'utf8'), 'first build');
 		await release();
-		const releaseNext = await prepareMobilePreview(root, out);
+		const releaseNext = await prepareMobile(root, out);
 		await release();
-		await assert.rejects(prepareMobilePreview(root, out), /build lock/);
+		await assert.rejects(prepareMobile(root, out), /build lock/);
 		await releaseNext();
-		await assert.rejects(fs.access(path.join(preview, mobilePreviewManifestName)), { code: 'ENOENT' });
+		await assert.rejects(fs.access(path.join(mobileRoot, mobileManifestName)), { code: 'ENOENT' });
 	});
 
 	test('blocks full entries, native code, test fixtures and unreviewed transitive contributions', () => {
@@ -144,9 +148,9 @@ suite('isolated mobile preview', () => {
 			'src/vs/workbench/contrib/chat/browser/chatDefaultPresentation.contribution.ts',
 			'src/vs/workbench/contrib/chat/browser/widget/chatContentParts/defaultChatEditPresentation.ts',
 		]) {
-			assert.throws(() => checkMobilePreviewDependencies([file]), /boundary failed/);
+			assert.throws(() => checkMobileDependencies([file]), /boundary failed/);
 		}
-		assert.deepStrictEqual(checkMobilePreviewDependencies([
+		assert.deepStrictEqual(checkMobileDependencies([
 			'src/vs/workbench/contrib/chat/common/model/chatModel.ts',
 			'src/vs/sessions/contrib/mobile/browser/mobile.contribution.ts',
 			'src/vs/sessions/contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts',
@@ -161,13 +165,13 @@ suite('isolated mobile preview', () => {
 		await assert.rejects(esbuild.build({
 			...getBundleOptions(true, 'neutral'),
 			absWorkingDir: root, entryPoints: ['src/entry.ts'], outfile: path.join(root, 'out/entry.js'),
-			metafile: true, plugins: [mobilePreviewPlugin(root)], logLevel: 'silent',
+			metafile: true, plugins: [mobilePlugin(root)], logLevel: 'silent',
 		}), /Unreviewed contribution/);
 	});
 
 	test('the measured contribution baseline has no duplicates or forbidden modules', () => {
 		assert.equal(new Set(policy.contributions).size, policy.contributions.length);
-		assert.deepStrictEqual(checkMobilePreviewDependencies(policy.contributions), [...policy.contributions].sort());
+		assert.deepStrictEqual(checkMobileDependencies(policy.contributions), [...policy.contributions].sort());
 	});
 
 	test('copied runtime libraries are repository dependencies, not implicit installs', () => {
@@ -176,19 +180,19 @@ suite('isolated mobile preview', () => {
 
 	test('quality defaults to dev locally but requires the matching product mixin in CI', () => {
 		assert.deepStrictEqual([
-			mobilePreviewQuality(undefined),
-			mobilePreviewQuality('insider', 'insider'),
-			mobilePreviewQuality('stable', 'stable'),
-			mobilePreviewQuality('exploration', 'exploration'),
+			mobileQuality(undefined),
+			mobileQuality('insider', 'insider'),
+			mobileQuality('stable', 'stable'),
+			mobileQuality('exploration', 'exploration'),
 		], ['dev', 'insider', 'stable', 'exploration']);
-		assert.throws(() => mobilePreviewQuality('preview'), /Invalid.*quality/);
-		assert.throws(() => mobilePreviewQuality(undefined, 'insider'), /matching product.json mixin/);
+		assert.throws(() => mobileQuality('preview'), /Invalid.*quality/);
+		assert.throws(() => mobileQuality(undefined, 'insider'), /matching product.json mixin/);
 	});
 
 	test('artifact paths support source grammar filenames without URL escapes or traversal', () => {
-		checkMobilePreviewPath('extensions/javascript/syntaxes/Regular Expressions (JavaScript).tmLanguage');
+		checkMobilePath('extensions/javascript/syntaxes/Regular Expressions (JavaScript).tmLanguage');
 		for (const file of ['../outside', 'out/../outside', 'out//file', 'out/file.', 'out/file ', 'out/%20file', 'out/file?query']) {
-			assert.throws(() => checkMobilePreviewPath(file), /Invalid mobile preview relative path/);
+			assert.throws(() => checkMobilePath(file), /Invalid mobile relative path/);
 		}
 	});
 
@@ -203,14 +207,14 @@ suite('isolated mobile preview', () => {
 
 	for (const nodeLinker of ['hoisted', 'isolated']) {
 		test(`extension packaging builds fresh browser output and preserves explicit dependencies and licenses (${nodeLinker})`, async t => {
-			const { root, preview, write } = await createFixture(t);
+			const { root, mobileRoot, write } = await createFixture(t);
 			const dependency = nodeLinker === 'hoisted'
 				? 'extensions/auth/node_modules/unused'
 				: 'extensions/auth/node_modules/.pnpm/unused@1.0.0/node_modules/unused';
 			const mappedSource = nodeLinker === 'hoisted'
 				? `${dependency}/src/original.ts`
 				: 'extensions/auth/node_modules/.pnpm/unused@1.0.0/src/original.ts';
-			const sourceMapEntry = path.relative(path.join(preview, 'extensions/auth/dist/browser'), path.join(root, mappedSource)).replaceAll('\\', '/');
+			const sourceMapEntry = path.relative(path.join(mobileRoot, 'extensions/auth/dist/browser'), path.join(root, mappedSource)).replaceAll('\\', '/');
 			await write('LICENSE.txt', 'MIT license');
 			await write('extensions/auth/package.json', JSON.stringify({
 				name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' },
@@ -241,15 +245,15 @@ suite('isolated mobile preview', () => {
 				hoistedLocations: nodeLinker === 'hoisted' ? { 'unused@1.0.0': ['node_modules/unused'] } : undefined,
 			}));
 			await write('extensions/grammar/package.json', '{"name":"grammar","publisher":"vscode","version":"1.0.0","license":"MIT","engines":{"vscode":"^1.0.0"}}');
-			await packageMobilePreviewExtensions(root, ['auth', 'grammar']);
-			const manifest = JSON.parse(await fs.readFile(path.join(preview, 'extensions/auth/package.json'), 'utf8'));
+			await packageMobileExtensions(root, ['auth', 'grammar']);
+			const manifest = JSON.parse(await fs.readFile(path.join(mobileRoot, 'extensions/auth/package.json'), 'utf8'));
 			assert.deepStrictEqual({
 				manifest,
-				browser: await fs.readFile(path.join(preview, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
-				license: await fs.readFile(path.join(preview, 'extensions/auth/LICENSE.txt'), 'utf8'),
-				directories: (await fs.readdir(path.join(preview, 'extensions/auth/dist'))).sort(),
+				browser: await fs.readFile(path.join(mobileRoot, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
+				license: await fs.readFile(path.join(mobileRoot, 'extensions/auth/LICENSE.txt'), 'utf8'),
+				directories: (await fs.readdir(path.join(mobileRoot, 'extensions/auth/dist'))).sort(),
 				checkout: await fs.readFile(path.join(root, 'extensions/auth/dist/browser/extension.js'), 'utf8'),
-				notices: await fs.readFile(path.join(preview, 'extensions/auth/ThirdPartyNotices.txt'), 'utf8'),
+				notices: await fs.readFile(path.join(mobileRoot, 'extensions/auth/ThirdPartyNotices.txt'), 'utf8'),
 			}, {
 				manifest: { name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' }, browser: './dist/browser/extension.js', activationEvents: [], extensionDependencies: ['vscode.grammar'] },
 				browser: 'fresh browser build', license: 'MIT license', directories: ['browser'], checkout: 'stale watcher output',
@@ -259,8 +263,8 @@ suite('isolated mobile preview', () => {
 	}
 
 	test('unidentified pnpm source-map dependencies fail instead of omitting their licenses', async t => {
-		const { root, preview, write } = await createFixture(t);
-		const sourceMapEntry = path.relative(path.join(preview, 'extensions/auth/dist/browser'), path.join(root, 'node_modules/.pnpm/missing@1.0.0/src/original.ts')).replaceAll('\\', '/');
+		const { root, mobileRoot, write } = await createFixture(t);
+		const sourceMapEntry = path.relative(path.join(mobileRoot, 'extensions/auth/dist/browser'), path.join(root, 'node_modules/.pnpm/missing@1.0.0/src/original.ts')).replaceAll('\\', '/');
 		await write('LICENSE.txt', 'MIT license');
 		await write('extensions/auth/package.json', '{"name":"auth","publisher":"vscode","version":"1.0.0","license":"MIT","browser":"./dist/browser/extension.js","activationEvents":["*"],"engines":{"vscode":"^1.0.0"}}');
 		await write('extensions/auth/.vscodeignore', 'esbuild.browser.mts\n');
@@ -274,27 +278,27 @@ suite('isolated mobile preview', () => {
 		`);
 		writePnpmLockfile(path.join(root, 'extensions/auth/pnpm-lock.yaml'), {});
 		await write('extensions/auth/node_modules/.modules.yaml', '{"nodeLinker":"isolated"}');
-		await assert.rejects(packageMobilePreviewExtensions(root, ['auth']), /Unidentified pnpm source-map dependency/);
+		await assert.rejects(packageMobileExtensions(root, ['auth']), /Unidentified pnpm source-map dependency/);
 	});
 
 	test('missing extension sources, browser build inputs and required dependencies fail explicitly', async t => {
 		const { root, write } = await createFixture(t);
-		await assert.rejects(packageMobilePreviewExtensions(root, ['missing']), /ENOENT/);
+		await assert.rejects(packageMobileExtensions(root, ['missing']), /ENOENT/);
 		await write('extensions/auth/package.json', '{"name":"auth","publisher":"vscode","version":"1.0.0","browser":"./dist/browser/extension.js"}');
-		await assert.rejects(packageMobilePreviewExtensions(root, ['auth']), /esbuild.browser.mts/);
+		await assert.rejects(packageMobileExtensions(root, ['auth']), /esbuild.browser.mts/);
 		await write('extensions/auth/package.json', '{"name":"auth","publisher":"vscode","version":"1.0.0","extensionDependencies":["vscode.missing"]}');
-		await assert.rejects(packageMobilePreviewExtensions(root, ['auth']), /Required extension vscode.missing/);
+		await assert.rejects(packageMobileExtensions(root, ['auth']), /Required extension vscode.missing/);
 	});
 
 	test('packaged theme fonts and browser entries cannot point outside their extension', async t => {
-		const { preview, write } = await createFixture(t);
+		const { mobileRoot, write } = await createFixture(t);
 		const manifest = { name: 'theme', publisher: 'vscode', version: '1.0.0', contributes: { iconThemes: [{ path: './icons/theme.json' }] } };
-		await write(`${mobilePreviewDirectory}/extensions/theme/package.json`, JSON.stringify(manifest));
-		await write(`${mobilePreviewDirectory}/extensions/theme/icons/theme.json`, '{"fonts":[{"src":[{"path":"font.woff"}]}]}');
+		await write(`${mobileDirectory}/extensions/theme/package.json`, JSON.stringify(manifest));
+		await write(`${mobileDirectory}/extensions/theme/icons/theme.json`, '{"fonts":[{"src":[{"path":"font.woff"}]}]}');
 		const assets = new Set(['extensions/theme/package.json', 'extensions/theme/icons/theme.json']);
-		await assert.rejects(readMobilePreviewExtensions(preview, assets), /Missing packaged extension resource: .*font.woff/);
-		await write(`${mobilePreviewDirectory}/extensions/theme/package.json`, JSON.stringify({ ...manifest, browser: '../../../checkout.js' }));
-		await assert.rejects(readMobilePreviewExtensions(preview, assets), /Invalid mobile preview relative path|Missing packaged extension resource/);
+		await assert.rejects(readMobileExtensions(mobileRoot, assets), /Missing packaged extension resource: .*font.woff/);
+		await write(`${mobileDirectory}/extensions/theme/package.json`, JSON.stringify({ ...manifest, browser: '../../../checkout.js' }));
+		await assert.rejects(readMobileExtensions(mobileRoot, assets), /Invalid mobile relative path|Missing packaged extension resource/);
 	});
 
 	test('retained terminal-output rendering has every string-loaded xterm runtime dependency', async () => {
@@ -331,30 +335,30 @@ suite('isolated mobile preview', () => {
 		await assert.rejects(esbuild.build({
 			...getBundleOptions(true, 'neutral'),
 			absWorkingDir: root, entryPoints: ['src/entry.ts'], outfile: path.join(root, 'out/entry.js'),
-			metafile: true, plugins: [mobilePreviewPlugin(root)], logLevel: 'silent',
-		}), /Unpackaged mobile preview dependency: desktop-widget/);
+			metafile: true, plugins: [mobilePlugin(root)], logLevel: 'silent',
+		}), /Unpackaged mobile dependency: desktop-widget/);
 	});
 
 	test('budgets accept the exact limit and fail one byte over it', () => {
 		const assets = [asset(entrypoints.workbench, 10), asset(entrypoints.stylesheet, 4), asset(entrypoints.nls, 3), asset('node_modules/runtime.js', 5), asset('extensions/example/runtime.js', 7)];
 		const budgets = { workbenchJavaScriptGzipBytes: 10, workbenchCssGzipBytes: 4, initialGzipBytes: 17, runtimeGzipBytes: 22, extensionsGzipBytes: 7 };
-		assert.deepStrictEqual(checkMobilePreviewBudgets(assets, budgets), { initialGzipBytes: 17, runtimeGzipBytes: 22, extensionsGzipBytes: 7 });
+		assert.deepStrictEqual(checkMobileBudgets(assets, budgets), { initialGzipBytes: 17, runtimeGzipBytes: 22, extensionsGzipBytes: 7 });
 		for (const key of Object.keys(budgets) as (keyof typeof budgets)[]) {
-			assert.throws(() => checkMobilePreviewBudgets(assets, { ...budgets, [key]: budgets[key] - 1 }), new RegExp(key));
+			assert.throws(() => checkMobileBudgets(assets, { ...budgets, [key]: budgets[key] - 1 }), new RegExp(key));
 		}
 	});
 
 	test('debug maps and localization metadata are inventoried but not counted as runtime downloads', () => {
-		assert.deepStrictEqual(checkMobilePreviewBudgets([
+		assert.deepStrictEqual(checkMobileBudgets([
 			...Object.values(entrypoints).map(file => asset(file)),
 			asset('out/nls.metadata.json', 100000000), asset(`${entrypoints.workbench}.map`, 100000000),
 		]), { initialGzipBytes: 3, runtimeGzipBytes: 3, extensionsGzipBytes: 0 });
-		assert.throws(() => checkMobilePreviewBudgets([asset(entrypoints.workbench)]), /missing .*\.css/);
+		assert.throws(() => checkMobileBudgets([asset(entrypoints.workbench)]), /missing .*\.css/);
 	});
 
 	test('publishes only a completed package with its own asset and localization inventory', async t => {
-		const { root, out, preview, write } = await createFixture(t);
-		await prepareMobilePreview(root, out);
+		const { root, out, mobileRoot, write } = await createFixture(t);
+		await prepareMobile(root, out);
 		const files: Record<string, string> = {
 			[entrypoints.workbench]: 'export const example = 1;',
 			[entrypoints.stylesheet]: '.mobile-workbench { display: block; }',
@@ -366,16 +370,16 @@ suite('isolated mobile preview', () => {
 			'extensions/example/package.json': '{"name":"example","publisher":"vscode","version":"1.0.0"}',
 		};
 		for (const [file, contents] of Object.entries(files)) {
-			await write(`${mobilePreviewDirectory}/${file}`, contents);
+			await write(`${mobileDirectory}/${file}`, contents);
 		}
 		await write('out-build/nls.messages.json', '["Normal"]');
-		const manifest = await writeMobilePreviewManifest(root, build, []);
+		const manifest = await writeMobileManifest(root, build, []);
 		assert.deepStrictEqual({
 			schemaVersion: manifest.schemaVersion, kind: manifest.kind, entrypoints: manifest.entrypoints,
 			preload: manifest.preload, extensions: manifest.extensions, normalNls: await fs.readFile(path.join(root, 'out-build/nls.messages.json'), 'utf8'),
-			assets: manifest.assets, stored: JSON.parse(await fs.readFile(path.join(preview, mobilePreviewManifestName), 'utf8')),
+			assets: manifest.assets, stored: JSON.parse(await fs.readFile(path.join(mobileRoot, mobileManifestName), 'utf8')),
 		}, {
-			schemaVersion: 2, kind: 'sessions-mobile-preview', entrypoints, preload: Object.values(entrypoints),
+			schemaVersion: 2, kind: 'sessions-mobile', entrypoints, preload: Object.values(entrypoints),
 			extensions: [{ id: 'vscode.example', path: 'extensions/example' }], normalNls: '["Normal"]',
 			assets: Object.entries(files).sort(([a], [b]) => a.localeCompare(b)).map(([file, contents]) => ({
 				path: file, bytes: Buffer.byteLength(contents), gzipBytes: gzipSync(contents).byteLength,
@@ -386,25 +390,25 @@ suite('isolated mobile preview', () => {
 	});
 
 	test('an unresolved localization placeholder prevents publication', async t => {
-		const { root, out, preview, write } = await createFixture(t);
-		await prepareMobilePreview(root, out);
+		const { root, out, mobileRoot, write } = await createFixture(t);
+		await prepareMobile(root, out);
 		await write(`${out}/broken.js`, 'localize("%%NLS:example:title%%", "Title");');
-		await fs.mkdir(path.join(preview, 'node_modules'));
-		await assert.rejects(writeMobilePreviewManifest(root, build, []), /Unresolved localization/);
-		await assert.rejects(fs.access(path.join(preview, mobilePreviewManifestName)), { code: 'ENOENT' });
+		await fs.mkdir(path.join(mobileRoot, 'node_modules'));
+		await assert.rejects(writeMobileManifest(root, build, []), /Unresolved localization/);
+		await assert.rejects(fs.access(path.join(mobileRoot, mobileManifestName)), { code: 'ENOENT' });
 	});
 
 	test('does not publish a package containing an asset symlink', { skip: process.platform === 'win32' ? 'File symlinks require elevated privileges' : false }, async t => {
-		const { root, out, preview, write } = await createFixture(t);
-		await prepareMobilePreview(root, out);
+		const { root, out, mobileRoot, write } = await createFixture(t);
+		await prepareMobile(root, out);
 		await write('external.js', 'outside();');
-		await fs.mkdir(path.join(preview, 'out'));
-		await fs.symlink(path.join(root, 'external.js'), path.join(preview, 'out', 'linked.js'));
-		await assert.rejects(writeMobilePreviewManifest(root, build, []), /Symlinks are not allowed/);
-		await assert.rejects(fs.access(path.join(preview, mobilePreviewManifestName)), { code: 'ENOENT' });
+		await fs.mkdir(path.join(mobileRoot, 'out'));
+		await fs.symlink(path.join(root, 'external.js'), path.join(mobileRoot, 'out', 'linked.js'));
+		await assert.rejects(writeMobileManifest(root, build, []), /Symlinks are not allowed/);
+		await assert.rejects(fs.access(path.join(mobileRoot, mobileManifestName)), { code: 'ENOENT' });
 	});
 
-	test('preview resources keep worker frames and accessibility audio without shipping a full workbench shell', async t => {
+	test('mobile resources keep worker frames and accessibility audio without shipping a full workbench shell', async t => {
 		const { root, write } = await createFixture(t);
 		for (const file of [
 			'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
@@ -419,7 +423,7 @@ suite('isolated mobile preview', () => {
 		]) {
 			await write(file, '');
 		}
-		assert.deepStrictEqual(await getResourcePaths(root, 'mobile-preview'), [
+		assert.deepStrictEqual(await getResourcePaths(root, 'mobile'), [
 			'vs/platform/accessibilitySignal/browser/media/error.mp3',
 			'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 		]);
