@@ -336,26 +336,36 @@ suite('WebviewElement', () => {
 
 	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
 		const firstHash = new DeferredPromise<string>();
-		let delayFirstHash = false;
-		const { webview, container, setSource } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
-			if (delayFirstHash) {
-				delayFirstHash = false;
-				return firstHash.p;
-			}
-			return defaultHash();
+		const secondHash = new DeferredPromise<string>();
+		let nextHash: Promise<string> | undefined;
+		const { webview, frame, container, createReadyEvent, setSource } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
+			return nextHash ?? defaultHash();
 		});
-		delayFirstHash = true;
 		const before = setSource.callCount;
+		const secondMountInitialized = new DeferredPromise<void>();
+		setSource.callsFake(() => { secondMountInitialized.complete(); });
 
+		nextHash = firstHash.p;
 		webview.mountTo(container, mainWindow);
+		nextHash = secondHash.p;
 		webview.mountTo(container, mainWindow);
-		await timeout(0);
+		secondHash.complete('current-origin');
+		await secondMountInitialized.p;
 		const afterSecondMount = setSource.callCount - before;
 		firstHash.complete('stale-origin');
 		await firstHash.p;
+		// Drain the already-resolved stale hash's mount continuations.
 		await timeout(0);
+		mainWindow.dispatchEvent(new MessageEvent('message', {
+			...createReadyEvent(),
+			origin: 'https://current-origin.invalid',
+		}));
 
-		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before }, { afterSecondMount: 1, afterStaleCompletion: 1 });
+		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before, acceptedCurrentOrigin: frame.classList.contains('ready') }, {
+			afterSecondMount: 1,
+			afterStaleCompletion: 1,
+			acceptedCurrentOrigin: true,
+		});
 	});
 
 	test('remount rejects the old handshake and key token', async () => {
