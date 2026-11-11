@@ -179,6 +179,7 @@ const mobileResourcePatterns = [
 	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 	'vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
 	'vs/workbench/contrib/extensions/browser/media/*.{svg,png}',
+	'vs/sessions/skills/!(generate-chat-background)/SKILL.md',
 ];
 
 function getResourcePatternsForTarget(target: BuildTarget): string[] {
