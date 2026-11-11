@@ -52,7 +52,9 @@ export function summarizeModelRouterAttachments(attachments: readonly MessageAtt
 		entry.count++;
 		const selection = attachment.type === MessageAttachmentKind.Resource || attachment.type === MessageAttachmentKind.EmbeddedResource ? attachment.selection : undefined;
 		if (selection) {
-			entry.lines += selection.range.end.line - selection.range.start.line + 1;
+			const { start, end } = selection.range;
+			// A range that ends at the start of a line does not select that line.
+			entry.lines += end.line - start.line + (end.character === 0 && end.line > start.line ? 0 : 1);
 		}
 		byKind.set(kind, entry);
 	}

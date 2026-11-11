@@ -15,12 +15,16 @@ suite('modelRouterSituation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('counts attachments by kind and adds up selected lines, without their content', () => {
-		const selection = (startLine: number, endLine: number) => ({ range: { start: { line: startLine, character: 0 }, end: { line: endLine, character: 4 } } });
+		const selection = (startLine: number, endLine: number, endCharacter = 4) => ({ range: { start: { line: startLine, character: 0 }, end: { line: endLine, character: endCharacter } } });
 		const attachments: MessageAttachment[] = [
 			{ type: MessageAttachmentKind.Resource, label: 'cart.js', uri: 'file:///repo/src/cart.js', displayKind: 'document' },
 			{ type: MessageAttachmentKind.Resource, label: 'checkout.js', uri: 'file:///repo/src/checkout.js' },
 			{ type: MessageAttachmentKind.Resource, label: 'cart.js:10-49', uri: 'file:///repo/src/cart.js', selection: selection(10, 49) },
 			{ type: MessageAttachmentKind.Resource, label: 'pay.js:1-2', uri: 'file:///repo/src/pay.js', displayKind: 'selection', selection: selection(1, 2) },
+			// Whole lines end at the start of the next line, which is not selected.
+			{ type: MessageAttachmentKind.Resource, label: 'pay.js:1-2', uri: 'file:///repo/src/pay.js', selection: selection(0, 2, 0) },
+			{ type: MessageAttachmentKind.Resource, label: 'pay.js:6-8', uri: 'file:///repo/src/pay.js', selection: selection(5, 8, 0) },
+			{ type: MessageAttachmentKind.Resource, label: 'pay.js:5', uri: 'file:///repo/src/pay.js', selection: selection(4, 4, 0) },
 			{ type: MessageAttachmentKind.EmbeddedResource, label: 'screenshot.png', data: 'AAAA', contentType: 'image/png' },
 			{ type: MessageAttachmentKind.Resource, label: 'src', uri: 'file:///repo/src', displayKind: 'directory' },
 			{ type: MessageAttachmentKind.Annotations, label: 'Review comments', resource: 'annotations:/1' },
@@ -29,7 +33,7 @@ suite('modelRouterSituation', () => {
 		assert.deepStrictEqual({ summary: summarizeModelRouterAttachments(attachments), none: summarizeModelRouterAttachments(undefined) }, {
 			summary: [
 				{ kind: 'document', count: 2 },
-				{ kind: 'selection', count: 2, lines: 42 },
+				{ kind: 'selection', count: 5, lines: 48 },
 				{ kind: 'image', count: 1 },
 				{ kind: 'directory', count: 1 },
 				{ kind: 'review comments', count: 1 },
