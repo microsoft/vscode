@@ -27,6 +27,7 @@ import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -49,6 +50,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
 import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -837,8 +839,11 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
 	/** Whether a raw AHP model id names this provider's fusion routing model. */
 	isFusionModel?(rawModelId: string | undefined): boolean;
-	/** Returns the Auto model routing part carried by this usage report, if any. */
-	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
+	/**
+	 * Returns the Auto model routing part carried by this usage report, if any. A report with nothing
+	 * new to show returns none, unless `settlesPendingRow` says a row that is still routing is waiting on it.
+	 */
+	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
@@ -912,6 +917,34 @@ export function formatTurnResponseDetails(
 		return [displayName, formatCopilotCreditsLabel(credits)].join(' • ');
 	}
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/**
+ * Whether a model router that picks once per chat has already picked for this chat. A later turn
+ * that selects it keeps that pick without being routed, so there is no routing to report. As on
+ * the host, a model picked by hand or another router selected since then means it routes afresh.
+ */
+export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
+	if (!routerName) {
+		return false;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (turns[i].id === turnId) {
+			continue;
+		}
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return routed.router === routerName && routed.firstTurnOnly === true;
+		}
+		// A turn since that pick that selected a model by hand, or another router. A restored turn
+		// that asked for a router and got no pick has the model it ran on as its selection, so the
+		// router it asked for is read from its usage, as the host does.
+		const requested = turns[i].message.model?.id;
+		if (requested && (modelRouterNameFromModelId(requested) ?? readUsageInfoMeta(turns[i].usage).modelRouterUnrouted) !== routerName) {
+			return false;
+		}
+	}
+	return false;
 }
 
 /** Converts an agent-host Auto routing result into the shared chat UI part. */
@@ -1999,6 +2032,7 @@ function buildTerminalToolSpecificData(
 		? { ...existing?.commandLine, original: nextCommand }
 		: existing?.commandLine ?? { original: '' };
 	const nextOutput = getTerminalOutput(tc);
+	const executionTarget = getTerminalExecutionTarget(tc);
 	// Spread `existing` so any field set by a prior pass (notably the
 	// async-populated AHP fields and anything we don't explicitly handle)
 	// is preserved unless we have a fresh value to override it with.
@@ -2018,6 +2052,20 @@ function buildTerminalToolSpecificData(
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
 		isPty: terminalContent?.isPty ?? existing?.isPty,
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
+		...(executionTarget ? { executionTarget } : {}),
+	};
+}
+
+function getTerminalExecutionTarget(tc: ToolCallState): IChatTerminalToolInvocationData['executionTarget'] {
+	const meta = readToolCallMeta(tc);
+	const workingDirectory = meta['vscode.terminalWorkingDirectory'];
+	const environment = meta['vscode.terminalEnvironment'];
+	if (!workingDirectory && !environment) {
+		return undefined;
+	}
+	return {
+		...(workingDirectory ? { workingDirectory } : {}),
+		...(environment ? { environment } : {}),
 	};
 }
 
@@ -2217,6 +2265,35 @@ function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationCo
 	}
 }
 
+function modelComparisonReference(tc: ToolCallState): IMarkdownString | undefined {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success
+		|| tc.toolName !== 'createModelComparison' && tc.toolName !== 'vscode_createModelComparison') {
+		return undefined;
+	}
+	const output = getToolOutputText(tc);
+	if (!output) {
+		return undefined;
+	}
+	let parsed: { comparisonId?: unknown } | null;
+	try {
+		parsed = JSON.parse(output);
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			return undefined;
+		}
+		throw error;
+	}
+	if (typeof parsed?.comparisonId !== 'string' || !parsed.comparisonId) {
+		return undefined;
+	}
+	return withCommandLink(
+		localize('agentHost.modelComparison.started', "Started model comparison."),
+		OPEN_SESSION_COMPARISON_COMMAND_ID,
+		[parsed.comparisonId],
+		localize('agentHost.modelComparison.open', "Open Comparison"),
+	);
+}
+
 /**
  * Derives a title for the "Open Session" button from a session tool's arguments —
  * the `prompt` (create_session/create_chat) or `message` (send_message) it was
@@ -2336,6 +2413,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	let pastTenseMsg = imageTerminalMessage ?? (isSuccess
 		? stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg);
+	pastTenseMsg = modelComparisonReference(tc) ?? pastTenseMsg;
 	// Tools that render a bespoke, client-authored message override both the
 	// invocation and past-tense text here. Add new per-tool cases alongside.
 	if (isAddCommentTool(tc.toolName)) {
@@ -3285,7 +3363,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		};
 	}
 	if (isCompleted && !isTerminal) {
-		invocation.pastTenseMessage = stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
+		invocation.pastTenseMessage = modelComparisonReference(tc) ?? stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
 	}
 	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
 	if (imageTerminalMessage) {

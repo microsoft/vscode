@@ -13,8 +13,20 @@ export interface IOrderedQuestionOption {
 }
 
 /**
+ * Whether the question is a yes/no choice, the shape MCP elicitation and the agent host emit for boolean fields.
+ */
+export function isBooleanQuestion(question: IChatQuestion): boolean {
+	const options = question.options;
+	return question.type === 'singleSelect'
+		&& options?.length === 2
+		&& options.some(opt => opt.value === 'true')
+		&& options.some(opt => opt.value === 'false');
+}
+
+/**
  * Order a question's options as they are displayed: defaults first, then the
  * rest, each group keeping declared order. Defaults are named by option *id*.
+ * Yes/no questions always list Yes before No.
  *
  * The voice path numbers options from this list, so the widget must render from
  * the same function or the number the user hears stops matching the one they see.
@@ -22,6 +34,9 @@ export interface IOrderedQuestionOption {
 export function getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQuestionOption[] {
 	const options = question.options ?? [];
 	const orderedOptions = options.map((option, index) => ({ option, originalIndex: index }));
+	if (isBooleanQuestion(question)) {
+		return orderedOptions.sort((a, b) => Number(b.option.value === 'true') - Number(a.option.value === 'true'));
+	}
 	const defaultOptionIds = Array.isArray(question.defaultValue)
 		? question.defaultValue
 		: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);

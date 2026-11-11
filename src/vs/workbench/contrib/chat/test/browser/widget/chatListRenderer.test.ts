@@ -96,7 +96,7 @@ import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/c
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
@@ -2846,6 +2846,53 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('inline request attachments', () => {
+		for (const fontSize of [13, 18]) {
+			test(`aligns attachment and slash-command pills at chat font size ${fontSize}`, () => {
+				const { container, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, fontSize);
+				container.style.fontFamily = 'sans-serif';
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
+				request.response?.complete();
+				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
+				const text = '#attachment:a.ts /explain short wrapping text.';
+				model.addRequest({
+					text,
+					parts: [
+						new ChatRequestDynamicVariablePart(new OffsetRange(0, 16), new Range(1, 1, 1, 17), '#attachment:a.ts', file.id, undefined, file.value, undefined, undefined, true, false, undefined, true),
+						new ChatRequestTextPart(new OffsetRange(16, 17), new Range(1, 17, 1, 18), ' '),
+						new ChatRequestSlashPromptPart(new OffsetRange(17, 25), new Range(1, 18, 1, 26), 'explain'),
+						new ChatRequestTextPart(new OffsetRange(25, text.length), new Range(1, 26, 1, text.length + 1), text.slice(25)),
+					],
+				}, { variables: [file] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+				const attachment = template.value.querySelector('.chat-request-inline-attachment');
+				const command = template.value.querySelector('.chat-resource-widget');
+				const paragraph = template.value.querySelector('p');
+				const bubble = template.value.querySelector<HTMLElement>('.rendered-markdown');
+				assert.ok(attachment && command && paragraph && bubble);
+
+				const geometry = [720, 240, 720].map(width => {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					const attachmentBounds = attachment.getBoundingClientRect();
+					const commandBounds = command.getBoundingClientRect();
+					return {
+						centerOffset: attachmentBounds.top + attachmentBounds.height / 2 - commandBounds.top - commandBounds.height / 2,
+						overflows: bubble.scrollWidth > bubble.clientWidth,
+						wraps: paragraph.getBoundingClientRect().height > fontSize * 2,
+					};
+				});
+				assert.deepStrictEqual(geometry.map(({ centerOffset, ...rest }) => ({
+					aligned: Math.abs(centerOffset) < 1,
+					...rest,
+				})), [
+					{ aligned: true, overflows: false, wraps: false },
+					{ aligned: true, overflows: false, wraps: true },
+					{ aligned: true, overflows: false, wraps: false },
+				], JSON.stringify(geometry));
+			});
+		}
+
 		for (const restored of [false, true]) {
 			test(`shows an image above the request as well as its pill in the text (restored=${restored})`, () => {
 				const { configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();

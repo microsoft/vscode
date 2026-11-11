@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
 import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
@@ -62,6 +63,52 @@ suite('modelRouter', () => {
 					{ models: ['claude-haiku-5.5'], when: 'Lookups, explanations, small edits.', examples: ['where is the code for hydrafusion?'] },
 					{ models: ['claude-opus-5.5', 'claude-opus-5'], when: 'Planning, design, multi-file work.', examples: [], effort: 'high' },
 				],
+			});
+		});
+
+		test('reads `display-name` on one line, and `context-size` for the router and for a route', () => {
+			const parsed = parseModelRouter('version: 1\ndisplay-name: |\n  Daily\n  Driver\ndescription: Test.\ncontext-size: long\nroutes:\n  - model: a\n    when: A.\n    context-size: default\n  - model: b\n    when: B.\n', 'r.model-router.yaml');
+			assert.deepStrictEqual({
+				displayName: parsed.router?.displayName,
+				router: parsed.router?.contextSize,
+				routes: parsed.router?.routes.map(route => route.contextSize),
+				diagnostics: parsed.diagnostics,
+				invalid: errors(`version: 1\ndisplay-name: ${'x'.repeat(65)}\ndescription: Test.\nroutes:\n  - model: a\n    when: A.\n    context-size: huge\n  - model: b\n    when: B.\n`),
+			}, {
+				displayName: 'Daily Driver',
+				router: 'long',
+				routes: ['default', undefined],
+				diagnostics: [],
+				invalid: ['The display name is longer than 64 characters.', 'Route 1\'s `context-size` is `default` or `long`.'],
+			});
+		});
+
+		test('parses playbooks as named routes, which may share a model', () => {
+			const parsed = parseModelRouter('version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Building.\n    main: [opus, sonnet]\n    effort: high\n  bug-fix:\n    when: Fixing.\n    main: opus\n', 'workday.model-router.yaml');
+			assert.deepStrictEqual({ routes: parsed.router?.routes, diagnostics: parsed.diagnostics }, {
+				routes: [
+					{ models: ['opus', 'sonnet'], when: 'Building.', examples: [], effort: 'high', name: 'feature' },
+					{ models: ['opus'], when: 'Fixing.', examples: [], name: 'bug-fix' },
+				],
+				diagnostics: [],
+			});
+		});
+
+		test('checks playbooks', () => {
+			const playbooks = (text: string) => errors(`version: 1\ndescription: Test.\n${text}\n`);
+			const one = 'playbooks:\n  one:\n    when: A.\n    main: a';
+			assert.deepStrictEqual({
+				single: playbooks(one),
+				both: playbooks(`routes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n${one}`),
+				switching: playbooks(`switching: auto\n${one}`),
+				badName: playbooks('playbooks:\n  Bug_Fix:\n    when: A.\n    main: a'),
+				noMain: playbooks('playbooks:\n  one:\n    when: A.\n    model: a'),
+			}, {
+				single: [],
+				both: ['Write the router as `playbooks` or as `routes`, not both.'],
+				switching: ['A playbook is chosen once and kept for the chat, so `switching: auto` can\'t be used with `playbooks`.'],
+				badName: ['Playbook names are lowercase letters, digits and single hyphens, like `bug-fix`.'],
+				noMain: ['Playbook `one` needs `main`: a model id like `claude-haiku-5.5` or `anthropic/claude-haiku-4-5`, or a list of them in preference order.'],
 			});
 		});
 
@@ -227,6 +274,40 @@ suite('modelRouter', () => {
 				'Route 2 (gone) is skipped: none of its models are available on this account.',
 				'Only 1 of this router\'s models is available, so there is nothing to route between.',
 			]);
+		});
+
+		test('resolves playbooks by name, so two can run on the same model', () => {
+			const playbooks = router([
+				{ models: ['a'], when: 'A.', examples: [], name: 'feature' },
+				{ models: ['gone', 'a'], when: 'B.', examples: [], name: 'bug-fix' },
+				{ models: ['gone'], when: 'C.', examples: [], name: 'quick' },
+			]);
+			const result = resolveModelRouter(playbooks, [model('a')]);
+			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics) }, {
+				routes: [['feature', 'a'], ['bug-fix', 'a']],
+				diagnostics: [
+					'Playbook `bug-fix` uses `a` because `gone` is not available.',
+					'Playbook `quick` (gone) is skipped: none of its models are available on this account.',
+				],
+			});
+		});
+
+		test('applies `context-size` only to models that offer a larger window', () => {
+			const withLong = (id: string): IAgentModelInfo => ({ ...model(id), configSchema: { type: 'object', properties: { [ContextSizeConfigKey]: createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000)! } } });
+			const route = (id: string, contextSize?: 'default' | 'long') => ({ models: [id], when: 'W.', examples: [], ...(contextSize ? { contextSize } : {}) });
+			const resolve = (candidate: IModelRouter, models: IAgentModelInfo[]) => {
+				const result = resolveModelRouter(candidate, models);
+				return { sizes: result.routes.map(resolved => resolved.contextSize), diagnostics: messages(result.diagnostics) };
+			};
+			assert.deepStrictEqual({
+				routerDefault: resolve({ ...router([route('a'), route('b', 'default'), route('c')]), contextSize: 'long' }, [withLong('a'), withLong('b'), model('c')]),
+				routeAsksWithoutOne: resolve(router([route('a', 'long'), route('c', 'long')]), [withLong('a'), model('c')]),
+				noModelHasOne: resolve({ ...router([route('c'), route('d')]), contextSize: 'long' }, [model('c'), model('d')]),
+			}, {
+				routerDefault: { sizes: ['long', 'default', undefined], diagnostics: [] },
+				routeAsksWithoutOne: { sizes: ['long', undefined], diagnostics: ['Route 2: c has one context size, so `context-size: long` is ignored.'] },
+				noModelHasOne: { sizes: [undefined, undefined], diagnostics: ['None of this router\'s models has a larger context size, so `context-size: long` is ignored.'] },
+			});
 		});
 	});
 });

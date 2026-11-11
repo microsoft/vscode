@@ -135,7 +135,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges?: boolean): Promise<WorktreeRemovalOutcome>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
-	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
+	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly managedCleanup?: boolean }): Promise<void>;
 	resolveExternalWorktreeProject(workingDirectory: URI): Promise<IResolvedExternalWorktreeProject | undefined>;
 	recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined>;
 	resolveWorktreeProject(sessionUri: URI): Promise<IAgentSessionProjectInfo | undefined>;
@@ -152,6 +152,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
  * is already scoped by session, so there is no cross-agent collision.
  */
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
+const WORKTREE_META_MANAGED_CLEANUP = 'copilot.worktree.managedCleanup';
 export const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
@@ -235,6 +236,8 @@ export interface IReadWorktreeForRemovalOptions {
 /** A worktree as recorded for its owner, enough to remove it without opening the owner's database. */
 export interface IRecordedWorktree extends ISessionWorktree {
 	readonly branchName: string;
+	/** Cleanup adoption must retain managed-path guards and a checkout-scoped removal owner on subsequent archives. */
+	readonly managedCleanup?: boolean;
 }
 
 export interface IAgentHostSessionWorktreeInfo {
@@ -1731,6 +1734,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		await this.removeSessionWorktree(sessionId, worktree);
 		const keys = [
 			WORKTREE_META_BRANCH,
+			WORKTREE_META_MANAGED_CLEANUP,
 			WORKTREE_META_PATH,
 			WORKTREE_META_REPOSITORY_ROOT,
 			WORKTREE_META_SYMLINK_PATTERNS,
@@ -1769,8 +1773,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	async readSessionWorktreeForRemoval(sessionUri: URI, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> {
-		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY]);
-		return recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT))
+		const values = await this._sessionStateStore.readWithoutImport(sessionUri, [WORKTREE_META_BRANCH, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, LEGACY_WORKTREE_META_WORKING_DIRECTORY, WORKTREE_META_MANAGED_CLEANUP]);
+		const recorded = recordedWorktree(values.get(WORKTREE_META_BRANCH), values.get(WORKTREE_META_PATH) ?? values.get(LEGACY_WORKTREE_META_WORKING_DIRECTORY), values.get(WORKTREE_META_REPOSITORY_ROOT));
+		return (recorded && values.get(WORKTREE_META_MANAGED_CLEANUP) === 'true' ? { ...recorded, managedCleanup: true } : recorded)
 			?? (options?.includeUnpersisted ? this._knownWorktree(AgentSession.id(sessionUri)) : undefined);
 	}
 
@@ -1974,7 +1979,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * gone (resume recreates it) and when it still exists but the predecessor recorded
 	 * a base branch that could not otherwise be recovered without a remote (#333642).
 	 */
-	async recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> {
+	async recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly managedCleanup?: boolean }): Promise<void> {
 		this._logService.info(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Recorded adopted worktree metadata: worktree='${metadata.worktreePath.fsPath}' branch='${metadata.branchName}' base='${metadata.baseBranch ?? '(none)'}' repo='${metadata.repositoryRoot.fsPath}'`);
 		await this._writeWorktreeMetadata(sessionUri, metadata);
 	}
@@ -2124,13 +2129,14 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 	private async _writeWorktreeMetadata(
 		sessionUri: URI,
-		metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI },
+		metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI; managedCleanup?: boolean },
 		symlinkSetup?: { readonly sourceRoot: URI; readonly patterns: readonly string[] },
 	): Promise<void> {
 		const values: Record<string, string | null> = {
 			[WORKTREE_META_BRANCH]: metadata.branchName,
 			[WORKTREE_META_PATH]: metadata.worktreePath.toString(),
 			[WORKTREE_META_REPOSITORY_ROOT]: metadata.repositoryRoot.toString(),
+			...(metadata.managedCleanup ? { [WORKTREE_META_MANAGED_CLEANUP]: 'true' } : {}),
 		};
 		if (metadata.baseBranch) {
 			values[META_DIFF_BASE_BRANCH] = metadata.baseBranch;

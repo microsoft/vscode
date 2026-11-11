@@ -68,6 +68,7 @@ type CloudSandboxTaskCreationClassification = {
 };
 type CloudSandboxConnectionPhase = Exclude<CloudSandboxConnectionStage, 'connection'>;
 type CloudSandboxEnvironmentOperation = 'provision' | 'resume' | 'recover' | 'attach';
+type RecoveryStopReason = 'attemptsExhausted' | 'timeout' | 'authentication' | 'protocol' | 'nonReconnectable';
 type CloudSandboxConnectionContext = Pick<ICloudSandboxConnectOptions, 'provisioningStartedAt' | 'environmentKind' | 'taskCreationPath' | 'reservationWaitMs'> & Partial<Pick<ICloudSandboxConnectOptions, 'environmentId' | 'sessionId'>>;
 
 export function getCloudSandboxConnectionSurface(isSessionsWindow: boolean, isWeb: boolean): CloudSandboxConnectionSurface {
@@ -406,6 +407,10 @@ interface IConnectionOperation {
 	credentialOperations: number;
 	wakingResponses: number;
 	transportAttempts: number;
+	suspendCount: number;
+	suspendedAt: number | undefined;
+	suspendedMs: number;
+	recoveryStopReason?: RecoveryStopReason;
 	firstFailure?: { readonly phase: string; readonly code: number | undefined; readonly error: IConnectionTelemetryError };
 	readonly failures: Record<CloudSandboxConnectionPhase, number>;
 	readonly durations: Record<CloudSandboxConnectionPhase, number>;
@@ -427,6 +432,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 	private readonly _observedRequests = new Set<string>();
 	private _connectedSince: number | undefined;
 	private _restoring = false;
+	private _suspendedAt: number | undefined;
 	private _counts = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
 
 	constructor(
@@ -462,6 +468,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			? Math.max(0, reservationWaitMs) : undefined;
 		return {
 			operation, stage, startedAt, credentialOperations: 0, wakingResponses: 0, transportAttempts: 0,
+			suspendCount: this._suspendedAt === undefined ? 0 : 1,
+			suspendedAt: this._suspendedAt === undefined ? undefined : startedAt,
+			suspendedMs: 0,
 			provisioningMs,
 			reservationWaitMs: operation === 'connect' && this._initialEnvironmentOperation === 'provision'
 				? measuredReservationWait === undefined ? undefined : Math.min(measuredReservationWait, provisioningMs ?? measuredReservationWait)
@@ -519,7 +528,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 				this._restoring = true;
 				if (this._connectedSince !== undefined) {
 					this._pauseConnectedTime();
-					this._counts.unexpectedDisconnects++;
+					if (this._suspendedAt === undefined) {
+						this._counts.unexpectedDisconnects++;
+					}
 					this._lifecycle?.record({ ...this._lifecycleContext, phase: 'connection.closed', operationId: generateUuid(), outcome: 'observed' });
 					this._operation = this._newOperation('recover', 'connection');
 					this._lifecycleOperation = this._lifecycle?.start('connection.recover', this._lifecycleContext);
@@ -562,6 +573,31 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 	recordConnectionDiagnostic(event: IConnectionDiagnosticEvent): void {
 		if (this._store.isDisposed) {
 			return;
+		}
+		if (event.phase === 'power.suspend') {
+			this._suspendedAt ??= Date.now();
+			if (this._operation && this._operation.suspendedAt === undefined) {
+				this._operation.suspendCount++;
+				this._operation.suspendedAt = Date.now();
+			}
+			return;
+		}
+		if (event.phase === 'power.resume') {
+			this._suspendedAt = undefined;
+			if (this._operation?.suspendedAt !== undefined) {
+				this._operation.suspendedMs += Math.max(0, Date.now() - this._operation.suspendedAt);
+				this._operation.suspendedAt = undefined;
+			}
+			return;
+		}
+		if (this._operation) {
+			switch (event.phase) {
+				case 'reconnect.exhausted': this._operation.recoveryStopReason = 'attemptsExhausted'; break;
+				case 'reconnect.timedOut': this._operation.recoveryStopReason = 'timeout'; break;
+				case 'authentication.failed': this._operation.recoveryStopReason = 'authentication'; break;
+				case 'protocol.incompatible': this._operation.recoveryStopReason = 'protocol'; break;
+				case 'reconnect.nonReconnectable': this._operation.recoveryStopReason = 'nonReconnectable'; break;
+			}
 		}
 		if (event.phase === 'chat.binding' && event.sessionResource && event.chatResource) {
 			this._chatSessions.set(event.chatResource, event.sessionResource);
@@ -759,6 +795,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		const durationMs = Math.max(0, Date.now() - operation.startedAt);
 		const preparationMs = Math.min(durationMs, operation.preparationMs);
 		this._reportOutcome({
+			suspendCount: operation.suspendCount,
+			suspendedMs: operation.suspendedMs + (operation.suspendedAt === undefined ? 0 : Math.max(0, Date.now() - operation.suspendedAt)),
+			...(operation.recoveryStopReason === undefined ? {} : { recoveryStopReason: operation.recoveryStopReason }),
 			...(operation.firstFailure?.error.errorCategory ? { firstFailureCategory: operation.firstFailure.error.errorCategory } : {}),
 			...(operation.firstFailure?.error.statusCode === undefined ? {} : { firstFailureStatusCode: operation.firstFailure.error.statusCode }),
 			operation: operation.operation, outcome, stage: operation.stage, durationMs,
@@ -795,6 +834,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 }
 
 type CloudSandboxConnectionOutcomeEvent = {
+	suspendCount: number;
+	suspendedMs: number;
+	recoveryStopReason?: RecoveryStopReason;
 	environmentKind: CloudSandboxEnvironmentKind;
 	taskCreationPath: CloudSandboxTaskCreationPath;
 	operation: 'connect' | 'recover';
@@ -830,6 +872,9 @@ type CloudSandboxConnectionOutcomeEvent = {
 };
 
 export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmentClassification & CloudSandboxTaskCreationClassification & {
+	suspendCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'OS suspend intervals observed during this operation, including an interval already active when recovery began. Zero when no suspension was reported.' };
+	suspendedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds of this operation spent in reported OS suspension, included in durationMs. Zero when no suspension was reported.' };
+	recoveryStopReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded source-owned reason automatic recovery stopped: attemptsExhausted, timeout, authentication, protocol, or nonReconnectable. Absent without an observed stop decision.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Logical connect or recovery, including all retries.' };
 	environmentOperation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provision follows task submission, including prepared-environment or reservation reuse; resume opens an existing sandbox; recover follows loss of a ready connection; attach connects a user-local Mission Control host. Client workflow, not confirmed VM lifecycle state.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, or cancellation; cancellations are not failures.' };

@@ -287,6 +287,24 @@ const modelRouterExample = [
 	'      - why is token usage higher in treatment?',
 ].join('\n');
 
+const modelRouterPlaybookExample = [
+	'version: 1',
+	'display-name: Workday',
+	'description: Opus for feature work and bug fixes, Haiku for quick questions.',
+	'playbooks:                  # the first one is the fallback',
+	'  feature:',
+	'    when: Building something new or changing behavior across files, such as a feature, prototype or refactor.',
+	'    main: [claude-opus-5.5, claude-opus-5]',
+	'    effort: high',
+	'  bugfix:',
+	'    when: Something is broken, such as a failing test, a crash or a reported issue.',
+	'    main: claude-opus-5.5',
+	'    effort: medium',
+	'  quick:',
+	'    when: Questions, lookups, explanations, small one-file edits and git chores.',
+	'    main: claude-haiku-5.5',
+].join('\n');
+
 const modelRouterSkillContent = `# Model router
 
 A model router is a YAML file that VS Code lists as a model in the model picker. When a chat uses it, each turn asks a decision model which route fits the request and runs the turn on that route's model. Use this skill to create, edit or fix one.
@@ -311,6 +329,20 @@ ${modelRouterExample}
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default and ignores route \`effort\`.
 - \`switching: first-turn\`, the default, picks a model and effort on the first turn and keeps them; \`auto\` may also switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
+- \`display-name\` (optional) is the name the model picker and the chat show in place of the file name.
+- \`context-size: long\` (optional, on a route or for the whole router) runs a model on its larger context window when it has one; \`default\` uses its standard one. The check lists each model's \`contextSizes\`, and \`longContextCostsMore\` when the larger one is billed at a higher rate. Without the key each model keeps its own default. A chat that is on a long window stays on one.
+
+## Playbooks
+
+A router can be written as \`playbooks\` in place of \`routes\`, when the user thinks in kinds of work rather than in models:
+
+\`\`\`yaml
+${modelRouterPlaybookExample}
+\`\`\`
+
+- A playbook is a route with a name. \`main\` is its model (what \`model\` is in a route); \`when\`, \`examples\`, \`effort\` and \`context-size\` work as they do in a route. Names are lowercase letters, digits and single hyphens.
+- A file has \`playbooks\` or \`routes\`, not both. One playbook is enough, and two playbooks may use the same model.
+- A playbook is chosen from the first message of a chat and kept for that chat, so \`switching: auto\` can't be used with playbooks. Put first the playbook to use when the router can't tell which one fits.
 
 ## YAML rules
 

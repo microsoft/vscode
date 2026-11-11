@@ -32,6 +32,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 
 	function createProvider() {
 		const tokenStore = disposables.add(new CopilotTokenStore());
+		tokenStore.authenticationState = 'signedIn';
 		const logService = new class extends mock<ILogService>() {
 			override trace(): void { }
 			override warn(): void { }

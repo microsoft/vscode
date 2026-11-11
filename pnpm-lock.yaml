@@ -37,8 +37,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.30-preview.0
-        version: 1.0.30-preview.0
+        specifier: 1.0.32-preview.0
+        version: 1.0.32-preview.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -1244,21 +1244,9 @@ importers:
 
   extensions/github:
     dependencies:
-      '@octokit/graphql':
-        specifier: 8.2.0
-        version: 8.2.0
-      '@octokit/graphql-schema':
-        specifier: 14.4.0
-        version: 14.4.0
-      '@octokit/rest':
-        specifier: 21.1.0
-        version: 21.1.0
       '@vscode/extension-telemetry':
         specifier: ^1.0.0
         version: 1.0.0(tslib@2.8.1)
-      tunnel:
-        specifier: ^0.0.6
-        version: 0.0.6
     devDependencies:
       '@types/mocha':
         specifier: ^10.0.10
@@ -1456,8 +1444,8 @@ importers:
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
       '@vscode/markdown-editor':
-        specifier: 0.0.2-153
-        version: 0.0.2-153
+        specifier: 0.0.2-179
+        version: 0.0.2-179
       '@vscode/observables':
         specifier: ^0.1.1-0
         version: 0.1.1-0
@@ -3658,52 +3646,52 @@ packages:
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-mk2Eo2CAqWNx1MfXe86PRAXIZn1jPQ+Nn9wWKLv1caUrZx6MgDAZje3RsjzBFt1z6cPRdNvGuR+5qx5ed4fm7g==}
+  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.0':
+    resolution: {integrity: sha512-WEE/ZFiEhJbDlOXXGm+Pf89M9YrLeBwE3aKbefcr72SVV91Wpd6RKHdXV4JhXjSSOGdp91v4Ffwc3FIoVSK/iA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-Hp8HUQBln7cA/GUOjSnAn7fNI0oUh3eqXj27Jk2ejYf7bf7CNDduZviXMPZVDFU4L/0APEA32SH7UzzuouB1Yw==}
+  '@github/copilot-sdk-darwin-x64@1.0.32-preview.0':
+    resolution: {integrity: sha512-9bDaUBIMP0r67nVjLNe+lN1cEZEIsarZ2+plx1a4Ao3AhvHouGy++MH4YTWTFZxz8b0nETOekqKfXJnPntBqTA==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-Gbg8nKJOVJeXKPgv0rzv0cB6I8ZHeTBbFqEWRT/WrxwiS2a4vubsIWK5gHAMx+cOVUyl8Cmc0yLfAzuQcOfnEA==}
+  '@github/copilot-sdk-linux-arm64@1.0.32-preview.0':
+    resolution: {integrity: sha512-ql8QoJOhks+/OSlNTp0cqGJPQfjLnmhNybyoTLgWWwo88RLddp0xikE7qGtdgc3yHQ36TngNA7qMtjYhL256UA==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-43aFjCby/R6acOEbLLnvysUvKX9POTsDbY4kZAcaSrHkiVrnVOLNiEgbvVchXjbZBVsLlFP94EN/ibheCzRHeA==}
+  '@github/copilot-sdk-linux-x64@1.0.32-preview.0':
+    resolution: {integrity: sha512-Ik1zeWYEl45Z6r8racR4iqByBPrUgoL7lzL2NKhDdfjcuvKlKjInGRrNZjtueAx7BMsluSVzpMgF4AsaNaL3Bw==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-TKVl1Ts80+rKmG2keG035fZt9BPtRkuVIMjq2Z/l7cpt00J33qQRkI0qms4eiuId+jZxes0gX7zQHT85IVftxA==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.0':
+    resolution: {integrity: sha512-Up/OJLaGfF/TL+S8SuKsj0ywNnkTkW6Kzxn4pa888/ajYoR9g8MWAde5Yfez2oF6JGYgqhmgW4xyL42QJHqlSw==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-KwgkOL7BSasVTJwg297uTpYAhcMsS4DGj+Ty3DiRkW7F576ONW4pJOaJz8/4+EpNKYmhFYaFsNoHIaFQ76posQ==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.0':
+    resolution: {integrity: sha512-kdfju0z8tvYoj/AbyjRKCY1ko579COjFwkuILoYntccIZ3CzncXD6qd1V/2EkDX6cO1PdOX5CdWtfk9lLqXy+Q==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.30-preview.0':
-    resolution: {integrity: sha512-AlF+jOYYSkm/Mls4EE5myJ0qUQxVBHEtBFvdPkZ+uqdY3R4mHO1ReeJWsX5dFlsY85kUVF6zS1CuhtXokfgyHQ==}
+  '@github/copilot-sdk-win32-arm64@1.0.32-preview.0':
+    resolution: {integrity: sha512-urpT8WQGaFLzKOuvzokdLSmeVJtfumSTtMI2g7Q+2sDCPItibK1dF4M/iewebVfTGetP4j8CEic22p8EfhXK8Q==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.30-preview.0':
-    resolution: {integrity: sha512-9Jij2EEH2r6gk0ekKhHq/SQzZgDGe3W3VY3+SKs6KmUq6ZG6vzfj9sEN2QDA/ywqqJf7RMesGKTD0A0Y5xTIKw==}
+  '@github/copilot-sdk-win32-x64@1.0.32-preview.0':
+    resolution: {integrity: sha512-Hyu51St7u2eZZeBYAVFreh+2AVU0EEg/rXKfmgxoeiDmh9aYEAV1s0cbZxXnDD+7xX72Ia2S/ORLvVOF79P5kg==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.30-preview.0':
-    resolution: {integrity: sha512-V2A//9ikl8yygwqb8zffH/Jmmqg2Ra8nOsgjui3VIxp8pSSh/ljpsOF7iH5RKXlCDx/b2YtF+jWa3zRQAHIECg==}
+  '@github/copilot-sdk@1.0.32-preview.0':
+    resolution: {integrity: sha512-zyERXi2ADUONrexDOdpCraTMCppgc80E2NgPuyCrz3GrQIfNo25uTMiJ5WZmtFalltUnJ78EqRIUj3f8CxuqLg==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@github/copilot-win32-arm64@1.0.73':
@@ -4266,25 +4254,13 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@octokit/auth-token@5.1.2':
-    resolution: {integrity: sha512-JcQDsBdg49Yky2w2ld20IHAlwr8d/d8N6NiOXbtuoPCqzbsiJgF633mVUw3x4mo0H5ypataQIX7SFu3yy44Mpw==}
-    engines: {node: '>= 18'}
-
   '@octokit/auth-token@6.0.0':
     resolution: {integrity: sha512-P4YJBPdPSpWTQ1NU4XYdvHvXJJDxM6YwpS0FZHRgP7YFkdVxsWcpWGy/NVqlAA7PcPCnMacXlRm1y2PFZRWL/w==}
     engines: {node: '>= 20'}
 
-  '@octokit/core@6.1.5':
-    resolution: {integrity: sha512-vvmsN0r7rguA+FySiCsbaTTobSftpIDIpPW81trAmsv9TGxg3YCujAxRYp/Uy8xmDgYCzzgulG62H7KYUFmeIg==}
-    engines: {node: '>= 18'}
-
   '@octokit/core@7.0.3':
     resolution: {integrity: sha512-oNXsh2ywth5aowwIa7RKtawnkdH6LgU1ztfP9AIUCQCvzysB+WeU8o2kyyosDPwBZutPpjZDKPQGIzzrfTWweQ==}
     engines: {node: '>= 20'}
-
-  '@octokit/endpoint@10.1.4':
-    resolution: {integrity: sha512-OlYOlZIsfEVZm5HCSR8aSg02T2lbUWOsCQoPKfTXJwDzcHQBrVBGdGXb89dv2Kw2ToZaRtudp8O3ZIYoaOjKlA==}
-    engines: {node: '>= 18'}
 
   '@octokit/endpoint@11.0.0':
     resolution: {integrity: sha512-hoYicJZaqISMAI3JfaDr1qMNi48OctWuOih1m80bkYow/ayPw6Jj52tqWJ6GEoFTk1gBqfanSoI1iY99Z5+ekQ==}
@@ -4294,20 +4270,9 @@ packages:
     resolution: {integrity: sha512-8/AUACfE9vpRpehE6ZLfEtzkibe5nfsSwFZVMsG8qabqRt1M81qZYUFRZa1B8w8lP6cdfDJfRq9HWS+MbmR7tw==}
     engines: {node: '>= 14'}
 
-  '@octokit/graphql-schema@14.4.0':
-    resolution: {integrity: sha512-+O6/dsLlR6V9gv+t1lqsN+x73TLwyQWZpd3M8/eYnuny7VaznV9TAyUxf18tX8WBBS5IqtlLDk1nG+aSTPRZzQ==}
-
   '@octokit/graphql@5.0.6':
     resolution: {integrity: sha512-Fxyxdy/JH0MnIB5h+UQ3yCoh1FG4kWXfFKkpWqjZHw/p+Kc8Y44Hu/kCgNBT6nU1shNumEchmW/sUO1JuQnPcw==}
     engines: {node: '>= 14'}
-
-  '@octokit/graphql@8.2.0':
-    resolution: {integrity: sha512-gejfDywEml/45SqbWTWrhfwvLBrcGYhOn50sPOjIeVvH6i7D16/9xcFA8dAJNp2HMcd+g4vru41g4E2RBiZvfQ==}
-    engines: {node: '>= 18'}
-
-  '@octokit/graphql@8.2.2':
-    resolution: {integrity: sha512-Yi8hcoqsrXGdt0yObxbebHXFOiUA+2v3n53epuOg1QUgOB6c4XzvisBNVXJSl8RYA5KrDuSL2yq9Qmqe5N0ryA==}
-    engines: {node: '>= 18'}
 
   '@octokit/graphql@9.0.1':
     resolution: {integrity: sha512-j1nQNU1ZxNFx2ZtKmL4sMrs4egy5h65OMDmSbVyuCzjOcwsHq6EaYjOTGXPQxgfiN8dJ4CriYHk6zF050WEULg==}
@@ -4319,20 +4284,8 @@ packages:
   '@octokit/openapi-types@18.1.1':
     resolution: {integrity: sha512-VRaeH8nCDtF5aXWnjPuEMIYf1itK/s3JYyJcWFJT8X9pSNnBtriDf7wlEWsGuhPLl4QIH4xM8fqTXDwJ3Mu6sw==}
 
-  '@octokit/openapi-types@24.2.0':
-    resolution: {integrity: sha512-9sIH3nSUttelJSXUrmGzl7QUBFul0/mB8HRYl3fOlgHbIWG+WnYDXU3v/2zMtAvuzZ/ed00Ei6on975FhBfzrg==}
-
-  '@octokit/openapi-types@25.0.0':
-    resolution: {integrity: sha512-FZvktFu7HfOIJf2BScLKIEYjDsw6RKc7rBJCdvCTfKsVnx2GEB/Nbzjr29DUdb7vQhlzS/j8qDzdditP0OC6aw==}
-
   '@octokit/openapi-types@25.1.0':
     resolution: {integrity: sha512-idsIggNXUKkk0+BExUn1dQ92sfysJrje03Q0bv0e+KPLrvyqZF8MnBpFz8UNfYDwB3Ie7Z0TByjWfzxt7vseaA==}
-
-  '@octokit/plugin-paginate-rest@11.6.0':
-    resolution: {integrity: sha512-n5KPteiF7pWKgBIBJSk8qzoZWcUkza2O6A0za97pMGVrGfPdltxrfmfF5GucHYvHGZD8BdaZmmHGz5cX/3gdpw==}
-    engines: {node: '>= 18'}
-    peerDependencies:
-      '@octokit/core': '>=6'
 
   '@octokit/plugin-paginate-rest@13.1.1':
     resolution: {integrity: sha512-q9iQGlZlxAVNRN2jDNskJW/Cafy7/XE52wjZ5TTvyhyOD904Cvx//DNyoO3J/MXJ0ve3rPoNWKEg5iZrisQSuw==}
@@ -4340,21 +4293,9 @@ packages:
     peerDependencies:
       '@octokit/core': '>=6'
 
-  '@octokit/plugin-request-log@5.3.1':
-    resolution: {integrity: sha512-n/lNeCtq+9ofhC15xzmJCNKP2BWTv8Ih2TTy+jatNCCq/gQP/V7rK3fjIfuz0pDWDALO/o/4QY4hyOF6TQQFUw==}
-    engines: {node: '>= 18'}
-    peerDependencies:
-      '@octokit/core': '>=6'
-
   '@octokit/plugin-request-log@6.0.0':
     resolution: {integrity: sha512-UkOzeEN3W91/eBq9sPZNQ7sUBvYCqYbrrD8gTbBuGtHEuycE4/awMXcYvx6sVYo7LypPhmQwwpUe4Yyu4QZN5Q==}
     engines: {node: '>= 20'}
-    peerDependencies:
-      '@octokit/core': '>=6'
-
-  '@octokit/plugin-rest-endpoint-methods@13.5.0':
-    resolution: {integrity: sha512-9Pas60Iv9ejO3WlAX3maE1+38c5nqbJXV5GrncEfkndIpZrJ/WPMRd2xYDcPPEt5yzpxcjw9fWNoPhsSGzqKqw==}
-    engines: {node: '>= 18'}
     peerDependencies:
       '@octokit/core': '>=6'
 
@@ -4368,10 +4309,6 @@ packages:
     resolution: {integrity: sha512-crqw3V5Iy2uOU5Np+8M/YexTlT8zxCfI+qu+LxUB7SZpje4Qmx3mub5DfEKSO8Ylyk0aogi6TYdf6kxzh2BguQ==}
     engines: {node: '>= 14'}
 
-  '@octokit/request-error@6.1.8':
-    resolution: {integrity: sha512-WEi/R0Jmq+IJKydWlKDmryPcmdYSVjL3ekaiEL1L9eo1sUnqMJ+grqmC9cjk7CA7+b2/T397tO5d8YLOH3qYpQ==}
-    engines: {node: '>= 18'}
-
   '@octokit/request-error@7.0.0':
     resolution: {integrity: sha512-KRA7VTGdVyJlh0cP5Tf94hTiYVVqmt2f3I6mnimmaVz4UG3gQV/k4mDJlJv3X67iX6rmN7gSHCF8ssqeMnmhZg==}
     engines: {node: '>= 20'}
@@ -4384,23 +4321,9 @@ packages:
     resolution: {integrity: sha512-ow4+pkVQ+6XVVsekSYBzJC0VTVvh/FCTUUgTsboGq+DTeWdyIFV8WSCdo0RIxk6wSkBTHqIK1mYuY7nOBXOchw==}
     engines: {node: '>= 14'}
 
-  '@octokit/request@9.2.3':
-    resolution: {integrity: sha512-Ma+pZU8PXLOEYzsWf0cn/gY+ME57Wq8f49WTXA8FMHp2Ps9djKw//xYJ1je8Hm0pR2lU9FUGeJRWOtxq6olt4w==}
-    engines: {node: '>= 18'}
-
-  '@octokit/rest@21.1.0':
-    resolution: {integrity: sha512-93iLxcKDJboUpmnUyeJ6cRIi7z7cqTZT1K7kRK4LobGxwTwpsa+2tQQbRQNGy7IFDEAmrtkf4F4wBj3D5rVlJQ==}
-    engines: {node: '>= 18'}
-
   '@octokit/rest@22.0.0':
     resolution: {integrity: sha512-z6tmTu9BTnw51jYGulxrlernpsQYXpui1RK21vmXn8yF5bp6iX16yfTtJYGK5Mh1qDkvDOmp2n8sRMcQmR8jiA==}
     engines: {node: '>= 20'}
-
-  '@octokit/types@13.10.0':
-    resolution: {integrity: sha512-ifLaO34EbbPj0Xgro4G5lP5asESjwHracYJvVaPIyXMuiuXLlhic3S47cBdTb+jfODkTE5YtGCLt3Ay3+J97sA==}
-
-  '@octokit/types@14.0.0':
-    resolution: {integrity: sha512-VVmZP0lEhbo2O1pdq63gZFiGCKkm8PPp8AUOijlwPO6hojEVjspA0MWKP7E4hbvGxzFKNqKr6p0IYtOH/Wf/zA==}
 
   '@octokit/types@14.1.0':
     resolution: {integrity: sha512-1y6DgTy8Jomcpu33N+p5w58l6xyt55Ar2I91RPiIA0xCJBXyUAhXCcmZaDWSANiha7R9a6qJJ2CRomGPZ6f46g==}
@@ -5636,8 +5559,8 @@ packages:
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
 
-  '@vscode/markdown-editor@0.0.2-153':
-    resolution: {integrity: sha512-m2mkimOsOgHPMjxNKH1Hf4Q2jz+b9jGqS0nTmCEYZT0bhb13Na5t/wQWABjQMZ6+DkB4pdSBdNvW4hYLKo0lfw==}
+  '@vscode/markdown-editor@0.0.2-179':
+    resolution: {integrity: sha512-wEKzkmRdtVwqgYUUSIiMed8eTQXKB0VITzMRSENo4pAKFWlZFdMJ/X8fXliHgMWUfo7/4kUdO/mabQe+XXNuNw==}
 
   '@vscode/markdown-it-katex@1.1.1':
     resolution: {integrity: sha512-3KTlbsRBPJQLE2YmLL7K6nunTlU+W9T5+FjfNdWuIUKgxSS6HWLQHaO3L4MkJi7z7MpIPpY+g4N+cWNBPE/MSA==}
@@ -6471,9 +6394,6 @@ packages:
 
   bcrypt-pbkdf@1.0.2:
     resolution: {integrity: sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==}
-
-  before-after-hook@3.0.2:
-    resolution: {integrity: sha512-Nik3Sc0ncrMK4UUdXQmAnRtzmNQTAAXmXIopizwZ1W1t8QmfJj+zL4OA2I7XPTPW5z5TDqv4hRo/JzouDJnX3A==}
 
   before-after-hook@4.0.0:
     resolution: {integrity: sha512-q6tR3RPqIB1pMiTRMFcZwuG5T8vwp+vUvEG0vuI6B+Rikh5BfPp2fQ82c925FOs+b0lcFQ8CFrL+KbilfZFhOQ==}
@@ -7852,9 +7772,6 @@ packages:
     resolution: {integrity: sha512-k9oEhlyc0FrVh25qYuSELjr8oxsCoc4/LEZfg2iJJrfEk/tZL9bCoJE47gqAvI2m/AUjluCS4+3I0eTx8n3AEw==}
     engines: {node: '>= 0.10'}
 
-  fast-content-type-parse@2.0.1:
-    resolution: {integrity: sha512-nGqtvLrj5w0naR6tDPfB4cUmYCqouzyQiz6C5y/LtcDllJdrcc6WaWW6iXyIIOErTa/XRybj28aasdn4LkVk6Q==}
-
   fast-content-type-parse@3.0.0:
     resolution: {integrity: sha512-ZvLdcY8P+N8mGQJahJV5G4U88CSvT1rP8ApL6uETe88MBXrBHAkZlSEySdUlyztF7ccb+Znos3TFqaepHxdhBg==}
 
@@ -8272,16 +8189,6 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
-
-  graphql-tag@2.12.6:
-    resolution: {integrity: sha512-FdSNcu2QQcWnM2VNvSCCDCVS5PpPqpzgFT8+GXzqJuoDd0CBncxCY278u4mhRO7tMgo2JjgJA5aZ+nWSQ/Z+xg==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      graphql: ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
-
-  graphql@16.8.1:
-    resolution: {integrity: sha512-59LZHPdGZVh695Ud9lRzPBVTtlX9ZCV150Er2W43ro37wVof0ctenSaskPPjN7lVTIN8mSZt8PHUNKZuNQUuxw==}
-    engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   gulp-azure-storage@0.12.1:
     resolution: {integrity: sha512-n/hx8bbGsqrcizruqDTX6zy2FUdkTDGAz04IdopNxNTZivZmizf8u9WLYJreUE6/qCnSJnyjS1HP82+mLk7rjg==}
@@ -9430,6 +9337,9 @@ packages:
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
     hasBin: true
+
+  lossless-json@4.3.3:
+    resolution: {integrity: sha512-FGFrGArHsv7BRiYOf37ZRieT9HlKw+Kpu9HvtpYjcoOEo8lqNkjny8A2YAfWNWWQC+9pcLIrLZ+IviKJhaHwGQ==}
 
   lowercase-keys@3.0.0:
     resolution: {integrity: sha512-ozCC6gdQ+glXOQsveKD0YsDy8DSQFjDTz4zyzEHNV5+JP5D62LmfDZ6o1cycFx9ouG940M5dE8C8CTewdj2YWQ==}
@@ -11903,9 +11813,6 @@ packages:
 
   universal-user-agent@6.0.0:
     resolution: {integrity: sha512-isyNax3wXoKaulPDZWHQqbmIx1k2tb9fb3GGDBRxCscfYV2Ch7WxPArBsFEG8s/safwXTT7H4QGhaIkTp9447w==}
-
-  universal-user-agent@7.0.2:
-    resolution: {integrity: sha512-0JCqzSKnStlRRQfCdowvqy3cy0Dvtlb8xecj/H8JFZuCze4rwjPZQOgvFvn0Ws/usCHQFGpyr+pB9adaGwXn4Q==}
 
   universal-user-agent@7.0.3:
     resolution: {integrity: sha512-TmnEAEAsBJVZM/AADELsK76llnwcf9vMKuPz8JflO1frO8Lchitr0fNaN9d+Ap0BjKtqWqd/J17qeDnXh8CL2A==}
@@ -14649,44 +14556,45 @@ snapshots:
   '@github/copilot-linuxmusl-x64@1.0.73':
     optional: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-darwin-x64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-linux-arm64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-linux-x64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.30-preview.0':
+  '@github/copilot-sdk-win32-arm64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.30-preview.0':
+  '@github/copilot-sdk-win32-x64@1.0.32-preview.0':
     optional: true
 
-  '@github/copilot-sdk@1.0.30-preview.0':
+  '@github/copilot-sdk@1.0.32-preview.0':
     dependencies:
       koffi: 3.2.1
+      lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-darwin-x64': 1.0.30-preview.0
-      '@github/copilot-sdk-linux-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-linux-x64': 1.0.30-preview.0
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.30-preview.0
-      '@github/copilot-sdk-win32-arm64': 1.0.30-preview.0
-      '@github/copilot-sdk-win32-x64': 1.0.30-preview.0
+      '@github/copilot-sdk-darwin-arm64': 1.0.32-preview.0
+      '@github/copilot-sdk-darwin-x64': 1.0.32-preview.0
+      '@github/copilot-sdk-linux-arm64': 1.0.32-preview.0
+      '@github/copilot-sdk-linux-x64': 1.0.32-preview.0
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.32-preview.0
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.32-preview.0
+      '@github/copilot-sdk-win32-arm64': 1.0.32-preview.0
+      '@github/copilot-sdk-win32-x64': 1.0.32-preview.0
 
   '@github/copilot-win32-arm64@1.0.73':
     optional: true
@@ -15348,19 +15256,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@octokit/auth-token@5.1.2': {}
-
   '@octokit/auth-token@6.0.0': {}
-
-  '@octokit/core@6.1.5':
-    dependencies:
-      '@octokit/auth-token': 5.1.2
-      '@octokit/graphql': 8.2.2
-      '@octokit/request': 9.2.3
-      '@octokit/request-error': 6.1.8
-      '@octokit/types': 14.0.0
-      before-after-hook: 3.0.2
-      universal-user-agent: 7.0.2
 
   '@octokit/core@7.0.3':
     dependencies:
@@ -15371,11 +15267,6 @@ snapshots:
       '@octokit/types': 14.1.0
       before-after-hook: 4.0.0
       universal-user-agent: 7.0.3
-
-  '@octokit/endpoint@10.1.4':
-    dependencies:
-      '@octokit/types': 14.0.0
-      universal-user-agent: 7.0.2
 
   '@octokit/endpoint@11.0.0':
     dependencies:
@@ -15388,11 +15279,6 @@ snapshots:
       is-plain-object: 5.0.0
       universal-user-agent: 6.0.0
 
-  '@octokit/graphql-schema@14.4.0':
-    dependencies:
-      graphql: 16.8.1
-      graphql-tag: 2.12.6(graphql@16.8.1)
-
   '@octokit/graphql@5.0.6':
     dependencies:
       '@octokit/request': 6.2.8
@@ -15400,18 +15286,6 @@ snapshots:
       universal-user-agent: 6.0.0
     transitivePeerDependencies:
       - encoding
-
-  '@octokit/graphql@8.2.0':
-    dependencies:
-      '@octokit/request': 9.2.3
-      '@octokit/types': 13.10.0
-      universal-user-agent: 7.0.2
-
-  '@octokit/graphql@8.2.2':
-    dependencies:
-      '@octokit/request': 9.2.3
-      '@octokit/types': 14.0.0
-      universal-user-agent: 7.0.2
 
   '@octokit/graphql@9.0.1':
     dependencies:
@@ -15423,34 +15297,16 @@ snapshots:
 
   '@octokit/openapi-types@18.1.1': {}
 
-  '@octokit/openapi-types@24.2.0': {}
-
-  '@octokit/openapi-types@25.0.0': {}
-
   '@octokit/openapi-types@25.1.0': {}
-
-  '@octokit/plugin-paginate-rest@11.6.0(@octokit/core@6.1.5)':
-    dependencies:
-      '@octokit/core': 6.1.5
-      '@octokit/types': 13.10.0
 
   '@octokit/plugin-paginate-rest@13.1.1(@octokit/core@7.0.3)':
     dependencies:
       '@octokit/core': 7.0.3
       '@octokit/types': 14.1.0
 
-  '@octokit/plugin-request-log@5.3.1(@octokit/core@6.1.5)':
-    dependencies:
-      '@octokit/core': 6.1.5
-
   '@octokit/plugin-request-log@6.0.0(@octokit/core@7.0.3)':
     dependencies:
       '@octokit/core': 7.0.3
-
-  '@octokit/plugin-rest-endpoint-methods@13.5.0(@octokit/core@6.1.5)':
-    dependencies:
-      '@octokit/core': 6.1.5
-      '@octokit/types': 13.10.0
 
   '@octokit/plugin-rest-endpoint-methods@16.0.0(@octokit/core@7.0.3)':
     dependencies:
@@ -15462,10 +15318,6 @@ snapshots:
       '@octokit/types': 9.3.2
       deprecation: 2.3.1
       once: 1.4.0
-
-  '@octokit/request-error@6.1.8':
-    dependencies:
-      '@octokit/types': 14.0.0
 
   '@octokit/request-error@7.0.0':
     dependencies:
@@ -15490,35 +15342,12 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@octokit/request@9.2.3':
-    dependencies:
-      '@octokit/endpoint': 10.1.4
-      '@octokit/request-error': 6.1.8
-      '@octokit/types': 14.0.0
-      fast-content-type-parse: 2.0.1
-      universal-user-agent: 7.0.2
-
-  '@octokit/rest@21.1.0':
-    dependencies:
-      '@octokit/core': 6.1.5
-      '@octokit/plugin-paginate-rest': 11.6.0(@octokit/core@6.1.5)
-      '@octokit/plugin-request-log': 5.3.1(@octokit/core@6.1.5)
-      '@octokit/plugin-rest-endpoint-methods': 13.5.0(@octokit/core@6.1.5)
-
   '@octokit/rest@22.0.0':
     dependencies:
       '@octokit/core': 7.0.3
       '@octokit/plugin-paginate-rest': 13.1.1(@octokit/core@7.0.3)
       '@octokit/plugin-request-log': 6.0.0(@octokit/core@7.0.3)
       '@octokit/plugin-rest-endpoint-methods': 16.0.0(@octokit/core@7.0.3)
-
-  '@octokit/types@13.10.0':
-    dependencies:
-      '@octokit/openapi-types': 24.2.0
-
-  '@octokit/types@14.0.0':
-    dependencies:
-      '@octokit/openapi-types': 25.0.0
 
   '@octokit/types@14.1.0':
     dependencies:
@@ -16923,7 +16752,7 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@vscode/markdown-editor@0.0.2-153':
+  '@vscode/markdown-editor@0.0.2-179':
     dependencies:
       '@vscode/codicons': 0.0.46-36
       '@vscode/diff': 0.0.2-0
@@ -17890,8 +17719,6 @@ snapshots:
   bcrypt-pbkdf@1.0.2:
     dependencies:
       tweetnacl: 0.14.5
-
-  before-after-hook@3.0.2: {}
 
   before-after-hook@4.0.0: {}
 
@@ -19519,8 +19346,6 @@ snapshots:
       parse-node-version: 1.0.1
       time-stamp: 1.1.0
 
-  fast-content-type-parse@2.0.1: {}
-
   fast-content-type-parse@3.0.0: {}
 
   fast-deep-equal@3.1.3: {}
@@ -20046,13 +19871,6 @@ snapshots:
       uint8array-extras: 1.5.0
 
   graceful-fs@4.2.11: {}
-
-  graphql-tag@2.12.6(graphql@16.8.1):
-    dependencies:
-      graphql: 16.8.1
-      tslib: 2.8.1
-
-  graphql@16.8.1: {}
 
   gulp-azure-storage@0.12.1:
     dependencies:
@@ -21297,6 +21115,8 @@ snapshots:
   loose-envify@1.4.0:
     dependencies:
       js-tokens: 4.0.0
+
+  lossless-json@4.3.3: {}
 
   lowercase-keys@3.0.0: {}
 
@@ -24104,8 +23924,6 @@ snapshots:
       through2-filter: 3.0.0
 
   universal-user-agent@6.0.0: {}
-
-  universal-user-agent@7.0.2: {}
 
   universal-user-agent@7.0.3: {}
 

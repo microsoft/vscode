@@ -33,6 +33,7 @@ import {
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 const connectionDetails = {
+	suspendCount: 0, suspendedMs: 0,
 	environmentOperation: 'resume', provisioningMs: 0, reservationWaitMs: 0, readinessMs: 0,
 	preparationMs: 0, connectionMs: 0,
 	environmentKind: 'cloud',
@@ -737,6 +738,33 @@ suite('cloudSandbox telemetry', () => {
 			{ ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialOperations: 1 },
 			{ ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 0, credentialOperations: 1, wakingResponses: 1 },
 		]);
+	}));
+
+	test('recovery reports overlapping sleep time and the source-owned stop reason without diagnostic content', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
+		connection.onConnectionStateChange('connected');
+		const diagnostic = (phase: string) => connection.recordConnectionDiagnostic({
+			operationId: 'private-id', phase, outcome: 'info', timestamp: Date.now(), detail: 'private diagnostic',
+		});
+		diagnostic('power.suspend');
+		await timeout(1000);
+		connection.onConnectionStateChange('reconnecting');
+		await timeout(600_000);
+		diagnostic('power.resume');
+		await timeout(2000);
+		diagnostic('reconnect.timedOut');
+		connection.onConnectionStateChange('failed');
+		const event = telemetry.events.find(event => event.eventName === 'userLocalRelayConnectionOutcome' && event.data?.operation === 'recover');
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number | undefined : string | undefined };
+		const expected: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
+			...connectionDetails, environmentKind: 'user-local', environmentOperation: 'recover',
+			surface: 'agentsDesktop', operation: 'recover', outcome: 'failure', stage: 'connection',
+			durationMs: 602_000, connectionMs: 602_000, readinessMs: 602_000,
+			suspendCount: 1, suspendedMs: 600_000, recoveryStopReason: 'timeout',
+		};
+		assert.deepStrictEqual(event, { eventName: 'userLocalRelayConnectionOutcome', data: expected });
 	}));
 
 	for (const environmentKind of ['cloud', 'user-local'] as const) {

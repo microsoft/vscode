@@ -326,17 +326,6 @@ extends:
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           dependsOn: []
