@@ -291,6 +291,8 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 	const viewModel = disposableStackStore.add(widget.createViewModel({
 		documents: ValueWithChangeEvent.const([first, second]),
 	}));
+	// As in the workbench, the editor shows the view model once its first files are loaded.
+	await viewModel.waitForDiffOr1s();
 	widget.setViewModel(viewModel);
 	widget.layout(new Dimension(editorWidth, FIXTURE_HEIGHT));
 	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
