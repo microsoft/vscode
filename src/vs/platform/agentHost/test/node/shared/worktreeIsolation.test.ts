@@ -778,6 +778,15 @@ suite('WorktreeIsolation', () => {
 		});
 	}
 
+	test('branch creation completions describe HEAD before the first commit', async () => {
+		const gitService = createGitService();
+		gitService.getBranchCreationSources = async () => [{ ref: 'HEAD', name: 'main', kind: GitRefType.Head, unborn: true }];
+		const isolation = createIsolation(disposables, { gitService });
+		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot, true), {
+			items: [{ value: 'HEAD', label: 'HEAD (main, No Commits Yet)' }],
+		});
+	});
+
 	test('defaults worktree isolation to the default branch start point', async () => {
 		const gitService = createGitService();
 		let defaultBranch = localBranch('main', 'origin/main');

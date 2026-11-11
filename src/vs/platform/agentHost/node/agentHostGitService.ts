@@ -9,6 +9,7 @@ import { cp as copyFile } from '@vscode/fs-copyfile';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -18,7 +19,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, IGitRefDetails } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, IGitRefDetails, IGitUnbornHeadDetails } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -170,19 +171,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
 	}
 
-	async getBranchCreationSources(workingDirectory: URI): Promise<readonly IGitRefDetails[]> {
+	async getBranchCreationSources(workingDirectory: URI): Promise<readonly (IGitRefDetails | IGitUnbornHeadDetails)[]> {
 		const [refs, head, branch] = await Promise.all([
 			this._runGit(workingDirectory, [
 				'for-each-ref', '--sort=-committerdate',
 				'--format=%(refname)%00%(objecttype)%00%(objectname)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00%(*objecttype)%00%(*objectname)%00%(*authorname)%00%(*subject)%00%(*committerdate:unix)',
 				'refs/heads', 'refs/remotes', 'refs/tags',
 			], { timeout: GET_REFS_TIMEOUT_MS, throwOnError: true }),
-			this._runGit(workingDirectory, ['log', '-1', '--no-show-signature', '--format=%H%x00%an%x00%s%x00%ct', 'HEAD', '--'], { throwOnError: true }),
+			this._runGit(workingDirectory, ['log', '-1', '--no-show-signature', '--format=%H%x00%an%x00%s%x00%ct', 'HEAD', '--'], { throwOnError: true })
+				.then(output => ({ output }), (error: unknown) => ({ error })),
 			this.getCurrentBranchName(workingDirectory, { throwOnError: true }),
 		]);
-		if (!head) {
-			throw new Error('Unable to read the current Git commit.');
-		}
+		const refLines = refs?.split('\n').filter(line => !!line) ?? [];
 		const parseCommit = (fields: string[]) => {
 			const [commit, author, subject, seconds] = fields;
 			const timestamp = Number(seconds) * 1000;
@@ -191,14 +191,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			return { commit, author, subject, timestamp };
 		};
-		const sources: IGitRefDetails[] = [{
-			ref: 'HEAD', name: branch ?? 'HEAD', kind: branch ? GitRefType.Head : GitRefType.DetachedHead,
-			...parseCommit(head.trimEnd().split('\0')),
-		}];
-		for (const line of refs?.split('\n') ?? []) {
-			if (!line) {
-				continue;
+		let headSource: IGitRefDetails | IGitUnbornHeadDetails;
+		if (hasKey(head, { error: true })) {
+			// Before the first commit, HEAD names a branch whose ref does not exist yet.
+			if (!branch || refLines.some(line => line.startsWith(`refs/heads/${branch}\0`))) {
+				throw head.error;
 			}
+			headSource = { ref: 'HEAD', name: branch, kind: GitRefType.Head, unborn: true };
+		} else if (head.output) {
+			headSource = {
+				ref: 'HEAD', name: branch ?? 'HEAD', kind: branch ? GitRefType.Head : GitRefType.DetachedHead,
+				...parseCommit(head.output.trimEnd().split('\0')),
+			};
+		} else {
+			throw new Error('Unable to read the current Git commit.');
+		}
+		const sources: (IGitRefDetails | IGitUnbornHeadDetails)[] = [headSource];
+		for (const line of refLines) {
 			const fields = line.split('\0');
 			const [ref, objectType] = fields;
 			const offset = objectType === 'tag' ? 7 : 2;
@@ -652,7 +661,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const args = options?.checkout
 			? ['checkout', '-q', '-b', branchName, '--no-track']
 			: ['branch', '-q', branchName];
-		if (options?.startPoint) {
+		// Checkout already starts from HEAD; naming it explicitly fails before the first commit.
+		if (options?.startPoint && !(options.checkout && options.startPoint === 'HEAD')) {
 			args.push(options.startPoint);
 		}
 

@@ -1418,6 +1418,26 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		await assert.rejects(svc!.getBranchCreationSources(URI.file(join(dir, 'missing'))));
 	});
 
+	(hasGit ? test : test.skip)('branch creation sources and checkout support a branch without commits', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const commit = run('rev-parse', 'HEAD');
+		const timestamp = Number(run('log', '-1', '--format=%ct')) * 1000;
+		// Like a newly initialized repository, an orphan branch has no commits.
+		run('checkout', '-q', '--orphan', 'draft');
+
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		await svc!.createBranch(URI.file(dir), 'feature/first', { checkout: true, startPoint: 'HEAD' });
+
+		assert.deepStrictEqual({ sources, current: run('symbolic-ref', '--short', 'HEAD') }, {
+			sources: [
+				{ ref: 'HEAD', name: 'draft', kind: GitRefType.Head, unborn: true },
+				{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head, commit, author: 't', subject: 'initial', timestamp },
+			],
+			current: 'feature/first',
+		});
+	});
+
 	(hasGit ? test : test.skip)('branch creation sources ignore signature display configured for signed commits', async () => {
 		const dir = initRepo();
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
@@ -1432,9 +1452,10 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		run('config', 'gpg.program', 'git');
 
 		const sources = await svc!.getBranchCreationSources(URI.file(dir));
-		assert.deepStrictEqual(sources.map(({ ref, commit, author, subject }) => ({ ref, commit, author, subject })), [
-			{ ref: 'HEAD', commit, author: 't', subject: 'initial' },
-			{ ref: 'refs/heads/main', commit, author: 't', subject: 'initial' },
+		const details = { commit, author: 't', subject: 'initial', timestamp: Number(run('log', '-1', '--no-show-signature', '--format=%ct', commit)) * 1000 };
+		assert.deepStrictEqual(sources, [
+			{ ref: 'HEAD', name: 'main', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head, ...details },
 		]);
 	});
 

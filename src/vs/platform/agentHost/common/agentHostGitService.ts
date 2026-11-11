@@ -182,6 +182,14 @@ export interface IGitRefDetails {
 	readonly timestamp: number;
 }
 
+/** The checked-out branch of a repository that has no commits yet. */
+export interface IGitUnbornHeadDetails {
+	readonly ref: 'HEAD';
+	readonly name: string;
+	readonly kind: GitRefType.Head;
+	readonly unborn: true;
+}
+
 export type Branch = IBranch | IRemoteBranch;
 export type GitRef = IBranch | IRemoteBranch | ITag;
 
@@ -262,7 +270,7 @@ export interface IAgentHostGitService {
 	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
-	getBranchCreationSources(workingDirectory: URI): Promise<readonly IGitRefDetails[]>;
+	getBranchCreationSources(workingDirectory: URI): Promise<readonly (IGitRefDetails | IGitUnbornHeadDetails)[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
 	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;

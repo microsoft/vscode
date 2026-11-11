@@ -12,6 +12,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { dirname, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -1124,6 +1125,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			const sources = await this._gitService.getBranchCreationSources(workingDirectory);
 			return {
 				items: sources.map(source => {
+					if (hasKey(source, { unborn: true })) {
+						return { value: source.ref, label: localize('agentHost.branchSource.unborn', "HEAD ({0}, No Commits Yet)", source.name) };
+					}
 					const commit = source.commit.substring(0, 7);
 					return {
 						value: source.ref,
