@@ -116,10 +116,13 @@ class FixtureRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
 	override readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 	override readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	constructor(hostCount: number) {
+	constructor(labels: readonly string[]) {
 		super();
-		this.configuredEntries = Array.from({ length: hostCount }, (_, index) => ({
-			name: `Remote host ${index + 1}`,
+		const hostNames = labels.length > 0
+			? [...labels, ...Array.from({ length: Math.max(0, 5 - labels.length) }, (_, index) => `Remote host ${labels.length + index + 1}`)]
+			: [];
+		this.configuredEntries = hostNames.map((label, index) => ({
+			name: label,
 			connection: {
 				type: RemoteAgentHostEntryType.WebSocket,
 				address: `127.0.0.1:${65531 + index}`,
@@ -359,8 +362,10 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const runs = options.emptyHistory ? [] : data.runs;
 	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
-	const hasDisconnectedProvider = options.unavailableProviders?.some(provider => provider.unavailableReasonCode === 'disconnected') ?? false;
-	const remoteAgentHostService = new FixtureRemoteAgentHostService(hasDisconnectedProvider ? 5 : 0);
+	const disconnectedProviderLabels = options.unavailableProviders
+		?.filter(provider => provider.unavailableReasonCode === 'disconnected')
+		.map(provider => provider.label) ?? [];
+	const remoteAgentHostService = new FixtureRemoteAgentHostService(disconnectedProviderLabels);
 	automationService.historyState = constObservable(options.historyState ?? 'ready');
 	const sessionsManagementService = new FixtureSessionsManagementService(options.cloud && !options.nativeCloud ? [] : runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {

@@ -2898,10 +2898,14 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('restores the partial warning message when a disconnected catalogue becomes an error', async () => {
-		const { automationService, configurationService, widget } = setup();
+		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
+		remoteAgentHostService.setConfiguredEntries([{
+			name: 'Remote host',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
+		}]);
 		automationService.setAutomations([automation()]);
 		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
@@ -2922,7 +2926,7 @@ suite('AutomationsCardsWidget', () => {
 
 	for (const hasSavedAutomations of [false, true]) {
 		test(`opens Manage Remotes from disconnected providers ${hasSavedAutomations ? 'with' : 'without'} saved automations`, async () => {
-			const { automationService, widget, configurationService, commandService } = setup();
+			const { automationService, widget, configurationService, commandService, remoteAgentHostService } = setup();
 			const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
 			const setSetting = async (setting: string, value: boolean) => {
 				await configurationService.setUserConfiguration(setting, value);
@@ -2936,6 +2940,10 @@ suite('AutomationsCardsWidget', () => {
 			for (const setting of settings) {
 				await setSetting(setting, true);
 			}
+			remoteAgentHostService.setConfiguredEntries([
+				{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' } },
+				{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65532' } },
+			]);
 			automationService.setAutomations(hasSavedAutomations ? [automation()] : []);
 			automationService.setUnavailableProviders([
 				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
@@ -2980,7 +2988,7 @@ suite('AutomationsCardsWidget', () => {
 			}, {
 				initial: {
 					display: '', label: 'Manage Remotes', role: 'button', tabIndex: 0,
-					count: '0/0 remotes detected', ariaLabel: '0/0 remotes detected, Manage Remotes',
+					count: '0/2 remotes detected', ariaLabel: '0/2 remotes detected, Manage Remotes',
 					children: ['automations-manage-remotes-count', 'monaco-link'], disconnectedWarningDisplay: 'none',
 				},
 				singleRemote: '', disabledSettings: ['none', 'none', 'none'], restored: '', ready: 'none',
@@ -3037,6 +3045,42 @@ suite('AutomationsCardsWidget', () => {
 			});
 		});
 	}
+
+	test('preserves local disconnected and generic unavailable warnings', async () => {
+		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		remoteAgentHostService.setConfiguredEntries([{
+			name: 'Remote host',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
+		}]);
+		automationService.setUnavailableProviders([
+			{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' },
+			{ id: 'local-agent-host', label: 'This Computer', unavailableReasonCode: 'disconnected' },
+		]);
+		automationService.setCatalogueState('unavailable');
+		const warning = widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')!;
+		const remoteReplaced = {
+			control: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes')?.style.display,
+			warning: warning.textContent,
+			warningDisplay: warning.style.display,
+		};
+		automationService.setUnavailableProviders([]);
+		const generic = { warning: warning.textContent, warningDisplay: warning.style.display };
+
+		assert.deepStrictEqual({ remoteReplaced, generic }, {
+			remoteReplaced: {
+				control: '',
+				warning: 'The agent host is disconnected on This Computer.',
+				warningDisplay: '',
+			},
+			generic: {
+				warning: 'Some automations are unavailable.',
+				warningDisplay: '',
+			},
+		});
+	});
 
 	test('updates Manage Remotes detected count for connection and configured-entry changes', async () => {
 		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
@@ -3113,10 +3157,14 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('reports Manage Remotes command failures', async () => {
-		const { automationService, widget, configurationService, commandService, refreshErrors } = setup();
+		const { automationService, widget, configurationService, commandService, refreshErrors, remoteAgentHostService } = setup();
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
+		remoteAgentHostService.setConfiguredEntries([{
+			name: 'Host 1',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
+		}]);
 		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 		const failure = new Error('Remote Environments could not be opened');

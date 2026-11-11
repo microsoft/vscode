@@ -31,7 +31,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -394,6 +394,7 @@ class AutomationCardsSection extends Disposable {
 	private partialState: AutomationCatalogueState = 'ready';
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private manageRemotesVisible = false;
+	private managedDisconnectedProviderIds = new Set<string>();
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
 
@@ -632,11 +633,7 @@ class AutomationCardsSection extends Disposable {
 		const showTemplateSections = templates.length > 0;
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
-		if (unavailableProviders.length > 0) {
-			this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
-		} else {
-			this.unavailableDescription.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		}
+		this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
 		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
@@ -1201,12 +1198,21 @@ class AutomationCardsSection extends Disposable {
 			remoteHostsChanged.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
+			const configuredEntries = this.remoteAgentHostService.configuredEntries;
+			const remoteProviderIds = new Set(configuredEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
+			const remoteProviderLabels = new Set([
+				...configuredEntries.map(entry => entry.name),
+				...this.remoteAgentHostService.connections.map(connection => connection.name),
+			]);
+			const managedDisconnectedProviderIds = new Set(unavailableProviders
+				.filter(provider => provider.unavailableReasonCode === 'disconnected'
+					&& (remoteProviderIds.has(provider.id) || remoteProviderLabels.has(provider.label)))
+				.map(provider => provider.id));
 			const visible = catalogueState === 'unavailable'
-				&& unavailableProviders.some(provider => provider.unavailableReasonCode === 'disconnected')
+				&& managedDisconnectedProviderIds.size > 0
 				&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
-			const configuredEntries = this.remoteAgentHostService.configuredEntries;
 			const connectedAddresses = new Set(this.remoteAgentHostService.connections
 				.filter(connection => RemoteAgentHostConnectionStatus.isConnected(connection.status))
 				.map(connection => normalizeRemoteAgentHostAddress(connection.address)));
@@ -1220,8 +1226,11 @@ class AutomationCardsSection extends Disposable {
 				this.focusRoot.focus();
 			}
 			container.style.display = visible ? '' : 'none';
-			if (this.manageRemotesVisible !== visible) {
+			const managedProvidersChanged = managedDisconnectedProviderIds.size !== this.managedDisconnectedProviderIds.size
+				|| [...managedDisconnectedProviderIds].some(id => !this.managedDisconnectedProviderIds.has(id));
+			if (this.manageRemotesVisible !== visible || managedProvidersChanged) {
 				this.manageRemotesVisible = visible;
+				this.managedDisconnectedProviderIds = managedDisconnectedProviderIds;
 				if (catalogueState === 'unavailable') {
 					this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
 					this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
@@ -1283,14 +1292,17 @@ class AutomationCardsSection extends Disposable {
 
 	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
 		const visibleProviders = this.manageRemotesVisible
-			? unavailableProviders.filter(provider => provider.unavailableReasonCode !== 'disconnected')
+			? unavailableProviders.filter(provider => !this.managedDisconnectedProviderIds.has(provider.id))
 			: unavailableProviders;
 		const reasons = getUnavailableAutomationsReasons(visibleProviders);
-		container.style.display = reasons.length > 0 ? '' : 'none';
+		const replacedAllReasons = this.manageRemotesVisible && unavailableProviders.length > 0 && visibleProviders.length === 0;
+		container.style.display = replacedAllReasons ? 'none' : '';
 		if (reasons.length === 1) {
 			container.textContent = reasons[0];
 		} else if (reasons.length > 1) {
 			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
+		} else if (!replacedAllReasons) {
+			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");
 		} else {
 			DOM.clearNode(container);
 		}
