@@ -71,6 +71,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly sideBySide?: boolean;
 	/** Opens a new composer, also while the active tab is one that has not sent its session yet. */
 	readonly newComposer?: boolean;
+	/** Shows the chat without moving the window's folder to where its session works, or following its session. */
+	readonly keepFolder?: boolean;
 }
 
 export const IAgentsChatPartService = createDecorator<IAgentsChatPartService>('agentsChatPartService');
@@ -301,7 +303,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const resource = chatResource ?? session.mainChat.get().resource;
 		const chat = this._findChat(resource) ?? this._addChat(resource, undefined);
 		await this._open(chat, options);
-		if (!this._restoringChats) {
+		if (!this._restoringChats && !options?.keepFolder) {
 			// Opening a session moves the window's folder to where it works, when that is one of the folder's locations
 			this._moveToSession(chat.input, session);
 		}
