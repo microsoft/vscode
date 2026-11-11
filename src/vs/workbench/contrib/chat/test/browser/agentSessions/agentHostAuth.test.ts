@@ -282,6 +282,18 @@ suite('AgentHostAuthTokenCache', () => {
 		assert.deepStrictEqual({ results, authenticateCalls }, { results: [true, false], authenticateCalls: 1 });
 	});
 
+	test('a rejected response is surfaced and does not suppress a same-token retry', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		let accepted = false;
+		let calls = 0;
+		const authenticate = async () => { calls++; return { authenticated: accepted }; };
+		await assert.rejects(cache.authenticate('https://service.example/token', ['read'], 'token', authenticate), /did not accept/);
+		accepted = true;
+		const forwarded = await cache.authenticate('https://service.example/token', ['read'], 'token', authenticate);
+		const repeated = await cache.authenticate('https://service.example/token', ['read'], 'token', authenticate);
+		assert.deepStrictEqual({ calls, forwarded, repeated }, { calls: 2, forwarded: true, repeated: false });
+	});
+
 	test('tracks identical MCP tokens independently by host session and customization id', async () => {
 		const cache = new AgentHostAuthTokenCache();
 		const targets = [

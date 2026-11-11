@@ -24,8 +24,11 @@ import { waitForState } from '../../../../../base/common/observable.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
 import { CopilotAccountService } from '../../../node/copilot/copilotAccountService.js';
+import { ActiveClientToolSet } from '../../../node/activeClientState.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { toCopilotAccountModelCatalog } from '../../../node/copilot/copilotAccountModelCatalog.js';
+import { CopilotGitHubSessionCredentials } from '../../../node/copilot/copilotGitHubCredentials.js';
+import { createTestLauncher, testRuntime } from '../copilotSessionLauncherTestHelpers.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 class LocalAccountRequests extends CopilotRequestHandler {
@@ -46,8 +49,8 @@ suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
-	(isLinux ? test.skip : test)('uses the confirmed setup account for the catalog without global login', async function () {
-		this.timeout(60_000);
+	(isLinux ? test.skip : test)('authenticates and configures a new conversation and resumes its live SDK binding without global login', async function () {
+		this.timeout(90_000);
 		const { createServer } = await import('http');
 		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
 		const modelId = 'account-fixture-model';
@@ -136,15 +139,37 @@ suite('Copilot account context native SDK', () => {
 			await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
 			// The runtime cannot resolve this account's managed settings yet, so the host applies none to its catalog.
 			await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
+			const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, undefined, undefined, accounts);
+			const plan = {
+				client, sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			};
+			const conversation = store.add(await launcher.launch({ ...plan, kind: 'create', model: { id: modelId } }, testRuntime));
+			const conversationModels = toCopilotAccountModelCatalog(await conversation.session.rpc.model.list());
+			const resumed = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
+			const resumedModels = toCopilotAccountModelCatalog(await resumed.session.rpc.model.list());
+			const currentModel = await resumed.session.rpc.model.getCurrent();
+			const tools = await resumed.session.rpc.tools.getBuiltinDescriptors({});
+			await resumed.session.disconnect();
+			await client.deleteSession('account-conversation');
 			assert.deepStrictEqual({
 				service: context.choice.service,
 				setupModels: catalog.models.map(model => model.id),
+				conversationModels: conversationModels.models.map(model => model.id),
+				resumedModels: resumedModels.models.map(model => model.id),
+				configured: conversation.usesMicrosoftAuthentication && resumed.usesMicrosoftAuthentication,
+				selectedModel: currentModel.modelId,
+				readToolAvailable: tools.tools.some(tool => tool.name === 'view'),
 				globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
 				sourceUnchanged: accounts.requireReady() === context,
 				catalogFetched: requests.some(request => request.path === '/models'),
 				authenticatedRequests: requests.every(request => request.authenticated),
 			}, {
-				service: 'm365', setupModels: [modelId],
+				service: 'm365', setupModels: [modelId], conversationModels: [modelId], resumedModels: [modelId],
+				configured: true,
+				selectedModel: modelId, readToolAvailable: true,
 				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
 			await accounts.reset();

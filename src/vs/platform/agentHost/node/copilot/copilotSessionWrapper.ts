@@ -11,7 +11,6 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
-import type { ICopilotServiceChoice } from '../../common/copilotAccountContext.js';
 import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type CopilotFusionEvent } from './copilotFusionProgress.js';
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
@@ -92,7 +91,7 @@ export class CopilotSessionWrapper extends Disposable {
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
 		readonly launchMcpSkillsEnabled: boolean,
-		readonly launchAccountSelection: ICopilotServiceChoice | undefined,
+		readonly usesMicrosoftAuthentication: boolean,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();

@@ -690,9 +690,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
-		const connState = this._connections.get(address);
-		const authTokenCache = connState?.authTokenCache;
-		const copilotAccountContext = this._copilotAccountContext(connection);
+		const authTokenCache = this._connections.get(address)?.authTokenCache;
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
 			await authenticateProtectedResourcesWithToken(protectedResources, testToken, {
@@ -703,10 +701,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
-			copilotAccountContext,
-			preferredAccountId: copilotAccountContext?.entraAccountId,
 			logPrefix: '[RemoteAgentHost]',
-			isCurrent: () => this._connections.get(address) === connState && equals(copilotAccountContext, this._copilotAccountContext(connection)),
 			authenticate: this._authenticateCallback(address, connection),
 		});
 	}
