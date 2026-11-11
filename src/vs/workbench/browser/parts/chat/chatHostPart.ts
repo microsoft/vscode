@@ -25,8 +25,6 @@ export class ChatHostPart extends Part {
 	/** The least width of the part, whatever its content needs less. */
 	static readonly MINIMUM_WIDTH = 280;
 
-	private static readonly BORDER_WIDTH = 1;
-
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
@@ -96,12 +94,10 @@ export class ChatHostPart extends Part {
 		this.element.style.height = `calc(100% - ${marginTop + marginBottom}px)`;
 		this._horizontalMargins = marginLeft + marginRight;
 
-		// Its border (chatHostPart.css) is inside its box: at both sides, and also at the top and bottom of a card
-		const border = ChatHostPart.BORDER_WIDTH;
-		const verticalBorders = this.layoutService.isFloatingPanelsEnabled() ? 2 * border : 0;
-		const contentWidth = Math.max(0, width - marginLeft - marginRight - 2 * border);
-		const contentHeight = Math.max(0, height - marginTop - marginBottom - verticalBorders);
-		this._content?.layout(contentWidth, contentHeight, top + marginTop + verticalBorders / 2, left + marginLeft + border);
+		// It draws no frame (chatHostPart.css): what it shows takes all of it
+		const contentWidth = Math.max(0, width - marginLeft - marginRight);
+		const contentHeight = Math.max(0, height - marginTop - marginBottom);
+		this._content?.layout(contentWidth, contentHeight, top + marginTop, left + marginLeft);
 	}
 
 	override setVisible(visible: boolean): void {

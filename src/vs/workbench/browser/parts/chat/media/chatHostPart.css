@@ -6,7 +6,6 @@
 .monaco-workbench .part.chat {
 	box-sizing: border-box;
 	overflow: hidden;
-	background-color: var(--vscode-editor-background);
 }
 
 .monaco-workbench .part.chat > .content {
@@ -14,14 +13,12 @@
 	height: 100%;
 }
 
-/* Without floating panels, a separator sets the chat part apart from the editor beside it, as between editor groups */
-.monaco-workbench:not(.floating-panels) .part.chat {
-	border-inline: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, transparent);
-}
-
-/* With floating panels, the chat part is a card at the outer tier, as the editor beside it is */
+/*
+ * The chat part only places what it shows: it draws no frame of its own, so that its chats look as in a chat window, whose
+ * chat surface reaches the edges of its card. With floating panels it is a card as those beside it are: rounded, without
+ * a stroke.
+ */
 .monaco-workbench.floating-panels .part.chat {
-	border: var(--vscode-strokeThickness) solid var(--modern-ui-editor-border-color, var(--vscode-editor-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
 	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large));
 }
 
