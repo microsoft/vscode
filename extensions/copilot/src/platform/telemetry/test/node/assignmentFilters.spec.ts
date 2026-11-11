@@ -15,7 +15,7 @@ import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
 import { UserInfoStore } from '../../node/baseExperimentationService';
 // eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
-import { CopilotAssignmentsFilterProvider, GithubAccountFilterProvider } from '../../vscode-node/microsoftExperimentationService';
+import { CopilotAssignmentsFilterProvider, GitHubAccountFilterProvider } from '../../vscode-node/microsoftExperimentationService';
 
 vi.mock('vscode', async importOriginal => ({
 	...await importOriginal<typeof import('vscode')>(),
@@ -161,7 +161,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 	});
 });
 
-describe('GithubAccountFilterProvider', () => {
+describe('GitHubAccountFilterProvider', () => {
 	it('emits Proxima only as a legacy TAS header', () => {
 		let isProxima = false;
 		const userInfoStore = new class extends mock<UserInfoStore>() {
@@ -172,7 +172,7 @@ describe('GithubAccountFilterProvider', () => {
 		const logService = new class extends mock<ILogService>() {
 			override trace(): void { }
 		}();
-		const provider = new GithubAccountFilterProvider(userInfoStore, logService);
+		const provider = new GitHubAccountFilterProvider(userInfoStore, logService);
 
 		expect([false, true].map(value => {
 			isProxima = value;
