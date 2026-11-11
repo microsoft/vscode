@@ -60,7 +60,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const activeWindow = getActiveWindow();
-		if (!WebFileSystemAccess.supported(activeWindow)) {
+		if (!this.isFilePickerSupported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
@@ -120,7 +120,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const activeWindow = getActiveWindow();
-		if (!WebFileSystemAccess.supported(activeWindow)) {
+		if (!this.isFilePickerSupported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
@@ -162,7 +162,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const activeWindow = getActiveWindow();
-		if (!WebFileSystemAccess.supported(activeWindow)) {
+		if (!this.isFilePickerSupported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
@@ -190,7 +190,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const activeWindow = this.getFilePickerWindow();
-		if (!WebFileSystemAccess.supported(activeWindow)) {
+		if (!this.isFilePickerSupported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
@@ -218,6 +218,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 	protected getFilePickerWindow(): Window & typeof globalThis {
 		return getActiveWindow();
+	}
+
+	/**
+	 * The picker is only usable if the window supports it and the file
+	 * provider was registered, which depends on the main window instead.
+	 */
+	private isFilePickerSupported(targetWindow: Window & typeof globalThis): boolean {
+		return WebFileSystemAccess.supported(targetWindow) && this.fileService.hasProvider(URI.from({ scheme: Schemas.file }));
 	}
 
 	private async getFilePickerStartIn(defaultUri: URI | undefined): Promise<FileSystemDirectoryHandle | undefined> {

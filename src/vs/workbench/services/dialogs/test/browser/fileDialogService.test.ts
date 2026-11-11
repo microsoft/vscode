@@ -90,6 +90,16 @@ suite('Browser FileDialogService', () => {
 		assert.strictEqual(await dialog.showOpenDialog({ canSelectFiles: true, canSelectMany: true }), undefined);
 	});
 
+	test('shows the unsupported browser warning when the file provider is not registered', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, disposables);
+		dialog = instantiationService.createInstance(TestFileDialogService);
+
+		const result = await dialog.showOpenDialog({ canSelectFiles: true, canSelectMany: true });
+
+		assert.deepStrictEqual({ pickerOptions, result }, { pickerOptions: undefined, result: undefined });
+	});
+
 	test('preserves directory selection', async () => {
 		const result = await dialog.showOpenDialog({ canSelectFiles: false, canSelectFolders: true });
 
