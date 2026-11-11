@@ -210,6 +210,16 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	}
 
 	async switchToSession(session: ISession): Promise<void> {
+		// Its callers do not wait for it: what fails here is reported here
+		try {
+			await this._switchToSession(session);
+		} catch (error) {
+			this._logService.error('[agentsView] could not move the folder to the location of a session', error);
+			this._notificationService.error(localize('agentsViewFolderLocation.error', "Could not move the folder to the location of the session: {0}", toErrorMessage(error)));
+		}
+	}
+
+	private async _switchToSession(session: ISession): Promise<void> {
 		const request = ++this._request;
 		const folder = this._supportedFolder();
 		if (!folder) {
@@ -264,7 +274,8 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	 * is (`direction` undefined), unless a later request of its own came meanwhile.
 	 */
 	private async _move(request: number, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection | undefined): Promise<void> {
-		if (request !== this._request) {
+		// Read again right before the move: AI features may have been disabled meanwhile, which also supersedes the request
+		if (request !== this._request || !this._isChatEnabled()) {
 			if (direction) {
 				this._log(direction, 'superseded');
 			}

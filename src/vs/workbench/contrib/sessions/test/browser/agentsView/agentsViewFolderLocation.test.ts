@@ -103,6 +103,7 @@ suite('AgentsViewFolderLocation', () => {
 		const primary = URI.file('/work/vscode');
 		const folder = upcastPartial<IWorkspaceFolder>({ uri: options?.location ? URI.file(options.location) : primary, primaryUri: options?.location ? primary : undefined });
 		const moves: string[] = [];
+		const trusted: string[] = [];
 		const notifications: string[] = [];
 		let provider: IWorkspaceFolderLocationProvider | undefined;
 		const currentLocation = options?.location ? upcastPartial<IResolvedFolderLocation>({ uri: URI.file(options.location), providerId: AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID }) : undefined;
@@ -125,7 +126,7 @@ suite('AgentsViewFolderLocation', () => {
 		// The real one: only its latest request applies
 		const workspaceEditingService = disposables.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 			undefined, workspaceContextService, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-			{ extUri }, { getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async () => { } }, undefined, undefined, undefined, folderLocationService));
+			{ extUri }, { getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris.map(uri => uri.path)); } }, undefined, undefined, undefined, folderLocationService));
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IFileService, fileService);
@@ -144,7 +145,7 @@ suite('AgentsViewFolderLocation', () => {
 
 		const service = disposables.add(instantiationService.createInstance(AgentsViewFolderLocationService));
 		service.start();
-		return { service, moves, notifications, hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
+		return { service, moves, trusted, notifications, hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
 
 	test('the alternate locations of a folder are its linked checkouts, which git links both ways', async () => {
@@ -202,17 +203,27 @@ suite('AgentsViewFolderLocation', () => {
 		assert.deepStrictEqual({ elsewhere: await readsOf('/work/plain'), failing: await readsOf('/work/denied') }, { elsewhere: 1, failing: 2 });
 	});
 
+	test('a failure is reported where the open starts, which does not reject', async () => {
+		const { service, notifications } = createService();
+		const broken = upcastPartial<ISession>({ workspace: upcastPartial<ISession['workspace']>({ read: () => { throw new Error('broken'); } }) });
+
+		const result = await service.switchToSession(broken).then(() => 'resolved', () => 'rejected');
+
+		assert.deepStrictEqual({ result, notifications }, { result: 'resolved', notifications: ['error: Could not move the folder to the location of the session'] });
+	});
+
 	test('a later open that keeps the folder where it is supersedes an earlier move still under way', async () => {
 		const resolution = new DeferredPromise<void>();
-		const { service, moves } = createService({ resolution });
+		const { service, moves, trusted } = createService({ resolution });
 
+		// The move to the linked checkout waits inside the workspace's resolving, before it grants trust
 		const pending = service.switchToSession(sessionIn('/work/vscode.worktrees/feature'));
 		await timeout(0);
 		await service.switchToSession(sessionIn('/work/vscode/src'));
 		resolution.complete();
 		await pending;
 
-		assert.deepStrictEqual(moves, ['primary']);
+		assert.deepStrictEqual({ moves, trusted }, { moves: ['primary'], trusted: [] });
 	});
 
 	test('disabling AI features stops offering locations, cancels a move under way, and returns the folder from a session\'s location', async () => {
