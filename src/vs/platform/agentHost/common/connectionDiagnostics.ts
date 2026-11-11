@@ -142,6 +142,12 @@ export function formatConnectionDiagnosticError(error: IConnectionDiagnosticErro
 	].filter(value => value !== undefined).join('; ');
 }
 
+export function reviveConnectionDiagnosticError(error: IConnectionDiagnosticError): Error {
+	return Object.assign(new Error(error.message), error, {
+		cause: error.cause ? reviveConnectionDiagnosticError(error.cause) : undefined,
+	});
+}
+
 /** Records an operation without adding an asynchronous boundary to its caller. */
 export class ConnectionDiagnosticOperation {
 	private readonly operationId = generateUuid();
