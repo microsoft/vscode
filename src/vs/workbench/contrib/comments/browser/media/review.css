@@ -578,7 +578,6 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
 	content: var(--vscode-icon-plus-content);
 	font-family: var(--vscode-icon-plus-font-family);
-	font-family: "codicon";
 	border-radius: 3px;
 	width: 18px !important;
 	margin-left: -5px;

@@ -592,7 +592,7 @@ export class AgentSideEffects extends Disposable {
 	private _publishAgentInfos(agents: readonly IAgent[], reader?: IReader): void {
 		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
-			const protectedResources = a.getProtectedResources();
+			const protectedResources = a.getProtectedResources(reader);
 			const models = reader ? a.models.read(reader) : a.models.get();
 			const customizations = a.getCustomizations?.();
 			return {
@@ -2411,6 +2411,10 @@ export class AgentSideEffects extends Disposable {
 	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, customAgent: AgentSelection | undefined, context: IAgentChatContext): Promise<IRoutedTurnModel | undefined> {
 		if (!agent.resolveTurnModel || resolveSubagentChatParent(context) !== undefined) {
 			this._logService.info(`[AgentSideEffects] Chat ${turnChannel} keeps its model: ${agent.id} does not route ${selection.id} here`);
+			return undefined;
+		}
+		// A turn that was cancelled or replaced while it was being prepared has nothing to route.
+		if (this._cancelledTurnIds.get(turnChannel)?.has(turnId) || this._stateManager.getChatState(turnChannel)?.activeTurn?.id !== turnId) {
 			return undefined;
 		}
 		let resolution;

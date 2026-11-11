@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
+import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
@@ -13911,6 +13912,14 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			resumedTurn = turn;
+		}
+		if (action.type === ActionType.SessionCustomizationToggled) {
+			const customizationId = action.id;
+			const customization = this._stateManager.getSessionState(sessionChannel)?.customizations?.find(item => item.id === customizationId);
+			if (customization && readRuntimePluginEnablement(customization)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Plugin enablement must be changed through its owning runtime.');
+				return;
+			}
 		}
 		// Client replacements must neither overwrite nor drop host-owned authorization state or runtime reports.
 		if (action.type === ActionType.SessionConfigChanged) {

@@ -151,6 +151,7 @@ suite('Sessions - Workbench', () => {
 	const createDesktopGridDescriptor = Reflect.get(Workbench.prototype, 'createDesktopGridDescriptor') as (this: IGridDescriptorTestHarness, width: number, height: number) => TestSerializedGrid;
 	const loadPanelAlignment = Reflect.get(Workbench.prototype, '_loadPanelAlignment') as (this: Pick<IPanelAlignmentTestHarness, 'agentWorkbenchLayout'>, storageService: { get(key: string, scope: StorageScope): string | undefined }) => PanelAlignment;
 	const setPanelAlignment = Workbench.prototype.setPanelAlignment as (this: IPanelAlignmentTestHarness, alignment: PanelAlignment) => void;
+	const registerEditorPaneVisibilityClass = Reflect.get(Workbench.prototype, '_registerEditorPaneVisibilityClass') as (this: object, editorPart: { readonly onDidVisibilityChange: BaseEvent<boolean> }) => void;
 	const registerGridMaximizationListener = Reflect.get(Workbench.prototype, '_registerGridMaximizationListener') as (this: {
 		workbenchGrid: Pick<Grid, 'onDidChangeViewMaximized'>;
 		_register<T extends IDisposable>(disposable: T): T;
@@ -874,6 +875,30 @@ suite('Sessions - Workbench', () => {
 				{ name: 'noeditorpane', force: true },
 			],
 		});
+	});
+
+	test('updates the editor pane class when the grid shows or hides the side pane node', () => {
+		const disposables = new DisposableStore();
+		const editorPartVisibility = disposables.add(new Emitter<boolean>());
+		const classToggles: string[] = [];
+		let editorNodeVisible = false;
+		const host = {
+			workbenchGrid: { isViewVisible: () => editorNodeVisible },
+			editorPartView: {},
+			mainContainer: { classList: { toggle: (name: string, force: boolean) => classToggles.push(`${name}:${force}`) } },
+			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
+			_updateEditorPaneVisibilityClass: Reflect.get(Workbench.prototype, '_updateEditorPaneVisibilityClass'),
+			isEditorPaneVisible: isDesktopEditorPaneVisible,
+		};
+
+		registerEditorPaneVisibilityClass.call(host, { onDidVisibilityChange: editorPartVisibility.event });
+		editorNodeVisible = true;
+		editorPartVisibility.fire(true);
+		editorNodeVisible = false;
+		editorPartVisibility.fire(false);
+		disposables.dispose();
+
+		assert.deepStrictEqual(classToggles, ['noeditorpane:false', 'noeditorpane:true']);
 	});
 
 	test('reads the desktop editor grid node visibility', () => {
@@ -4698,6 +4723,73 @@ suite('Sessions - Workbench', () => {
 				{ partId: Parts.PANEL_PART, visible: false },
 			],
 			focusedParts: [Parts.CUSTOM_VIEW_GRID_PART],
+		});
+	});
+
+	test('opening and closing a custom view swaps the real grid cards without vertical motion', async () => {
+		const disposables = store.add(new DisposableStore());
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.noeditorpane.noauxiliarybar.nopanel.nocustomviewgrid'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.cssText = 'position: fixed; top: 0; left: 0; width: 800px; height: 600px;';
+		const sessionsPartView = disposables.add(new TestPartView(Parts.SESSIONS_PART));
+		sessionsPartView.element.classList.add('part', 'sessionspart', 'agents-part-card', 'agents-card-surface');
+		const customViewGridPartView = disposables.add(new TestPartView(Parts.CUSTOM_VIEW_GRID_PART));
+		customViewGridPartView.element.classList.add('part', 'customviewgridpart', 'agents-part-card', 'agents-card-surface');
+		const grid = disposables.add(new Grid(sessionsPartView));
+		grid.addView(customViewGridPartView, Sizing.Distribute, sessionsPartView, Direction.Right);
+		grid.setViewVisible(customViewGridPartView, false);
+		root.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const isCardView = (view: object): view is TestPartView => view === sessionsPartView || view === customViewGridPartView;
+		const host = createHost({ partVisibility: { editor: false, auxiliaryBar: false, panel: false, sessions: true } });
+		Object.assign(host, {
+			mainContainer: root,
+			sessionsPartView,
+			customViewGridPartView,
+			workbenchGrid: {
+				getViewSize: (view: object) => isCardView(view) ? grid.getViewSize(view) : { width: 0, height: 600 },
+				isViewVisible: (view: object) => isCardView(view) && grid.isViewVisible(view),
+				setViewVisible: (view: object, visible: boolean) => {
+					if (isCardView(view)) {
+						grid.setViewVisible(view, visible);
+					}
+				},
+				resizeView: (view: object, size: IViewSize) => {
+					if (isCardView(view)) {
+						grid.resizeView(view, size);
+					}
+				},
+			},
+		});
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		await nextFrame();
+		sessionsPartView.element.getAnimations().forEach(animation => animation.finish());
+		await nextFrame();
+		const initialTop = sessionsPartView.element.getBoundingClientRect().top;
+
+		applyCustomViewGridVisibility.call(host, {});
+		await nextFrame();
+		const opened = {
+			topDelta: customViewGridPartView.element.getBoundingClientRect().top - initialTop,
+			animations: customViewGridPartView.element.getAnimations().length,
+			sessionsVisible: grid.isViewVisible(sessionsPartView),
+			customViewVisible: grid.isViewVisible(customViewGridPartView),
+		};
+		customViewGridPartView.element.getAnimations().forEach(animation => animation.finish());
+
+		applyCustomViewGridVisibility.call(host, undefined);
+		await nextFrame();
+		const restored = {
+			topDelta: sessionsPartView.element.getBoundingClientRect().top - initialTop,
+			animations: sessionsPartView.element.getAnimations().length,
+			sessionsVisible: grid.isViewVisible(sessionsPartView),
+			customViewVisible: grid.isViewVisible(customViewGridPartView),
+		};
+
+		assert.deepStrictEqual({ opened, restored }, {
+			opened: { topDelta: 0, animations: 0, sessionsVisible: false, customViewVisible: true },
+			restored: { topDelta: 0, animations: 0, sessionsVisible: true, customViewVisible: false },
 		});
 	});
 

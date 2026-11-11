@@ -335,6 +335,15 @@ export interface IAgentPluginUninstallRequest {
 
 /** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
 export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	/** Persisted user/global activation reported by the owning runtime. */
+	readonly enabled?: boolean;
+	/** Effective activation in the exact live chat; absent before that chat is initialized. */
+	readonly effectiveEnabled?: boolean;
+	readonly managedDesiredEnabled?: boolean;
+	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
+	readonly resource?: URI;
+	/** Host-owned installed-content revision; activation-only changes preserve it. */
+	readonly contentRevision?: string;
 	readonly version?: string;
 	readonly description?: string;
 	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
@@ -2339,7 +2348,11 @@ export interface IAgent {
 
 	// ---- Authentication and diagnostics ------------------------------------
 
-	getProtectedResources(): ProtectedResourceMetadata[];
+	/** Advertised authentication resources; optional credentials are marked `required: false`. */
+	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
+
+	/** Reject unauthorized delivery before providers or the canonical credential store are mutated. */
+	validateAuthentication?(params: AuthenticateParams): void;
 
 	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
 	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;
