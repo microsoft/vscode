@@ -386,8 +386,9 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Fires when any session of any provider changes, also one a provider's listing scope hides: see {@link getAllSessions}.
+	 * A session leaving or entering that scope is no change of it. As a provider registers, its sessions are added.
 	 */
-	readonly onDidChangeAllSessions: Event<void>;
+	readonly onDidChangeAllSessions: Event<ISessionsChangeEvent>;
 	/**
 	 * Fires when a brand-new session is started by this window via
 	 * {@link sendNewChatRequest}.
