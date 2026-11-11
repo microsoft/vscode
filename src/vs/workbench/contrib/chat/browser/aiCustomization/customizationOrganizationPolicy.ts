@@ -82,7 +82,12 @@ export function getOrganizationManagedTooltip(control: ICustomizationOrganizatio
 	}
 }
 
-/** The "Managed" tag shown next to the name of an organization-managed customization. */
+/** Appends the organization-managed explanation to a row's accessible label, so screen readers hear what the tag shows. */
+export function withOrganizationManagedAriaLabel(label: string, control: ICustomizationOrganizationControl | undefined): string {
+	return control ? localize('organizationManagedAriaLabel', "{0}. {1}", label, getOrganizationManagedTooltip(control)) : label;
+}
+
+/** The "Managed by your organization" tag shown next to the name of an organization-managed customization. */
 export class OrganizationManagedTag extends Disposable {
 
 	private readonly element: HTMLElement;
@@ -92,7 +97,7 @@ export class OrganizationManagedTag extends Disposable {
 		super();
 		this.element = DOM.append(container, $('.inline-badge.organization-managed-tag'));
 		DOM.append(this.element, $(`span${ThemeIcon.asCSSSelector(Codicon.shield)}`, { 'aria-hidden': 'true' }));
-		DOM.append(this.element, $('span')).textContent = localize('organizationManagedTag', "Managed");
+		DOM.append(this.element, $('span')).textContent = localize('organizationManagedTag', "Managed by your organization");
 		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, ''));
 		this.update(undefined);
 	}
@@ -120,9 +125,9 @@ function getRestrictionMessage(section: string, restriction: CustomizationOrgani
 				: localize('organizationHooksPluginOnly', "Your organization only allows hooks from plugins. Other hooks are hidden.");
 		case AICustomizationManagementSection.McpServers:
 			switch (restriction) {
-				case 'pluginOnly': return localize('organizationMcpPluginOnly', "Your organization only allows MCP servers from plugins. Other servers are hidden.");
-				case 'organizationOnly': return localize('organizationMcpOrganizationOnly', "Your organization only allows MCP servers it provides or approves. Other servers are hidden.");
-				case 'allowlist': return localize('organizationMcpAllowlist', "Your organization only allows approved MCP servers. Other servers are hidden.");
+				case 'pluginOnly': return localize('organizationMcpPluginOnly', "Your organization only allows MCP servers from plugins to run.");
+				case 'organizationOnly': return localize('organizationMcpOrganizationOnly', "Your organization only allows MCP servers it provides or approves to run.");
+				case 'allowlist': return localize('organizationMcpAllowlist', "Your organization only allows approved MCP servers to run.");
 			}
 	}
 	return undefined;

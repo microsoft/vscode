@@ -4543,7 +4543,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded' },
 				{ name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true } },
 				{ name: 'unapproved-deploy', description: 'Deploys to unapproved environments', scope: 'user', enabled: false, organizationControl: { requiredEnabled: false } },
-				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Required by your organization, but failed to install.', organizationControl: { requiredEnabled: true } },
+				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Your organization requires this plugin, but it isn\'t installed.', organizationControl: { requiredEnabled: true } },
 				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application', status: 'loaded' },
 			],
 			height: 1180,
@@ -4606,8 +4606,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	// Organization managed settings: MCP servers restricted to an allowlist,
-	// with organization-provided servers tagged as managed.
+	// Organization managed settings: MCP servers restricted to an allowlist.
 	OrgMcpAllowlist: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {

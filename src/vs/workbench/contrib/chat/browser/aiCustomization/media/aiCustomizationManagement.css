@@ -828,7 +828,7 @@ per-word capitalization does not survive translation. */
 	line-height: 16px;
 }
 
-/* "Managed" tag for customizations controlled by the user's organization */
+/* "Managed by your organization" tag for customizations controlled by the user's organization */
 .inline-badge.organization-managed-tag {
 	display: inline-flex;
 	align-items: center;

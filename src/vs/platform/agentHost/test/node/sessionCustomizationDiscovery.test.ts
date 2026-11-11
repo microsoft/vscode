@@ -635,14 +635,25 @@ suite('SessionCustomizationDiscovery', () => {
 				{ id: 'blocked', name: 'blocked', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/blocked', managed: true, managedDesiredEnabled: false },
 				{ id: 'supplied', name: 'supplied', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/supplied', managed: true },
 				{ id: 'unmanaged', name: 'unmanaged', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged', managed: false, managedDesiredEnabled: true },
+				{ id: 'childless', name: 'childless', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/childless', managed: true, managedDesiredEnabled: true },
+				{ id: 'not-installed', name: 'not-installed', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+				{ id: 'blocked-not-installed', name: 'blocked-not-installed', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: false, installed: false },
+				{ id: 'unmanaged-childless', name: 'unmanaged-childless', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged-childless' },
 			],
 		});
 		const result = await discovery.discover(client, CancellationToken.None);
-		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, readCustomizationOrganizationMeta(plugin)])), {
-			required: { requiredEnabled: true },
-			blocked: { requiredEnabled: false },
-			supplied: {},
-			unmanaged: undefined,
+		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, {
+			organization: readCustomizationOrganizationMeta(plugin),
+			uri: plugin.uri,
+			load: plugin.load?.kind,
+			children: plugin.children?.length,
+		}])), {
+			required: { organization: { requiredEnabled: true }, uri: inMemoryPathToUri('/plugins/required').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			blocked: { organization: { requiredEnabled: false }, uri: inMemoryPathToUri('/plugins/blocked').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			supplied: { organization: {}, uri: inMemoryPathToUri('/plugins/supplied').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			unmanaged: { organization: undefined, uri: inMemoryPathToUri('/plugins/unmanaged').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			childless: { organization: { requiredEnabled: true }, uri: inMemoryPathToUri('/plugins/childless').toString(), load: CustomizationLoadStatus.Loaded, children: 0 },
+			'not-installed': { organization: { requiredEnabled: true }, uri: 'agent-discovery://copilot/plugins/not-installed', load: CustomizationLoadStatus.Error, children: 0 },
 		});
 	});
 

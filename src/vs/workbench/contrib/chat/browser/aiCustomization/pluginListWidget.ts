@@ -36,7 +36,7 @@ import { ContributionEnablementState, IEnablementModel, isContributionEnabled } 
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
-import { OrganizationManagedTag } from './customizationOrganizationPolicy.js';
+import { OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -765,9 +765,10 @@ function getRemotePluginAriaLabel(item: ICustomizationItem): string {
 	const description = getRemotePluginDescription(item);
 	const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, truncateToFirstLine(description)) : name;
 	const statusDescription = getRemotePluginStatusDescription(item);
-	return statusDescription
+	const label = statusDescription
 		? localize('pluginSessionItemAriaLabelWithStatus', "{0}. Agent host. Status: {1}", nameAndDescription, statusDescription)
 		: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
+	return withOrganizationManagedAriaLabel(label, item.organizationControl);
 }
 
 function getInstalledPluginContributionSummary(item: IInstalledPluginItem): string | undefined {
@@ -1380,9 +1381,13 @@ export class PluginListWidget extends Disposable {
 		if (element.type === 'plugin-item') {
 			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
 			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
-			return derived(this, reader => isContributionEnabled(element.item.plugin.enablement.read(reader))
-				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
-				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails));
+			return derived(this, reader => {
+				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
+					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
+					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
+				const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
+				return withOrganizationManagedAriaLabel(label, policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+			});
 		}
 		if (element.type === 'remote-item') {
 			return getRemotePluginAriaLabel(element.item);

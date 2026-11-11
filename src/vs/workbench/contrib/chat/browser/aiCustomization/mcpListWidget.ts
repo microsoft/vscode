@@ -60,7 +60,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationOrganizationPolicyNotice, OrganizationManagedTag } from './customizationOrganizationPolicy.js';
+import { CustomizationOrganizationPolicyNotice } from './customizationOrganizationPolicy.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -314,7 +314,6 @@ interface IMcpServerItemTemplateData {
 	readonly icon: HTMLElement;
 	readonly iconDisposables: DisposableStore;
 	readonly name: HTMLElement;
-	readonly managedTag: OrganizationManagedTag;
 	readonly secondaryLine: HTMLElement;
 	readonly compatibilityMessage: HTMLElement;
 	readonly compatibilityMessageDisposables: DisposableStore;
@@ -391,7 +390,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
-		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this.hoverService));
 
 		const secondaryLine = DOM.append(details, $('.mcp-server-secondary-line'));
 		const compatibilityMessage = DOM.append(secondaryLine, $('.mcp-server-compatibility-message'));
@@ -426,7 +424,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			icon,
 			iconDisposables,
 			name,
-			managedTag,
 			secondaryLine,
 			compatibilityMessage,
 			compatibilityMessageDisposables,
@@ -477,7 +474,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		}
 		// Always re-created: these capture `element`, which is a fresh object on every refresh.
 		templateData.elementDisposables.clear();
-		templateData.managedTag.update(getActiveSessionServer(element)?.source === 'managed' ? {} : undefined);
 		this.renderIcon(element, templateData);
 		const source = getMcpEntrySource(element, this.labelService, this.agentPluginService, this.extensionsWorkbenchService, this._openPlugin);
 		if (source) {
