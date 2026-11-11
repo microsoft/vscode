@@ -426,6 +426,27 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ afterProviderReturned, afterRemoved: ended }, { afterProviderReturned: [], afterRemoved: ['ended'] });
 	});
 
+	test('a chat whose session its provider replaces, as it registers again, keeps showing until the replacement lists it, and ends once the replacement is archived', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('peer')]);
+		const sessions = [session];
+		const { provider, onDidChangeSessions } = createProvider(store, sessions);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/peer')))!);
+		const ended: string[] = [];
+		store.add(chat.onDidEnd(() => ended.push('ended')));
+
+		// The replacement does not list the chat yet, such as a chat its session's chats publish later
+		const isArchived = observableValue('archived', false);
+		const replacement = Object.assign(createSession('session', [createChat('main')]), { isArchived });
+		sessions[0] = replacement;
+		onDidChangeSessions.fire({ added: [replacement], changed: [], removed: [] });
+		const whileReplacing = { showsOriginal: chat.session.get() === session, ended: ended.length };
+		isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ whileReplacing, ended }, { whileReplacing: { showsOriginal: true, ended: 0 }, ended: ['ended'] });
+	});
+
 	test('a chat that knows its session looks it up again only as sessions are added or removed, not as sessions change, such as while they stream', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main')]);
