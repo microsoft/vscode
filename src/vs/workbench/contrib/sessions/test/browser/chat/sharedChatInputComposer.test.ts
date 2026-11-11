@@ -58,6 +58,7 @@ suite('SharedChatInputComposer', () => {
 		let draftModelState: object | undefined;
 		const requests: { query: string; attachments: string[]; background: boolean }[] = [];
 		const errors: string[] = [];
+		const readinessWait = store.add(new MutableDisposable<DisposableStore>());
 		const attemptIds: (string | undefined)[] = [];
 		let storageWrites = 0;
 		const storageService = options.storageService ?? store.add(new InMemoryStorageService());
@@ -114,6 +115,7 @@ suite('SharedChatInputComposer', () => {
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: store.add(new MutableDisposable()),
+			_readinessWait: readinessWait,
 			_canSendRequest: typeof options.canSendRequest === 'object' ? options.canSendRequest : constObservable(options.canSendRequest ?? true),
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
@@ -142,7 +144,7 @@ suite('SharedChatInputComposer', () => {
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, widget, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, widget, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
 
 	for (const preserveInputFocusOnSend of [false, true]) {
@@ -574,27 +576,44 @@ suite('SharedChatInputComposer', () => {
 		}
 	});
 
-	test('a send that comes before the session is ready to send, such as by Run Prompt as the composer opens, waits for it, and sends', () => runWithFakedTimers({}, async () => {
+	test('a send that comes before the session is ready to send, such as by Run Prompt as the composer opens, waits for it with its input read-only, and sends', () => runWithFakedTimers({}, async () => {
 		const canSendRequest = observableValue('canSendRequest', false);
 		const { composer, state } = createComposer({ canSendRequest });
 		const sending = composer.submit(true);
 		await timeout(1000);
-		const whileWaiting = { requests: state().requests.length, duplicate: await composer.submit(true) };
+		const whileWaiting = { requests: state().requests.length, inputEnabled: state().input.enabled, duplicate: await composer.submit(true) };
 		canSendRequest.set(true, undefined);
 		const sent = await sending;
 		assert.deepStrictEqual({ whileWaiting, sent, requests: state().requests.map(request => request.query), errors: state().errors }, {
-			whileWaiting: { requests: 0, duplicate: false },
+			whileWaiting: { requests: 0, inputEnabled: false, duplicate: false },
 			sent: true,
 			requests: ['Build it'],
 			errors: [],
 		});
 	}));
 
-	test('a send whose session does not get ready in time is not sent, keeps its input and says so', () => runWithFakedTimers({}, async () => {
-		const { composer, state } = createComposer({ canSendRequest: false });
+	test('a send whose session does not get ready in time is not sent, gives its input back as it was and says so', () => runWithFakedTimers({}, async () => {
+		const { composer, inputTransitions, state } = createComposer({ canSendRequest: false, focused: true });
 		const sent = await composer.submit(true);
-		const { requests, errors, input } = state();
-		assert.deepStrictEqual({ sent, requests, errors: errors.length, input: input.text }, { sent: false, requests: [], errors: 1, input: 'Build it' });
+		const { requests, errors, input, focusRestored } = state();
+		assert.deepStrictEqual({ sent, requests, errors: errors.length, input, inputTransitions: inputTransitions.map(transition => transition.enabled), focusRestored }, {
+			sent: false,
+			requests: [],
+			errors: 1,
+			input: { text: 'Build it', attachments: ['context'], enabled: true },
+			inputTransitions: [false, true],
+			focusRestored: true,
+		});
+	}));
+
+	test('a send waiting for its session as the composer is disposed is neither sent nor reported, and leaves no wait behind', () => runWithFakedTimers({}, async () => {
+		const { composer, readinessWait, state } = createComposer({ canSendRequest: false });
+		const sending = composer.submit(true);
+		await timeout(1000);
+		readinessWait.dispose();
+		const sent = await sending;
+		await timeout(20_000);
+		assert.deepStrictEqual({ sent, requests: state().requests, errors: state().errors }, { sent: false, requests: [], errors: [] });
 	}));
 
 	for (const background of [false, true]) {

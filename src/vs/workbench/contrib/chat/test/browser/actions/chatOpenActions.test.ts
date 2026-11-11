@@ -12,7 +12,7 @@ import { ServiceIdentifier } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IChatViewOpenOptions, ModeOpenChatGlobalAction } from '../../../browser/actions/chatActions.js';
-import { IChatViewHostDelegate, IChatWidgetService } from '../../../browser/chat.js';
+import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
@@ -20,6 +20,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionPosition, openChatSessionAndSend } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatSendResult, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -61,24 +62,36 @@ suite('Open Chat', () => {
 		assert.deepStrictEqual(calls, ['notification', 'notification', 'notification']);
 	});
 
-	test('a session opened in the Chat view while something replaces it is created and sent to as anywhere, with its tools, options and copied conversation, and shows there once it runs', async () => {
+	test('a session opened in the Chat view while something replaces it is created and sent to as anywhere, with its tools, options and copied conversation, and shows there, or its request stays to send again', async () => {
 		const calls: unknown[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
-		let sendKind: 'sent' | 'rejected' = 'sent';
+		let sendKind: 'sent' | 'rejected' | 'failed' = 'sent';
 		const prepared = URI.from({ scheme: AgentSessionProviders.AgentHostCopilot, path: '/untitled-prepared' });
 		const materialized = URI.from({ scheme: AgentSessionProviders.AgentHostCopilot, path: '/session-1' });
+		const listed = [materialized.toString()];
+		const composer = upcastPartial<IChatWidget>({
+			setInput: (query?: string) => { calls.push({ composerInput: query }); },
+			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ addContext: (...entries: IChatRequestVariableEntry[]) => { calls.push({ composerContext: entries.map(entry => entry.id) }); } }),
+		});
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			chatViewHostDelegate: upcastPartial<IChatViewHostDelegate>({
-				openSession: async resource => { calls.push({ show: resource.toString() }); return undefined; },
-				newSession: async sessionType => { calls.push({ composer: sessionType }); return undefined; },
+				openSession: async resource => { calls.push({ show: resource.toString() }); return listed.includes(resource.toString()) ? upcastPartial<IChatWidget>({}) : undefined; },
+				newSession: async sessionType => { calls.push({ composer: sessionType }); return composer; },
 			}),
 		}));
-		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: () => { calls.push('notification'); return upcastPartial<INotificationHandle>({}); } }));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
+			info: () => { calls.push('notification'); return upcastPartial<INotificationHandle>({}); },
+			warn: () => { calls.push('requestRestoredNotice'); return upcastPartial<INotificationHandle>({}); },
+		}));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
 			acquireOrLoadSession: async resource => { calls.push({ load: resource.toString() }); return upcastPartial<IChatModelReference>({ dispose: () => calls.push('release') }); },
 			sendRequest: async (resource, prompt) => {
 				calls.push({ send: prompt, to: resource.toString() });
-				return sendKind === 'sent' ? upcastPartial<ChatSendResult>({ kind: 'sent', newSessionResource: materialized }) : upcastPartial<ChatSendResult>({ kind: 'rejected' });
+				switch (sendKind) {
+					case 'sent': return upcastPartial<ChatSendResult>({ kind: 'sent', newSessionResource: materialized });
+					case 'rejected': return upcastPartial<ChatSendResult>({ kind: 'rejected', newSessionResource: materialized });
+					case 'failed': throw new Error('send failed');
+				}
 			},
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ updateSessionOptions: (resource, options) => { calls.push({ options: [...options.keys()] }); return true; } }));
@@ -87,37 +100,48 @@ suite('Open Chat', () => {
 			moveSessionTools: (_from, to) => { calls.push({ toolsMovedTo: to.toString() }); },
 			clearSessionTools: () => { calls.push('toolsCleared'); },
 		}));
-		instantiationService.stub(IAgentHostImportConversationStore, upcastPartial<IAgentHostImportConversationStore>({ set: () => { calls.push('imported'); } }));
+		instantiationService.stub(IAgentHostImportConversationStore, upcastPartial<IAgentHostImportConversationStore>({
+			set: () => { calls.push('imported'); },
+			take: () => { calls.push('importDropped'); return undefined; },
+		}));
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ error: () => { } }));
 		// Opening the Chat view or an editor would fail: nothing shows in them
-		const services: ServiceIdentifier<unknown>[] = [IViewsService, ILogService, IEditorGroupsService, IEditorService, ICustomizationHarnessService, ILanguageModelToolsService, IProgressService];
+		const services: ServiceIdentifier<unknown>[] = [IViewsService, IEditorGroupsService, IEditorService, ICustomizationHarnessService, ILanguageModelToolsService, IProgressService];
 		for (const service of services) {
 			instantiationService.stub(service, {});
 		}
 		const open = (type: string, chatSendOptions?: Parameters<typeof openChatSessionAndSend>[2]) => instantiationService.invokeFunction(accessor => openChatSessionAndSend(accessor, { type, displayName: type, position: ChatSessionPosition.Sidebar, sessionResource: chatSendOptions ? prepared : undefined }, chatSendOptions));
 		const sendOptions = {
 			prompt: 'review this',
+			attachedContext: [upcastPartial<IChatRequestVariableEntry>({ id: 'file' })],
 			initialSessionOptions: new Map([['model', 'gpt']]),
 			sessionToolIds: ['report'],
 			importConversation: upcastPartial<IAgentHostImportConversation>({ turns: [upcastPartial<IAgentHostImportConversation['turns'][number]>({})] }),
 		};
+		const prologue = [{ tools: ['report'] }, 'imported', { load: prepared.toString() }, { options: ['model'] }, { send: 'review this', to: prepared.toString() }];
 
 		const sent = await open(AgentSessionProviders.AgentHostCopilot, sendOptions);
 		const sentCalls = calls.splice(0);
 		sendKind = 'rejected';
 		const rejected = await open(AgentSessionProviders.AgentHostCopilot, sendOptions);
 		const rejectedCalls = calls.splice(0);
+		sendKind = 'failed';
+		const failed = await open(AgentSessionProviders.AgentHostCopilot, sendOptions);
+		const failedCalls = calls.splice(0);
 		const others = [await open(AgentSessionProviders.AgentHostCopilot), await open(AgentSessionProviders.Local, { prompt: 'hi' })];
 
-		assert.deepStrictEqual({ sent, sentCalls, rejected, rejectedCalls, others, othersCalls: calls }, {
+		assert.deepStrictEqual({ sent, sentCalls, rejected, rejectedCalls, failed, failedCalls, others, othersCalls: calls }, {
 			sent: { resource: materialized, sendOutcome: 'sent' },
-			sentCalls: [
-				{ tools: ['report'] }, 'imported', { load: prepared.toString() }, { options: ['model'] }, { send: 'review this', to: prepared.toString() },
-				{ toolsMovedTo: materialized.toString() }, { show: materialized.toString() }, 'release',
-			],
-			rejected: { resource: prepared, sendOutcome: 'rejected' },
-			rejectedCalls: [
-				{ tools: ['report'] }, 'imported', { load: prepared.toString() }, { options: ['model'] }, { send: 'review this', to: prepared.toString() },
-				'toolsCleared', 'release',
+			sentCalls: [...prologue, { toolsMovedTo: materialized.toString() }, { show: materialized.toString() }, 'release'],
+			// A rejected request whose session became real shows that session
+			rejected: { resource: materialized, sendOutcome: 'rejected' },
+			rejectedCalls: [...prologue, { toolsMovedTo: materialized.toString() }, 'toolsCleared', { show: materialized.toString() }, 'release'],
+			// A failed send of a session that is not listed keeps the request in the input of a new session, without the copied conversation
+			failed: { resource: prepared, sendOutcome: 'failed' },
+			failedCalls: [
+				...prologue, 'toolsCleared', { show: prepared.toString() },
+				'importDropped', { composer: AgentSessionProviders.AgentHostCopilot }, { composerInput: 'review this' }, { composerContext: ['file'] }, 'requestRestoredNotice',
+				'release',
 			],
 			others: [undefined, undefined],
 			othersCalls: [{ composer: AgentSessionProviders.AgentHostCopilot }, 'notification'],

@@ -1924,6 +1924,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
 	const progressService = accessor.get(IProgressService);
+	const notificationService = accessor.get(INotificationService);
 
 	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, shows the session instead
 	const widgetService = accessor.get(IChatWidgetService);
@@ -1931,7 +1932,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	if (chatViewHostDelegate) {
 		if (openOptions.type === AgentSessionProviders.Local) {
 			// It shows sessions, not local chat
-			accessor.get(INotificationService).info(localize('chatSessions.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
+			notificationService.info(localize('chatSessions.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
 			return undefined;
 		}
 		if (!chatSendOptions) {
@@ -2109,9 +2110,21 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	transitionProgress?.complete();
 	if (chatViewHostDelegate) {
 		try {
-			// A session that did not run is not listed, so there is nothing to show
-			if (sendOutcome === 'sent' || sendOutcome === 'queued') {
-				await chatViewHostDelegate.openSession(openedSessionResource, false);
+			const ran = sendOutcome === 'sent' || sendOutcome === 'queued';
+			// A new session that did not run is not listed: only one that ran, became real or was given can show
+			const shown = (ran || openOptions.sessionResource || !resources.isEqual(openedSessionResource, sessionResource))
+				&& await chatViewHostDelegate.openSession(openedSessionResource, false);
+			if (!ran && !shown && chatSendOptions) {
+				// The request stays, in the input of a new session of the type, to send again
+				importConversationStore.take(sessionResource);
+				const composer = await chatViewHostDelegate.newSession(openOptions.type, false);
+				if (composer) {
+					composer.setInput(chatSendOptions.prompt);
+					if (chatSendOptions.attachedContext?.length) {
+						composer.attachmentModel.addContext(...chatSendOptions.attachedContext);
+					}
+				}
+				notificationService.warn(localize('chatSessions.requestRestored', "The request could not be sent. It was restored in a new session so you can send it again."));
 			}
 		} finally {
 			chatViewHostModel?.dispose();
