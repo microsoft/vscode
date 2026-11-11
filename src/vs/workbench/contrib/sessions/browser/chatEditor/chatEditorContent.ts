@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, isAncestorOfActiveElement, size } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
-import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { IChat, ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
-import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
-import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
-import { AbstractChatView, INewSessionDraftHost, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
-import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
-import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { IEditorPaneTitleMenu } from '../../../../workbench/browser/parts/editor/editor.js';
-import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatModelHold } from '../../chatWindow/browser/chatWindowOpening.js';
+import { $, isAncestorOfActiveElement, size } from '../../../../../base/browser/dom.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
+import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { SessionInChatEditorContext } from '../../common/contextkeys.js';
+import { ChatGroupView, IChatGroupContext } from '../parts/chatGroupView.js';
+import { AbstractChatView, INewSessionDraftHost, ISessionViewHostOptions } from '../parts/chatView.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
+import { SessionHeader } from '../parts/sessionHeader.js';
+import { Menus } from '../menus.js';
+import { IEditorPaneTitleMenu } from '../../../../browser/parts/editor/editor.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatModelHold } from './sessionChatOpening.js';
 
 /** A new-session composer that a chat editor shows while its session is not created ({@link ChatEditorContent.setComposer}). */
 export interface IChatEditorComposer {
