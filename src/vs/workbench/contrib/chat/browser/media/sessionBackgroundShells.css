@@ -3,11 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* A background shell's full description leads its details, above the command. */
+/* A background shell's full description leads its details, above the command, with Stop beside it. */
 .chat-pill-location-hover > .chat-background-shell-title {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.chat-pill-location-hover > .chat-background-shell-title[hidden] {
+	display: none;
+}
+
+.chat-background-shell-title > .chat-background-shell-description {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* One line tall, with Stop centered on the description's first line, so showing Stop never grows the top bar. */
+.chat-background-shell-title > .monaco-action-bar {
+	flex-shrink: 0;
+	height: 1lh;
+}
+
+/* Without a description, Stop stays beside the command, at its first line rather than halfway down a long command. */
+.chat-terminal-content-part.chat-background-shell-output .chat-terminal-action-bar,
+.chat-terminal-content-part.chat-background-shell-command .chat-terminal-action-bar {
+	align-self: flex-start;
 }
 
 /*
@@ -15,6 +39,7 @@
  * the debug feature, which registers this color, so it falls back to the error color, which
  * shares the stop color's defaults.
  */
+.chat-pill-location-hover > .chat-background-shell-title .action-label.codicon-debug-stop,
 .chat-background-shell-output .chat-terminal-action-bar .action-label.codicon-debug-stop,
 .chat-background-shell-command .chat-terminal-action-bar .action-label.codicon-debug-stop {
 	color: var(--vscode-debugIcon-stopForeground, var(--vscode-errorForeground));
