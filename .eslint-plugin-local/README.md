@@ -112,11 +112,11 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 
 # Running the rules with oxlint
 
-CI and the pre-commit hook run the rules with [oxlint](https://oxc.rs/docs/guide/usage/linter.html), which is faster than ESLint. In the editor, the recommended oxc extension (`oxc.oxc-vscode`) runs them too, and the ESLint extension skips `src/` (see `eslint.options` in `.vscode/settings.json`). ESLint still runs them in the editor for the other folders and in the Copilot extension's `pnpm run lint`. `pnpm run oxlint` lints the full repository, the given files, or with `--changed-since <ref>` the files that changed since `ref`, and reports in ESLint's compact format, with ESLint's rule names.
+The rules run with [oxlint](https://oxc.rs/docs/guide/usage/linter.html), which is faster than ESLint: in CI, in the pre-commit hook, in the Copilot extension's `pnpm run lint`, in the editor with the recommended oxc extension (`oxc.oxc-vscode`), and in the rule tests, with oxlint's `RuleTester`. The rules use ESLint's rule API, and `eslint.config.js` configures them; ESLint itself no longer runs. `pnpm run oxlint` lints the full repository, the given files, or with `--changed-since <ref>` the files that changed since `ref`, and reports in ESLint's compact format, with ESLint's rule names.
 
 There is one configuration: [oxlint.config.ts](../oxlint.config.ts) converts `eslint.config.js` when oxlint loads it (see `build/lib/oxlintConfig.ts`). oxlint implements ESLint's core rules and the `@typescript-eslint` rules natively, and loads the other plugins as JS plugins, which run on one thread per process; `build/oxlint.ts` therefore splits a full run into several processes by folder, and lints the extensions that use type information in a separate process with `--type-aware`.
 
-So that configuration and disable directives work in both linters, `eslint.config.js` uses the names oxlint reports:
+`eslint.config.js` uses rule names that oxlint accepts, so that oxlint can load every rule under the name that the disable directives use:
 
 - `eslint-js/*` and `ts-eslint-js/*` are the ESLint and typescript-eslint rules that oxlint does not implement, such as `eslint-js/no-restricted-syntax` and `ts-eslint-js/naming-convention`. The adapters in `adapters/` load the original implementations for both linters. Add a rule there before using it.
 - `jsdoc-js/*` is `eslint-plugin-jsdoc`, because oxlint reserves `jsdoc` for its own implementation.
