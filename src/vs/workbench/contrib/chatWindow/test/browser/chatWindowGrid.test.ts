@@ -303,6 +303,7 @@ suite('Chat window grid', () => {
 			override get isEmpty() { return empty; }
 			override readonly onDidModelChange = onDidModelChange.event;
 			override getEditors() { return []; }
+			override focus(): void { }
 		}();
 		const part = new class extends mock<IContentPart>() {
 			override readonly element = $(`.${name}`);
@@ -314,6 +315,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [group];
 			override getGroups() { return this.groups; }
 			override findGroup() { return undefined; }
+			override get activeGroup() { return group; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -1476,14 +1478,26 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ shape: restored.partGrid!.describe(), main: restored.partGrid!.getCellSize(ChatWindowGridCell.Main).width }, { shape: 'column(titleRow, row(main, chat, strip))', main: 400 });
 	});
 
-	test('the split the user gave the chat and the main part comes back after a reload, whichever part was hidden as it saved, with the terminals beside it showing, empty or absent, with or without the chrome', () => {
-		type Case = { split: ChatWindowSplitLayout; move: 'swap' | 'nested' | 'reorder'; hide: ChatWindowLayoutMode; terminals?: { position: ChatWindowTerminalPosition; empty: boolean }; chrome?: false };
-		const run = ({ split, move, hide, terminals, chrome }: Case) => {
+	test('the split the user gave the chat and the main part comes back after a reload, within a point as sizes round, whichever part was hidden as it saved, with the terminals beside it showing, empty or absent, a part the grid created coming or going meanwhile, with or without the chrome', () => {
+		type Case = { split: ChatWindowSplitLayout; move: 'swap' | 'nested' | 'reorder'; hide: ChatWindowLayoutMode; terminals?: { position: ChatWindowTerminalPosition; empty: boolean }; chrome?: false; created?: 'addedWhileHidden' | 'closedWhileHidden' };
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const run = ({ split, move, hide, terminals, chrome, created }: Case) => {
 			const mode = observableValue<ChatWindowLayoutMode>('mode', split);
 			const terminalsPart = createPartWithEditors('terminals');
 			const terminalsCell = observableValue<IContentPart | undefined>('terminals', undefined);
+			const closeCreated = disposables.add(new Emitter<void>());
+			const createdPart = createPartWithEditors('created', closeCreated.event);
+			terminalsPart.setEmpty(false);
+			createdPart.setEmpty(false);
 			const cells = (arrangement?: IChatWindowArrangement) => ({ main: createPart('main'), chat: createPart('chat'), ...(chrome === false ? {} : { titleRow: createChrome(30), strip: createChrome(34) }), splitLayout: constObservable(split), arrangement });
-			const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { ...cells(), terminals: terminalsCell }, mode, constObservable(0), undefined, constObservable(terminals?.position ?? ChatWindowTerminalPosition.FullWidth), undefined, editorGroupsService));
+			const original = cells();
+			sourcePart = original.main;
+			const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { ...original, terminals: terminalsCell }, mode, constObservable(0), undefined, constObservable(terminals?.position ?? ChatWindowTerminalPosition.FullWidth), { createPart: () => ({ id: 'created', part: createdPart.part }) }, editorGroupsService));
+			const addCreated = () => grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Right });
 			grid.layout(1000, 800);
 			const partGrid = () => grid.partGrid!;
 			if (move === 'swap') {
@@ -1495,7 +1509,9 @@ suite('Chat window grid', () => {
 			}
 			if (terminals) {
 				terminalsCell.set(terminalsPart.part, undefined);
-				terminalsPart.setEmpty(false);
+			}
+			if (created === 'closedWhileHidden') {
+				addCreated();
 			}
 			// Beside each other, the chat and the main part split the width; one above the other, the height
 			const along = split === ChatWindowLayoutMode.Stacked || move === 'nested' ? 'height' : 'width';
@@ -1509,11 +1525,17 @@ suite('Chat window grid', () => {
 			if (terminals?.empty) {
 				terminalsPart.setEmpty(true);
 			}
+			if (created === 'addedWhileHidden') {
+				addCreated();
+			} else if (created === 'closedWhileHidden') {
+				closeCreated.fire();
+			}
 			const arrangement = grid.exportArrangement();
 			const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), cells(arrangement), constObservable(split), constObservable(0), undefined, undefined, undefined, editorGroupsService));
 			restored.layout(1000, 800);
 			const after = share(restored.partGrid!);
-			return !!arrangement && after.share === before.share && !after.atMinimum ? 'kept' : `${JSON.stringify(before)} -> ${JSON.stringify(after)}${arrangement ? '' : ' (not saved)'}`;
+			// Within a point: the sizes round as the room is shared again, and as the parts the grid created leave the arrangement
+			return !!arrangement && Math.abs(after.share - before.share) <= 1 && !after.atMinimum ? 'kept' : `${JSON.stringify(before)} -> ${JSON.stringify(after)}${arrangement ? '' : ' (not saved)'}`;
 		};
 		const [SideBySide, Stacked, ChatOnly, EditorOnly] = [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly] as const;
 		const [FullWidth, UnderChat, UnderEditor] = [ChatWindowTerminalPosition.FullWidth, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.UnderEditor] as const;
@@ -1532,9 +1554,15 @@ suite('Chat window grid', () => {
 			'stacked reordered, main hidden, terminals': { split: Stacked, move: 'reorder', hide: ChatOnly, terminals: { position: FullWidth, empty: false } },
 			'stacked reordered, chat hidden, terminals empty': { split: Stacked, move: 'reorder', hide: EditorOnly, terminals: { position: FullWidth, empty: true } },
 			'stacked reordered, main hidden, without chrome': { split: Stacked, move: 'reorder', hide: ChatOnly, chrome: false },
+			'swapped, main hidden, terminals under it, empty, a part created meanwhile': { split: SideBySide, move: 'swap', hide: ChatOnly, terminals: { position: UnderEditor, empty: true }, created: 'addedWhileHidden' },
+			'swapped, chat hidden, terminals under it, empty, a part created meanwhile': { split: SideBySide, move: 'swap', hide: EditorOnly, terminals: { position: UnderChat, empty: true }, created: 'addedWhileHidden' },
+			'swapped, main hidden, terminals under it, empty, a part closed meanwhile': { split: SideBySide, move: 'swap', hide: ChatOnly, terminals: { position: UnderEditor, empty: true }, created: 'closedWhileHidden' },
+			'swapped, main hidden, a part created meanwhile': { split: SideBySide, move: 'swap', hide: ChatOnly, created: 'addedWhileHidden' },
+			'stacked reordered, chat hidden, terminals empty, a part closed meanwhile': { split: Stacked, move: 'reorder', hide: EditorOnly, terminals: { position: FullWidth, empty: true }, created: 'closedWhileHidden' },
 		};
 
 		const results = Object.fromEntries(Object.entries(cases).map(([name, testCase]) => [name, run(testCase)]));
+		sourcePart = undefined;
 		assert.deepStrictEqual(results, Object.fromEntries(Object.keys(cases).map(name => [name, 'kept'])));
 	});
 
