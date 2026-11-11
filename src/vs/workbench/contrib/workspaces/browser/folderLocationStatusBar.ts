@@ -10,11 +10,14 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
+
+const FOLDER_LOCATION_NOTICE_STORAGE_KEY = 'workbench.folderLocation.noticeShown';
 
 export const RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.returnToPrimaryFolderLocation';
 
@@ -33,7 +36,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -65,9 +69,13 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			this.entry.value.update(props);
 		} else {
 			this.entry.value = this.statusbarService.addEntry(props, 'status.workspace.folderLocation', StatusbarAlignment.LEFT, 1000);
+			if (this.storageService.getBoolean(FOLDER_LOCATION_NOTICE_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+				return;
+			}
+			this.storageService.store(FOLDER_LOCATION_NOTICE_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this.notificationService.prompt(
 				Severity.Info,
-				localize('folderLocationSwitched', "The folder is now at the location '{0}'. Select the status bar entry to return to {1}.", location.label, primaryName),
+				localize('folderLocationSwitched', "The folder is now at the location '{0}'. Files, search, terminals and extensions use this location, but open editors stay where they are. Select the status bar entry to return to {1}.", location.label, primaryName),
 				[{
 					label: localize('returnToPrimaryLocation', "Return to Primary Location"),
 					run: () => this.commandService.executeCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID)

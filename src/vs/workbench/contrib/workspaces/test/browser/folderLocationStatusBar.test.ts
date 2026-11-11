@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { INotificationService, IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -32,6 +33,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 
+		let stored = false;
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false);
 
@@ -46,7 +48,8 @@ suite('FolderLocationStatusBarContribution', () => {
 				}
 			} as unknown as IStatusbarService,
 			{ prompt(_severity: unknown, _message: string, choices: IPromptChoice[], options?: IPromptOptions) { prompts.push({ choices, options }); } } as unknown as INotificationService,
-			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService
+			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
+			{ getBoolean: () => stored, store: () => { stored = true; } } as unknown as IStorageService
 		));
 
 		return {
@@ -79,11 +82,11 @@ suite('FolderLocationStatusBarContribution', () => {
 		await fixture.prompts[0].choices[0].run();
 		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
 
-		fixture.switchTo();
-		assert.strictEqual(fixture.prompts.length, 1);
-
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
+
+		fixture.switchTo();
+		assert.deepStrictEqual({ visible: fixture.isVisible(), prompts: fixture.prompts.length }, { visible: true, prompts: 1 });
 	});
 
 	test('return command switches back to the primary location', async () => {
