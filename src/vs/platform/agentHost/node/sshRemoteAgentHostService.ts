@@ -79,6 +79,7 @@ import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
+import { createSSHProxyJump, rememberSSHProxyJump, SSHProxyJump } from './sshProxyJump.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -681,6 +682,7 @@ class SSHConnection extends Disposable {
 		readonly sshClient: SSHClient,
 		private readonly _remoteStream: SSHChannel | undefined,
 		private readonly _logService: ILogService,
+		private readonly _disposeJump: (client: SSHClient) => void,
 	) {
 		super();
 
@@ -696,6 +698,7 @@ class SSHConnection extends Disposable {
 			sshClient.removeListener('error', this._sshErrorListener);
 			this._remoteStream?.close();
 			sshClient.end();
+			this._disposeJump(sshClient);
 			this._onDidClose.fire();
 		}));
 
@@ -818,6 +821,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private _nativeRequire: NodeJS.Require | undefined;
 	private readonly _proxies = this._register(new DisposableMap<SSHClient, SSHProxyCommand>());
+	private readonly _jumpProxies = this._register(new DisposableMap<SSHClient, SSHProxyJump>());
 	private readonly _resolvedConfigs = new Map<string, { readonly resolved: Promise<ISSHResolvedConfig>; readonly expiry: number }>();
 
 	/**
@@ -836,6 +840,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		private readonly _jumpFactory: { create: typeof createSSHProxyJump } = { create: createSSHProxyJump },
 	) {
 		super();
 	}
@@ -1083,6 +1088,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				sshClient,
 				agentStream,
 				this._logService,
+				client => this._jumpProxies.deleteAndDispose(client),
 			);
 
 			Event.once(conn.onDidClose)(() => {
@@ -1114,6 +1120,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		} catch (err) {
 			sshClient?.end();
+			if (sshClient) {
+				this._jumpProxies.deleteAndDispose(sshClient);
+			}
 			if (!(err instanceof CancellationError)) {
 				this._logService.error(`${LOG_PREFIX} Failed to connect to ${displayHost}`, err);
 			}
@@ -1497,7 +1506,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	private async _parseSSHGOutput(stdout: string): Promise<ISSHResolvedConfig> {
-		return { ...parseSSHGOutput(stdout), ...await resolveSSHKnownHostsFiles(stdout) };
+		return rememberSSHProxyJump({ ...parseSSHGOutput(stdout), ...await resolveSSHKnownHostsFiles(stdout) }, stdout);
 	}
 
 	protected async _connectSSH(
@@ -1663,8 +1672,25 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		};
 
 		const client = await this._createSSHClient();
+		let jumpProxy: SSHProxyJump | undefined;
+		try {
+			jumpProxy = await this._jumpFactory.create(resolved, {
+				host: config.host,
+				originalHost,
+				port,
+				username: config.username,
+			}, this._logService);
+		} catch (error) {
+			client.end();
+			throw error;
+		}
+		if (jumpProxy) {
+			this._jumpProxies.set(client, jumpProxy);
+			connectConfig.sock = jumpProxy.stream;
+		}
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
+			let connected = false;
 			let deadlineTimer: IHandshakeDeadlineHandle | undefined;
 
 			const clearDeadline = () => {
@@ -1689,6 +1715,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					return;
 				}
 				settled = true;
+				connected = true;
 				clearDeadline();
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
@@ -1705,10 +1732,24 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
 				this._proxies.deleteAndDispose(client);
-				if (endClient) {
-					client.end();
+				const finish = (detail?: string) => {
+					if (detail) {
+						err.message = localize('sshJumpFailed', "{0} ({1})", err.message, detail);
+					}
+					this._jumpProxies.deleteAndDispose(client);
+					if (endClient) {
+						client.end();
+					}
+					reject(err);
+				};
+				if (jumpProxy && !(err instanceof CancellationError) && !hostKeyDenied) {
+					void jumpProxy.describeFailure().then(finish, () => {
+						this._logService.warn(`${LOG_PREFIX} Failed to collect SSH jump failure details`);
+						finish();
+					});
+				} else {
+					finish();
 				}
-				reject(err);
 			};
 
 			cancelConnectFromKbi = () => {
@@ -1740,6 +1781,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// prompt would be left on screen forever.
 			client.on('close', () => {
 				this._proxies.deleteAndDispose(client);
+				if (connected) {
+					this._jumpProxies.deleteAndDispose(client);
+				}
 				rejectConnect(
 					hostKeyDenied
 						? new SSHHostKeyDeniedError(displayHost)

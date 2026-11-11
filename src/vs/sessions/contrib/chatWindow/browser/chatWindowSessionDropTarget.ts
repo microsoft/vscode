@@ -15,7 +15,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag, SessionsDataTransfers } from '../../../../workbench/contrib/sessions/browser/dnd.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { isChatWindowChatGone } from './chatWindowOpening.js';
+import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 
 /**
  * Makes the chat of a chat window take the chats and sessions dragged onto it, such as a session of the sessions list or

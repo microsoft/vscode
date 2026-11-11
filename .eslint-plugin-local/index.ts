@@ -18,4 +18,4 @@ readdirSync(import.meta.dirname)
 		rules[path.basename(file, '.ts')] = require(path.join(import.meta.dirname, file)).default;
 	});
 
-export { rules };
+export default { meta: { name: 'local' }, rules } satisfies ESLint.Plugin;

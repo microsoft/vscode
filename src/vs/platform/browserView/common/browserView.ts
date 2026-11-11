@@ -215,6 +215,11 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**
+	 * When true, a docked DevTools panel is included in the capture of the whole view.
+	 * Only meant for UI placeholders: DevTools content must not reach agents or other consumers.
+	 */
+	includeDevTools?: boolean;
+	/**
 	 * When true, capture the full scrollable document, not just the visible viewport.
 	 * Ignored when `screenRect` or `pageRect` is set.
 	 */

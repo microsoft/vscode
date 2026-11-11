@@ -22,6 +22,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -55,8 +56,12 @@ import { CustomizationsNavigationState } from '../../../../../workbench/contrib/
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCustomizationsTelemetry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
+import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 
 suite('Customizations toolbar', () => {
@@ -73,6 +78,50 @@ suite('Customizations toolbar', () => {
 
 	test('does not include standalone Remotes management in Customizations', () => {
 		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
+	});
+
+	test('opens the modal with complete new-session target labels', async () => {
+		const instantiationService = telemetryInstantiationService();
+		const descriptions: (string | undefined)[] = [];
+		const targeted: (URI | undefined)[] = [];
+		const descriptor = upcastPartial<IHarnessDescriptor>({ id: 'copilot', label: 'Copilot', icon: Codicon.copilot });
+		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = constObservable('copilot');
+			override readonly availableHarnesses = constObservable([descriptor]);
+			override getActiveDescriptor() { return descriptor; }
+		};
+		const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly activeProjectLabel = constObservable('vscode');
+			override readonly activeTargetLabels = constObservable({ harness: 'Copilot', workspace: 'vscode', environment: 'Cloud' });
+			override setActiveSessionResource(resource: URI | undefined) { targeted.push(resource); }
+		};
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			openEditor: async input => {
+				assert.ok(input instanceof AICustomizationManagementEditorInput);
+				disposables.add(input);
+				descriptions.push(input.getDescription());
+				return undefined;
+			},
+		}));
+		instantiationService.stub(ICustomizationHarnessService, harnessService);
+		instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(undefined)));
+		instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
+		disposables.add(new CustomizationsToolbarContribution(
+			new class extends mock<IActionViewItemService>() {
+				override register() { return toDisposable(() => { }); }
+			},
+			instantiationService,
+			harnessService,
+			disposables.add(new MockContextKeyService()),
+			new TestConfigurationService(),
+		));
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID)!.handler(accessor));
+
+		assert.deepStrictEqual({ descriptions, targeted }, {
+			descriptions: ['(Copilot · vscode · Cloud)'],
+			targeted: [undefined],
+		});
 	});
 
 	test('includes enabled Tools in customization totals', () => {
