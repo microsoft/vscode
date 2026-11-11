@@ -208,7 +208,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
+		const contextService = accessor.get(IWorkspaceContextService);
+		const folder = contextService.getWorkspace().folders[0];
 		const primary = folder?.primaryUri;
 		if (!primary) {
 			return;
@@ -231,7 +232,13 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		];
 
 		const picked = await quickInputService.pick(items, { placeHolder: localize('switchFolderLocationPlaceholder', "Select a Location for the Folder") });
-		if (!picked || uriIdentityService.extUri.isEqual(picked.uri, folder.uri)) {
+		if (!picked) {
+			return;
+		}
+
+		// The folder may have been switched while the picker was open
+		const current = contextService.getWorkspace().folders[0];
+		if (!current || !uriIdentityService.extUri.isEqual(current.primaryUri ?? current.uri, primary) || uriIdentityService.extUri.isEqual(picked.uri, current.uri)) {
 			return;
 		}
 
