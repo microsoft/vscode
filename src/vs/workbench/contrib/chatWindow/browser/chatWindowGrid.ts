@@ -489,6 +489,8 @@ export class ChatWindowGrid extends Disposable {
 	private _baseTopologyKey: string | undefined;
 	private _terminalsInGrid = false;
 	private _dimension: IViewSize | undefined;
+	/** The height the terminals had by default in the window as it was, which they take back as it grows again, if squeezed. */
+	private _lastTerminalsHeight: number | undefined;
 	private _outerInsets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private _sizes: ChatWindowPartSizes = {};
 	/** The arrangement of the part grid as the window arranged it: sizes are remembered for it only while the grid still shows it. */
@@ -681,6 +683,7 @@ export class ChatWindowGrid extends Disposable {
 	layout(width: number, height: number): void {
 		const previous = this._dimension;
 		const first = !previous;
+		this._rememberTerminalsHeight(previous);
 		this._dimension = { width, height };
 		if (first) {
 			// Arranged once the window has its size, so that the parts take their shares of it.
@@ -690,18 +693,33 @@ export class ChatWindowGrid extends Disposable {
 			const grid = this._grid.value;
 			grid?.layout(width, height);
 			// Squeezed where the window had too little room, such as as a part showed in a short one: they take the height the
-			// user gave them back as it grows taller, as far as the others leave room. Not otherwise, as a part dropped at an
-			// edge of the window shrinks them on purpose, nor mid-drag, which saves the height it ends at.
+			// user gave them, else the one they had in the larger window, back as it grows taller, as far as the others leave
+			// room. Not otherwise, as a part dropped at an edge of the window shrinks them on purpose, nor mid-drag, which
+			// saves the height it ends at.
 			const given = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
-			if (grid && given !== undefined && !this._resizing.get()) {
-				if (height > previous.height && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < given && this._isInColumn(grid, ChatWindowGridCell.Terminals)) {
-					this._recoverTerminalsHeight(grid, given);
+			const preferred = given ?? this._lastTerminalsHeight;
+			if (grid && preferred !== undefined && !this._resizing.get()) {
+				if (height > previous.height && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < preferred && this._isInColumn(grid, ChatWindowGridCell.Terminals)) {
+					this._recoverTerminalsHeight(grid, preferred);
 				}
 				// The height a hidden part restores them to was squeezed too, if the window had too little room when it hid
-				if (this._beforeHide?.terminalsHeight !== undefined && this._beforeHide.terminalsHeight < given) {
-					this._beforeHide.terminalsHeight = given;
+				if (this._beforeHide?.terminalsHeight !== undefined && this._beforeHide.terminalsHeight < preferred) {
+					this._beforeHide.terminalsHeight = preferred;
 				}
 			}
+		}
+	}
+
+	/**
+	 * Remembers the height the terminals have by default in the window as it was, as far as they have it: a window too
+	 * short for it squeezes them, and they take it back as the window grows (see `layout`). Forgotten while they are hidden.
+	 */
+	private _rememberTerminalsHeight(dimension: IViewSize | undefined): void {
+		const grid = this._grid.value;
+		if (!grid || !dimension || !grid.isCellVisible(ChatWindowGridCell.Terminals)) {
+			this._lastTerminalsHeight = undefined;
+		} else if (this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height === undefined && !this._resizing.get()) {
+			this._lastTerminalsHeight = Math.max(this._lastTerminalsHeight ?? 0, Math.min(grid.getCellSize(ChatWindowGridCell.Terminals).height, this._defaultTerminalsHeight(dimension)));
 		}
 	}
 
@@ -1329,9 +1347,13 @@ export class ChatWindowGrid extends Disposable {
 
 	/** The height the terminals take in every arrangement: the height the user last gave them, else their share of the window. */
 	private _terminalsHeight(): number {
+		return this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height ?? this._defaultTerminalsHeight(this._dimension);
+	}
+
+	private _defaultTerminalsHeight(dimension: IViewSize | undefined): number {
 		const insets = this._outerInsets;
-		const total = Math.max(0, (this._dimension?.height ?? 0) - insets.top - insets.bottom);
-		return this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height ?? Math.round(total * TERMINALS_SHARE);
+		const total = Math.max(0, (dimension?.height ?? 0) - insets.top - insets.bottom);
+		return Math.round(total * TERMINALS_SHARE);
 	}
 
 	private _contentOf(id: string): PartGridCellContent {

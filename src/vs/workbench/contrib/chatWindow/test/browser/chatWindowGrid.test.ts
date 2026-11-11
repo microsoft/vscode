@@ -1427,6 +1427,33 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ squeezed: squeezed < 400, grown: height(), saved: grid.exportSizes().terminals?.[ChatWindowGridCell.Terminals]?.height }, { squeezed: true, grown: 400, saved: 400 });
 	});
 
+	test('the terminals at their default height, squeezed as a part shows in a window too short for it, take it back as the window grows', () => {
+		const { mode, grid, position, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.layout(1000, 300);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const squeezed = height();
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ squeezed: squeezed < initial, grown: height(), saved: grid.exportSizes().terminals?.[ChatWindowGridCell.Terminals]?.height }, { squeezed: true, grown: initial, saved: undefined });
+	});
+
+	test('the terminals at their default height, not squeezed, keep their height as the window grows', () => {
+		const { grid, position, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		const heights = [1000, 1200, 800].map(windowHeight => {
+			grid.layout(1000, windowHeight);
+			return height();
+		});
+
+		assert.deepStrictEqual(heights, [initial, initial, initial]);
+	});
+
 	test('the terminals a user dragged shorter, or that were never given a height, keep their height as the window grows', () => {
 		const { grid, position, open, userResize, height } = setupWithTerminals();
 		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
