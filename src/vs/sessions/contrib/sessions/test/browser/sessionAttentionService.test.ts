@@ -474,6 +474,53 @@ suite('SessionAttentionService', () => {
 		});
 	});
 
+	test('new PR merges return historical completions to Inbox without overriding holds or timed snoozes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const sessions = ['historical', 'cleared', 'untilActivity', 'held', 'snoozed'].map((id, index) =>
+			createSession(id, SessionStatus.Completed, start - 1000, [{ number: index + 1 }]));
+		for (const session of sessions) {
+			(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		}
+		const fixture = createFixture(sessions);
+		for (const [index] of sessions.entries()) {
+			fixture.github.setPullRequest(index + 1, {
+				...openPullRequest(index + 1), state: GitHubPullRequestState.Merged, mergedAt: new Date(start - 1).toISOString(),
+			});
+		}
+		store.add(fixture.service.acquireSessionAttention());
+		const list = fixture.createListModel();
+		const states = () => sessions.map(session => list.getInboxState(session)?.kind);
+		const historical = states();
+		list.setInboxState([sessions[1]], 'done');
+		list.setInboxState([sessions[2]], 'untilActivity');
+		list.setInboxState([sessions[3]], 'hold');
+		list.setInboxState([sessions[4]], start + 60_000);
+		for (const [index] of sessions.entries()) {
+			fixture.github.setPullRequest(index + 1, openPullRequest(index + 1));
+		}
+		const beforeMerge = states();
+		for (const [index] of sessions.entries()) {
+			fixture.github.setPullRequest(index + 1, {
+				...openPullRequest(index + 1), state: GitHubPullRequestState.Merged, mergedAt: new Date(start).toISOString(),
+			});
+		}
+		const merged = states();
+		list.setInboxState([sessions[0]], 'done');
+		const acknowledged = states();
+		list.dispose();
+		const restored = fixture.createListModel();
+		assert.deepStrictEqual({
+			historical, beforeMerge, merged, acknowledged,
+			restored: sessions.map(session => restored.getInboxState(session)?.kind),
+		}, {
+			historical: ['done', 'done', 'done', 'done', 'done'],
+			beforeMerge: ['done', 'done', 'untilActivity', 'hold', 'snoozed'],
+			merged: [undefined, undefined, undefined, 'hold', 'snoozed'],
+			acknowledged: ['done', undefined, undefined, 'hold', 'snoozed'],
+			restored: ['done', undefined, undefined, 'hold', 'snoozed'],
+		});
+	}));
+
 	test('PR ownership deduplicates alerts, excludes busy and archived owners, and requires all open owned PRs to pass', () => {
 		const owner = createSession('owner', SessionStatus.Completed, 100, [{ number: 42 }, { number: 43 }]);
 		const linked = createSession('linked', SessionStatus.Completed, 200, [{ number: 42, owned: false }]);

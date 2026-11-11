@@ -54,6 +54,7 @@ import { PullRequestCheck } from '../../../../../../platform/github/common/githu
 import { classifyRequiredPullRequestChecks } from '../../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionInputBanners } from '../../../browser/sessionInputBanners/sessionInputBanners.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import '../../../browser/media/sessionsList.css';
 
 suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,6 +107,10 @@ suite('SessionInputBanners', () => {
 		instantiationService.stub(IChatEntitlementService, { onDidChangeSentiment: Event.None, sentiment: {} });
 		const visible = observableValue('visible', true);
 		const host = mainWindow.document.createElement('div');
+		host.className = 'sessions-list-control';
+		host.style.width = '120px';
+		mainWindow.document.body.appendChild(host);
+		store.add({ dispose: () => host.remove() });
 		const mainBefore = host.appendChild(mainWindow.document.createElement('div'));
 		const peerBefore = host.appendChild(mainWindow.document.createElement('div'));
 		const main = store.add(instantiationService.createInstance(SessionInlineActions, session, undefined, mainBefore, visible, () => { }, () => { }));
@@ -113,6 +118,17 @@ suite('SessionInputBanners', () => {
 		const buttons = () => [...host.querySelectorAll<HTMLElement>('.session-inline-actions:not([hidden]) .monaco-button')];
 		assert.deepStrictEqual({ labels: buttons().map(button => button.textContent), dropdowns: host.querySelectorAll('.monaco-button-dropdown').length }, {
 			labels: ['Fix Checks & Address Comments', 'Fix Checks'], dropdowns: 0,
+		});
+		const combinedButton = buttons()[0];
+		const label = combinedButton.querySelector<HTMLElement>('span:not(.codicon)')!;
+		const narrow = {
+			fits: combinedButton.getBoundingClientRect().width <= host.clientWidth,
+			truncated: label.scrollWidth > label.clientWidth,
+			overflow: mainWindow.getComputedStyle(label).textOverflow,
+		};
+		host.style.width = '400px';
+		assert.deepStrictEqual({ narrow, wideTruncated: label.scrollWidth > label.clientWidth }, {
+			narrow: { fits: true, truncated: true, overflow: 'ellipsis' }, wideTruncated: false,
 		});
 		buttons()[1].click();
 		buttons()[1].click();
