@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup(options?: { skipSuite: boolean }) {
 	(options?.skipSuite ? describe.skip : describe)('Terminal Tabs', () => {
 		// Acquire automation API
+		let app: Application;
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 
 		before(async function () {
-			const app = this.app as Application;
+			app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
 			await setTerminalTestSettings(app);
@@ -105,6 +107,215 @@ export function setup(options?: { skipSuite: boolean }) {
 			await terminal.assertSingleTab({});
 			await terminal.runCommand(TerminalCommandId.MoveToEditor);
 			await terminal.assertEditorGroupCount(1);
+		});
+
+		describe('during title updates', () => {
+			const rowSelector = '.tabs-list .monaco-list-row[data-index="0"]';
+			let bellCount = 0;
+
+			before(async () => {
+				await settingsEditor.addUserSettings([
+					['terminal.integrated.tabs.title', '"${sequence}"'],
+					['terminal.integrated.tabs.showActions', '"always"'],
+					['terminal.integrated.confirmOnKill', '"never"'],
+					['terminal.integrated.enableVisualBell', 'true'],
+					['terminal.integrated.bellDuration', '60000']
+				]);
+			});
+
+			beforeEach(async () => {
+				bellCount = 0;
+				await terminal.createTerminal();
+				const script = [
+					'let i = 0;',
+					'let bells = 0;',
+					'let bellTimer;',
+					'let timer;',
+					'const tick = () => process.stdout.write(String.fromCharCode(27) + \']0;working-\' + (++i) + String.fromCharCode(7) + \'tick-\' + i + String.fromCharCode(13, 10));',
+					'tick();',
+					'process.stdin.setRawMode(true);',
+					'process.stdin.on(\'data\', data => {',
+					'if (data.toString() === \'r\') { timer = setInterval(tick, 50); }',
+					'if (data.toString() === \'s\') { clearInterval(timer); process.stdout.write(\'stopped-\' + i + String.fromCharCode(13, 10)); }',
+					'if (data.toString() === \'b\') { const bell = ++bells; const ring = () => process.stdout.write(String.fromCharCode(7) + \'bell-\' + bell + String.fromCharCode(13, 10)); ring(); bellTimer = setInterval(ring, 50); }',
+					'if (data.toString() === \'q\') { clearInterval(bellTimer); process.stdout.write(\'bell-stopped-\' + bells + String.fromCharCode(13, 10)); }',
+					'});'
+				].join(' ');
+				await terminal.runCommandInTerminal(`node -e "${script}"`);
+				await terminal.createTerminal();
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, 'neighbor');
+				const page = await terminal.getPage();
+				await page.waitForFunction((selector: string) =>
+					/^working-\d+$/.test(document.querySelector(`${selector} .label-name`)?.textContent?.trim() ?? ''), rowSelector);
+			});
+
+			async function ringBell(): Promise<void> {
+				const marker = `bell-${++bellCount}`;
+				const page = await terminal.getPage();
+				const bell = await page.evaluate(() => {
+					const icon = document.createElement('span');
+					icon.className = 'codicon codicon-bell';
+					icon.style.visibility = 'hidden';
+					document.body.appendChild(icon);
+					const content = getComputedStyle(icon, '::before').content;
+					icon.remove();
+					return content;
+				});
+				assert.ok(bell.length > 2 && bell !== 'none' && bell !== 'normal');
+				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'b');
+				try {
+					await terminal.waitForTerminalText(buffer => buffer.some(line => line === marker));
+					// The bell listener is installed after startup; wait for the actual status decoration.
+					await page.waitForFunction(({ selector, bell }) => {
+						const label = document.querySelector(`${selector} .monaco-icon-label`);
+						return label && getComputedStyle(label, '::after').content === bell;
+					}, { selector: rowSelector, bell });
+				} finally {
+					await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'q');
+					await terminal.waitForTerminalText(buffer => buffer.some(line => line === `bell-stopped-${bellCount}`));
+				}
+			}
+
+			async function startTitleUpdates(): Promise<void> {
+				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 'r');
+			}
+
+			async function waitForTitleUpdates(minimumTick: number = 4): Promise<void> {
+				// The first title is emitted before the stream starts; wait for three more.
+				await terminal.waitForTerminalText(buffer => buffer.some(line => {
+					const match = /^tick-(\d+)$/.exec(line);
+					return !!match && Number(match[1]) >= minimumTick;
+				}));
+			}
+
+			async function stopTitleUpdates(): Promise<string> {
+				await app.code.driver.writeInTerminal('#terminal .terminal-wrapper', 's');
+				let title = '';
+				await terminal.waitForTerminalText(buffer => buffer.some(line => {
+					const match = /^stopped-(?<tick>\d+)$/.exec(line);
+					if (!match) {
+						return false;
+					}
+					title = `working-${match.groups!.tick}`;
+					return true;
+				}));
+				const page = await terminal.getPage();
+				await page.waitForFunction(({ selector, title }) =>
+					document.querySelector(selector)?.getAttribute('aria-label')?.match(/working-\d+/)?.[0] === title,
+					{ selector: rowSelector, title });
+				return title;
+			}
+
+			async function pressAction(icon: string): Promise<void> {
+				const page = await terminal.getPage();
+				await page.locator(rowSelector).hover();
+				const bounds = await page.evaluate((selector: string) => {
+					const button = document.querySelector(selector);
+					if (!button) {
+						return undefined;
+					}
+					const { x, y, width, height } = button.getBoundingClientRect();
+					return { x, y, width, height };
+				}, `${rowSelector} .action-label.codicon-${icon}`);
+				assert.ok(bounds && bounds.width > 0 && bounds.height > 0);
+				await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+				await page.mouse.down();
+			}
+
+			it('should keep the visible and accessible titles current', async () => {
+				await startTitleUpdates();
+				await waitForTitleUpdates();
+				const page = await terminal.getPage();
+				assert.strictEqual(await page.locator(rowSelector).evaluate((row: HTMLElement) => {
+					const title = row.querySelector('.label-name')!.textContent!.trim();
+					const tick = /^working-(\d+)$/.exec(title);
+					return !!tick && Number(tick[1]) >= 4 && row.getAttribute('aria-label')?.includes(title);
+				}), true);
+			});
+
+			it('should kill the intended terminal when its title changes during a click', async () => {
+				const page = await terminal.getPage();
+				// Show the badge before pressing so its appearance cannot move the action.
+				await ringBell();
+				await pressAction('trashcan');
+				try {
+					await startTitleUpdates();
+					await waitForTitleUpdates();
+					await ringBell();
+				} finally {
+					await page.mouse.up();
+				}
+				await page.waitForFunction(() => document.querySelectorAll('.tabs-list .monaco-list-row').length === 1);
+				assert.deepStrictEqual((await terminal.getTerminalGroups()).map(group => group.map(tab => tab.name?.trim())), [['neighbor']]);
+			});
+
+			it('should split once when its title changes during a click', async () => {
+				const page = await terminal.getPage();
+				await ringBell();
+				await pressAction('split-horizontal');
+				try {
+					await startTitleUpdates();
+					await waitForTitleUpdates();
+					await ringBell();
+				} finally {
+					await page.mouse.up();
+				}
+				await page.waitForFunction(() => document.querySelectorAll('.tabs-list .monaco-list-row').length === 3);
+				assert.deepStrictEqual((await terminal.getTerminalGroups()).map(group => group.length), [2, 1]);
+			});
+
+			it('should cancel a click dragged away during title updates', async () => {
+				const page = await terminal.getPage();
+				await pressAction('trashcan');
+				try {
+					await startTitleUpdates();
+					await waitForTitleUpdates();
+					await page.mouse.move(0, 0);
+				} finally {
+					await page.mouse.up();
+				}
+				await waitForTitleUpdates(7);
+				assert.deepStrictEqual((await terminal.getTerminalGroups()).map(group => group.length), [1, 1]);
+			});
+
+			for (const finish of ['Enter', 'Escape', 'blur']) {
+				it(`should update the label on rename ${finish} after title updates stop`, async () => {
+					const page = await terminal.getPage();
+					await page.locator(rowSelector).click({ button: 'right' });
+					// Menu mouse-up handlers activate after 100ms to prevent accidental clicks.
+					await page.getByRole('menuitem', { name: /^Rename/ }).click({ delay: 150 });
+					const input = page.locator(`${rowSelector} .monaco-inputbox input`);
+					await input.fill('renamed');
+					await ringBell();
+					await startTitleUpdates();
+					await waitForTitleUpdates();
+					const lastTitle = await stopTitleUpdates();
+					assert.deepStrictEqual(await page.evaluate((selector: string) => {
+						const element = document.querySelector<HTMLInputElement>(selector);
+						if (!element) {
+							return undefined;
+						}
+						const bounds = element.getBoundingClientRect();
+						return {
+							value: element.value,
+							focused: document.activeElement === element,
+							visible: document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) === element
+						};
+					}, `${rowSelector} .monaco-inputbox input`), { value: 'renamed', focused: true, visible: true });
+					if (finish === 'blur') {
+						await input.evaluate(element => element.blur());
+					} else {
+						await page.keyboard.press(finish);
+					}
+					await page.waitForFunction(({ selector, title }) => {
+						const row = document.querySelector(selector);
+						return !row?.querySelector('.monaco-inputbox input') &&
+							row?.querySelector('.label-name')?.textContent?.trim() === title &&
+							row?.getAttribute('aria-label')?.includes(title);
+					}, { selector: rowSelector, title: finish === 'Escape' ? lastTitle : 'renamed' });
+					assert.strictEqual((await terminal.getTerminalGroups())[1][0].name?.trim(), 'neighbor');
+				});
+			}
 		});
 	});
 }

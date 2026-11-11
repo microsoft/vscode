@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
@@ -13,6 +14,7 @@ import { TerminalTabsAccessibilityProvider } from '../../browser/terminalTabsLis
 function createInstance(instanceId: number, title: string, hostLabel?: string): ITerminalInstance {
 	return new class extends mock<ITerminalInstance>() {
 		override readonly instanceId = instanceId;
+		override readonly onTitleChanged = Event.None;
 		override readonly title = title;
 		override readonly shellLaunchConfig: IShellLaunchConfig = { hostLabel };
 	};
@@ -34,7 +36,7 @@ suite('TerminalTabsAccessibilityProvider', () => {
 			}
 		});
 
-		assert.deepStrictEqual([local, remote, ...split].map(instance => provider.getAriaLabel(instance)), [
+		assert.deepStrictEqual([local, remote, ...split].map(instance => provider.getAriaLabel(instance).get()), [
 			'Terminal 1 zsh',
 			'Terminal 2 bash on devbox',
 			'Terminal 3 node on devbox, split 1 of 2',
