@@ -57,7 +57,7 @@ import { createInstalledMcpServerDetailInput } from '../../../browser/aiCustomiz
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	defaultChatResource?: URI;
-	setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
+	setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
 	listPluginInstallations?: (provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>;
 	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
 	readonly clientId = 'vscode';
@@ -293,18 +293,22 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const calls: unknown[][] = [];
 		target.setPluginEnabled = async (...args) => { calls.push(args); };
 		let ready = false;
-		target.listPluginInstallations = async () => [{ name: 'native', marketplace: '', directSourceId: 'opaque-source', enabled: false, effectiveEnabled: ready ? true : undefined }];
+		target.listPluginInstallations = async () => [{ name: 'native', marketplace: '', directSourceId: 'opaque-source', enabled: false, effectiveEnabled: ready ? true : undefined, repositoryEnabled: false }];
 		sut.setTarget(session, target);
 		sut.backendChatResource = URI.parse('other-chat://tenant/opaque-chat?peer=2');
 		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /session is ready/);
 		ready = true;
 		await sut.setRuntimePluginEnablement(session, plugin.id, 'repository', false);
+		await sut.setRuntimePluginEnablement(session, plugin.id, 'repository', null);
 		assert.throws(() => sut.setCustomizationEnablement(session, plugin.id, undefined, CustomizationEnablementKind.Session, true), /owning runtime/);
 		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(plugin._meta, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true, managedDesiredEnabled: false }) }];
 		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /managed/);
 		target.setPluginEnabled = undefined;
 		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /unavailable/);
-		assert.deepStrictEqual(calls, [['other-provider', 'opaque-source', false, 'repository', target.backendSession, sut.backendChatResource]]);
+		assert.deepStrictEqual(calls, [
+			['other-provider', 'opaque-source', false, 'repository', target.backendSession, sut.backendChatResource],
+			['other-provider', 'opaque-source', null, 'repository', target.backendSession, sut.backendChatResource],
+		]);
 	});
 
 	function captureStatus(): () => string {
