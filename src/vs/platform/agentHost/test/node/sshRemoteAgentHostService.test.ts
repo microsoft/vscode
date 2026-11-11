@@ -693,6 +693,33 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.deepStrictEqual(events, []); // no picker for the single-standalone case
 	});
 
+	for (const { name, config } of [
+		{ name: 'user-initiated connect', config: { userInitiated: true } },
+		{ name: 'silent reconnect', config: { userInitiated: false } },
+		{ name: 'stored dedicated preference', config: { preferredAgentLocation: 'dedicated' as const } },
+	]) {
+		test(`${name} does not reuse a different-quality standalone`, async () => {
+			const incompatible = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'stable-host', quality: 'stable' });
+			const spawned = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'insider-host', quality });
+			const requests: ISSHEndpointSelectionRequest[] = [];
+			service.execResponses = [
+				...discoveryResponses([incompatible]),
+				{ stdout: '', code: 0 },
+				{ stdout: agentEndpointsStdout([incompatible, spawned]), code: 0 },
+			];
+			disposables.add(service.onDidRequestEndpointSelection(request => requests.push(request)));
+
+			const result = await service.connect(makeConfig(config));
+
+			assert.deepStrictEqual({
+				instanceId: result.instanceId,
+				lifecycle: result.lifecycle,
+				spawns: service.mockClients[0].execCalls.some(command => command.includes('--new-instance')),
+				requests,
+			}, { instanceId: 'insider-host', lifecycle: 'managed', spawns: true, requests: [] });
+		});
+	}
+
 	test('prompts among multiple standalones (no editors) and honors the chosen candidate', async () => {
 		const s1 = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'inst-a' });
 		const s2 = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'inst-b' });
@@ -788,7 +815,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	// open the endpoint-selection picker, and must never silently attach to
 	// an `editor`-owned endpoint even if that is the only live endpoint.
 	// Regardless of how many editors/standalones are live, it deterministically
-	// reuses a live standalone (lowest `instanceId` first) when one exists,
+	// reuses a live standalone (newest-published first) when one exists,
 	// or spawns a new dedicated one (with `--new-instance`) otherwise.
 
 	test('silent reconnect (userInitiated: false) with only an editor entry never prompts and spawns a new dedicated standalone rather than reusing the editor', async () => {
@@ -828,7 +855,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(service.startCalled, 0);
 	});
 
-	test('silent reconnect (userInitiated: false) with multiple live standalones and an editor reuses the lowest instanceId deterministically without a picker', async () => {
+	test('silent reconnect (userInitiated: false) with multiple live standalones and an editor reuses the first standalone in newest-first registry order without a picker', async () => {
 		// Mixes an editor entry in on purpose: even with editors live, the
 		// silent path must still skip the picker and prefer a standalone.
 		const editor = makeEndpoint({ type: 'editor', pid: 300, instanceId: 'editor-1', endpoint: { type: 'socket', path: '/tmp/agent.sock' } });
@@ -843,7 +870,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, [], 'silent reconnect must never fire an endpoint-selection request, even with multiple candidates');
 		assert.strictEqual(result.serverType, 'standalone');
-		assert.strictEqual(result.instanceId, 'inst-a', 'must deterministically pick the lowest instanceId');
+		assert.strictEqual(result.instanceId, 'inst-b', 'must pick the first standalone in registry order');
 		assert.strictEqual(result.lifecycle, 'external');
 		assert.strictEqual(service.startCalled, 0);
 	});
@@ -908,7 +935,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	// it directly, without ever emitting an endpoint-selection request —
 	// for both user-initiated and silent/background connects.
 
-	test('stored "editor" preference selects the deterministic live editor without a request, even for a silent reconnect', async () => {
+	test('stored "editor" preference selects the first live editor in registry order without a request, even for a silent reconnect', async () => {
 		const editorA = makeEndpoint({ type: 'editor', pid: 100, instanceId: 'editor-b', endpoint: { type: 'socket', path: '/tmp/a.sock' } });
 		const editorB = makeEndpoint({ type: 'editor', pid: 200, instanceId: 'editor-a', endpoint: { type: 'socket', path: '/tmp/b.sock' } });
 		const standalone = makeEndpoint({ type: 'standalone', pid: 300, instanceId: 'inst-c' });
@@ -921,7 +948,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, [], 'a stored preference must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'editor');
-		assert.strictEqual(result.instanceId, 'editor-a', 'must deterministically pick the lowest instanceId editor');
+		assert.strictEqual(result.instanceId, 'editor-b', 'must pick the first editor in registry order');
 		assert.strictEqual(result.lifecycle, 'external');
 	});
 
@@ -937,7 +964,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, [], 'unavailable-editor fallback must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'standalone');
-		assert.strictEqual(result.instanceId, 'inst-a', 'must deterministically pick the lowest instanceId standalone');
+		assert.strictEqual(result.instanceId, 'inst-b', 'must pick the first standalone in registry order');
 		assert.strictEqual(result.lifecycle, 'external');
 	});
 
@@ -1011,7 +1038,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, []);
 		assert.strictEqual(result.serverType, 'editor');
-		assert.strictEqual(result.instanceId, 'editor-a');
+		assert.strictEqual(result.instanceId, 'editor-b');
 	});
 
 	// --- Failure/race handling (requirement 7) ---
