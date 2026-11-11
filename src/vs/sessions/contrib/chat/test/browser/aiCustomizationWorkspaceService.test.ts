@@ -22,6 +22,8 @@ import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../.
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { INewSessionComposer, INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 
 suite('SessionsAICustomizationWorkspaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,7 +41,9 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 			upcastPartial<INotificationService>({}),
 			upcastPartial<ILabelService>({}),
 			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
-			upcastPartial<INewSessionComposerService>({ activeComposer: constObservable(undefined) }),
+			upcastPartial<INewSessionComposerService>({ getComposer: () => undefined }),
+			upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }),
+			upcastPartial<ICustomizationHarnessService>({ activeSessionResource: constObservable(URI.parse('test:/none')) }),
 		);
 		const labels = [service.activeProjectLabel.get()];
 
@@ -113,7 +117,9 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 					return provider as T;
 				}
 			}(),
-			upcastPartial<INewSessionComposerService>({ activeComposer: constObservable(undefined) }),
+			upcastPartial<INewSessionComposerService>({ getComposer: () => undefined }),
+			upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }),
+			upcastPartial<ICustomizationHarnessService>({ activeSessionResource: constObservable(URI.parse('test:/none')) }),
 		);
 
 		assert.deepStrictEqual(service.activeTargetLabels.get(), {
@@ -140,10 +146,12 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 			upcastPartial<ILabelService>({}),
 			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 			upcastPartial<INewSessionComposerService>({
-				activeComposer: constObservable(upcastPartial<INewSessionComposer>({
+				getComposer: () => upcastPartial<INewSessionComposer>({
 					targetLabels: constObservable(targetLabels),
-				})),
+				}),
 			}),
+			upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }),
+			upcastPartial<ICustomizationHarnessService>({ activeSessionResource: constObservable(URI.parse('test:/none')) }),
 		);
 
 		assert.deepStrictEqual({
@@ -152,6 +160,104 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 		}, {
 			project: 'vscode',
 			target: targetLabels,
+		});
+	});
+
+	test('does not use new-session labels for a workspace-less existing session', () => {
+		const session = createActiveSession(undefined, {
+			resource: URI.parse('test:/quick-chat'),
+			sessionId: 'quick-chat',
+			providerId: 'local',
+			harness: 'claude',
+			environment: 'local',
+		});
+		const provider = upcastPartial<ISessionsProvider>({
+			environment: { id: 'local', label: 'This Computer' },
+			getHarnessPresentation: () => ({ label: 'Claude', icon: { id: 'claude' } }),
+		});
+		const service = new SessionsAICustomizationWorkspaceService(
+			focusedSessionHostServiceOf(constObservable(session)),
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IPromptsService>({}),
+			upcastPartial<IGitService>({}),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IFileService>({}),
+			upcastPartial<INotificationService>({}),
+			upcastPartial<ILabelService>({}),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(): T | undefined {
+					return provider as T;
+				}
+			}(),
+			upcastPartial<INewSessionComposerService>({
+				getComposer: () => upcastPartial<INewSessionComposer>({
+					targetLabels: constObservable({ harness: 'Copilot', workspace: 'unrelated', environment: 'Cloud' }),
+				}),
+			}),
+			upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }),
+			upcastPartial<ICustomizationHarnessService>({ activeSessionResource: constObservable(session.resource) }),
+		);
+
+		assert.deepStrictEqual({
+			project: service.activeProjectLabel.get(),
+			target: service.activeTargetLabels.get(),
+		}, {
+			project: undefined,
+			target: { harness: 'Claude', workspace: undefined, environment: 'This Computer' },
+		});
+	});
+
+	test('uses the explicit customization session instead of the focused session', () => {
+		const focused = createActiveSession(createWorkspace('/focused', 'focused'), {
+			resource: URI.parse('test:/focused'),
+			sessionId: 'focused',
+			providerId: 'copilot',
+			harness: 'copilot',
+			environment: 'local',
+		});
+		const target = createActiveSession(createWorkspace('/target', 'target'), {
+			resource: URI.parse('test:/target'),
+			sessionId: 'target',
+			providerId: 'claude',
+			harness: 'claude',
+			environment: 'remote',
+		});
+		const providers = new Map<string, ISessionsProvider>([
+			['copilot', upcastPartial<ISessionsProvider>({
+				environment: { id: 'local', label: 'This Computer' },
+				getHarnessPresentation: () => ({ label: 'Copilot', icon: { id: 'copilot' } }),
+			})],
+			['claude', upcastPartial<ISessionsProvider>({
+				environment: { id: 'remote', label: 'devbox-1' },
+				getHarnessPresentation: () => ({ label: 'Claude', icon: { id: 'claude' } }),
+			})],
+		]);
+		const service = new SessionsAICustomizationWorkspaceService(
+			focusedSessionHostServiceOf(constObservable(focused)),
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IPromptsService>({}),
+			upcastPartial<IGitService>({}),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IFileService>({}),
+			upcastPartial<INotificationService>({}),
+			upcastPartial<ILabelService>({}),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+					return providers.get(providerId) as T | undefined;
+				}
+			}(),
+			upcastPartial<INewSessionComposerService>({ getComposer: () => undefined }),
+			upcastPartial<ISessionsManagementService>({
+				getSession: resource => resource.toString() === target.resource.toString() ? target : undefined,
+				getSessionForChatResource: () => undefined,
+			}),
+			upcastPartial<ICustomizationHarnessService>({ activeSessionResource: constObservable(target.resource) }),
+		);
+
+		assert.deepStrictEqual(service.activeTargetLabels.get(), {
+			harness: 'Claude',
+			workspace: 'target',
+			environment: 'devbox-1',
 		});
 	});
 
@@ -184,7 +290,9 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 				upcastPartial<INotificationService>({ notify: notification => { options.notifications?.push(notification); return undefined!; } }),
 				upcastPartial<ILabelService>({}),
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
-				upcastPartial<INewSessionComposerService>({ activeComposer: constObservable(undefined) }),
+				upcastPartial<INewSessionComposerService>({ getComposer: () => undefined }),
+				upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }),
+				upcastPartial<ICustomizationHarnessService>({ activeSessionResource: constObservable(URI.parse('test:/none')) }),
 			);
 		}
 
@@ -273,7 +381,19 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 	});
 });
 
-function createActiveSession(workspace: ISessionWorkspace, session?: Partial<ITestSessionWithChat>): ITestSessionWithChat {
+function createWorkspace(path: string, name: string): ISessionWorkspace {
+	const root = URI.file(path);
+	return {
+		uri: root,
+		label: name,
+		folders: [{ root, workingDirectory: root, name, description: undefined }],
+		icon: { id: 'folder' },
+		requiresWorkspaceTrust: true,
+		isVirtualWorkspace: false,
+	};
+}
+
+function createActiveSession(workspace: ISessionWorkspace | undefined, session?: Partial<ITestSessionWithChat>): ITestSessionWithChat {
 	const chat = upcastPartial<IChat>({ workspace: constObservable(workspace) });
-	return upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(chat), ...session });
+	return upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(chat), workspace: constObservable(workspace), ...session });
 }

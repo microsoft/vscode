@@ -23,6 +23,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getHarnessPresentationOrDefault } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -59,6 +61,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@ILabelService private readonly labelService: ILabelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
 
@@ -80,24 +84,30 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			if (override) {
 				return this.labelService.getUriBasenameLabel(override);
 			}
-			const workspace = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader);
+			const host = this._focusedSessionHostService.focusedHost.read(reader);
+			const session = host.session.read(reader);
+			const workspace = host.chat.read(reader)?.workspace.read(reader);
 			if (workspace) {
 				return workspace.isVirtualWorkspace ? workspace.label : workspace.folders[0]?.name;
 			}
-			return this.newSessionComposerService.activeComposer.read(reader)?.targetLabels?.read(reader).workspace;
+			return session ? undefined : this.newSessionComposerService.getComposer(host)?.targetLabels?.read(reader).workspace;
 		});
 
 		this.activeTargetLabels = derived(reader => {
-			const workspace = this.activeProjectLabel.read(reader);
-			const session = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			if (!session) {
-				const composerLabels = this.newSessionComposerService.activeComposer.read(reader)?.targetLabels?.read(reader);
-				return { ...composerLabels, workspace };
+			const host = this._focusedSessionHostService.focusedHost.read(reader);
+			const focusedSession = host.session.read(reader);
+			if (!focusedSession) {
+				return this.newSessionComposerService.getComposer(host)?.targetLabels?.read(reader) ?? {};
 			}
+			const activeResource = this.customizationHarnessService.activeSessionResource.read(reader);
+			const session = this.sessionsManagementService.getSession(activeResource)
+				?? this.sessionsManagementService.getSessionForChatResource(activeResource)?.session
+				?? focusedSession;
 			const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+			const workspace = session.workspace.read(reader);
 			return {
 				harness: getHarnessPresentationOrDefault(provider, session.harness, reader).label,
-				workspace,
+				workspace: workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name,
 				environment: provider?.environment.label ?? session.environment,
 			};
 		});

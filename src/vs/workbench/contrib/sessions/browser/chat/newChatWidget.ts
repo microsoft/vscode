@@ -592,12 +592,7 @@ export class NewChatWidget extends Disposable {
 			selectedSessionTypeChanged.read(reader);
 			const environment = this._environment.read(reader);
 			const resolvedWorkspace = this._workspacePicker.selectedResolved?.workspace;
-			const selectedPick = this._newChatInput.sessionTypePicker.selectedPick;
-			const folderUri = this._workspacePicker.selectedFolderUri;
-			const selectedType = selectedPick && folderUri
-				? this.sessionsManagementService.getSessionTypesForFolder(folderUri).find(type =>
-					type.providerId === selectedPick.providerId && type.sessionType.id === selectedPick.sessionTypeId)
-				: undefined;
+			const selectedType = this._newChatInput.sessionTypePicker.selectedSessionType;
 			return {
 				harness: environment?.kind === 'cloud' ? localize('environmentPicker.copilot', "Copilot") : selectedType?.sessionType.label,
 				workspace: resolvedWorkspace?.isVirtualWorkspace ? resolvedWorkspace.label : resolvedWorkspace?.folders[0]?.name,
@@ -608,7 +603,7 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
 		}
 
-		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader))));
+		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader)), this._newChatInput.host));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
 		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based

@@ -807,9 +807,12 @@ registerAction2(class extends Action2 {
 		}
 
 		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+		const targetLabels = workspaceService.activeTargetLabels?.get();
 		input.setTargetLabels(
-			harnessService.getActiveDescriptor().label,
-			accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+			targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+			targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+			targetLabels?.environment,
 		);
 		const pane = await editorService.openEditor(input, { pinned: true });
 		if (migration && pane instanceof AICustomizationManagementEditor) {
