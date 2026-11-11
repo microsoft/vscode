@@ -381,7 +381,7 @@ export class DesktopMain extends Disposable {
 	 * and `FolderLocationPersistenceContribution` tells the user.
 	 */
 	private async resolveFolderLocation(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService): Promise<URI | undefined> {
-		const persisted = environmentService.configuration.folderLocation;
+		const persisted = environmentService.folderLocation;
 		if (!persisted || !isSingleFolderWorkspaceIdentifier(workspace) || workspace.uri.scheme !== Schemas.file) {
 			return undefined;
 		}
