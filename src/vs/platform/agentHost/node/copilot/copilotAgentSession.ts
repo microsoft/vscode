@@ -53,6 +53,7 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { getSessionPathDisplay, type ISessionPathDisplay, type ISessionPathRoot } from '../../common/sessionPathDisplay.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { copilotConnectorServers, reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
@@ -694,6 +695,7 @@ export interface ICopilotAgentSessionOptions {
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
 	readonly pathMapper: ICopilotSdkPathMapper;
+	readonly getSessionPathRoots?: () => readonly ISessionPathRoot[];
 	/** Directory used to resolve workspace-scoped customizations for this session. */
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
@@ -2208,6 +2210,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _lastLoggedMcpStatus = new Map<string, SdkMcpServerStatus>();
 
 	private readonly _realpath: (path: string) => Promise<string>;
+	private readonly _getSessionPathRoots: () => readonly ISessionPathRoot[];
 
 	get mcpServerStates() {
 		return this._mcpCustomizations.runtimeStates;
@@ -2258,6 +2261,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subagentTaskCompletionDelay = options.subagentTaskCompletionDelay ?? SUBAGENT_TASK_COMPLETION_DELAY_MS;
 		this.sessionId = options.rawSessionId;
 		this._owner = options.owner;
+		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
@@ -8551,7 +8555,11 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
 			sandboxRequestId = this._sandbox.getPendingRequestId(toolCallId);
-			const grantConfirmation = sandboxPathGrant && sandboxRequestId ? getSandboxPathGrantConfirmation(sandboxPathGrant) : undefined;
+			const grantPathDisplay = sandboxPathGrant && sandboxRequestId ? {
+				path: this._getSessionPathDisplay(sandboxPathGrant.path),
+				deniedPath: sandboxPathGrant.deniedPath ? this._getSessionPathDisplay(sandboxPathGrant.deniedPath) : undefined,
+			} : undefined;
+			const grantConfirmation = sandboxPathGrant && grantPathDisplay ? getSandboxPathGrantConfirmation(sandboxPathGrant, grantPathDisplay) : undefined;
 			const grantMeta = grantConfirmation && sandboxPathGrant ? this._sandbox.pathGrantForSettings(sandboxPathGrant) : undefined;
 			if (trackedToolCall) {
 				trackedToolCall.pendingImageReady = undefined;
@@ -8662,6 +8670,13 @@ export class CopilotAgentSession extends Disposable {
 
 		const permissionUri = normalizePath(copilotSdkPathToUri(this._pathMapper, permissionPath));
 		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
+	}
+
+	private _getSessionPathDisplay(path: string): ISessionPathDisplay {
+		return getSessionPathDisplay(path, copilotSdkPathToUri(this._pathMapper, path), this._ownerSessionUri, [
+			...this._getSessionPathRoots(),
+			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: this._ownerSessionUri },
+		], extUriBiasedIgnorePathCase);
 	}
 
 	/**

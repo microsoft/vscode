@@ -105,6 +105,7 @@ import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { createChatOwnerRef } from '../../node/agentChatContext.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
@@ -1713,7 +1714,7 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: Pa
 
 type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
-function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[]; readonly owner?: IAgentChatOwnerRef }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
+function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[]; readonly owner?: IAgentChatOwnerRef; readonly chatChannelUri?: URI }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, sessionUri, sessionUri, options?.workingDirectory);
 	let createOptions: CopilotCreateSessionOptions | undefined;
@@ -1748,7 +1749,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 		model: undefined,
 	};
-	return { session: agentInternals._createAgentSession(launchPlan, options?.workingDirectory, activeClient, { owner: options?.owner ?? fixedChatOwnerRef(sessionUri), chatChannelUri: sessionBackedChat('test-session-1'), resource: sessionUri }), activeClient, createOptions: () => createOptions };
+	return { session: agentInternals._createAgentSession(launchPlan, options?.workingDirectory, activeClient, { owner: options?.owner ?? fixedChatOwnerRef(sessionUri), chatChannelUri: options?.chatChannelUri ?? sessionBackedChat('test-session-1'), resource: options?.chatChannelUri ?? sessionUri }), activeClient, createOptions: () => createOptions };
 }
 
 function withoutUndefinedProperties(metadata: IAgentChatMetadata): Record<string, unknown> {
@@ -3445,6 +3446,99 @@ suite('CopilotAgent', () => {
 			fork: agent.getInheritedChatConfig(restored.values)?.sandboxEnabled,
 			mutable: restored.schema.properties.sandboxEnabled.sessionMutable,
 		}, { fresh: undefined, restored: 'off', fork: undefined, mutable: true });
+	});
+
+	test('sandbox session labels use restored backings and follow actual peer and descendant transfers', async () => {
+		const home = URI.file('/custom-copilot-home');
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, { copilotHome: home.fsPath, sessionDataService, environmentServiceRegistration: 'native' });
+		afterTest(() => disposeAgent(agent));
+		const source = AgentSession.uri('copilotcli', 'test-session-1');
+		const destination = AgentSession.uri('copilotcli', 'destination');
+		for (const [resource, title] of [[source, 'Source'], [destination, 'Destination']] as const) {
+			stateManager.createSession({
+				resource: resource.toString(), defaultChat: buildDefaultChatUri(resource), provider: 'copilotcli', title, status: SessionStatus.Idle,
+				createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+			});
+		}
+		const chats = ['peer', 'descendant'].map(id => URI.parse(buildChatUri(source, id)));
+		for (const chat of chats) {
+			stateManager.addChat(source.toString(), chat.toString(), chat.toString());
+			await agent.materializeChat(chat, {
+				sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
+				owner: createChatOwnerRef(stateManager, chat, source), resource: chat,
+			}, JSON.stringify({ sdkSessionId: chat === chats[0] ? 'peer-sdk' : 'descendant-sdk' }));
+		}
+		await agent.materializeChat(URI.parse(buildDefaultChatUri(source)), {
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
+			owner: fixedChatOwnerRef(source), resource: source,
+		}, JSON.stringify({ sdkSessionId: 'default-sdk' }));
+		const requester = URI.parse(buildChatUri(source, 'requester'));
+		stateManager.addChat(source.toString(), requester.toString(), requester.toString());
+		const mockSession = new MockCopilotSession();
+		const created = createAgentSessionThroughAgent(agent, instantiationService, {
+			owner: createChatOwnerRef(stateManager, requester, source), chatChannelUri: requester, mockSession,
+		});
+		disposables.add(created.session);
+		await created.session.initializeSession();
+		const requestPermission = created.createOptions()?.onPermissionRequest;
+		assert.ok(requestPermission);
+		const snapshots: string[] = [];
+		let nextId = 0;
+		const request = async (sdk: string) => {
+			const toolCallId = `grant-${nextId++}`;
+			const message = new DeferredPromise<string>();
+			const listener = disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId) {
+					const text = signal.state.invocationMessage;
+					message.complete(typeof text === 'object' ? text.markdown.split('\n\n')[0] : text ?? '');
+				}
+			}));
+			try {
+				const permissionRequest: PermissionRequest = {
+					kind: 'shell', toolCallId, canOfferSessionApproval: false, commands: [],
+					fullCommandText: 'cat notes.txt', hasWriteFileRedirection: false, intention: '',
+					possiblePaths: [], possibleUrls: [], requestSandboxBypass: true,
+					sandboxPathGrant: { path: URI.joinPath(home, 'session-state', sdk, 'notes.txt').fsPath, access: 'read' },
+				};
+				const pending = requestPermission(permissionRequest, { sessionId: 'test-session-1' });
+				mockSession.emit({
+					id: toolCallId, timestamp: '2025-01-01T00:00:00.000Z', parentId: null,
+					type: 'permission.requested', data: { requestId: toolCallId, permissionRequest },
+				});
+				snapshots.push(await message.p);
+				created.session.respondToPermissionRequest(toolCallId, false);
+				await pending;
+			} finally {
+				listener.dispose();
+			}
+		};
+		for (const sdk of ['test-session-1', 'default-sdk', 'peer-sdk', 'descendant-sdk']) {
+			await request(sdk);
+		}
+		stateManager.transferChats(source.toString(), destination.toString(), chats.map(chat => chat.toString()), undefined);
+		await request('peer-sdk');
+		await request('descendant-sdk');
+		stateManager.dispatchServerAction(destination.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		await request('peer-sdk');
+		stateManager.transferChats(source.toString(), destination.toString(), [requester.toString()], undefined);
+		await request('peer-sdk');
+		await request('default-sdk');
+		stateManager.promoteChats(destination.toString(), {
+			resource: AgentSession.uri('copilotcli', 'promoted').toString(), defaultChat: chats[0].toString(),
+			provider: 'copilotcli', title: 'Promoted', status: SessionStatus.Idle,
+			createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+		}, undefined, chats.map(chat => chat.toString()));
+		await request('peer-sdk');
+		await request('descendant-sdk');
+		assert.deepStrictEqual({
+			messages: snapshots,
+			storage: chats.map(chat => stateManager.getChatStorageResource(chat.toString())),
+		}, {
+			messages: ['This session', 'This session', 'This session', 'This session', 'Session "Destination"', 'Session "Destination"', 'Session "Renamed"', 'This session', 'Session "Source"', 'Session "Promoted"', 'Session "Promoted"']
+				.map(label => label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`),
+			storage: chats.map(chat => chat.toString()),
+		});
 	});
 
 	test('resolves the state and plan files of a restored default chat that is not resumed yet', async () => {

@@ -113,6 +113,7 @@ import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizat
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
+import { ISessionPathRoot } from '../../common/sessionPathDisplay.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
@@ -1515,7 +1516,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
+		@IAgentHostSessionTitleSignal private readonly sessionTitleSignal: IAgentHostSessionTitleSignal,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
@@ -6310,6 +6311,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._chatEntriesBySdkId.get(sdkSessionId)?.chatSession;
 	}
 
+	private _getSessionPathRoots(): readonly ISessionPathRoot[] {
+		const roots: ISessionPathRoot[] = [];
+		for (const [chat, backing] of this._chatBackings) {
+			const session = this._chatOwners.get(chat)?.get();
+			if (session) {
+				roots.push({
+					root: resourceJoinPath(this._copilotHomeService.home, 'session-state', backing.sdkSessionId),
+					session,
+					title: this.sessionTitleSignal.getSessionTitle(session),
+				});
+			}
+		}
+		return roots;
+	}
+
 	/** Returns the live chat whose persistence scope is the session itself. */
 	private _findSessionChat(session: URI): CopilotAgentSession | undefined {
 		for (const entry of this._chatEntriesBySdkId.values()) {
@@ -10641,6 +10657,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				shellManager: launchPlan.shellManager,
 				workingDirectory: launchPlan.workingDirectory,
 				pathMapper: createCopilotSessionPathMapper(workspace, resourceJoinPath(this._copilotHomeService.home, 'session-state', launchPlan.sessionId)),
+				getSessionPathRoots: () => this._getSessionPathRoots(),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
 				// The first session of a chat to start work fixes the chat's agents to the ones it really got.
