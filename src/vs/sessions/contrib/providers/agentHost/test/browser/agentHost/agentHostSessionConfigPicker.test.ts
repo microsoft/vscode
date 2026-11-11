@@ -59,6 +59,7 @@ import { ISessionsService } from '../../../../../../../workbench/contrib/session
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { EditorWindowAgentHostSessionConfigPickerContribution } from '../../../../../../../workbench/contrib/sessions/providers/agentsView/browser/agentsViewComposerControls.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -750,7 +751,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
 	});
 
-	test('contributes the repository controls of a session that only a composer or pane outside the grid shows, such as an editor window\'s chat part', () => {
+	test('contributes the repository controls of a session that only a composer or pane outside the grid shows in an editor window\'s chat part only, not in the Agents window', () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
@@ -764,21 +765,27 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		const hosts = observableValue<readonly ISessionHost[]>('hosts', []);
 		services.instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts }));
-		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 		const repositoryItems = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		const host = (kind: SessionHostKind) => upcastPartial<ISessionHost>({ ...testChatSourceOf(constObservable(services.activeSession)), kind });
-		const none = repositoryItems();
-		hosts.set([host(SessionHostKind.MainWindow)], undefined);
-		const windowHost = repositoryItems();
-		hosts.set([host(SessionHostKind.Composer)], undefined);
-		const composer = repositoryItems();
-		hosts.set([host(SessionHostKind.Pane)], undefined);
-		const pane = repositoryItems();
+		const shownBy = (kind: SessionHostKind) => {
+			hosts.set([host(kind)], undefined);
+			return repositoryItems();
+		};
 
-		assert.deepStrictEqual({ none, windowHost, composer, pane }, { none: [], windowHost: [], composer: ['Isolation', 'Base Branch'], pane: ['Isolation', 'Base Branch'] });
+		const agentsWindow = services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution);
+		const inAgentsWindow = { composer: shownBy(SessionHostKind.Composer), pane: shownBy(SessionHostKind.Pane) };
+		agentsWindow.dispose();
+		hosts.set([], undefined);
+		store.add(services.instantiationService.createInstance(EditorWindowAgentHostSessionConfigPickerContribution));
+		const inEditorWindow = { none: repositoryItems(), window: shownBy(SessionHostKind.MainWindow), composer: shownBy(SessionHostKind.Composer), pane: shownBy(SessionHostKind.Pane) };
+
+		assert.deepStrictEqual({ inAgentsWindow, inEditorWindow }, {
+			inAgentsWindow: { composer: [], pane: [] },
+			inEditorWindow: { none: [], window: [], composer: ['Isolation', 'Base Branch'], pane: ['Isolation', 'Base Branch'] },
+		});
 	});
 
 	test('refreshes repository menu items only for configuration changes of visible sessions', () => {
@@ -930,7 +937,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places running session controls from the scoped composer layout', () => {
+	test('places running session controls from the scoped composer layout, and none with AI features disabled', () => {
 		const runningSessionIds = [
 			'sessions.agentHost.runningSessionModePicker',
 			'sessions.agentHost.runningSessionConfigPicker',
@@ -938,6 +945,7 @@ suite('Agent Host Session Config Picker', () => {
 			'sessions.agentHost.runningSessionCodexApprovalsPicker',
 		];
 		const context = new Context(1, null);
+		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
 		// The chat input of a session host's scope.
 		context.setValue(InSessionHostScopeContext.key, true);
@@ -957,10 +965,15 @@ suite('Agent Host Session Config Picker', () => {
 			primary: visible(MenuId.ChatInput),
 			secondary: visible(MenuId.ChatInputSecondary),
 		};
+		context.setValue(ChatContextKeys.enabled.key, false);
+		const aiDisabledExperimental = [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)];
+		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, false);
+		const aiDisabled = { experimental: aiDisabledExperimental, legacy: [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)] };
 
-		assert.deepStrictEqual({ legacy, experimental }, {
+		assert.deepStrictEqual({ legacy, experimental, aiDisabled }, {
 			legacy: { primary: [], secondary: runningSessionIds },
 			experimental: { primary: runningSessionIds, secondary: [] },
+			aiDisabled: { experimental: [], legacy: [] },
 		});
 	});
 

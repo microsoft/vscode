@@ -12,6 +12,13 @@ import { AgentHostAgentPickerContribution, registerAgentHostAgentPickerActions }
 import { AgentHostSessionConfigPickerContribution, registerAgentHostSessionConfigPickerActions } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
 import { CopilotPickerActionViewItemContribution, registerCopilotSandboxPickerActions } from '../../copilotChatSessions/browser/copilotSandboxPickers.js';
 
+/** The agent host's pickers as an editor window's chat part has them: also for the sessions of its composers and chats. */
+export class EditorWindowAgentHostSessionConfigPickerContribution extends AgentHostSessionConfigPickerContribution {
+	protected override get includesSessionHosts(): boolean {
+		return true;
+	}
+}
+
 /**
  * Registers the controls of the new-session composers and of the session chats of an editor window's chat part, as the
  * Agents window has them, until the returned disposable is disposed: the composer's Add Context, model, agent, mode and
@@ -28,7 +35,7 @@ export function registerAgentsViewComposerControls(accessor: ServicesAccessor): 
 	store.add(instantiationService.createInstance(SharedChatInputComposerContribution));
 	store.add(instantiationService.createInstance(ModelPickerToolbarsContribution));
 	store.add(instantiationService.createInstance(AgentHostAgentPickerContribution));
-	store.add(instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+	store.add(instantiationService.createInstance(EditorWindowAgentHostSessionConfigPickerContribution));
 	store.add(instantiationService.createInstance(CopilotPickerActionViewItemContribution));
 	return store;
 }
