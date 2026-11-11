@@ -2621,16 +2621,16 @@ export function updateSaveButtonState(
 			? undefined
 			: localize('automation.form.reminderTimeRequired', "Choose an unambiguous date and time in the future.")
 		: state.timeZone === 'UTC' && state.cloudTrigger
-		? state.triggerError
-		: !INTERVALS.some(item => item.value === state.interval)
-			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
-			: utcSchedule && state.interval === 'weekdays'
-				? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-				: utcSchedule && state.interval === 'cron'
-					? localize('automation.form.cloudCron', "Cron is only available for local automations. Choose a supported schedule for Cloud.")
-					: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-						? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-						: undefined;
+			? state.triggerError
+			: !INTERVALS.some(item => item.value === state.interval)
+				? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
+				: utcSchedule && state.interval === 'weekdays'
+					? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+					: utcSchedule && state.interval === 'cron'
+						? localize('automation.form.cloudCron', "Cron is only available for local automations. Choose a supported schedule for Cloud.")
+						: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+							? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+							: undefined;
 	validation.cronError = state.interval === 'cron'
 		? getAutomationCronValidationError(state.cronExpression ?? '', state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
 		: undefined;

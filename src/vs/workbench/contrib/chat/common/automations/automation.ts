@@ -119,9 +119,9 @@ export type AutomationReminder = {
 	readonly handoffId?: string;
 	readonly sourceSessionResource?: URI;
 } & (
-	| { readonly status: 'scheduled' | 'due' | 'dismissed' }
-	| { readonly status: 'sent'; readonly sessionResource: URI }
-);
+		| { readonly status: 'scheduled' | 'due' | 'dismissed' }
+		| { readonly status: 'sent'; readonly sessionResource: URI }
+	);
 
 /** A single automation with immutable identity and provider-owned execution configuration. */
 export interface IAutomationDescriptor {

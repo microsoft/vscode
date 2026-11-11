@@ -82,15 +82,15 @@ const reminderActions: {
 	id: string; title: ReturnType<typeof localize2>; kind: Parameters<IAutomationRemindersService['execute']>[0];
 	icon?: ThemeIcon; when?: ContextKeyExpression; group?: string; order?: number; inline?: boolean;
 }[] = [
-	{ id: CREATE_REMINDER_COMMAND, title: localize2('reminder.create', "New Reminder..."), kind: 'create', icon: Codicon.add, when: ContextKeyExpr.and(ContextKeyExpr.equals(SessionSectionTypeContext.key, 'reminders'), RemindersCanCreateContext), group: 'navigation', order: 0, inline: true },
-	{ id: OPEN_REMINDER_COMMAND, title: localize2('reminder.open', "Open Reminder"), kind: 'open', when: reminderRow, group: 'navigation', order: 0 },
-	{ id: CREATE_REMINDER_DRAFT_COMMAND, title: localize2('reminder.draft', "Create Draft Session"), kind: 'draft', icon: Codicon.commentDiscussion, when: ContextKeyExpr.and(reminderRow, ReminderStatusContext.isEqualTo('due')), group: 'navigation', order: 1, inline: true },
-	{ id: OPEN_REMINDER_SOURCE_COMMAND, title: localize2('reminder.source', "Open Original Session"), kind: 'source', when: ContextKeyExpr.and(reminderRow, ReminderHasSourceContext), group: 'navigation', order: 2 },
-	{ id: POSTPONE_REMINDER_COMMAND, title: localize2('reminder.postpone', "Postpone..."), kind: 'postpone', icon: Codicon.clock, when: reminderRow, group: '1_state', order: 3, inline: true },
-	{ id: EDIT_REMINDER_COMMAND, title: localize2('reminder.edit', "Edit Reminder..."), kind: 'edit', when: reminderRow, group: '4_manage', order: 4 },
-	{ id: DISMISS_REMINDER_COMMAND, title: localize2('reminder.dismiss', "Dismiss"), kind: 'dismiss', icon: Codicon.check, when: reminderRow, group: '4_manage', order: 5, inline: true },
-	{ id: UNDO_REMINDER_COMMAND, title: localize2('reminder.undo', "Undo Reminder"), kind: 'undo' },
-];
+		{ id: CREATE_REMINDER_COMMAND, title: localize2('reminder.create', "New Reminder..."), kind: 'create', icon: Codicon.add, when: ContextKeyExpr.and(ContextKeyExpr.equals(SessionSectionTypeContext.key, 'reminders'), RemindersCanCreateContext), group: 'navigation', order: 0, inline: true },
+		{ id: OPEN_REMINDER_COMMAND, title: localize2('reminder.open', "Open Reminder"), kind: 'open', when: reminderRow, group: 'navigation', order: 0 },
+		{ id: CREATE_REMINDER_DRAFT_COMMAND, title: localize2('reminder.draft', "Create Draft Session"), kind: 'draft', icon: Codicon.commentDiscussion, when: ContextKeyExpr.and(reminderRow, ReminderStatusContext.isEqualTo('due')), group: 'navigation', order: 1, inline: true },
+		{ id: OPEN_REMINDER_SOURCE_COMMAND, title: localize2('reminder.source', "Open Original Session"), kind: 'source', when: ContextKeyExpr.and(reminderRow, ReminderHasSourceContext), group: 'navigation', order: 2 },
+		{ id: POSTPONE_REMINDER_COMMAND, title: localize2('reminder.postpone', "Postpone..."), kind: 'postpone', icon: Codicon.clock, when: reminderRow, group: '1_state', order: 3, inline: true },
+		{ id: EDIT_REMINDER_COMMAND, title: localize2('reminder.edit', "Edit Reminder..."), kind: 'edit', when: reminderRow, group: '4_manage', order: 4 },
+		{ id: DISMISS_REMINDER_COMMAND, title: localize2('reminder.dismiss', "Dismiss"), kind: 'dismiss', icon: Codicon.check, when: reminderRow, group: '4_manage', order: 5, inline: true },
+		{ id: UNDO_REMINDER_COMMAND, title: localize2('reminder.undo', "Undo Reminder"), kind: 'undo' },
+	];
 for (const action of reminderActions) {
 	registerAction2(class extends Action2 {
 		constructor() {
