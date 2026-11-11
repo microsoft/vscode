@@ -60,6 +60,7 @@ import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/brow
 import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
 import { localize } from '../../../../nls.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { INewSessionTarget } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
 
 /** The class of the element of an Agents chat window. */
@@ -537,20 +538,25 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 	/**
 	 * Opens a new-session composer as a tab of the window's active chat, in its group, or beside it, which starts its session
-	 * as the active chat's (see {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions
-	 * list the active chat's session is in. While the active chat is a composer that has not sent its session, it shows that
-	 * one instead. The composer's chat becomes its session's main chat once it sends it in the foreground.
+	 * in the folder of the options, or else as the active chat's (see {@link getChatWindowComposerTarget}), and whose
+	 * sessions join the custom group of the sessions list the active chat's session is in. While the active chat is a
+	 * composer that has not sent its session, it shows that one instead, aimed at the folder of the options. The composer's
+	 * chat becomes its session's main chat once it sends it in the foreground.
 	 */
 	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
 		const active = this.activeChat.get();
+		const folderTarget: INewSessionTarget | undefined = options?.folder && { folderUri: options.folder.uri, ...(options.folder.providerId ? { providerId: options.folder.providerId } : {}) };
 		if (active?.isComposer) {
+			if (folderTarget) {
+				active.composer.get()?.draftHost.setRequestedTarget?.(folderTarget, 'user');
+			}
 			await this._chatWindowService.open(active.chat.get(), { window, preserveFocus: options?.preserveFocus });
 			return;
 		}
 		const session = active?.session.get();
 		const resource = createChatWindowComposerResource();
 		const init: IChatWindowComposerInit = {
-			target: getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
+			target: folderTarget ?? getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
 			groupId: session && this._sessionGroupsService.getGroupOfSession(session.sessionId),
 		};
 		this._pendingComposers.set(resource.toString(), this._composers.create(resource, init, this._openStartedSession(resource)));

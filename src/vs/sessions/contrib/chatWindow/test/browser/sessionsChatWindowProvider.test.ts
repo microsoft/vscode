@@ -1112,6 +1112,29 @@ suite('Sessions chat window provider', () => {
 		});
 	});
 
+	test('New Session in a chat window with a folder, such as one picked with New Session in Folder, opens a composer aimed at that folder rather than at the active chat\'s session, as a tab of it; while the active chat is that composer, it aims it at the next folder and focuses it', async () => {
+		const store = disposables.add(new DisposableStore());
+		const main = Object.assign(createChat('main'), { modelId: constObservable('model'), mode: constObservable({ id: 'agent', kind: 'agent' }) });
+		const session = Object.assign(createSession('session', [main]), { providerId: 'provider', sessionType: 'type', workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file('/repo'), folders: [] })), isQuickChat: constObservable(false) });
+		const { provider, events, opened, slots } = await openWindowWithComposers(store, [session]);
+
+		await provider.openNewChat(window, { folder: { uri: URI.file('/picked'), providerId: 'picked-provider' } });
+		const composer = asComposerChat(opened[0]);
+		const draftHost = composer.composer.get()!.draftHost;
+		const aimed = draftHost.requestedTarget?.get();
+		activeChat.set(composer.chat.get(), undefined);
+		await provider.openNewChat(window, { folder: { uri: URI.file('/other') } });
+		const again = { opened: opened.length, same: opened[1] === composer, slots: slots.length, target: draftHost.requestedTarget?.get() };
+		composer.dispose();
+		activeChat.set(URI.parse('test:/main'), undefined);
+
+		assert.deepStrictEqual({ aimed, again, opens: events.filter(event => event.startsWith('window open')) }, {
+			aimed: { folderUri: URI.file('/picked'), providerId: 'picked-provider' },
+			again: { opened: 2, same: true, slots: 1, target: { folderUri: URI.file('/other') } },
+			opens: ['window open vscode-agents-composer in 42 tab of /main', 'window open vscode-agents-composer in 42'],
+		});
+	});
+
 	test('New Session in a chat window opens its composer beside the active chat rather than as its tab when asked to, and without focus when asked to; while the active chat is that composer, it shows it, without focus too', async () => {
 		const store = disposables.add(new DisposableStore());
 		const main = Object.assign(createChat('main'), { modelId: constObservable('model'), mode: constObservable({ id: 'agent', kind: 'agent' }) });
