@@ -128,14 +128,28 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	private folderLocationRequest = 0;
+	private pendingFolderLocationRequests = 0;
 
-	async setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
+	async setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
+		if (options?.ifIdle && this.pendingFolderLocationRequests > 0) {
+			return;
+		}
+
+		this.pendingFolderLocationRequests++;
+		try {
+			await this.doSetFolderLocation(location, options?.reason, options?.folder);
+		} finally {
+			this.pendingFolderLocationRequests--;
+		}
+	}
+
+	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 		}
 
-		if (options?.folder && !this.uriIdentityService.extUri.isEqual(options.folder, this.contextService.getWorkspace().folders[0].uri)) {
-			throw new Error(localize('folderLocationUnknownFolder', "'{0}' is not a folder of this workspace.", options.folder.toString()));
+		if (folder && !this.uriIdentityService.extUri.isEqual(folder, this.contextService.getWorkspace().folders[0].uri)) {
+			throw new Error(localize('folderLocationUnknownFolder', "'{0}' is not a folder of this workspace.", folder.toString()));
 		}
 
 		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
@@ -193,7 +207,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		validatePrimary();
 
 		await this.contextService.setFolderLocation(location);
-		this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, options?.reason);
+		this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, reason);
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
