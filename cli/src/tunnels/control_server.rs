@@ -107,7 +107,8 @@ struct HandlerContext {
 	http_requests: HttpRequestsMap,
 	/// Shared `ensure_supervisor_running` future, awaited in `handle_serve`
 	/// so the spawned server can discover the supervisor via the shared
-	/// local agent-host endpoint registry.
+	/// local agent-host endpoint registry. `None` for `command-shell`, whose
+	/// server starts its own agent host when no shared one is running.
 	active_agent_host: Option<SharedActiveAgentHost>,
 }
 
