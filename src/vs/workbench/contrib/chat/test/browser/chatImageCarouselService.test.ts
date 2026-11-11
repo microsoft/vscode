@@ -657,7 +657,7 @@ suite('ChatImageCarouselService helpers', () => {
 			});
 		}
 
-		test('remembers a markup for the attachment it changed, which no longer refers to its file', async () => {
+		test('remembers a markup for the attachment it changed by the time the input shows it, which no longer refers to its file', async () => {
 			const canvas = mainWindow.document.createElement('canvas');
 			canvas.width = 4;
 			canvas.height = 3;
@@ -666,7 +666,9 @@ suite('ChatImageCarouselService helpers', () => {
 			const annotationState = { actions: [], undoneActions: [], crop: null };
 			const file = URI.file('/workspace/image.png');
 			const attachFile = () => makeImageVariableEntry({ id: file.toString(), name: 'image.png', value: png, references: [{ reference: file, kind: 'reference' }] });
-			// Keeps its entries, like the attachment model of a chat input.
+			const screenshotTool = createTestScreenshotToolService(store, true).service;
+			const editableWhenShown: boolean[] = [];
+			// Keeps its entries, like the attachment model of a chat input, which shows them again as soon as they change.
 			const createAttachmentModel = (...initial: IChatRequestVariableEntry[]) => {
 				const attachments = new Map(initial.map(entry => [entry.id, entry]));
 				return upcastPartial<ChatAttachmentModel>({
@@ -677,11 +679,11 @@ suite('ChatImageCarouselService helpers', () => {
 						}
 						for (const entry of upsert) {
 							attachments.set(entry.id, entry);
+							editableWhenShown.push(!!screenshotTool.getEditableAttachment(entry));
 						}
 					},
 				});
 			};
-			const screenshotTool = createTestScreenshotToolService(store, true).service;
 			const restored: boolean[] = [];
 			sinon.stub(screenshotTool, 'markUp').callsFake((_container, screenshot): IScreenshotToolMarkUp => ({
 				result: Promise.resolve(screenshot).then(({ original, annotationState: previous }) => {
@@ -723,11 +725,14 @@ suite('ChatImageCarouselService helpers', () => {
 
 			assert.deepStrictEqual({
 				restored,
+				// A marked up image can be edited again as soon as the input shows it; a file attached again cannot until it is marked up.
+				editableWhenShown,
 				markedUp: { references: markedUp.references, value: markedUp.value instanceof Uint8Array && markedUp.value.byteLength === getScreenshotToolImageData(marked).data.byteLength },
 				// Downloads from the Images Preview, and the input history, use the marked up image rather than the file.
 				downloadsFile: shownAfterMarkUp.uri !== undefined,
 			}, {
 				restored: [false, false, true, false],
+				editableWhenShown: [true, true, true, false, true],
 				markedUp: { references: [], value: true },
 				downloadsFile: false,
 			});

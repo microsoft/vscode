@@ -32,6 +32,7 @@ export function applyScreenshotToolEdit(attachmentModel: ChatAttachmentModel, at
 	const { data, mimeType } = getScreenshotToolImageData(edit.image);
 	// A marked up image is no longer the file it came from, so downloading or recalling it keeps the markup.
 	const marked: IChatRequestVariableEntry = { ...attachment, value: data.buffer, mimeType, references: [] };
-	attachmentModel.updateContext([], [marked]);
+	// The chat input renders its attachments again as soon as they change, and looks up which ones can be edited then.
 	screenshotToolService.registerEditableAttachment(marked, { original: edit.original, annotationState: edit.annotationState });
+	attachmentModel.updateContext([], [marked]);
 }
