@@ -227,8 +227,10 @@ function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerialize
 	// Another hidden cell, chrome, and cells without any such cell, such as the terminals, keep their size.
 	const partsOf = (node: ISerializedNode) => collectCellIds(node).filter(persistent);
 	const sharing = (child: ISerializedNode) => child === hiddenNode || (child.visible !== false && !isChrome(child) && partsOf(child).length > 0);
-	const previousLine = findLineWith(before.root, before.orientation, orientation, line.data.filter(sharing).map(partsOf).filter(parts => parts.length > 0));
-	if (!previousLine) {
+	// Alone among them, such as above the terminals, the hidden cell takes all of it: its row or column may be new
+	const alone = line.data.filter(sharing).length === 1;
+	const previousLine = alone ? undefined : findLineWith(before.root, before.orientation, orientation, line.data.filter(sharing).map(partsOf).filter(parts => parts.length > 0));
+	if (!alone && !previousLine) {
 		return shown;
 	}
 	// The cells that keep their size, the terminals in a column their height, as they took the hidden cell's room meanwhile
@@ -241,7 +243,7 @@ function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerialize
 			return 0;
 		}
 		const parts = partsOf(child);
-		return previousLine.find(candidate => collectCellIds(candidate).some(cell => parts.includes(cell)))?.size;
+		return alone ? 1 : previousLine?.find(candidate => collectCellIds(candidate).some(cell => parts.includes(cell)))?.size;
 	});
 	const total = previous.reduce<number>((sum, size) => sum + (size ?? 0), 0);
 	if (room <= 0 || !total || previous.some(size => size === undefined)) {
@@ -466,7 +468,7 @@ export class ChatWindowGrid extends Disposable {
 	 * What the grid showed, and its sizes, before the layout mode hid the chat or the main part, until it shows both again:
 	 * its shape without the terminals, which may join or leave meanwhile, and the height the terminals take as it does.
 	 */
-	private _beforeHide: { grid: ISerializedGrid | undefined; readonly created: ReadonlySet<string>; terminalsHeight: number | undefined } | undefined;
+	private _beforeHide: { grid: ISerializedGrid | undefined; created: ReadonlySet<string>; terminalsHeight: number | undefined } | undefined;
 	private _createdPartsChanging = false;
 	/** The height the terminals take once the cells of the arrangement they moved in show. */
 	private _pendingTerminalsHeight: number | undefined;
@@ -804,21 +806,24 @@ export class ChatWindowGrid extends Disposable {
 		// row, would otherwise give them its room.
 		const terminalsHeight = this._pendingTerminalsHeight ?? (grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined);
 		const hidden = getHiddenCell(mode);
-		const shown = previousMode !== undefined && !hidden ? getHiddenCell(previousMode) : undefined;
-		// Before the part hides, as both show: also in the grid arranged anew while it stays hidden, such as stacked
-		if (hidden && (previousMode === undefined || !getHiddenCell(previousMode) || arranged === 'rebuilt')) {
-			const before = grid.serializeGrid();
-			this._beforeHide = { grid: before, created: new Set(this._created.keys()), terminalsHeight: grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined };
-		}
+		// The part that shows again, also as the other one hides instead, such as from Chat Only to Editor Only
+		const previousHidden = previousMode !== undefined ? getHiddenCell(previousMode) : undefined;
+		const shown = previousHidden !== hidden ? previousHidden : undefined;
 		this._pendingTerminalsHeight = undefined;
-		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
-		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
+		// The chrome first: the room it leaves is the parts', also as both show before one hides
 		if (this._titleRow) {
 			grid.setCellVisible(ChatWindowGridCell.TitleRow, !!this._cells.titleRow?.visible.get());
 		}
 		if (this._strip) {
 			grid.setCellVisible(ChatWindowGridCell.Strip, !!this._cells.strip?.visible.get());
 		}
+		// Before the part hides, as both show: also in the grid arranged anew while it stays hidden, such as stacked
+		if (hidden && (!previousHidden || arranged === 'rebuilt')) {
+			const before = grid.serializeGrid();
+			this._beforeHide = { grid: before, created: new Set(this._created.keys()), terminalsHeight: grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined };
+		}
+		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
+		grid.setCellVisible(ChatWindowGridCell.Main, mode !== ChatWindowLayoutMode.ChatOnly);
 		// Sized once the cells beside them show, which would otherwise take a share of their height.
 		if (terminalsHeight !== undefined && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height !== terminalsHeight) {
 			this._resizeTerminals(grid, terminalsHeight);
@@ -917,11 +922,13 @@ export class ChatWindowGrid extends Disposable {
 		if (hidden) {
 			const shown = grid.serializeGrid();
 			const beforeHide = this._beforeHide;
-			const asBothShow = shown && beforeHide?.grid && this._showsPartsAsBeforeHide(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid, id => this._isPersistentCell(id), beforeHide.terminalsHeight) : undefined;
+			const asBothShow = shown && beforeHide?.grid && this._showsPartsAsBeforeHide(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid, id => this._isPersistentCell(id), beforeHide.terminalsHeight ?? this._terminalsHeight()) : undefined;
 			if (!asBothShow || asBothShow === shown || !beforeHide) {
 				return;
 			}
+			// The parts the grid created that it shows now are in it too, also once they close
 			beforeHide.grid = asBothShow;
+			beforeHide.created = new Set([...beforeHide.created, ...this._created.keys()]);
 			if (!Object.keys(changed).length) {
 				return;
 			}
@@ -1082,7 +1089,7 @@ export class ChatWindowGrid extends Disposable {
 		const shown = this._grid.value?.serializeGrid();
 		const hidden = this._arrangedMode !== undefined ? getHiddenCell(this._arrangedMode) : undefined;
 		const beforeHide = this._beforeHide;
-		const grid = shown && hidden && beforeHide?.grid && this._showsPartsAsBeforeHide(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid, id => this._isPersistentCell(id), beforeHide.terminalsHeight) : shown;
+		const grid = shown && hidden && beforeHide?.grid && this._showsPartsAsBeforeHide(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid, id => this._isPersistentCell(id), beforeHide.terminalsHeight ?? this._terminalsHeight()) : shown;
 		const splitLayout = this._arrangedSplitLayout;
 		// While the window closes, its chat and main part leave the grid: what it showed before is what the user arranged
 		if (this._closing || !grid || splitLayout === undefined) {
