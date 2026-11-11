@@ -725,8 +725,8 @@ const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
 const OUT_OF_SCOPE_SECTION_PREFIX = 'outOfScope:';
 
 /**
- * The id of a section as the user's placements, order and collapse state know it: without the presentation-only
- * {@link OUT_OF_SCOPE_SECTION_PREFIX} of a scoped list. Nothing prefixed is persisted.
+ * The id of a section as drops, group membership and manual order know it: without the presentation-only
+ * {@link OUT_OF_SCOPE_SECTION_PREFIX} of a scoped list. Membership and manual order never persist the prefix.
  */
 function toSemanticSectionId(sectionId: string): string {
 	return sectionId.startsWith(OUT_OF_SCOPE_SECTION_PREFIX) ? sectionId.slice(OUT_OF_SCOPE_SECTION_PREFIX.length) : sectionId;
