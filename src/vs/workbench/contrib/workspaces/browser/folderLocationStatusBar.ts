@@ -5,14 +5,19 @@
 
 import { AnimationFrameScheduler, DisposableResizeObserver } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -32,7 +37,12 @@ const FOLDER_LOCATION_STATUS_ENTRY_ID = 'status.workspace.folderLocation';
 /** Just above the SCM entries (left priority 10000) and below the remote indicator (Number.MAX_VALUE). */
 const FOLDER_LOCATION_STATUS_ENTRY_PRIORITY = 10000.1;
 
+interface ILocationQuickPickItem extends IQuickPickItem {
+	readonly uri: URI;
+}
+
 export const RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.returnToPrimaryFolderLocation';
+export const SWITCH_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.switchFolderLocation';
 
 /**
  * Shows the location of the workspace folder in the status bar while
@@ -128,7 +138,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			name: localize('folderLocation', "Folder Location"),
 			text: `$(${location.icon?.id ?? Codicon.location.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
-			tooltip: localize('folderLocationTooltip', "The folder '{0}' is at the location '{1}', an alternate location of '{0}'. Files, search, terminals and extensions use this location, but open editors stay where they are. Opening work in the primary location returns the folder to it.", primaryName, getFolderLocationText(location)),
+			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", getFolderLocationText(location), primaryName),
+			command: SWITCH_FOLDER_LOCATION_COMMAND_ID,
 			kind: 'prominent' as const
 		};
 
@@ -183,7 +194,49 @@ registerAction2(class ReturnToPrimaryFolderLocationAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
 		if (folder?.primaryUri) {
-			await accessor.get(IWorkspaceEditingService).setFolderLocation(folder.primaryUri, undefined);
+			await accessor.get(IWorkspaceEditingService).setFolderLocation(folder.primaryUri, undefined, { reason: 'user' });
 		}
+	}
+});
+
+registerAction2(class SwitchFolderLocationAction extends Action2 {
+
+	constructor() {
+		super({
+			id: SWITCH_FOLDER_LOCATION_COMMAND_ID,
+			title: localize2('switchFolderLocation', "Switch Folder Location..."),
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
+		const primary = folder?.primaryUri;
+		if (!primary) {
+			return;
+		}
+
+		const quickInputService = accessor.get(IQuickInputService);
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		const locations = await accessor.get(IWorkspaceFolderLocationService).getLocations(primary, CancellationToken.None);
+		const toItem = (uri: URI, label: string, description: string | undefined, icon: ThemeIcon): ILocationQuickPickItem => ({
+			uri,
+			label: `$(${icon.id}) ${label}`,
+			description,
+			picked: uriIdentityService.extUri.isEqual(uri, folder.uri)
+		});
+		const items: ILocationQuickPickItem[] = [
+			toItem(primary, basename(primary), localize('primaryLocation', "Primary Location"), Codicon.folder),
+			...locations.map(location => toItem(location.uri, location.label, location.description, location.icon ?? Codicon.location))
+		];
+
+		const picked = await quickInputService.pick(items, { placeHolder: localize('switchFolderLocationPlaceholder', "Select a Location for the Folder") });
+		if (!picked || uriIdentityService.extUri.isEqual(picked.uri, folder.uri)) {
+			return;
+		}
+
+		await workspaceEditingService.setFolderLocation(primary, uriIdentityService.extUri.isEqual(picked.uri, primary) ? undefined : picked.uri, { reason: 'user' });
 	}
 });

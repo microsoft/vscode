@@ -61,12 +61,12 @@ suite('WorkspaceFolderLocationService', () => {
 
 	test('setCurrentLocation fires an event', () => {
 		const service = disposables.add(new WorkspaceFolderLocationService());
-		let fired = 0;
-		disposables.add(service.onDidChangeCurrentLocation(() => fired++));
+		const reasons: string[] = [];
+		disposables.add(service.onDidChangeCurrentLocation(e => reasons.push(e.reason)));
 
-		service.setCurrentLocation({ uri: a, label: 'A', providerId: 'x', builtIn: false });
+		service.setCurrentLocation({ uri: a, label: 'A', providerId: 'x', builtIn: false }, 'user');
 		service.setCurrentLocation(undefined);
 
-		assert.deepStrictEqual({ fired, current: service.currentLocation }, { fired: 2, current: undefined });
+		assert.deepStrictEqual({ reasons, current: service.currentLocation }, { reasons: ['user', 'programmatic'], current: undefined });
 	});
 });

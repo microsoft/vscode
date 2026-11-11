@@ -58,6 +58,16 @@ export interface IWorkspaceFolderLocationProvider {
 	resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined>;
 }
 
+/**
+ * Why the location of the workspace folder changed: `user` when the user picked it,
+ * `programmatic` for any other change.
+ */
+export type FolderLocationChangeReason = 'user' | 'programmatic';
+
+export interface IFolderLocationChangeEvent {
+	readonly reason: FolderLocationChangeReason;
+}
+
 export const IWorkspaceFolderLocationService = createDecorator<IWorkspaceFolderLocationService>('workspaceFolderLocationService');
 
 export interface IWorkspaceFolderLocationService {
@@ -76,13 +86,13 @@ export interface IWorkspaceFolderLocationService {
 	/**
 	 * Fires when `currentLocation` changes.
 	 */
-	readonly onDidChangeCurrentLocation: Event<void>;
+	readonly onDidChangeCurrentLocation: Event<IFolderLocationChangeEvent>;
 
 	/**
 	 * Records the location the workspace folder is at. Called by `IWorkspaceEditingService`
 	 * and when restoring a location; do not use it to switch locations.
 	 */
-	setCurrentLocation(location: IResolvedFolderLocation | undefined): void;
+	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason?: FolderLocationChangeReason): void;
 
 	/**
 	 * Registers a provider. Locations of `builtIn` providers inherit the trust of the primary location.

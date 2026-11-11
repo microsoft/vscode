@@ -10,6 +10,9 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
@@ -20,7 +23,7 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
-import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
+import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, SWITCH_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
 
 suite('FolderLocationStatusBarContribution', () => {
 
@@ -86,7 +89,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: undefined, kind: 'prominent', tooltip: `The folder 'project' is at the location 'Alternate · feature/x', an alternate location of 'project'. Files, search, terminals and extensions use this location, but open editors stay where they are. Opening work in the primary location returns the folder to it.` });
+			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: SWITCH_FOLDER_LOCATION_COMMAND_ID, kind: 'prominent', tooltip: `Alternate · feature/x (alternate location of 'project')` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
@@ -178,14 +181,51 @@ suite('FolderLocationStatusBarContribution', () => {
 	});
 
 	test('return command switches back to the primary location', async () => {
-		const calls: [URI, URI | undefined][] = [];
+		const calls: [URI, URI | undefined, string | undefined][] = [];
 		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
 		const accessor = {
-			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined) => { calls.push([p, l]); } } : undefined
+			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p, l, o?.reason]); } } : undefined
 		} as unknown as ServicesAccessor;
 
 		await CommandsRegistry.getCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
 
-		assert.deepStrictEqual(calls, [[primary, undefined]]);
+		assert.deepStrictEqual(calls, [[primary, undefined, 'user']]);
+	});
+
+	suite('switch command', () => {
+
+		async function pickLocation(choose: (items: { label: string; description?: string; picked?: boolean }[]) => number | undefined) {
+			const calls: [string, string | undefined, string | undefined][] = [];
+			let shown: { label: string; description?: string; picked?: boolean }[] = [];
+			const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
+			const accessor = {
+				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
+					: id === IWorkspaceFolderLocationService ? { getLocations: async () => [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }
+						: id === IUriIdentityService ? { extUri }
+							: id === IQuickInputService ? { pick: async (items: (IQuickPickItem & { uri: URI })[]) => { shown = items; const index = choose(items); return index === undefined ? undefined : items[index]; } }
+								: id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p.toString(), l?.toString(), o?.reason]); } } : undefined
+			} as unknown as ServicesAccessor;
+
+			await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
+			return { shown, calls };
+		}
+
+		test('lists the primary and the locations, marking the current one', async () => {
+			const { shown, calls } = await pickLocation(() => undefined);
+			assert.deepStrictEqual({ shown: shown.map(item => ({ ...item, uri: (item as unknown as { uri: URI }).uri.toString() })), calls }, {
+				shown: [
+					{ uri: primary.toString(), label: '$(folder) project', description: 'Primary Location', picked: false },
+					{ uri: alternate.toString(), label: '$(git-branch) Alternate', description: 'feature/x', picked: true },
+					{ uri: URI.file('/work/other').toString(), label: '$(location) Other', description: undefined, picked: false }
+				],
+				calls: []
+			});
+		});
+
+		test('picking a location switches to it as a user choice, the primary returns, the current one does nothing', async () => {
+			assert.deepStrictEqual((await pickLocation(() => 2)).calls, [[primary.toString(), URI.file('/work/other').toString(), 'user']]);
+			assert.deepStrictEqual((await pickLocation(() => 0)).calls, [[primary.toString(), undefined, 'user']]);
+			assert.deepStrictEqual((await pickLocation(() => 1)).calls, []);
+		});
 	});
 });

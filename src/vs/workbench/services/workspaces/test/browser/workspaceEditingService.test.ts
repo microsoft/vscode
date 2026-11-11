@@ -92,6 +92,7 @@ suite('WorkspaceEditingService', () => {
 			const trusted: URI[] = [];
 			const resolved: URI[] = [];
 			const switched: (URI | undefined)[] = [];
+			const reasons: (string | undefined)[] = [];
 			const folder = { uri: options.current, primaryUri: URI.file('/work/project') };
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
@@ -110,16 +111,23 @@ suite('WorkspaceEditingService', () => {
 				undefined, undefined, undefined,
 				{
 					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
-					setCurrentLocation: () => { }
+					setCurrentLocation: (_location: unknown, reason?: string) => { reasons.push(reason); }
 				}
 			));
-			return { service, trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
+			return { service, reasons, trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
 		}
 
 		test('a wrong primary is rejected without resolving, trusting or switching', async () => {
 			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true });
 			await assert.rejects(() => fixture.service.setFolderLocation(URI.file('/work/other'), URI.file('/work/alt')));
 			assert.deepStrictEqual({ resolved: fixture.resolved(), trusted: fixture.trusted(), switched: fixture.switched() }, { resolved: 0, trusted: [], switched: [] });
+		});
+
+		test('the reason of the request is propagated to the current location change', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true });
+			await fixture.service.setFolderLocation(URI.file('/work/project'), URI.file('/work/alt'), { reason: 'user' });
+			await fixture.service.setFolderLocation(URI.file('/work/project'), URI.file('/work/alt'));
+			assert.deepStrictEqual(fixture.reasons, ['user', undefined]);
 		});
 
 		test('trust is inherited from the primary, not from the current location', async () => {
