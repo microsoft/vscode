@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 
 const TEST_SESSION_URI = 'session://test-session';
@@ -1032,7 +1032,27 @@ suite('sessionDiffAggregator - path spellings', () => {
 			session: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
 			incremental: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] })),
 			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
-		}, { session: expected, incremental: expected, turn: expected });
+			workingSet: sorted(await computeWorkingSetDiffs([{ sessionUri: TEST_SESSION_URI, db }], diffService)),
+		}, { session: expected, incremental: expected, turn: expected, workingSet: expected });
+	});
+
+	test('shows a rename that only changes the case of a path as a rename', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', 'tc1', '/repo/a.txt', 'one', 'two');
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/A.txt', kind: FileEditKind.Rename, originalPath: '/repo/a.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('two'), afterContent: encodeString('two\nthree'),
+		});
+		const diffService = createTestDiffService();
+		const uris = (diffs: readonly ISessionFileDiff[]) => diffs.map(diff => ({ before: diff.before?.uri, after: diff.after?.uri }));
+
+		const expected = [{ before: URI.file('/repo/a.txt').toString(), after: URI.file('/repo/A.txt').toString() }];
+		assert.deepStrictEqual({
+			session: uris(await computeSessionDiffs(TEST_SESSION_URI, db, diffService)),
+			turn: uris(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1')),
+			workingSet: uris(await computeWorkingSetDiffs([{ sessionUri: TEST_SESSION_URI, db }], diffService)),
+		}, { session: expected, turn: expected, workingSet: expected });
 	});
 
 	(isWindows ? test : test.skip)('shows a file once for every way Windows spells its path', async () => {

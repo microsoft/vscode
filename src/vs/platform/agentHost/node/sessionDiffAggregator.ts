@@ -58,12 +58,10 @@ function getTerminalPath(terminalPath: string, edit: IFileEditRecord): string {
 function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string, identity: IFileIdentity, added: number, removed: number): ISessionFileDiff {
 	const hasBefore = identity.firstKind !== FileEditKind.Create;
 	const hasAfter = identity.lastKind !== FileEditKind.Delete;
-	// Both sides of a file are shown at one spelling of its path, or clients take it for a rename.
-	const beforePath = isSameFileEditPath(identity.firstFilePath, identity.terminalPath) ? identity.terminalPath : identity.firstFilePath;
 	return {
 		...(hasBefore ? {
 			before: {
-				uri: URI.file(beforePath).toString(),
+				uri: URI.file(identity.acceptedPath ?? identity.firstFilePath).toString(),
 				content: { uri: buildSessionDbUri(beforeSessionUri, identity.firstToolCallId, identity.firstFilePath, 'before') },
 			},
 		} : {}),
@@ -90,6 +88,8 @@ interface IFileIdentity {
 	firstToolCallId: string;
 	/** File path used in the first edit's database record. */
 	firstFilePath: string;
+	/** For the Working Set, the path the file was shown at when its changes were accepted, which its accept row can spell differently. */
+	acceptedPath?: string;
 	/** The kind of the first edit (Create means no "before" content). */
 	firstKind: FileEditKind;
 	/** Index into the sources array of the DB that owns the first edit. */
@@ -446,6 +446,7 @@ async function computeUnionedFileDiffs(
 				// edit shows that edit rather than hiding it.
 				existing.firstToolCallId = edit.toolCallId;
 				existing.firstFilePath = edit.filePath;
+				existing.acceptedPath = existing.terminalPath;
 				existing.firstKind = acceptedKind;
 				existing.firstSourceIdx = sourceIdx;
 				existing.rowsSinceBaseline = [{ record: edit, sourceIdx }];

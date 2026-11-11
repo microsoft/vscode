@@ -421,4 +421,49 @@ suite('fileEditAccept', () => {
 			forkEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1', 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'C5' }) }],
 		});
 	});
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('combines the working sets of a session and a fork that spells the file\'s path differently', async () => {
+		const alias = '/REPO/file.ts';
+		const diffService = new TestDiffComputeService();
+		const fork = async () => {
+			const parent = disposables.add(await SessionDatabase.open(':memory:'));
+			const child = disposables.add(await SessionDatabase.open(':memory:'));
+			await storeEdit(parent, 't1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+			// A forked chat's database starts as a copy of its parent's rows.
+			for (const record of await parent.getAllFileEdits()) {
+				await child.storeFileEdit({ ...record, ...await parent.readFileEditContent(record.toolCallId, record.filePath) });
+			}
+			await accept(child);
+			return { parent, child, sources: [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: child }] };
+		};
+		const workingSet = async (sources: ISessionDiffSource[]) => {
+			const diffs = await computeWorkingSetDiffs(sources, diffService);
+			return { files: await readDiffs(sources, diffs), uris: diffs.map(diff => [diff.before?.uri, diff.after?.uri]) };
+		};
+
+		// The parent changes the file, then the fork does, with another spelling of its path.
+		const bothEdited = await fork();
+		await storeEdit(bothEdited.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(bothEdited.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), alias);
+		// Only the fork changes it, after the user changed it outside of the session.
+		const forkEdited = await fork();
+		await storeEdit(forkEdited.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3' }), lines({ 0: 'L1', 2: 'U3', 4: 'C5' }), alias);
+		// The fork also accepts its change, which records its spelling, and changes the file again.
+		const forkAccepted = await fork();
+		await storeEdit(forkAccepted.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(forkAccepted.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), alias);
+		await accept(forkAccepted.child, alias);
+		await storeEdit(forkAccepted.child, 'c2', 'tc4', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5', 5: 'C6' }), alias);
+
+		const file = 'file:///repo/file.ts';
+		assert.deepStrictEqual({
+			bothEdited: await workingSet(bothEdited.sources),
+			forkEdited: await workingSet(forkEdited.sources),
+			forkAccepted: await workingSet(forkAccepted.sources),
+		}, {
+			bothEdited: { files: [{ file, before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 1: 'P2', 4: 'C5' }) }], uris: [[file, file]] },
+			forkEdited: { files: [{ file, before: lines({ 0: 'L1', 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'C5' }) }], uris: [[file, file]] },
+			forkAccepted: { files: [{ file, before: lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), after: lines({ 0: 'L1', 1: 'P2', 4: 'C5', 5: 'C6' }) }], uris: [[file, file]] },
+		});
+	});
 });
