@@ -287,6 +287,44 @@ const modelRouterExample = [
 	'      - why is token usage higher in treatment?',
 ].join('\n');
 
+const modelRouterPlaybookExample = [
+	'version: 1',
+	'display-name: Workday',
+	'description: Opus for feature work and bug fixes, Haiku for quick questions.',
+	'playbooks:                  # the first one is the fallback',
+	'  feature:',
+	'    when: Building something new or changing behavior across files, such as a feature, prototype or refactor.',
+	'    main: [claude-opus-5.5, claude-opus-5]',
+	'    effort: high',
+	'  bugfix:',
+	'    when: Something is broken, such as a failing test, a crash or a reported issue.',
+	'    main: claude-opus-5.5',
+	'    effort: medium',
+	'  quick:',
+	'    when: Questions, lookups, explanations, small one-file edits and git chores.',
+	'    main: claude-haiku-5.5',
+].join('\n');
+
+const modelRouterAgentsExample = [
+	'roles:',
+	'  reviewer:',
+	'    description: Reviews a change for bugs, missed cases and unclear names. Reports findings; changes nothing.',
+	'    model: [gpt-5.5, gpt-5]',
+	'    effort: high',
+	'  tester:',
+	'    agent: Test Writer        # a custom agent the user already has',
+	'    model: claude-sonnet-5',
+	'playbooks:',
+	'  feature:',
+	'    when: Building something new or changing behavior across files.',
+	'    main: claude-opus-5.5',
+	'    uses: [reviewer, tester]',
+	'    guidance: Plan first. Before you finish, have the reviewer check the change.',
+	'  quick:',
+	'    when: Questions, lookups and small one-file edits.',
+	'    main: claude-haiku-5.5',
+].join('\n');
+
 const modelRouterSkillContent = `# Model router
 
 A model router is a YAML file that VS Code lists as a model in the model picker. When a chat uses it, each turn asks a decision model which route fits the request and runs the turn on that route's model. Use this skill to create, edit or fix one.
@@ -313,6 +351,31 @@ ${modelRouterExample}
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
 - \`display-name\` (optional) is the name the model picker and the chat show in place of the file name.
 - \`context-size: long\` (optional, on a route or for the whole router) runs a model on its larger context window when it has one; \`default\` uses its standard one. The check lists each model's \`contextSizes\`, and \`longContextCostsMore\` when the larger one is billed at a higher rate. Without the key each model keeps its own default. A chat that is on a long window stays on one.
+
+## Playbooks
+
+A router can be written as \`playbooks\` in place of \`routes\`, when the user thinks in kinds of work rather than in models:
+
+\`\`\`yaml
+${modelRouterPlaybookExample}
+\`\`\`
+
+- A playbook is a route with a name. \`main\` is its model (what \`model\` is in a route); \`when\`, \`examples\`, \`effort\` and \`context-size\` work as they do in a route. Names are lowercase letters, digits and single hyphens.
+- A file has \`playbooks\` or \`routes\`, not both. One playbook is enough, and two playbooks may use the same model.
+- A playbook is chosen from the first message of a chat and kept for that chat, so \`switching: auto\` can't be used with playbooks. Put first the playbook to use when the router can't tell which one fits.
+
+### Agents (preview)
+
+A playbook can bring agents: subagents its main agent can start, each on its own model.
+
+\`\`\`yaml
+${modelRouterAgentsExample}
+\`\`\`
+
+- \`roles\` is a map at the top of the file. Each role is one agent. It has a \`description\`, which tells the main agent what the role is for and is the agent's own instructions. Or it has an \`agent\`: the name of a custom agent the user already has, whose file supplies the instructions and tools. The role then runs a copy of that agent named after the role; the custom agent itself is unchanged. \`model\` (an id or a list, like \`main\`) and \`effort\` are optional; without \`model\` the role keeps its custom agent's model, else the chat's, and its \`effort\` is passed on as written. A role that names models runs on one of them or is left out of the chat; it never runs on another model. A role can't have the name of a built-in agent, such as \`explore\`, \`task\` or \`general-purpose\`.
+- A playbook lists the roles it brings in \`uses\`, at most 8. \`guidance\` on a playbook says how the user wants that kind of work done; the main agent reads it, the decision model does not.
+- A chat's agents are decided by its first message and kept for that chat. A router chosen in a chat that already has messages picks models but brings no agents; start a new chat to get them. They are also lost when VS Code restarts.
+- The check lists each playbook's \`agents\` with the model each would run on, and warns about a role it leaves out. It can't see whether a custom \`agent\` exists: a role is also left out when the chat starts if its custom agent is missing, matches more than one, or is one that other agents can't start.
 
 ## YAML rules
 

@@ -5,10 +5,13 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../../base/common/defaultAccount.js';
 import { DisposableStore, ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,6 +22,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -26,6 +30,8 @@ import { IFileDialogService } from '../../../../../../platform/dialogs/common/di
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -83,6 +89,8 @@ import { SessionModelSelection } from '../../../../../../workbench/contrib/sessi
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestShownChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
+import { MobileRepositoryPicker } from '../../../../mobile/browser/mobileRepositoryPicker.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -219,12 +227,14 @@ function serializeCreationReference(reference: ISessionCreationReference | undef
 }
 
 interface ICreateProviderOptions {
+	readonly defaultAccountService?: IDefaultAccountService;
 	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	readonly chatModels?: IChatService['chatModels'];
 	readonly providerMode?: 'default' | 'sandbox';
 	readonly commandService?: ICommandService;
 	readonly repositoryPicker?: Pick<RepositoryPicker, 'pickRepository' | 'dispose'>;
 	readonly sessionRepositoryPicker?: ISessionRepositoryPicker;
+	readonly quickInputService?: IQuickInputService;
 	readonly notificationErrors?: string[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
@@ -362,7 +372,7 @@ function createProviderWithConfig(
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
-	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+	instantiationService.stub(IDefaultAccountService, opts?.defaultAccountService ?? { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
 	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
@@ -373,6 +383,9 @@ function createProviderWithConfig(
 	instantiationService.stub(ILogService, opts?.logService ?? new NullLogService());
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
+	if (opts?.quickInputService) {
+		instantiationService.stub(IQuickInputService, opts.quickInputService);
+	}
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(ICommandService, opts?.commandService ?? { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
@@ -710,6 +723,7 @@ suite('CopilotChatSessionsProvider', () => {
 			gitHubService,
 			repositoryPicker: {
 				pickRepository: async (getRepositories, _options, token) => {
+					assert.strictEqual(_options, undefined);
 					steps.push('picker');
 					const repositories = await getRepositories('https://github.com/microsoft/vscode.git', token ?? CancellationToken.None);
 					return { repository: repositories[0] };
@@ -755,6 +769,143 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		});
 	}
+
+	function createMobileRepositoryPicker() {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		let quickPickCalls = 0;
+		const quickInputService = new class extends mock<IQuickInputService>() {
+			override createQuickPick(): never {
+				quickPickCalls++;
+				throw new Error('The mobile repository picker must not create a desktop quick pick');
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IInstantiationService, instantiationService);
+		instantiationService.stub(ILayoutService, { mainContainer: container });
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IQuickInputService, quickInputService);
+		const sessionRepositoryPicker = disposables.add(instantiationService.createInstance(MobileRepositoryPicker));
+		return { container, sessionRepositoryPicker, quickInputService, getQuickPickCalls: () => quickPickCalls };
+	}
+
+	for (const providerMode of ['default', 'sandbox'] as const) {
+		(isWeb ? test : test.skip)(`uses the entry-owned repository sheet without creating quick input (${providerMode})`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mobile = createMobileRepositoryPicker();
+				const steps: string[] = [];
+				const gitHubService = new class extends TestGitHubService {
+					override async authenticateForRepositoryAccess(): Promise<void> {
+						steps.push('authenticate');
+					}
+					override async getRepositories(query: string): Promise<readonly IGitHubRepository[]> {
+						steps.push(`search:${query}`);
+						return [{ owner: 'Mixed.Owner', name: 'Some-Repo', fullName: 'Mixed.Owner/Some-Repo', defaultBranch: 'main', isPrivate: true, description: '' }];
+					}
+				}();
+				const errors: string[] = [];
+				const provider = createProvider(disposables, model, {
+					providerMode, gitHubService, notificationErrors: errors, ...mobile,
+				});
+				const selected = provider.browseActions[0].run();
+				await timeout(1);
+				const input = mobile.container.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
+				input.value = 'https://github.com/Mixed.Owner/Some-Repo.git';
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				await timeout(301);
+				const row = mobile.container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!;
+				const label = row.textContent;
+				row.click();
+				const workspace = await selected;
+				assert.deepStrictEqual({
+					steps, label, errors, quickPickCalls: mobile.getQuickPickCalls(),
+					uri: workspace?.uri.toString(), root: workspace?.folders[0].root.toString(),
+				}, {
+					steps: ['authenticate', 'search:', 'search:Mixed.Owner/Some-Repo'],
+					label: 'Mixed.Owner/Some-Repo', errors: [], quickPickCalls: 0,
+					uri: 'https://github.com/Mixed.Owner/Some-Repo',
+					root: 'github-remote-file://github/Mixed.Owner/Some-Repo/HEAD',
+				});
+			});
+		});
+	}
+
+	for (const disposeProvider of [false, true]) {
+		(isWeb ? test : test.skip)(`cancelling the entry-owned repository sheet does not fall back to quick input (dispose provider: ${disposeProvider})`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mobile = createMobileRepositoryPicker();
+				const repository = new DeferredPromise<readonly IGitHubRepository[]>();
+				let requestToken = CancellationToken.None;
+				const gitHubService = new class extends TestGitHubService {
+					override getRepositories(_query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
+						requestToken = token;
+						return repository.p;
+					}
+				}();
+				const provider = createProvider(disposables, model, { gitHubService, ...mobile });
+				const selected = provider.browseActions[0].run();
+				await timeout(1);
+				if (disposeProvider) {
+					provider.dispose();
+				} else {
+					mobile.container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+				}
+				const workspace = await selected;
+				await repository.complete([]);
+				assert.deepStrictEqual({
+					workspace, cancelled: requestToken.isCancellationRequested, quickPickCalls: mobile.getQuickPickCalls(),
+					open: !!mobile.container.querySelector('.mobile-picker-sheet'),
+				}, { workspace: undefined, cancelled: true, quickPickCalls: 0, open: false });
+			});
+		});
+	}
+
+	for (const changesWhilePicking of [false, true]) {
+		(isWeb ? test : test.skip)(`keeps enterprise-host validation around the entry-owned repository sheet (changes during picker: ${changesWhilePicking})`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mobile = createMobileRepositoryPicker();
+				const gitHubService = new class extends TestGitHubService {
+					override async getRepositories(): Promise<readonly IGitHubRepository[]> {
+						return [{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' }];
+					}
+				}();
+				gitHubService.enterpriseHost = changesWhilePicking ? undefined : 'example.ghe.com';
+				const errors: string[] = [];
+				const provider = createProvider(disposables, model, { gitHubService, notificationErrors: errors, ...mobile });
+				const selected = provider.browseActions[0].run();
+				await timeout(1);
+				const opened = !!mobile.container.querySelector('.mobile-picker-sheet');
+				if (changesWhilePicking) {
+					gitHubService.enterpriseHost = 'example.ghe.com';
+					mobile.container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!.click();
+				}
+				assert.deepStrictEqual({
+					workspace: await selected, opened, errors, quickPickCalls: mobile.getQuickPickCalls(),
+				}, {
+					workspace: undefined, opened: changesWhilePicking, quickPickCalls: 0,
+					errors: ['Error: This picker supports github.com repositories only. Switch to a github.com account, then try again.'],
+				});
+			});
+		});
+	}
+
+	(isWeb ? test : test.skip)('provider disposal during authentication never opens the entry-owned repository sheet', async () => {
+		const mobile = createMobileRepositoryPicker();
+		const authentication = new DeferredPromise<void>();
+		const gitHubService = new class extends TestGitHubService {
+			override authenticateForRepositoryAccess(): Promise<void> {
+				return authentication.p;
+			}
+		}();
+		const provider = createProvider(disposables, model, { gitHubService, ...mobile });
+		const selected = provider.browseActions[0].run();
+		provider.dispose();
+		const workspace = await selected;
+		await authentication.complete();
+		assert.deepStrictEqual({
+			workspace, open: !!mobile.container.querySelector('.mobile-picker-sheet'), quickPickCalls: mobile.getQuickPickCalls(),
+		}, { workspace: undefined, open: false, quickPickCalls: 0 });
+	});
 
 	for (const changesWhilePicking of [false, true]) {
 		(isWeb ? test : test.skip)(`rejects enterprise identities instead of creating github.com workspaces (changes during picker: ${changesWhilePicking})`, async () => {
@@ -1191,6 +1342,115 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	// ---- getSessionTypes -------
+
+	for (const providerMode of ['default', 'sandbox'] as const) {
+		test(`cloud session entitlement updates creation choices without removing history (${providerMode})`, async () => {
+			let cloudSessionsEnabled: boolean | undefined;
+			const accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = accountChanged.event;
+				override get currentDefaultAccount(): IDefaultAccount {
+					return upcastPartial<IDefaultAccount>({
+						entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }),
+					});
+				}
+				override async getDefaultAccount() { return this.currentDefaultAccount; }
+			}();
+			model.addSession(createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Cloud, path: '/existing' })));
+			const { provider, configService } = createProviderWithConfig(disposables, model, { providerMode, defaultAccountService });
+			await configService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+			await configService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+			const existing = provider.getSessions();
+			let sessionTypeChanges = 0;
+			let capabilityChanges = 0;
+			disposables.add(provider.onDidChangeSessionTypes(() => sessionTypeChanges++));
+			disposables.add(provider.onDidChangeCapabilities(() => capabilityChanges++));
+			const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+			const workspaceProvider: ISessionsProvider = provider;
+			const availability = () => ({
+				environments: getSessionCreationEnvironments([provider]).map(environment => environment.id),
+				sessionTypes: provider.getSessionTypes(workspace).map(type => type.id),
+				advertisedTypes: provider.sessionTypes.map(type => type.id),
+				workspaceSelection: workspaceProvider.supportsWorkspaceSelection !== false,
+				quickChats: provider.supportsQuickChats,
+				history: provider.getSessions().map(session => session.sessionId),
+			});
+			const snapshots = [availability()];
+			for (const enabled of [false, true, undefined]) {
+				cloudSessionsEnabled = enabled;
+				accountChanged.fire(defaultAccountService.currentDefaultAccount);
+				snapshots.push(availability());
+			}
+			const available = {
+				environments: ['cloud'],
+				sessionTypes: [providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id],
+				advertisedTypes: [providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id],
+				workspaceSelection: true,
+				quickChats: true,
+				history: existing.map(session => session.sessionId),
+			};
+			assert.deepStrictEqual({
+				snapshots, sessionTypeChanges, capabilityChanges,
+			}, {
+				snapshots: [available, { ...available, environments: [], sessionTypes: [], advertisedTypes: [], quickChats: false }, available, available],
+				sessionTypeChanges: 2, capabilityChanges: 2,
+			});
+		});
+
+		test(`refreshes cloud creation choices after delayed account initialization (${providerMode})`, async () => {
+			const initialization = new DeferredPromise<IDefaultAccount | null>();
+			let account: IDefaultAccount | null = null;
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override get currentDefaultAccount() { return account; }
+				override getDefaultAccount() { return initialization.p; }
+			}();
+			const provider = createProvider(disposables, model, { providerMode, defaultAccountService });
+			const before = getSessionCreationEnvironments([provider]).map(environment => environment.id);
+			const changes: string[][] = [];
+			let capabilityChanges = 0;
+			disposables.add(provider.onDidChangeSessionTypes(() => changes.push(getSessionCreationEnvironments([provider]).map(environment => environment.id))));
+			disposables.add(provider.onDidChangeCapabilities(() => capabilityChanges++));
+			account = upcastPartial<IDefaultAccount>({
+				entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: false }),
+			});
+			await initialization.complete(account);
+
+			assert.deepStrictEqual({
+				before, changes, capabilityChanges,
+				after: getSessionCreationEnvironments([provider]).map(environment => environment.id),
+			}, { before: ['cloud'], changes: [[]], capabilityChanges: 1, after: [] });
+		});
+
+		test(`disabled cloud session entitlement rejects new and stale drafts (${providerMode})`, async () => {
+			let cloudSessionsEnabled = true;
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override get currentDefaultAccount(): IDefaultAccount {
+					return upcastPartial<IDefaultAccount>({
+						entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }),
+					});
+				}
+				override async getDefaultAccount() { return this.currentDefaultAccount; }
+			}();
+			const draftPreparation = createDraftPreparationStub();
+			const prepare = spy(draftPreparation, 'prepare');
+			const { provider, configService } = createProviderWithConfig(disposables, model, { providerMode, defaultAccountService, draftPreparation });
+			await configService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+			await configService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+			const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+			const sessionType = providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id;
+			const draft = provider.createNewSession(workspace, sessionType);
+			cloudSessionsEnabled = false;
+
+			assert.throws(() => provider.createNewSession(workspace, sessionType), /Cloud session creation is not available for your account/);
+			assert.throws(() => provider.createQuickChat(sessionType), /Cloud session creation is not available for your account/);
+			provider.prepareNewSessionWhileComposing(draft.sessionId);
+			await assert.rejects(provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'hello'), /Cloud session creation is not available for your account/);
+			await assert.rejects(provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'hello' }), /Cloud session creation is not available for your account/);
+			assert.deepStrictEqual({ preparations: prepare.callCount, draftRetained: provider.getSession(draft.sessionId) !== undefined }, { preparations: 0, draftRetained: true });
+		});
+	}
 
 	test('getSessionTypes returns only Cloud for a remote workspace', () => {
 		const provider = createProvider(disposables, model);

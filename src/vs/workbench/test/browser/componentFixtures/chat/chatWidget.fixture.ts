@@ -1735,18 +1735,22 @@ interface IVerbosityComparisonOptions {
 	readonly expand?: boolean;
 	/** Names the running tool call with a file link, which renders beside the section's header button. */
 	readonly linkedTitle?: boolean;
+	/** Names the running tool call with a file pill, which must not make the header taller than a plain title. */
+	readonly filePillTitle?: boolean;
 	/** Ends the running response with reasoning that has a summary heading. */
 	readonly reasoningLast?: boolean;
 }
 
 async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
 	const patchComplete = complete || !!options.reasoningLast;
-	const runningPatchMessage = options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
+	const runningPatchMessage = options.filePillTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts?vscodeLinkType=file)'
+		: options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
 		width: 620,
 		height: 340,
 		listHeight: 340,
 		inputVisible: false,
+		additionalServices: options.filePillTitle ? reg => reg.defineInstance(IFileService, context.disposableStore.add(new TestFileService())) : undefined,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: verbosity,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
@@ -2842,6 +2846,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			CompactCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, true) }),
 			ConversationStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false) }),
 			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
+			ConversationStreamingFilePillTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { filePillTitle: true }) }),
 			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
 			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
 			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),

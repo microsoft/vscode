@@ -3694,7 +3694,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private updateDeferredNotificationsEligibility(e?: IChatWidgetViewModelChangeEvent): void {
-		if (this.environmentService.isSessionsWindow) {
+		if (this.environmentService.isSessionsWindow || this.options.isSessionsWindow) {
 			this._deferredNotificationsEnabled.set(true, undefined);
 			return;
 		}
