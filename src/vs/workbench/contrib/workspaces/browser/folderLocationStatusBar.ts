@@ -28,6 +28,9 @@ const FOLDER_LOCATION_INTRODUCTION_ID = 'workbench.folderLocation.introduction';
 const FOLDER_LOCATION_INTRODUCTION_TARGET_ID = 'workbench.folderLocation.statusEntry';
 const FOLDER_LOCATION_STATUS_ENTRY_ID = 'status.workspace.folderLocation';
 
+/** Just above the SCM entries (left priority 10000) and below the remote indicator (Number.MAX_VALUE). */
+const FOLDER_LOCATION_STATUS_ENTRY_PRIORITY = 10000.1;
+
 export const RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.returnToPrimaryFolderLocation';
 
 /**
@@ -130,7 +133,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		if (this.entry.value) {
 			this.entry.value.update(props);
 		} else {
-			this.entry.value = this.statusbarService.addEntry(props, FOLDER_LOCATION_STATUS_ENTRY_ID, StatusbarAlignment.LEFT, 1000);
+			this.entry.value = this.statusbarService.addEntry(props, FOLDER_LOCATION_STATUS_ENTRY_ID, StatusbarAlignment.LEFT, FOLDER_LOCATION_STATUS_ENTRY_PRIORITY);
 			this.observeIntroductionTarget();
 		}
 	}
