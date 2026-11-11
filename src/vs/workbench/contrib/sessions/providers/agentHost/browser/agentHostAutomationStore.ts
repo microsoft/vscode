@@ -31,6 +31,7 @@ import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '..
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationHistoryState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IDeleteAutomationOptions } from '../../../../chat/common/automations/automationService.js';
+import { formatAutomationWeekdays, parseAutomationWeekdays } from '../../../../chat/common/automations/schedule.js';
 import type { ISessionsProviderAutomations } from '../../../common/sessionsProvider.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
@@ -1246,10 +1247,13 @@ function projectSchedule(definition: AutomationDefinition): IAutomationSchedule 
 		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
 	const namedScheduleDay = dayValue ? cronWeekdays.indexOf(dayValue.toUpperCase()) : -1;
-	const scheduleDay = namedScheduleDay >= 0 ? namedScheduleDay : parseCronValue(dayValue, 0, 7);
-	return scheduleDay === undefined
+	if (namedScheduleDay >= 0) {
+		return { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: namedScheduleDay };
+	}
+	const scheduleDays = parseAutomationWeekdays(dayValue);
+	return scheduleDays === undefined
 		? unrepresentable
-		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDay === 7 ? 0 : scheduleDay };
+		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDays[0], ...(scheduleDays.length > 1 ? { scheduleDays } : {}) };
 }
 
 function parseCronValue(value: string | undefined, minimum: number, maximum: number): number | undefined {
@@ -1286,7 +1290,7 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * 1-5`;
 			break;
 		case 'weekly':
-			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${schedule.scheduleDay}`;
+			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${formatAutomationWeekdays(schedule)}`;
 			break;
 	}
 	return [{

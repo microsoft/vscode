@@ -11,6 +11,23 @@ suite('Automation cron', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('runs weekly day lists on Monday, Wednesday and Friday across weekends and DST', () => {
+		const expression = '0 9 * * 1,3,5';
+		validateAutomationCron(expression, 'America/Los_Angeles');
+		const next = (after: string) => nextAutomationCronOccurrence(expression, 'America/Los_Angeles', new Date(after)).toISOString();
+		assert.deepStrictEqual([
+			next('2026-03-02T16:59:00Z'),
+			next('2026-03-02T17:00:00Z'),
+			next('2026-03-04T17:00:00Z'),
+			next('2026-03-06T17:00:00Z'),
+		], [
+			'2026-03-02T17:00:00.000Z',
+			'2026-03-04T17:00:00.000Z',
+			'2026-03-06T17:00:00.000Z',
+			'2026-03-09T16:00:00.000Z',
+		]);
+	});
+
 	test('supports steps, names, ranges, and Sunday 7', () => {
 		assert.deepStrictEqual({
 			step: nextAutomationCronOccurrence('*/15 * * * *', 'UTC', new Date('2026-01-01T00:07:00Z')).toISOString(),

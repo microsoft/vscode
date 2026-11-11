@@ -41,6 +41,9 @@ export interface IAutomationSchedule {
 
 	/** Day-of-week, 0 (Sunday) through 6 (Saturday). Only used for `weekly`. */
 	readonly scheduleDay: number;
+
+	/** Selected weekdays for `weekly`; when absent, only scheduleDay is selected. */
+	readonly scheduleDays?: readonly number[];
 }
 
 /** Repository isolation for a workspace-backed Automation target. */

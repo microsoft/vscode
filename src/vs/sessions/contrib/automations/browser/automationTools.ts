@@ -563,6 +563,13 @@ The change uses the current tool-approval policy. When approval is required, the
 								maximum: 6,
 								description: 'Day of week for weekly schedules: 0 is Sunday and 6 is Saturday.',
 							},
+							scheduleDays: {
+								type: 'array',
+								items: { type: 'integer', minimum: 0, maximum: 6 },
+								minItems: 1,
+								uniqueItems: true,
+								description: 'Selected weekdays for weekly Agent Host schedules, overriding scheduleDay. Cloud supports only one day.',
+							},
 							timeZone: {
 								type: 'string',
 								enum: ['UTC'],
@@ -1007,14 +1014,18 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		return undefined;
 	}
 
-	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone', 'cronExpression', 'cronTimeZone'], '"schedule"');
+	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'scheduleDays', 'timeZone', 'cronExpression', 'cronTimeZone'], '"schedule"');
 	const interval = readOptionalEnum(value, 'interval', automationIntervals) ?? existing?.interval;
 	if (!interval) {
 		throw new AutomationToolInputError('"schedule.interval" is required when creating an automation.');
 	}
 	const scheduleHour = readOptionalInteger(value, 'scheduleHour', 0, 23) ?? existing?.scheduleHour ?? 9;
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
-	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
+	const day = readOptionalInteger(value, 'scheduleDay', 0, 6);
+	const days = value.scheduleDays;
+	if (days !== undefined && (!Array.isArray(days) || days.length === 0 || !days.every((day): day is number => typeof day === 'number' && Number.isInteger(day) && day >= 0 && day <= 6))) {
+		throw new AutomationToolInputError('"schedule.scheduleDays" must contain at least one weekday from 0 to 6.');
+	}
 	if (interval === 'cron') {
 		const cronExpression = readOptionalRequiredText(value, 'cronExpression') ?? existing?.cronExpression;
 		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
@@ -1025,14 +1036,16 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		if (error) {
 			throw new AutomationToolInputError(error);
 		}
-		return { interval, scheduleHour, scheduleMinute, scheduleDay, cronExpression, ...(cronTimeZone !== undefined ? { cronTimeZone } : {}) };
+		return { interval, scheduleHour, scheduleMinute, scheduleDay: day ?? existing?.scheduleDay ?? 1, cronExpression, ...(cronTimeZone !== undefined ? { cronTimeZone } : {}) };
 	}
+	const scheduleDays = interval === 'weekly' ? days ?? (day === undefined ? existing?.scheduleDays : undefined) : undefined;
+	const scheduleDay = scheduleDays?.[0] ?? day ?? existing?.scheduleDay ?? 1;
 
 	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
 	if (interval === 'weekdays' && timeZone !== undefined) {
 		throw new AutomationToolInputError('Weekday schedules use local time and do not support "timeZone".');
 	}
-	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(timeZone ? { timeZone } : {}) };
+	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(scheduleDays ? { scheduleDays } : {}), ...(timeZone ? { timeZone } : {}) };
 }
 
 function parseTarget(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {

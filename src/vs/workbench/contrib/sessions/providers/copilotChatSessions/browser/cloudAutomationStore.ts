@@ -616,6 +616,10 @@ export function cloudAutomationSchedule(triggers: AutomationDetail['triggers']):
 }
 
 export function cloudAutomationTriggers(schedule: IAutomationSchedule): Readonly<Record<string, AutomationTrigger>> {
+	if (schedule.interval === 'weekly' && schedule.scheduleDays !== undefined
+		&& (schedule.scheduleDays.length !== 1 || schedule.scheduleDays[0] !== schedule.scheduleDay)) {
+		throw new Error(localize('cloudAutomations.multipleDaysUnsupported', "Cloud automations support only one day per weekly schedule."));
+	}
 	if (schedule.interval === 'manual') {
 		return {};
 	}

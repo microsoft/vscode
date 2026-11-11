@@ -12,6 +12,18 @@ import { AutomationBlueprintParseError, automationToBlueprint, createAutomationB
 suite('Automation blueprints', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('round trips weekly multi-day cron without dropping selected days', () => {
+		const blueprint = {
+			version: 1 as const, id: 'weekly-review', name: 'Weekly review', prompt: 'Review changes',
+			schedule: { interval: 'weekly' as const, scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, scheduleDays: [1, 3, 5] },
+		};
+		const serialized = serializeAutomationBlueprint(blueprint);
+		assert.deepStrictEqual({
+			expression: serialized.includes('expression: "0 9 * * 1,3,5"'),
+			parsed: parseAutomationBlueprint(serialized),
+		}, { expression: true, parsed: blueprint });
+	});
+
 	test('does not silently export custom or UTC wall-clock schedules as local schedules', () => {
 		for (const interval of ['custom', 'daily', 'weekdays', 'weekly'] as const) {
 			assert.throws(() => serializeAutomationBlueprint({

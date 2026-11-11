@@ -991,6 +991,28 @@
 	padding: 2px 8px;
 }
 
+.automation-form-schedule-select-container .automation-form-days-button {
+	height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	justify-content: flex-start;
+	text-align: start;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+	user-select: none;
+}
+
+.automation-form-days-button > span:not(.codicon) {
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.automation-form-days-button > .codicon {
+	flex-shrink: 0;
+}
+
 /*
  * Form-row labels read as section titles ("Name", "Schedule", "Time",
  * "Day of week", "Prompt"). Mirror the established agents

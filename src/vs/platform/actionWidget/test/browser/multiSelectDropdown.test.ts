@@ -141,6 +141,23 @@ suite('MultiSelectDropdown', () => {
 		});
 	});
 
+	test('required selection keeps the last item selected', () => {
+		const { dropdown, changes, row } = create({
+			sections: [{ label: 'Weekdays', items: [{ id: 'mon', label: 'Monday' }, { id: 'wed', label: 'Wednesday' }] }],
+			selectedIds: ['mon'],
+			requireSelection: true,
+		});
+		row('Monday').click();
+		row('Wednesday').click();
+		row('Monday').click();
+		row('Wednesday').click();
+		assert.deepStrictEqual({
+			changes,
+			checks: [row('Monday'), row('Wednesday')].map(row => row.getAttribute('aria-checked')),
+			visible: dropdown.isVisible,
+		}, { changes: [['mon', 'wed'], ['wed']], checks: ['false', 'true'], visible: true });
+	});
+
 	test('double click toggles exactly twice', async () => {
 		const { dropdown, changes, row } = create();
 		const click = (detail: number) => {
