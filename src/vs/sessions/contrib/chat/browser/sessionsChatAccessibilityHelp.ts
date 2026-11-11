@@ -57,7 +57,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	// provides its own help, so this window-wide help does not apply in either case.
 	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate());
 
-	constructor(private readonly _responseSelectionSupported = isResponseSelectionSupported()) { }
+	constructor(
+		private readonly _responseSelectionSupported = isResponseSelectionSupported(),
+		private readonly _supportsChatBackgrounds = true,
+	) { }
 
 	getProvider(accessor: ServicesAccessor) {
 		const restoreFocus = createSessionsChatFocusRestorer(accessor);
@@ -269,12 +272,14 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(getModelPickerConfigurationAccessibilityHelp());
 		content.push(localize('sessionsChat.mobileConfig', "On mobile, the mode and model pickers appear as tappable chips below the input. Tap a chip to open a bottom sheet where you can change the selection."));
 		content.push(localize('sessionsChat.history', "Use up and down arrows to navigate your request history in the input box."));
-		content.push(localize('sessionsChat.background', "Outside high contrast themes, use Set Background to choose no background, the built-in theme-aware Codicons pattern, a new image, or one of the five most recently selected images. One randomly selected icon in the Codicons pattern is a Celebrate button; press Tab to find it, then press Enter or Space to activate it. Each activation selects another random icon as the next Celebrate button. Use Change Background Layout to choose whether an image repeats, stretches, or appears at an edge or corner for the current color theme. Moving through the layout picker previews each option; select one to save it, or press Escape to restore the previous layout. Both commands are available from the Command Palette and by right-clicking empty chat space. Change Background Layout is shown only for images. Background customization is unavailable while a high contrast theme is active."));
-		content.push(localize('sessionsChat.backgroundTint', "When a background image is set, use Tint Window to Match Background in the Command Palette or the background context menu to turn matching window colors on or off. A check mark means tinting is enabled. Turning it off keeps the background image and restores the original window colors."));
-		if (configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true) {
-			content.push(localize('sessionsChat.themeColorsTool', "You can ask the agent to read the current theme colors using Get Theme Colors in the Appearance tool group. This reports the palette without changing your theme or background."));
-			content.push(localize('sessionsChat.generateBackgroundSkill', "To generate a chat background, ask the agent or type /generate-chat-background to use the built-in skill. It provides optional design guidance, applies the generated image, and checks it in a screenshot of the window when the required tools are available."));
-			content.push(localize('sessionsChat.generateBackgroundEntry', "When workspace-less sessions are available, Set Background also offers Generate Background after a separator, between the background types and the recently used images. It opens a new workspace-less session whose input starts with Generate a chat background of, with the caret at the end so you can describe the image and send it."));
+		if (this._supportsChatBackgrounds) {
+			content.push(localize('sessionsChat.background', "Outside high contrast themes, use Set Background to choose no background, the built-in theme-aware Codicons pattern, a new image, or one of the five most recently selected images. One randomly selected icon in the Codicons pattern is a Celebrate button; press Tab to find it, then press Enter or Space to activate it. Each activation selects another random icon as the next Celebrate button. Use Change Background Layout to choose whether an image repeats, stretches, or appears at an edge or corner for the current color theme. Moving through the layout picker previews each option; select one to save it, or press Escape to restore the previous layout. Both commands are available from the Command Palette and by right-clicking empty chat space. Change Background Layout is shown only for images. Background customization is unavailable while a high contrast theme is active."));
+			content.push(localize('sessionsChat.backgroundTint', "When a background image is set, use Tint Window to Match Background in the Command Palette or the background context menu to turn matching window colors on or off. A check mark means tinting is enabled. Turning it off keeps the background image and restores the original window colors."));
+			if (configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true) {
+				content.push(localize('sessionsChat.themeColorsTool', "You can ask the agent to read the current theme colors using Get Theme Colors in the Appearance tool group. This reports the palette without changing your theme or background."));
+				content.push(localize('sessionsChat.generateBackgroundSkill', "To generate a chat background, ask the agent or type /generate-chat-background to use the built-in skill. It provides optional design guidance, applies the generated image, and checks it in a screenshot of the window when the required tools are available."));
+				content.push(localize('sessionsChat.generateBackgroundEntry', "When workspace-less sessions are available, Set Background also offers Generate Background after a separator, between the background types and the recently used images. It opens a new workspace-less session whose input starts with Generate a chat background of, with the caret at the end so you can describe the image and send it."));
+			}
 		}
 		content.push(localize('sessionsChat.vscodePet', "Use the checked Pet item in the new-session view context menu, or type /vscode-pet, to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love."));
 		content.push(localize('sessionsChat.vscodePetPainting', "While an image-generation tool is running, the pet paints at a small easel, then returns to its normal activity. Reduced motion shows a still painting pose."));

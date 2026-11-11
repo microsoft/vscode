@@ -10,6 +10,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { IAquariumService } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
@@ -30,6 +31,9 @@ import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser
 import { MobileChatViewFactory } from './mobileChatViewFactory.js';
 import { IChatEditPresentationService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { MobileChatEditPresenter } from './mobileChatEditPresenter.js';
+import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { SessionsChatAccessibilityHelp } from '../../chat/browser/sessionsChatAccessibilityHelp.js';
+import { MobilePromptsService } from './mobilePromptsService.js';
 import './mobileClipboardImageContext.js';
 import './mobileBackgroundNotifier.js';
 import { mobileConfigurationDefaults } from './mobileConfigurationDefaults.js';
@@ -73,3 +77,5 @@ registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, Ins
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Delayed);
 registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);
+registerSingleton(IPromptsService, MobilePromptsService, InstantiationType.Delayed);
+AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp(undefined, false));

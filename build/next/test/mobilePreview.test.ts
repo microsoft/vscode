@@ -411,6 +411,10 @@ suite('isolated mobile preview', () => {
 			'vs/platform/accessibilitySignal/browser/media/error.mp3',
 			'vs/code/browser/workbench/workbench.html',
 			'vs/sessions/browser/mobile/media/mobileWorkbench.css',
+			'vs/sessions/services/chatBackground/browser/media/koi-dark.webp',
+			'vs/sessions/services/chatBackground/browser/media/koi-dark-static.webp',
+			'vs/sessions/services/chatBackground/browser/media/koi-light.webp',
+			'vs/sessions/services/chatBackground/browser/media/koi-light-static.webp',
 			'vs/sessions/test/fixture.html',
 		]) {
 			await write(file, '');

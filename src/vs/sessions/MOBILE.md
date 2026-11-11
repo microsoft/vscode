@@ -22,6 +22,8 @@ For starting browser sessions, each entry registers its `ISessionRepositoryPicke
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
+The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, built-in generation skill, and assets.
+
 View factories receive the owning host's instantiation service for each view. Mobile headers use that same scope; they must not capture a global service or reuse another view's scope.
 
 `ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.

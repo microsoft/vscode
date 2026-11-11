@@ -40,6 +40,11 @@ implementations and clipboard registration are also rejected. The mobile entry
 selects its own implementations; their shared contracts and behavior remain
 available.
 
+Mobile does not include chat-background controls, settings, rendering, tinting
+or built-in background-generation tools and skills. Its resource list is
+independent of the common workbench list, so background images, including both
+animated and still koi assets, are not copied into the package.
+
 The size limits are experimental regression guards introduced with this target,
 not existing VS Code product requirements or hosting restrictions. Review actual
 dependency growth before changing a baseline; do not widen the contribution
