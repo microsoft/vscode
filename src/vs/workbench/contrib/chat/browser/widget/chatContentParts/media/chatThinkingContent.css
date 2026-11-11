@@ -227,6 +227,12 @@
 		}
 	}
 
+	/* A conversation section's hook starts under its chevron, which sits on the text's edge, and still reaches the first row. */
+	&.chat-thinking-conversation:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
+		left: var(--chat-conversation-rail-left);
+		width: calc(var(--chat-persistent-hook-width) + var(--chat-persistent-rail-left) - var(--chat-conversation-rail-left));
+	}
+
 	.chat-used-context-list.chat-thinking-collapsible {
 		margin-left: var(--chat-persistent-nested-indent);
 		padding-inline: 0;
@@ -304,6 +310,14 @@
 	--chat-persistent-icon-top: calc((var(--vscode-chat-font-size-body-m) * 1.5 - var(--vscode-codiconFontSize-compact)) / 2);
 	--chat-persistent-rail-left: calc(var(--chat-persistent-icon-left) + var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-strokeThickness) / 2);
 	--chat-persistent-hook-width: calc(var(--chat-persistent-nested-indent) - var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-spacing-size40) + var(--vscode-strokeThickness) / 2);
+	/* The compact chevron is drawn narrower than its box: where its ink starts in the box, and how long it is. */
+	--chat-conversation-chevron-bearing: calc(var(--vscode-codiconFontSize-compact) / 3);
+	--chat-conversation-chevron-length: calc(var(--vscode-codiconFontSize-compact) * 2 / 3);
+	/* An open chevron's ink is wider, so it moves to start on the same edge, and its rail hangs from its middle. */
+	--chat-conversation-chevron-open-shift: calc(var(--chat-conversation-chevron-bearing) - (var(--vscode-codiconFontSize-compact) - var(--chat-conversation-chevron-length)) / 2);
+	--chat-conversation-rail-left: calc(var(--chat-conversation-chevron-length) / 2 - var(--vscode-strokeThickness) / 2);
+	/* Where a conversation header's label starts, and so where the steps it discloses line up. */
+	--chat-conversation-label-left: var(--vscode-spacing-size160);
 }
 
 /* Anchor the footer to the list's integer-sized row, not the fractional streaming content height. */
@@ -423,17 +437,29 @@
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress-anchor > .chat-working-progress > .chat-progress-icon,
 .interactive-session .chat-sticky-progress > .chat-working-progress > .chat-progress-icon,
-.interactive-session .interactive-response .value > .completed-response-conversation > .completed-response-summary .chat-collapsible-hover-chevron.codicon,
 .interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
+}
+
+/* A chevron centered in the icon gutter looks indented beside the response's text, because its glyph is
+	narrow. Conversation chevrons start on the text's edge instead, and their labels follow them. */
+.interactive-session .interactive-response .value > .completed-response-conversation > .completed-response-summary .chat-collapsible-hover-chevron.codicon,
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
+	margin-left: calc(-1 * var(--chat-conversation-chevron-bearing));
+	margin-right: calc(var(--chat-conversation-label-left) - var(--vscode-codiconFontSize-compact) + var(--chat-conversation-chevron-bearing));
+}
+
+.interactive-session .interactive-response .value > .completed-response-conversation > .completed-response-summary .chat-collapsible-hover-chevron.codicon.expanded,
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation:not(.chat-used-context-collapsed) > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
+	transform: translateX(var(--chat-conversation-chevron-open-shift)) rotate(90deg);
 }
 
 /* In Conversation progress a completed response's steps disclose like a conversation section: the chevron
 	leads the label and stays visible, and the steps open under it in the label's text column. */
 .interactive-session .interactive-response.chat-persistent-progress > .value > .completed-response-conversation {
 	&::details-content {
-		margin-inline-start: var(--chat-persistent-rail-left);
-		padding-inline-start: calc(var(--vscode-spacing-size240) - var(--chat-persistent-rail-left) - var(--vscode-strokeThickness));
+		margin-inline-start: var(--chat-conversation-rail-left);
+		padding-inline-start: calc(var(--chat-conversation-label-left) - var(--chat-conversation-rail-left) - var(--vscode-strokeThickness));
 	}
 
 	> .completed-response-summary .chat-collapsible-hover-chevron.codicon {
@@ -444,10 +470,6 @@
 /* A conversation section's chevron turns to point down at its rows while open, like a collapsible's hover chevron. */
 .interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
 	transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation:not(.chat-used-context-collapsed) > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
-	transform: rotate(90deg);
 }
 
 .monaco-reduce-motion .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {

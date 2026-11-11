@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -414,6 +415,37 @@ async function renderConversationSections(context: ComponentFixtureContext, opti
 		section.querySelector<HTMLElement>('.chat-thinking-reasoning > .chat-used-context-label .monaco-button')!.click();
 		await waitForFixtureCondition(() => !!section.querySelector('.chat-thinking-reasoning:not(.chat-used-context-collapsed)') && isSettled(), 'Reasoning row did not expand');
 	}
+	await waitForFixtureCondition(() => conversationChevronsStartOnTextEdge(context.container), 'Conversation chevrons do not start on the left edge of the text they lead');
+}
+
+/**
+ * Whether the chevron of each laid out Conversation header starts on the header's left edge, where
+ * the response's text starts. A chevron's glyph is narrower than its box, so this measures its ink.
+ */
+function conversationChevronsStartOnTextEdge(container: HTMLElement): boolean {
+	const targetWindow = getWindow(container);
+	const canvas = targetWindow.document.createElement('canvas').getContext('2d');
+	if (!canvas) {
+		return false;
+	}
+	const headers = container.querySelectorAll<HTMLElement>('.chat-thinking-conversation > .chat-used-context-label, .completed-response-conversation > .completed-response-summary');
+	return Array.from(headers).every(header => {
+		const chevron = header.querySelector<HTMLElement>('.codicon-chevron-right-compact');
+		const box = chevron?.getBoundingClientRect();
+		if (!chevron || !box?.width) {
+			// The headers inside closed completed steps are not laid out
+			return true;
+		}
+		const glyph = targetWindow.getComputedStyle(chevron, '::before');
+		canvas.font = `${glyph.fontSize} ${glyph.fontFamily}`;
+		const ink = canvas.measureText(glyph.content.replace(/["']/g, ''));
+		// An open chevron is turned to point down, which lays the long side of its ink across
+		const isOpen = Math.round(new DOMMatrixReadOnly(targetWindow.getComputedStyle(chevron).transform).b) === 1;
+		const inkLeft = isOpen
+			? box.left + box.width / 2 - (ink.actualBoundingBoxAscent + ink.actualBoundingBoxDescent) / 2
+			: box.left - ink.actualBoundingBoxLeft;
+		return Math.abs(inkLeft - header.getBoundingClientRect().left) < 0.5;
+	});
 }
 
 function renderReadPills(context: ComponentFixtureContext, complete: boolean): Promise<void> {

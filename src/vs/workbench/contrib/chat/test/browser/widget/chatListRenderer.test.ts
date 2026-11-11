@@ -9368,19 +9368,24 @@ suite('ChatListRenderer', () => {
 				if (!section) {
 					return { ...closed, pointsDownWhenOpen: pointsDown() };
 				}
-				const sectionChevron = section.querySelector(':scope > .chat-used-context-label .monaco-button > .codicon');
-				const sectionLabel = section.querySelector(':scope > .chat-used-context-label .monaco-button-mdlabel');
-				assert.ok(sectionChevron && sectionLabel);
+				const sectionHeader = section.querySelector<HTMLElement>(':scope > .chat-used-context-label');
+				const sectionChevron = sectionHeader?.querySelector('.monaco-button > .codicon');
+				const sectionLabel = sectionHeader?.querySelector('.monaco-button-mdlabel');
+				assert.ok(sectionHeader && sectionChevron && sectionLabel);
+				// An open chevron is placed differently from a closed one, so the section opens to compare like with like.
+				sectionHeader.querySelector<HTMLElement>('.monaco-button')?.click();
 				const offset = (part: Element, from: Element) => part.getBoundingClientRect().left - from.getBoundingClientRect().left;
+				const center = (part: Element, from: Element) => offset(part, from) + part.getBoundingClientRect().width / 2;
 				const same = (a: number, b: number) => Math.abs(a - b) < 0.05;
-				const chevronBounds = chevron.getBoundingClientRect();
 				const rail = mainWindow.getComputedStyle(disclosure, '::details-content');
+				const hook = mainWindow.getComputedStyle(sectionHeader, '::after');
 				const open = {
 					pointsDownWhenOpen: pointsDown(),
-					sharesSectionGutter: same(offset(chevron, summary), offset(sectionChevron, section)) && same(offset(label, summary), offset(sectionLabel, section)),
+					sharesSectionGutter: same(center(chevron, summary), center(sectionChevron, section)) && same(offset(label, summary), offset(sectionLabel, section)),
 					sharesSectionChevronColor: mainWindow.getComputedStyle(chevron).color === mainWindow.getComputedStyle(sectionChevron).color,
 					stepsUnderLabel: same(offset(section, summary), offset(label, summary)),
-					railUnderChevron: same(parseFloat(rail.marginInlineStart) + parseFloat(rail.borderInlineStartWidth) / 2, offset(chevron, summary) + chevronBounds.width / 2),
+					railUnderChevron: same(parseFloat(rail.marginInlineStart) + parseFloat(rail.borderInlineStartWidth) / 2, center(chevron, summary)),
+					hookUnderSectionChevron: same(parseFloat(hook.left) + parseFloat(hook.borderLeftWidth) / 2, center(sectionChevron, section)),
 				};
 				container.style.width = '140px';
 				renderer.layout(140);
@@ -9397,7 +9402,7 @@ suite('ChatListRenderer', () => {
 				compact: { order: ['label', ...(withEdits ? ['edits'] : []), 'chevron'], chevronShownAtRest: false, pointsDown: false, pointsDownWhenOpen: true },
 				conversation: {
 					order: ['chevron', 'label', ...(withEdits ? ['edits'] : [])], chevronShownAtRest: true, pointsDown: false, pointsDownWhenOpen: true,
-					sharesSectionGutter: true, sharesSectionChevronColor: true, stepsUnderLabel: true, railUnderChevron: true, containedWhenNarrow: true,
+					sharesSectionGutter: true, sharesSectionChevronColor: true, stepsUnderLabel: true, railUnderChevron: true, hookUnderSectionChevron: true, containedWhenNarrow: true,
 				},
 			});
 		});
