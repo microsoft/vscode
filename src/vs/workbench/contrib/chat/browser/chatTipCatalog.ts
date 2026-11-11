@@ -9,14 +9,12 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ChatConfiguration, ChatModeKind, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../common/constants.js';
+import { ChatConfiguration, ChatModeKind, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, SEND_IN_BACKGROUND_COMMAND_ID } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
-import { SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
-import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,

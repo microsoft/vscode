@@ -95,7 +95,7 @@ export const FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID = 'sessions.focusNewSe
 export const FOCUS_SESSION_SYNC_ACTION_COMMAND_ID = 'sessions.focusSessionSyncAction';
 export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
 
-export const SEND_IN_BACKGROUND_COMMAND_ID = 'sessions.sendInBackground';
+export { SEND_IN_BACKGROUND_COMMAND_ID } from '../../chat/common/constants.js';
 
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 
