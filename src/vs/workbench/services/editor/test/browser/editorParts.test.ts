@@ -65,6 +65,17 @@ class TestOwnedEditorPart extends EditorPart {
 	}
 }
 
+class TestMergingEditorPart extends TestOwnedEditorPart {
+
+	override get isTransient(): boolean {
+		return false;
+	}
+
+	close(options?: { preserveFocus?: boolean }): boolean {
+		return this.mergeGroupsToMainPart(undefined, options);
+	}
+}
+
 suite('Editor Parts', () => {
 
 	const disposables = new DisposableStore();
@@ -320,6 +331,31 @@ suite('Editor Parts', () => {
 		}, { applied: true, ownedStaysRegistered: true, ownedGroupStays: true, hasRestorableState: true });
 
 		parts.deleteWorkingSet(workingSet);
+	});
+
+	test('applying a working set keeps the focus where it is when asked, also when it merges an editor of a window back into the main part', async () => {
+		const { instantiationService, parts } = await createServices();
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+		disposables.add({ dispose: () => outside.remove() });
+
+		const applyWith = async (preserveFocus: boolean) => {
+			const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			disposables.add({ dispose: () => container.remove() });
+			const part = disposables.add(instantiationService.createInstance(TestMergingEditorPart, parts));
+			disposables.add(parts.registerPart(part));
+			part.create(container);
+			part.layout(400, 300, 0, 0);
+
+			const dirty = disposables.add(new TestFileEditorInput(URI.file(`/dirty-${preserveFocus}.txt`), 'testTypeId'));
+			dirty.setDirty();
+			await part.activeGroup.openEditor(dirty, { pinned: true });
+
+			outside.focus();
+			await parts.applyWorkingSet('empty', { preserveFocus });
+			return mainWindow.document.activeElement === outside;
+		};
+
+		assert.deepStrictEqual({ preserved: await applyWith(true), notPreserved: await applyWith(false) }, { preserved: true, notPreserved: false });
 	});
 
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
