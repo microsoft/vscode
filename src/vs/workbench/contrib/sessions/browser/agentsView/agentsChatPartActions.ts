@@ -19,6 +19,7 @@ import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agent
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
+import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { getWorktreeSectionFolder, ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
@@ -155,8 +156,9 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			super({
 				id: 'workbench.action.agentsView.newSessionInSameFolder',
 				title: localize2('agentsView.newSessionInSameFolder', "New Session in Same Folder"),
-				precondition: ChatContextKeys.enabled,
-				menu: [{ id: SessionItemContextMenuId, group: '0_new', order: 0, when: ChatContextKeys.enabled }],
+				// For one session: its folder
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+				menu: [{ id: SessionItemContextMenuId, group: '0_new', order: 0, when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()) }],
 			});
 		}
 		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {

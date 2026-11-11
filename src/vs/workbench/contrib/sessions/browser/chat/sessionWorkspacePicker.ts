@@ -525,9 +525,14 @@ export class WorkspacePicker extends Disposable {
 		this._watchProviderSessionTypes();
 		const allowedFolders = this.options.allowedFolders;
 		if (allowedFolders) {
-			// Whether the picker is read-only follows its allowed folders, such as as a folder joins the window
+			// Whether the picker is read-only follows its allowed folders, such as as a folder joins the window; a selected
+			// folder that leaves them, such as one removed from the window, gives way to the first of them
 			this._register(autorun(reader => {
 				allowedFolders.read(reader);
+				const allowed = this._getAllowedFolders();
+				if (allowed && this._selectedFolderUri && !this._isAllowedFolder(this._selectedFolderUri)) {
+					this.setSelectedWorkspace(allowed[0], { persist: false });
+				}
 				this._updateTriggerLabel();
 			}));
 		}
@@ -1330,6 +1335,10 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selected project.
 	 */
 	clearSelection(): void {
+		// Restricted to its allowed folders, it always has one of them
+		if (this._getAllowedFolders()) {
+			return;
+		}
 		this.options.onUserSelection?.();
 		this._selectionGeneration++;
 		this._hidePicker();
@@ -2314,8 +2323,10 @@ export class WorkspacePicker extends Disposable {
 			const reflectsWorkspace = options.reflectsWorkspace === true;
 			const noWorkspaceSelected = reflectsWorkspace && this._getNoWorkspaceOption()?.isSelected === true;
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
-			const clearable = reflectsWorkspace && options.clearable?.get() === true;
+			// Restricted to its allowed folders, it has no No Workspace to clear to
+			const clearable = reflectsWorkspace && options.clearable?.get() === true && !this._getAllowedFolders();
 			const canClear = clearable && workspace !== undefined;
+			const readOnly = reflectsWorkspace && this._isReadOnly();
 			contents.slot.classList.toggle('workspace-clearable', canClear);
 			if (contents.clearButton) {
 				contents.clearButton.element.hidden = !canClear;
@@ -2373,9 +2384,16 @@ export class WorkspacePicker extends Disposable {
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : emptyLabel));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
-				: label && label !== emptyLabel
-					? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
-					: options.ariaLabel);
+				: readOnly && workspace && label
+					? localize('workspacePicker.windowFolderAriaLabel', "New session in this window's folder {0}", label)
+					: label && label !== emptyLabel
+						? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
+						: options.ariaLabel);
+			if (reflectsWorkspace) {
+				trigger.setAttribute('aria-disabled', String(readOnly));
+				trigger.setAttribute('aria-haspopup', readOnly ? 'false' : 'listbox');
+				trigger.classList.toggle('read-only', readOnly);
+			}
 			if (label) {
 				contents.label ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 				contents.label.textContent = label;
@@ -2389,6 +2407,11 @@ export class WorkspacePicker extends Disposable {
 			} else {
 				contents.badge?.dispose();
 				contents.badge = undefined;
+			}
+			if (readOnly) {
+				contents.chevron?.remove();
+				contents.chevron = undefined;
+				return;
 			}
 			if (!contents.chevron) {
 				contents.chevron = renderIcon(Codicon.chevronDownCompact);
