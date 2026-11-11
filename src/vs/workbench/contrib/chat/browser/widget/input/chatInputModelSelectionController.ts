@@ -432,8 +432,9 @@ export class ChatInputModelSelectionController extends Disposable {
 			}, 'info');
 		}
 		const allModels = this._runtime.getAllModels();
+		const restoredModel = allModels.find(model => model.identifier === desiredModel.identifier) ?? desiredModel;
 		const currentModel = this._currentModel.get();
-		const syncResult = resolveModelFromSyncState(desiredModel, currentModel, allModels, sessionType, this._runtime.isModelSupportedHere);
+		const syncResult = resolveModelFromSyncState(restoredModel, currentModel, allModels, sessionType, this._runtime.isModelSupportedHere);
 		this._diagnostics.report('conversation-restore', {
 			desiredModel: desiredModel.identifier,
 			currentModel: currentModel?.identifier,
@@ -441,7 +442,10 @@ export class ChatInputModelSelectionController extends Disposable {
 			action: syncResult.action,
 		}, syncResult.action === 'keep' ? 'debug' : 'info');
 		if (syncResult.action === 'apply' || syncResult.action === 'keep') {
-			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, restoredAs, keepsAwaitedModel, configurationIsTransient);
+			if (syncResult.action === 'keep' && restoredModel !== currentModel) {
+				this._display(restoredModel);
+			}
+			this._applySessionRestore(restoredModel, syncResult.action === 'apply', modelConfiguration, restoredAs, keepsAwaitedModel, configurationIsTransient);
 			return;
 		}
 
