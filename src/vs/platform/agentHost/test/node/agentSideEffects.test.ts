@@ -9389,6 +9389,75 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
+		test('subagent permission before tool start stays pending when late tool actions arrive', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (hasKey(envelope.action, { toolCallId: true }) && envelope.action.toolCallId === 'inner') {
+					envelopes.push(envelope);
+				}
+			}));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: chatToolCallStart('turn-1', 'tc-parent', 'task', 'Task', { contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } }),
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: chatToolCallReady('turn-1', 'tc-parent', 'Delegating...', { toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }),
+			});
+			agent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+			});
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			await waitForState(stateManager, () => stateManager.getChatState(subagentUri)?.activeTurn);
+
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'inner', toolName: 'shell', displayName: 'Shell',
+					invocationMessage: 'Run shell command', toolInput: undefined,
+					confirmationTitle: 'Run shell command?', edits: undefined,
+				},
+				permissionKind: AgentPermissionKind.Shell,
+			});
+			await waitForState(stateManager, () => envelopes.some(envelope => envelope.action.type === ActionType.ChatToolCallReady) || undefined);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: chatToolCallStart('turn-1', 'inner', 'shell', 'Shell', { contributor: undefined }),
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: chatToolCallReady('turn-1', 'inner', 'Running shell command', { toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }),
+			});
+
+			const inner = stateManager.getChatState(subagentUri)?.activeTurn?.responseParts.find(
+				part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'inner'
+			);
+			assert.deepStrictEqual({
+				actions: envelopes.map(({ channel, action }) => ({
+					channel: channel === defaultChatUri ? 'parent' : 'subagent',
+					type: action.type,
+					...(action.type === ActionType.ChatToolCallReady && action.confirmationTitle !== undefined ? { confirmationTitle: action.confirmationTitle } : {}),
+					...(action.type === ActionType.ChatToolCallReady && action.confirmed !== undefined ? { confirmed: action.confirmed } : {}),
+				})),
+				status: inner?.kind === ResponsePartKind.ToolCall ? inner.toolCall.status : undefined,
+				responses: agent.respondToPermissionCalls,
+			}, {
+				actions: [
+					{ channel: 'subagent', type: ActionType.ChatToolCallStart },
+					{ channel: 'subagent', type: ActionType.ChatToolCallReady, confirmationTitle: 'Run shell command?' },
+				],
+				status: ToolCallStatus.PendingConfirmation,
+				responses: [],
+			});
+		});
+
 		test('permission denies reject with host_policy despite Allow All and dispatch no ready action', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
