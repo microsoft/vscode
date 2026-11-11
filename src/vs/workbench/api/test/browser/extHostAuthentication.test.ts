@@ -70,6 +70,7 @@ suite('DynamicAuthProvider', () => {
 
 		protected override async _generateNewClientId(): Promise<void> {
 			this.generateNewClientIdCalls++;
+			this._clientId = `client-id-${this.generateNewClientIdCalls}`;
 		}
 	}
 
@@ -217,6 +218,38 @@ suite('DynamicAuthProvider', () => {
 			fetchCalls: 1,
 			generateNewClientIdCalls: 0,
 			clientId: 'client-id',
+		});
+	});
+
+	test('replaces a client rejected during silent refresh before the next sign-in', async () => {
+		const authorizeClientIds: (string | null)[] = [];
+		const provider = createProvider({
+			...servers.nonMicrosoft,
+			resource,
+			initialTokens: [{
+				access_token: jwt({ sub: 'account' }),
+				token_type: 'Bearer',
+				scope: '',
+				expires_in: 1,
+				refresh_token: 'refresh-token',
+				created_at: 0,
+			}],
+			fetcher: async () => new Response(JSON.stringify({ error: 'invalid_client' }), {
+				status: 401,
+				headers: { 'Content-Type': 'application/json' },
+			}),
+			onDidOpenUri: uri => authorizeClientIds.push(new URL(uri).searchParams.get('client_id')),
+		});
+
+		const sessions = await provider.getSessions([], { silent: true } satisfies IAuthenticationProviderSessionOptions);
+		await assert.rejects(provider.createSession([], {}), isCancellationError);
+		await assert.rejects(provider.createSession([], {}), isCancellationError);
+
+		assert.deepStrictEqual({ sessions, generateNewClientIdCalls: provider.generateNewClientIdCalls, clientId: provider.clientId, authorizeClientIds }, {
+			sessions: [],
+			generateNewClientIdCalls: 1,
+			clientId: 'client-id-1',
+			authorizeClientIds: ['client-id-1', 'client-id-1'],
 		});
 	});
 
