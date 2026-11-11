@@ -8,13 +8,12 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -34,8 +33,6 @@ export interface ISessionReadOnlyBannerContent {
 	 * so the live region announces a stable summary rather than every tick.
 	 */
 	readonly ariaLabel?: string;
-	/** Shown on hover of {@link message}, such as the full path of a folder the message names. */
-	readonly hover?: string;
 	readonly action?: { readonly label: string; readonly run: () => void | Promise<void> };
 	readonly secondaryAction?: ISessionReadOnlyBannerContent['action'];
 }
@@ -88,13 +85,8 @@ export class SessionReadOnlyBanner extends Disposable {
 	private readonly _text: HTMLElement;
 	private readonly _announcement: HTMLElement;
 	private readonly _actions: IBannerAction[] = [];
-	private readonly _hover = this._register(new MutableDisposable());
-	private _hoverContent: string | undefined;
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IHoverService private readonly _hoverService: IHoverService,
-	) {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 
 		this.domNode = dom.$('.session-readonly-banner');
@@ -145,10 +137,6 @@ export class SessionReadOnlyBanner extends Disposable {
 		const announced = content.ariaLabel ?? content.message;
 		if (this._announcement.textContent !== announced) {
 			this._announcement.textContent = announced;
-		}
-		if (this._hoverContent !== content.hover) {
-			this._hoverContent = content.hover;
-			this._hover.value = content.hover ? this._hoverService.setupDelayedHover(this._text, { content: content.hover }) : undefined;
 		}
 
 		for (const [index, action] of [content.action, content.secondaryAction].entries()) {
