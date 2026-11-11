@@ -722,12 +722,6 @@ schemaRegistry.registerSchema(productSchemaId, {
 						enum: Object.keys(allApiProposals),
 						markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 					}
-				}, {
-					type: 'array',
-					items: { type: 'string', enum: ['*'] },
-					minItems: 1,
-					maxItems: 1,
-					description: nls.localize('product.extensionEnabledApiProposals.any', "Allows the extension to use any API proposal it declares in its package.json.")
 				}]
 			}
 		}

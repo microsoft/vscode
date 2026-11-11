@@ -12,6 +12,7 @@ import { TestProductService } from '../../../../test/common/workbenchTestService
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { nullExtensionDescription } from '../../common/extensions.js';
 import { ExtensionsProposedApi } from '../../common/extensionsProposedApi.js';
+import { extensionsAllowedAnyApiProposal } from '../../common/extensionsProposedApiExceptions.js';
 
 suite('ExtensionsProposedApi', () => {
 
@@ -19,22 +20,28 @@ suite('ExtensionsProposedApi', () => {
 
 	const builtEnvironment = { isBuilt: true, isExtensionDevelopment: false, extensionEnabledProposedApi: undefined } as IWorkbenchEnvironmentService;
 
-	function getEnabledApiProposals(extensionEnabledApiProposals: IProductService['extensionEnabledApiProposals'], declared: string[]): readonly string[] | undefined {
+	function getEnabledApiProposals(extensionId: string, extensionEnabledApiProposals: IProductService['extensionEnabledApiProposals'], declared: string[]): readonly string[] | undefined {
 		const productService: IProductService = { ...TestProductService, extensionEnabledApiProposals };
-		const extension: IExtensionDescription = { ...nullExtensionDescription, identifier: new ExtensionIdentifier('pub.ext'), enabledApiProposals: declared };
+		const extension: IExtensionDescription = { ...nullExtensionDescription, identifier: new ExtensionIdentifier(extensionId), enabledApiProposals: declared };
 		new ExtensionsProposedApi(new NullLogService(), builtEnvironment, productService).updateEnabledApiProposals([extension]);
 		return extension.enabledApiProposals;
 	}
 
 	test('product.json allowlist overrides the extension declaration', () => {
-		assert.deepStrictEqual(getEnabledApiProposals({ 'pub.ext': ['externalUriOpener'] }, ['externalUriOpener', 'terminalShellEnv']), ['externalUriOpener']);
-	});
-
-	test('product.json wildcard allows every declared proposal', () => {
-		assert.deepStrictEqual(getEnabledApiProposals({ 'Pub.Ext': ['*'] }, ['externalUriOpener', 'terminalShellEnv', 'doesNotExist']), ['externalUriOpener', 'terminalShellEnv']);
+		assert.deepStrictEqual(getEnabledApiProposals('pub.ext', { 'pub.ext': ['externalUriOpener'] }, ['externalUriOpener', 'terminalShellEnv']), ['externalUriOpener']);
 	});
 
 	test('extensions not listed in product.json cannot use proposals', () => {
-		assert.deepStrictEqual(getEnabledApiProposals({ 'other.ext': ['*'] }, ['externalUriOpener']), []);
+		assert.deepStrictEqual(getEnabledApiProposals('pub.ext', {}, ['externalUriOpener']), []);
+	});
+
+	test('hard-coded exceptions use every declared proposal, even when product.json lists fewer', () => {
+		assert.deepStrictEqual(getEnabledApiProposals('MS-VSCODE.vscode-team-tools', { 'ms-vscode.vscode-team-tools': ['externalUriOpener'] }, ['externalUriOpener', 'terminalShellEnv', 'doesNotExist']), ['externalUriOpener', 'terminalShellEnv']);
+	});
+
+	test('hard-coded exceptions are stored in lower case', () => {
+		for (const id of extensionsAllowedAnyApiProposal) {
+			assert.strictEqual(id, ExtensionIdentifier.toKey(id));
+		}
 	});
 });
