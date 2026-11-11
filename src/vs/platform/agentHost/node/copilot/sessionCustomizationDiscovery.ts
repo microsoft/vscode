@@ -753,6 +753,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 				continue;
 			}
 			throwIfCancelled(token);
+			// Plugins the host registers itself (such as Computer Use) ship with the agent rather than being installed by the user.
+			const discoveryMeta = plugin.source === 'builtin' ? withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }) : undefined;
 			if (!plugin.rootPath) {
 				// Without a root the plugin isn't usable; only a plugin the organization requires needs explaining.
 				if (plugin.managedDesiredEnabled !== false) {
@@ -765,7 +767,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 						version: plugin.version,
 						load: { kind: CustomizationLoadStatus.Error, message: localize('copilot.managedPluginNotInstalled', "Your organization requires this plugin, but it isn't installed.") },
 						children: [],
-						_meta: withCustomizationOrganizationMeta(undefined, { requiredEnabled: plugin.managedDesiredEnabled }),
+						_meta: withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }),
 					});
 				}
 				continue;
@@ -791,7 +793,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				version: plugin.version,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [...pluginChildren.values()],
-				...(plugin.managed ? { _meta: withCustomizationOrganizationMeta(undefined, { requiredEnabled: plugin.managedDesiredEnabled }) } : {}),
+				...(plugin.managed ? { _meta: withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }) } : discoveryMeta ? { _meta: discoveryMeta } : {}),
 			});
 		}
 		for (const id of pluginIds) {
