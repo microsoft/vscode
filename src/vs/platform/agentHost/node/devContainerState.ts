@@ -165,6 +165,9 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'progress step:stateFolder',
 		'test ! -L "$state"',
 		'test -d "$state" || mkdir "$state" || test -d "$state"',
+		// Moved folders are no longer protected by the home folder's permissions.
+		'chown "$owner" "$state"',
+		'chmod 700 "$state"',
 		`test -e "$state/.layout" || printf '%s\\n' ${shellQuote(stateLayoutVersion)} > "$state/.layout"`,
 		'progress step:statePath',
 		'if [ -e "$link_path" ] && [ ! -L "$link_path" ]; then echo "$link_path exists and is not a symlink" >&2; exit 1; fi',
