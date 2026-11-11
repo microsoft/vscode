@@ -43,7 +43,8 @@ jobs:
           displayName: Publish Log Files
           sbomEnabled: false
           isProduction: false
-          condition: always()
+          # 1ES PT runs its binary analysis for every published output, so only publish when the logs are needed
+          condition: not(succeeded())
     steps:
       - template: ./steps/product-build-win32-compile.yml@self
         parameters:
