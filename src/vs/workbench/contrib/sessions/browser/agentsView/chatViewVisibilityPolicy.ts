@@ -6,10 +6,12 @@
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatViewContainerId } from '../../../chat/browser/chat.js';
+import { logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
 
 /** Where the Chat view showed when the chat part hid it, until the chat part closes or the user shows it again. */
 const HIDDEN_CHAT_VIEW_STORAGE_KEY = 'workbench.chatPart.hiddenChatView';
@@ -33,10 +35,12 @@ export class ChatViewVisibilityPolicy extends Disposable {
 	private _changing = false;
 
 	constructor(
+		private readonly _tabCount: () => number,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -87,6 +91,7 @@ export class ChatViewVisibilityPolicy extends Disposable {
 			this._changing = false;
 		}
 		this._storageService.store(HIDDEN_CHAT_VIEW_STORAGE_KEY, JSON.stringify({ location }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		logAgentsChatPartAction(this._telemetryService, this._viewDescriptorService, 'hideChatView', this._tabCount());
 	}
 
 	private async _showChatView(): Promise<void> {
@@ -106,6 +111,7 @@ export class ChatViewVisibilityPolicy extends Disposable {
 		} finally {
 			this._changing = false;
 		}
+		logAgentsChatPartAction(this._telemetryService, this._viewDescriptorService, 'restoreChatView', this._tabCount());
 	}
 
 	private _readHidden(): ChatViewPartLocation | undefined {

@@ -13,6 +13,7 @@ import { IPaneComposite } from '../../../../../common/panecomposite.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatViewContainerId } from '../../../../chat/browser/chat.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewVisibilityPolicy } from '../../../browser/agentsView/chatViewVisibilityPolicy.js';
 
 suite('ChatViewVisibilityPolicy', () => {
@@ -58,7 +59,7 @@ suite('ChatViewVisibilityPolicy', () => {
 				window.chatLocation = location;
 				onDidChangeContainerLocation.fire({ viewContainer: chatContainer, from, to: location });
 			},
-			createPolicy: () => disposables.add(new ChatViewVisibilityPolicy(layoutService, paneCompositeService, viewDescriptorService, storage)),
+			createPolicy: () => disposables.add(new ChatViewVisibilityPolicy(() => 1, layoutService, paneCompositeService, viewDescriptorService, storage, NullTelemetryService)),
 		};
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({
 			onDidChangePartVisibility: onDidChangePartVisibility.event,

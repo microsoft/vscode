@@ -17,8 +17,10 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -40,6 +42,7 @@ import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
+import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
 import { ChatViewVisibilityPolicy } from './chatViewVisibilityPolicy.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
@@ -90,6 +93,12 @@ export interface IAgentsChatPartService {
 
 	/** Moves focus into the chat part. */
 	focus(): void;
+
+	/**
+	 * Shows the chat part with the chats it had as it closed, also those of before a reload, and moves focus into it. Without
+	 * any, it shows a new-session composer, aimed at `target`.
+	 */
+	show(target: INewSessionTarget | undefined): Promise<void>;
 
 	/** Shows again the chats the chat part showed as the window last closed, when the layout restores it shown. */
 	restore(): Promise<void>;
@@ -309,6 +318,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _composers: ChatWindowComposers | undefined;
 	private readonly _window: IChatEditorWindow;
 	private _restored = false;
+	/** Whether the chat part changes its visibility as it restores, which it reports as restoring, not opening or closing. */
+	private _restoring = false;
 
 	constructor(
 		@ISessionHost readonly mainWindowHost: ISessionHost,
@@ -321,6 +332,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -342,7 +355,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			toggleConversation: () => { },
 		};
 
-		this._register(this._instantiationService.createInstance(ChatViewVisibilityPolicy));
+		this._register(this._instantiationService.createInstance(ChatViewVisibilityPolicy, () => this._tabCount()));
+		this._register(this._layoutService.onDidChangePartVisibility(({ partId, visible }) => {
+			if (partId === Parts.CHAT_PART && !this._restoring) {
+				this._log(visible ? 'open' : 'close');
+			}
+		}));
 		this._register(this._storageService.onWillSaveState(() => this._save()));
 
 		// Chat turned off, such as as AI features are disabled, closes the chat part; it is off until chat starts
@@ -394,12 +412,30 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._part?.activeGroup.focus();
 	}
 
+	async show(target: INewSessionTarget | undefined): Promise<void> {
+		await this.restore();
+		if (!this._tabCount()) {
+			return this.openComposer(target);
+		}
+		this._layoutService.setPartHidden(false, Parts.CHAT_PART);
+		this.focus();
+	}
+
 	async restore(): Promise<void> {
-		if (this._restored) {
+		// Once it shows chats opened since the window started, those of before are no longer the ones to show again
+		if (this._restored || this._part) {
 			return;
 		}
 		this._restored = true;
+		this._restoring = true;
+		try {
+			await this._restoreChats();
+		} finally {
+			this._restoring = false;
+		}
+	}
 
+	private async _restoreChats(): Promise<void> {
 		const stored = this._readStored();
 		const claimed: URI[] = [];
 		const chats: AgentsChatPartChat[] = [];
@@ -437,6 +473,18 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		await this._editorService.openEditors(chats.map(chat => ({ editor: chat.input, options: { pinned: true, preserveFocus: true, inactive: true } })), part.activeGroup);
 		await this._editorService.openEditor(active.input, { pinned: true, preserveFocus: true }, part.activeGroup);
 		this.composers.didOpen(chats.map(chat => chat.chat.get()));
+		if (this._layoutService.isVisible(Parts.CHAT_PART)) {
+			this._log('restore');
+		}
+	}
+
+	/** How many chats the chat part shows in its tabs, shown or not. */
+	private _tabCount(): number {
+		return this._part?.groups.reduce((count, group) => count + group.editors.filter(input => this._chats.has(input)).length, 0) ?? 0;
+	}
+
+	private _log(action: AgentsChatPartAction): void {
+		logAgentsChatPartAction(this._telemetryService, this._viewDescriptorService, action, this._tabCount());
 	}
 
 	private async _open(chat: AgentsChatPartChat, options: IAgentsChatPartOpenOptions | undefined): Promise<void> {

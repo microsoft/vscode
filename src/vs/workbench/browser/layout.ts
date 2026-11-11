@@ -2467,8 +2467,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
+		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
+		const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
 		this.chatPartHidden = hidden;
 		this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
+		if (hadFocus) {
+			this.focusPanelOrEditor();
+		}
 
 		// Closing the chat part gives the editor area its width back, also when it was hidden
 		if (hidden && !this.isVisible(Parts.EDITOR_PART) && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()) {

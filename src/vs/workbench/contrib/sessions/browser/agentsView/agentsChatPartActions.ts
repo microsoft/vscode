@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -21,7 +21,7 @@ export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsCh
 
 /**
  * Registers the actions of the chat part of an editor window with the Sessions view, until the returned disposable is
- * disposed: a new session in a tab of its own, and focusing and closing the chat part.
+ * disposed: a new session in a tab of its own, and focusing, toggling and closing the chat part.
  */
 export function registerAgentsChatPartActions(): IDisposable {
 	const store = new DisposableStore();
@@ -73,6 +73,32 @@ export function registerAgentsChatPartActions(): IDisposable {
 			// The chat part's service shows the Chat view again where closing the chat part should
 			accessor.get(IAgentsChatPartService);
 			accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART);
+		}
+	}));
+
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.agentsView.toggleChatPart',
+				title: {
+					...localize2('agentsView.toggleChatPart', "Toggle Chat Part Visibility"),
+					mnemonicTitle: localize({ key: 'miAgentsViewChatPart', comment: ['&& denotes a mnemonic'] }, "C&&hat Part"),
+				},
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.or(ChatContextKeys.enabled, AgentsChatPartVisibleContext),
+				toggled: AgentsChatPartVisibleContext,
+				menu: [{ id: MenuId.MenubarAppearanceMenu, group: '2_workbench_layout', order: 6, when: ChatContextKeys.enabled }],
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const chatPart = accessor.get(IAgentsChatPartService);
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			if (layoutService.isVisible(Parts.CHAT_PART)) {
+				layoutService.setPartHidden(true, Parts.CHAT_PART);
+			} else {
+				await chatPart.show(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService)));
+			}
 		}
 	}));
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -18,6 +18,7 @@ import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsManagementService, IToggleSessionStickinessEvent } from '../../common/sessionsManagement.js';
+import { ISessionOpenTelemetryService, SESSION_OPEN_TIMEOUT_MS } from '../sessionOpenTelemetryService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ICloseChatOptions, IOpenChatOptions, IOpenNewChatInSessionOptions, IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions, IOpenSessionsOptions, ISessionNavigationRequest, ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
@@ -45,6 +46,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionOpenTelemetryService private readonly _sessionOpenTelemetryService: ISessionOpenTelemetryService,
 	) {
 		super();
 	}
@@ -107,8 +109,29 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		const session = this._sessionsManagementService.getSession(sessionResource);
-		if (session) {
-			await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+		if (!session) {
+			return;
+		}
+		// As the Agents window reports opening a session: until its chat shows and the session loaded. The wait for the session
+		// to load ends just after the attempt timed out, which the telemetry service reports.
+		const cts = new CancellationTokenSource();
+		const timeout = setTimeout(() => cts.cancel(), SESSION_OPEN_TIMEOUT_MS + 1000);
+		try {
+			await this._sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', cts.token, async attempt => {
+				const chatResource = session.mainChat.get().resource;
+				this._sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._chatPart.isShowing(chatResource), session.loading.get());
+				await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+				this._sessionOpenTelemetryService.sessionActivated(attempt, chatResource);
+				await waitForState(session.loading, loading => !loading, undefined, cts.token);
+				this._sessionOpenTelemetryService.sessionLoaded(attempt);
+			});
+		} catch (error) {
+			if (!cts.token.isCancellationRequested) {
+				throw error;
+			}
+		} finally {
+			clearTimeout(timeout);
+			cts.dispose();
 		}
 	}
 
