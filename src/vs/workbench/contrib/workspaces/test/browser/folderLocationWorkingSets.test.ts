@@ -25,7 +25,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 
 	function createFixture(options?: { enabled?: boolean; editors?: number; storage?: InMemoryStorageService; existingSets?: string[] }) {
 		const calls: string[] = [];
-		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
+		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 		const storage = options?.storage ?? ds.add(new InMemoryStorageService());
 		let folderUri = primary;
 		let editors = options?.editors ?? 1;
@@ -52,7 +52,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 
 		return {
 			calls, storage, contribution, sets,
-			switchTo(uri: URI) { folderUri = uri; onDidChangeCurrentLocation.fire(); },
+			switchTo(uri: URI) { folderUri = uri; onDidChangeCurrentLocation.fire({ reason: 'programmatic' }); },
 			setEditors(count: number) { editors = count; }
 		};
 	}
