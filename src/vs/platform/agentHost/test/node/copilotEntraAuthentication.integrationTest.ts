@@ -42,6 +42,7 @@ import { createTestAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 import { TestProtocolClient } from './serverIntegrationTestHelpers.js';
+import { noAgentTerminalPathService } from './noAgentTerminalPathService.js';
 
 suite('Copilot Entra authentication transport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,7 +80,7 @@ suite('Copilot Entra authentication transport', () => {
 			store.add(new AgentHostManagedSettingsService()), connections,
 			new class extends mock<IDevContainerAgentHostMainService>() { }(),
 			NullAgentHostOTelService, createTestChatOwnershipService(state),
-			createTestAgentHostProxyResolver(),
+			createTestAgentHostProxyResolver(), noAgentTerminalPathService,
 		));
 		store.add(autorun(reader => {
 			const requirement = bridge.authenticationRequired.read(reader);

@@ -1862,7 +1862,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay, { allowExtensionMethods: enabled, relayRootMeta: {} },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, noAgentTerminalPathService,
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'state-file-relay', passive));
 			transport.relayAuthenticated = true;
@@ -7426,7 +7426,7 @@ suite('ProtocolServerHandler', () => {
 		const scopedHandler = disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver, noAgentTerminalPathService,
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'folder-changes-lane', false));
 		transport.relayAuthenticated = true;
