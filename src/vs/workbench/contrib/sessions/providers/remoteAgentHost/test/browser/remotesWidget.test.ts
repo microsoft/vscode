@@ -771,6 +771,10 @@ suite('RemotesWidget', () => {
 		action().click();
 		await timeout(0);
 		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'unavailable', unavailableReason: 'account' } } : remote), undefined);
+		states.push(state());
+		action().click();
+		await timeout(0);
 		assert.deepStrictEqual({ states, changes: model.gitHubEnvironmentChanges }, {
 			states: [
 				{ label: 'Share Build server as GitHub Environment', disabled: null, pressed: null },
@@ -778,6 +782,7 @@ suite('RemotesWidget', () => {
 				{ label: 'Sharing Build server as a GitHub environment...', disabled: 'true', pressed: null },
 				{ label: 'Stop Sharing Build server as GitHub Environment', disabled: null, pressed: null },
 				{ label: 'Share Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Build server is shared as a GitHub environment by another GitHub account.', disabled: 'true', pressed: null },
 			],
 			changes: [{ id: 'ssh:build', shared: true }, { id: 'ssh:build', shared: false }],
 		});

@@ -278,7 +278,7 @@ export class RemotesWidget extends Disposable {
 				void this.copyAddress(entry.remote.id);
 			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
 				void this.manageRemote(entry.remote.id, 'locationPreference');
-			} else if (action === 'githubEnvironment' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
+			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
 				void this.manageRemote(entry.remote.id, 'githubEnvironment');
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote.id, 'updateServer');

@@ -6,10 +6,11 @@
 import { RunOnceScheduler, Sequencer } from '../../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { supportsAgentHostGitHubEnvironment } from '../../../../../platform/agentHost/common/meta/agentHostGitHubEnvironmentMeta.js';
+import type { IAgentHostGitHubEnvironmentStatus } from '../../../../../platform/agentHost/common/meta/agentHostGitHubEnvironmentMeta.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -29,6 +30,8 @@ const shareableEntryTypes: ReadonlySet<RemoteAgentHostEntryType> = new Set([Remo
 interface IStoredShare {
 	readonly accountId: string;
 	readonly environmentId?: string;
+	/** The agent host process holding the registration; without it, a missing registration was lost rather than removed by another client. */
+	readonly instanceId?: string;
 }
 
 interface IShareStatus {
@@ -36,30 +39,56 @@ interface IShareStatus {
 	readonly error?: string;
 }
 
-type IGitHubEnvironmentConnection = IAgentConnection & Required<Pick<IAgentConnection, 'registerGitHubEnvironment' | 'unregisterGitHubEnvironment'>>;
+type IGitHubEnvironmentConnection = IAgentConnection & Required<Pick<IAgentConnection, 'registerGitHubEnvironment' | 'unregisterGitHubEnvironment' | 'gitHubEnvironment'>>;
 
 function isGitHubEnvironmentConnection(connection: IAgentConnection): connection is IGitHubEnvironmentConnection {
-	return !!connection.registerGitHubEnvironment && !!connection.unregisterGitHubEnvironment;
+	return !!connection.registerGitHubEnvironment && !!connection.unregisterGitHubEnvironment && !!connection.gitHubEnvironment;
 }
 
 function setEquals<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
 	return a.size === b.size && [...a].every(value => b.has(value));
 }
 
+function createStoredShare(accountId: string, environmentId: string | undefined, instanceId: string | undefined): IStoredShare {
+	return { accountId, ...(environmentId !== undefined ? { environmentId } : {}), ...(instanceId !== undefined ? { instanceId } : {}) };
+}
+
+/**
+ * Describes a connected remote's share from the registration its agent host reports, or `undefined` if it is not shared.
+ */
+function getHostShare(host: IAgentHostGitHubEnvironmentStatus, stored: IStoredShare | undefined, accountId: string | undefined): IRemoteGitHubEnvironmentShare | undefined {
+	if (host.registration) {
+		return host.registration.accountId === stored?.accountId || host.registration.accountId === accountId
+			? { state: 'enabled', environmentId: host.registration.environmentId }
+			: { state: 'unavailable', unavailableReason: 'account' };
+	}
+	if (host.registeredByHost) {
+		return { state: 'unavailable', unavailableReason: 'host' };
+	}
+	// Another client stopped sharing if the registration is missing from the process that held it; otherwise it is registered again.
+	return stored && stored.instanceId !== host.instanceId ? { state: 'enabled', environmentId: stored.environmentId } : undefined;
+}
+
 /**
  * Registers remote agent hosts as GitHub environments with this window's
  * GitHub account. A registration lives in the remote agent host process, so
  * the remote stays shared while this window is disconnected; this service
- * registers again with a fresh credential after each (re)connection.
+ * registers again with a fresh credential after each (re)connection. The
+ * status each agent host reports shows registrations made or removed by other
+ * clients, and reveals a restart that lost the registration.
  */
 export class RemoteGitHubEnvironmentSharingService extends Disposable implements IRemoteGitHubEnvironmentSharingService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _stored = observableValue<ReadonlyMap<string, IStoredShare>>(this, new Map());
 	private readonly _status = observableValue<ReadonlyMap<string, IShareStatus>>(this, new Map());
+	/** This window's GitHub account, which identifies registrations made from other computers as its own. */
+	private readonly _accountId = observableValue<string | undefined>(this, undefined);
 	private readonly _pendingUnregistrations = new Map<string, string>();
 	/** The handshake each address was last synchronized for; a new handshake means a reconnected or restarted host. */
 	private readonly _synced = new Map<string, InitializeResult>();
+	/** Shares another window added whose registration this window's connection has not reported yet. */
+	private readonly _adopted = new Set<string>();
 	private readonly _queue = new Sequencer();
 	private readonly _sync = this._register(new RunOnceScheduler(() => {
 		void this._queue.queue(() => this._doSync()).catch(error => this._logService.error('[RemoteGitHubEnvironments] Synchronization failed', error));
@@ -99,7 +128,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		});
 		const connectionsChanged = observableSignalFromEvent(this, this._remoteAgentHostService.onDidChangeConnections);
 		const entriesChanged = observableSignalFromEvent(this, this._remoteAgentHostService.onDidChangeConfiguredEntries);
-		this._connections = derived(this, reader => {
+		this._connections = derivedOpts<Map<string, IGitHubEnvironmentConnection>>({ owner: this, equalsFn: mapsStrictEqualIgnoreOrder }, reader => {
 			connectionsChanged.read(reader);
 			entriesChanged.read(reader);
 			const result = new Map<string, IGitHubEnvironmentConnection>();
@@ -107,7 +136,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 				const type = this._remoteAgentHostService.getEntryByAddress(address)?.connection.type;
 				const connection = this._remoteAgentHostService.getConnection(address);
 				if (RemoteAgentHostConnectionStatus.isConnected(status) && type !== undefined && shareableEntryTypes.has(type)
-					&& connection && isGitHubEnvironmentConnection(connection) && supportsAgentHostGitHubEnvironment(connection.initializeResult.read(reader))) {
+					&& connection && isGitHubEnvironmentConnection(connection) && connection.gitHubEnvironment.read(reader) !== undefined) {
 					result.set(address, connection);
 				}
 			}
@@ -115,15 +144,24 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		});
 		this.shareable = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setEquals }, reader => this._enabled.read(reader) ? new Set(this._connections.read(reader).keys()) : new Set());
 		this.shares = derived(this, reader => {
-			const status = this._status.read(reader);
+			const stored = this._stored.read(reader);
+			const accountId = this._accountId.read(reader);
 			const result = new Map<string, IRemoteGitHubEnvironmentShare>();
-			for (const [address, share] of this._stored.read(reader)) {
-				result.set(address, { state: 'enabled', environmentId: share.environmentId, ...status.get(address) });
+			for (const [address, share] of stored) {
+				result.set(address, { state: 'enabled', environmentId: share.environmentId });
 			}
-			for (const [address, addressStatus] of status) {
-				if (!result.has(address)) {
-					result.set(address, addressStatus);
+			for (const [address, connection] of this._connections.read(reader)) {
+				const host = connection.gitHubEnvironment.read(reader);
+				const share = host && getHostShare(host, stored.get(address), accountId);
+				if (share) {
+					result.set(address, share);
+				} else if (host) {
+					result.delete(address);
 				}
+			}
+			for (const [address, status] of this._status.read(reader)) {
+				const environmentId = result.get(address)?.environmentId;
+				result.set(address, environmentId !== undefined ? { ...status, environmentId } : status);
 			}
 			return result;
 		});
@@ -131,7 +169,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		this.environmentIds = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setEquals }, reader => {
 			entriesChanged.read(reader);
 			const result = new Set<string>();
-			for (const [address, share] of this._stored.read(reader)) {
+			for (const [address, share] of this.shares.read(reader)) {
 				if (share.environmentId !== undefined && this._remoteAgentHostService.getEntryByAddress(address)) {
 					result.add(share.environmentId);
 				}
@@ -148,12 +186,20 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		let wasEnabled: boolean | undefined;
 		this._register(autorun(reader => {
 			const enabled = this._enabled.read(reader);
-			this._connections.read(reader);
+			for (const connection of this._connections.read(reader).values()) {
+				connection.initializeResult.read(reader);
+				connection.gitHubEnvironment.read(reader);
+			}
 			if (enabled !== wasEnabled) {
 				wasEnabled = enabled;
 				this._synced.clear();
 			}
 			this._sync.schedule();
+		}));
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, sharesStorageKey, this._store)(e => {
+			if (e.external) {
+				this._reloadStored();
+			}
 		}));
 		const { providerId } = getGitHubEnvironmentAuthentication(this._productService);
 		this._register(this._authenticationService.onDidChangeSessions(e => {
@@ -176,6 +222,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		this._setStatus(address, { state: 'connecting' });
 		try {
 			const session = await this._getSession(true);
+			this._accountId.set(session.account.id, undefined);
 			const previousAccountId = this._stored.get().get(address)?.accountId ?? this._pendingUnregistrations.get(address);
 			if (previousAccountId !== undefined && previousAccountId !== session.account.id) {
 				await connection.unregisterGitHubEnvironment(previousAccountId);
@@ -190,12 +237,18 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 	private async _unshare(address: string): Promise<void> {
 		const share = this._stored.get().get(address);
 		this._setStatus(address, undefined);
-		if (!share) {
+		if (share) {
+			this._setStored(address, undefined);
+			this._synced.delete(address);
+			await this._unregister(address, share.accountId);
 			return;
 		}
-		this._setStored(address, undefined);
-		this._synced.delete(address);
-		await this._unregister(address, share.accountId);
+		// Shared with this window's GitHub account from another computer.
+		const connection = this._connections.get().get(address);
+		const accountId = this._accountId.get();
+		if (connection && accountId !== undefined && connection.gitHubEnvironment.get()?.registration?.accountId === accountId) {
+			await connection.unregisterGitHubEnvironment(accountId);
+		}
 	}
 
 	private _resync(): void {
@@ -205,27 +258,64 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 
 	private async _doSync(): Promise<void> {
 		const connections = this._connections.get();
-		for (const [address, accountId] of [...this._pendingUnregistrations]) {
+		const enabled = this._enabled.get();
+		const accountId = enabled && connections.size ? await this._getSession(false).then(session => session.account.id, () => undefined) : undefined;
+		this._accountId.set(accountId, undefined);
+		for (const [address, pendingAccountId] of [...this._pendingUnregistrations]) {
 			const connection = connections.get(address);
-			if (connection && !this._stored.get().has(address)) {
+			const host = connection?.gitHubEnvironment.get();
+			if (!connection || !host || this._stored.get().has(address)) {
+				continue;
+			}
+			// A restart or another client may already have removed the registration.
+			if (host.registration?.accountId === pendingAccountId) {
 				try {
-					await connection.unregisterGitHubEnvironment(accountId);
-					this._setPendingUnregistration(address, undefined);
+					await connection.unregisterGitHubEnvironment(pendingAccountId);
 				} catch (error) {
 					this._logService.warn('[RemoteGitHubEnvironments] Failed to unregister a remote agent host', address, error);
+					continue;
 				}
 			}
+			this._setPendingUnregistration(address, undefined);
 		}
-		const enabled = this._enabled.get();
-		for (const [address, share] of this._stored.get()) {
+		for (const [address, stored] of this._stored.get()) {
 			const connection = connections.get(address);
+			const host = connection?.gitHubEnvironment.get();
 			const initializeResult = connection?.initializeResult.get();
-			if (!connection || !initializeResult || this._synced.get(address) === initializeResult) {
+			if (!connection || !host || !initializeResult) {
+				continue;
+			}
+			let share = stored;
+			if (host.registration) {
+				this._adopted.delete(address);
+			}
+			if (host.registration ? host.registration.accountId !== share.accountId : host.registeredByHost) {
+				this._logService.info('[RemoteGitHubEnvironments] Stopped sharing a remote agent host because another account or the host registered it', address);
+				this._forget(address);
+				continue;
+			}
+			if (!host.registration && share.instanceId === host.instanceId) {
+				if (this._adopted.has(address)) {
+					// Another window's registration may be reported after its storage change.
+					continue;
+				}
+				this._logService.info('[RemoteGitHubEnvironments] Stopped sharing a remote agent host because another client stopped sharing it', address);
+				this._forget(address);
+				continue;
+			}
+			if (host.registration && (host.registration.environmentId !== share.environmentId || host.instanceId !== share.instanceId)) {
+				share = createStoredShare(share.accountId, host.registration.environmentId, host.instanceId);
+				this._setStored(address, share);
+			}
+			if (this._synced.get(address) === initializeResult) {
 				continue;
 			}
 			this._synced.set(address, initializeResult);
 			if (!enabled) {
 				// Keep the user's choice, but withdraw the registration while GitHub environments are unavailable.
+				if (share.instanceId !== undefined) {
+					this._setStored(address, createStoredShare(share.accountId, share.environmentId, undefined));
+				}
 				await connection.unregisterGitHubEnvironment(share.accountId).catch(error => this._logService.warn('[RemoteGitHubEnvironments] Failed to withdraw a remote agent host', address, error));
 				continue;
 			}
@@ -247,10 +337,28 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 	}
 
+	/** Forgets a share that is no longer this window's to manage, without unregistering it. */
+	private _forget(address: string): void {
+		this._setStored(address, undefined);
+		this._setStatus(address, undefined);
+		this._synced.delete(address);
+	}
+
 	private async _registerConnection(address: string, connection: IGitHubEnvironmentConnection, session: AuthenticationSession): Promise<void> {
 		const initializeResult = connection.initializeResult.get();
-		const registration = await connection.registerGitHubEnvironment(session.account.id, session.accessToken);
-		this._setStored(address, { accountId: session.account.id, environmentId: registration.environmentId });
+		let registration;
+		try {
+			registration = await connection.registerGitHubEnvironment(session.account.id, session.accessToken);
+		} catch (error) {
+			// The host withdraws a failed registration, which must not look like another client stopped sharing.
+			const share = this._stored.get().get(address);
+			if (share?.instanceId !== undefined) {
+				this._setStored(address, createStoredShare(share.accountId, share.environmentId, undefined));
+			}
+			throw error;
+		}
+		// The host reports its new status before it responds.
+		this._setStored(address, createStoredShare(session.account.id, registration.environmentId, connection.gitHubEnvironment.get()?.instanceId));
 		if (initializeResult) {
 			this._synced.set(address, initializeResult);
 		}
@@ -293,6 +401,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 	}
 
 	private _setStored(address: string, share: IStoredShare | undefined): void {
+		this._adopted.delete(address);
 		const next = new Map(this._stored.get());
 		if (share) {
 			next.set(address, share);
@@ -317,11 +426,34 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		const result = new Map<string, IStoredShare>();
 		for (const [address, value] of Object.entries(this._readRecord(sharesStorageKey))) {
 			if (value && typeof value === 'object' && typeof (value as IStoredShare).accountId === 'string') {
-				const { accountId, environmentId } = value as IStoredShare;
-				result.set(address, typeof environmentId === 'string' ? { accountId, environmentId } : { accountId });
+				const { accountId, environmentId, instanceId } = value as IStoredShare;
+				result.set(address, createStoredShare(accountId, typeof environmentId === 'string' ? environmentId : undefined, typeof instanceId === 'string' ? instanceId : undefined));
 			}
 		}
 		return result;
+	}
+
+	/** Adopts shares changed by another window, which registers the shares it adds itself. */
+	private _reloadStored(): void {
+		const previous = this._stored.get();
+		const stored = this._readStored();
+		for (const address of this._adopted) {
+			if (!stored.has(address)) {
+				this._adopted.delete(address);
+			}
+		}
+		for (const address of stored.keys()) {
+			if (previous.has(address)) {
+				continue;
+			}
+			this._adopted.add(address);
+			const initializeResult = this._connections.get().get(address)?.initializeResult.get();
+			if (initializeResult) {
+				this._synced.set(address, initializeResult);
+			}
+		}
+		this._stored.set(stored, undefined);
+		this._sync.schedule();
 	}
 
 	private _readRecord(key: string): Record<string, unknown> {

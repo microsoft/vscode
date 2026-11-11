@@ -349,7 +349,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
 		const target = this.targets.get(id);
 		const remote = this._remotes.get().find(remote => remote.id === id);
-		if (!this.enabled || this._store.isDisposed || !remote || !target || target.kind === 'environment'
+		if (!this.enabled || this._store.isDisposed || !remote || !target || target.kind === 'environment' || remote.gitHubEnvironment?.state === 'unavailable'
 			|| (shared ? !remote.canShareAsGitHubEnvironment : !remote.gitHubEnvironment)) {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
@@ -361,7 +361,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	 * Bounded so that an unresponsive remote cannot block removal; the service retries a failed withdrawal.
 	 */
 	private async unshareBeforeRemoval(id: string): Promise<void> {
-		if (this.remoteSharing.shares.get().has(id)) {
+		const share = this.remoteSharing.shares.get().get(id);
+		if (share && share.state !== 'unavailable') {
 			await raceTimeout(this.remoteSharing.setShared(id, false), 5000);
 		}
 	}

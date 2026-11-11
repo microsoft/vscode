@@ -50,8 +50,8 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, type IAgentHostGitHubEnvironmentRegistration } from '../common/agentHostExtensionProtocol.js';
-import { supportsAgentHostGitHubEnvironment } from '../common/meta/agentHostGitHubEnvironmentMeta.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, type IAgentHostGitHubEnvironmentRegistration } from '../common/agentHostExtensionProtocol.js';
+import { agentHostGitHubEnvironmentStatusValidator, getAgentHostGitHubEnvironmentStatus, type IAgentHostGitHubEnvironmentStatus } from '../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { supportsAgentHostAutomationHistory } from '../common/meta/agentHostAutomationsMeta.js';
 import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
@@ -99,7 +99,8 @@ import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { derived, observableValue, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
+import { derived, observableValue, observableValueOpts, transaction, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -405,6 +406,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * a fresh snapshot. `undefined` before the handshake completes.
 	 */
 	private readonly _initializeResult = observableValue<IAgentHostExtensionInitializeResult | undefined>('agentHostInitializeResult', undefined);
+	private readonly _gitHubEnvironment = observableValueOpts<IAgentHostGitHubEnvironmentStatus | undefined>({ owner: this, debugName: 'agentHostGitHubEnvironment', equalsFn: structuralEquals }, undefined);
 	private _authenticationHandshake: Pick<InitializeResult, '_meta'> | undefined;
 	readonly sandboxCertificateInstallationSupported = derived(this, reader => supportsSandboxCertificateInstallation(this._initializeResult.read(reader)));
 	readonly sandboxCertificateRotationSupported = derived(this, reader => supportsSandboxCertificateRotation(this._initializeResult.read(reader)));
@@ -604,6 +606,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	get initializeResult(): IObservable<InitializeResult | undefined> {
 		return this._initializeResult;
+	}
+
+	get gitHubEnvironment(): IObservable<IAgentHostGitHubEnvironmentStatus | undefined> {
+		return this._gitHubEnvironment;
 	}
 
 	constructor(
@@ -1238,6 +1244,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const restoreAuthentication = freshInitialize || !!this._resolveInitialAuthentication || !!this._resolveAdvertisedAuthentication || this._authentication.size > 0 || this._authenticationRestorePending;
 			if (!freshInitialize) {
 				this._authenticationHandshake = result;
+				// Status notifications are not replayed, so take the status the reconnect result reports.
+				this._gitHubEnvironment.set(getAgentHostGitHubEnvironmentStatus(result), undefined);
 			}
 			this._applyReconnectResult(result, freshInitialize, restoreAuthentication);
 			this._updateManagedSettingsPermissions(true);
@@ -1627,7 +1635,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private _applyInitializeResult(result: IAgentHostExtensionInitializeResult, forwardClientConfig = true): void {
 		this._authenticationHandshake = result;
-		this._initializeResult.set(result, undefined);
+		transaction(tx => {
+			this._initializeResult.set(result, tx);
+			this._gitHubEnvironment.set(getAgentHostGitHubEnvironmentStatus(result), tx);
+		});
 		this._startRelayKeepAlive(result._meta);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
@@ -2306,7 +2317,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async registerGitHubEnvironment(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
-		if (!supportsAgentHostGitHubEnvironment(this.initializeResult.get())) {
+		if (!this._gitHubEnvironment.get()) {
 			throw new Error('This agent host does not support GitHub environment registration.');
 		}
 		const result = await this._sendExtensionRequest(RegisterGitHubEnvironmentExtensionMethod, { accountId, credential });
@@ -2317,7 +2328,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async unregisterGitHubEnvironment(accountId: string): Promise<void> {
-		if (!supportsAgentHostGitHubEnvironment(this.initializeResult.get())) {
+		if (!this._gitHubEnvironment.get()) {
 			return;
 		}
 		await this._sendExtensionRequest(UnregisterGitHubEnvironmentExtensionMethod, { accountId });
@@ -3310,6 +3321,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._artifactIntegrationUpdates.fire(notification.params);
 			} else {
 				this._logService.error('[ArtifactIntegrations] Invalid update from the agent host');
+			}
+			return;
+		}
+		if (notification.method === GitHubEnvironmentChangedNotification) {
+			const { content, error } = agentHostGitHubEnvironmentStatusValidator.validate(notification.params);
+			if (content) {
+				this._gitHubEnvironment.set(content, undefined);
+			} else {
+				this._logService.error(`[RemoteAgentHostProtocol] Invalid GitHub environment status from ${this._address}: ${error?.message}`);
 			}
 			return;
 		}

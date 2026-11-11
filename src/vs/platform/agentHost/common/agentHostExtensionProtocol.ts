@@ -37,7 +37,7 @@ import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNotice
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
-import { AgentHostGitHubEnvironmentCapabilityMetaKey } from './meta/agentHostGitHubEnvironmentMeta.js';
+import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -95,6 +95,11 @@ export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const RegisterGitHubEnvironmentExtensionMethod = 'vscode/registerGitHubEnvironment';
 /** Withdraws a registration made with {@link RegisterGitHubEnvironmentExtensionMethod} for the same account. */
 export const UnregisterGitHubEnvironmentExtensionMethod = 'vscode/unregisterGitHubEnvironment';
+/**
+ * Host → client: the host's GitHub environment status changed, for example because another client registered or
+ * unregistered it. Sent before the response of the request that caused it; params are an `IAgentHostGitHubEnvironmentStatus`.
+ */
+export const GitHubEnvironmentChangedNotification = 'vscode/githubEnvironment/changed';
 export const registerGitHubEnvironmentParamsValidator = vObj({ accountId: vString(), credential: vString() });
 export const unregisterGitHubEnvironmentParamsValidator = vObj({ accountId: vString() });
 /**
@@ -155,8 +160,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
 	readonly [AgentHostClientProxyCapabilityMetaKey]?: true;
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
-	/** Present when this direct client may register the host as a GitHub environment. */
-	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: true;
+	/** Present when this direct client may register the host as a GitHub environment; the host's current status. */
+	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: IAgentHostGitHubEnvironmentStatus;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when removing an Automation can keep or delete its run history. */
@@ -420,6 +425,7 @@ export interface IAgentHostExtensionCommandMap {
 
 export interface IAgentHostExtensionNotificationMap {
 	[ArtifactIntegrationUpdateNotification]: ArtifactIntegrationUpdate;
+	[GitHubEnvironmentChangedNotification]: IAgentHostGitHubEnvironmentStatus;
 	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;

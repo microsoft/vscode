@@ -57,10 +57,14 @@ export interface IMissionControlSharingService {
 export const IRemoteGitHubEnvironmentSharingService = createDecorator<IRemoteGitHubEnvironmentSharingService>('remoteGitHubEnvironmentSharingService');
 
 export interface IRemoteGitHubEnvironmentShare {
-	/** `enabled` is also reported while the remote is disconnected, because its agent host keeps the registration. */
-	readonly state: 'connecting' | 'enabled' | 'error';
+	/**
+	 * `enabled` is also reported while the remote is disconnected, because its agent host keeps the registration.
+	 * `unavailable` means another GitHub account or the agent host itself registered it, so this window cannot change it.
+	 */
+	readonly state: 'connecting' | 'enabled' | 'error' | 'unavailable';
 	readonly environmentId?: string;
 	readonly error?: string;
+	readonly unavailableReason?: 'account' | 'host';
 }
 
 /**

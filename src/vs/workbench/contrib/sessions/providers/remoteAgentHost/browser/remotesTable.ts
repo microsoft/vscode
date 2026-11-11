@@ -83,6 +83,13 @@ function getGitHubEnvironmentState(remote: ICustomizationRemote): { readonly lab
 		case undefined: return undefined;
 		case 'connecting': return { label: localize('remotes.gitHubEnvironmentSharing', "Sharing {0} as a GitHub environment...", remote.name), icon: connectionProgressIcon, error: false };
 		case 'error': return { label: localize('remotes.gitHubEnvironmentError', "{0} could not be shared as a GitHub environment: {1}", remote.name, share.error ?? ''), icon: Codicon.warning, error: true };
+		case 'unavailable': return {
+			label: share.unavailableReason === 'host'
+				? localize('remotes.gitHubEnvironmentSharedByHost', "{0} is shared as a GitHub environment by the remote itself.", remote.name)
+				: localize('remotes.gitHubEnvironmentSharedByAccount', "{0} is shared as a GitHub environment by another GitHub account.", remote.name),
+			icon: Codicon.github,
+			error: false,
+		};
 		default: return { label: localize('remotes.gitHubEnvironmentShared', "{0} is shared as a GitHub environment for other apps signed in with your GitHub account.", remote.name), icon: Codicon.github, error: false };
 	}
 }
@@ -409,12 +416,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
 					const share = entry.remote.gitHubEnvironment;
-					template.gitHubEnvironment.label = share?.state === 'connecting'
+					template.gitHubEnvironment.label = share?.state === 'connecting' || share?.state === 'unavailable'
 						? getGitHubEnvironmentLabel(entry.remote) ?? ''
 						: share
 							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing {0} as GitHub Environment", entry.remote.name)
 							: localize('remotes.shareAsGitHubEnvironment', "Share {0} as GitHub Environment", entry.remote.name);
-					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting';
+					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting' && share?.state !== 'unavailable';
 					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
 					template.delete.label = localize('remotes.delete', "Delete {0}", entry.remote.name);
 					template.delete.enabled = showDelete && !entry.busy;

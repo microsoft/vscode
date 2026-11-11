@@ -9,7 +9,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { isDefined } from '../../../../base/common/types.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import type { IAgentHostGitHubEnvironmentRegistration } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import type { IProtocolServerGitHubEnvironment } from '../protocolServerHandler.js';
 import type { MissionControlEnvironment } from './missionControlEnvironment.js';
 
@@ -29,8 +31,14 @@ export interface IMissionControlClientRegistrationOptions {
 export class MissionControlClientRegistration extends Disposable implements IProtocolServerGitHubEnvironment {
 	private readonly _onDidChangeRegistered = this._register(new Emitter<boolean>());
 	readonly onDidChangeRegistered = this._onDidChangeRegistered.event;
+	private readonly _onDidChangeStatus = this._register(new Emitter<IAgentHostGitHubEnvironmentStatus>());
+	readonly onDidChangeStatus = this._onDidChangeStatus.event;
+	/** A registration does not survive the host process, so clients compare this to detect a restart. */
+	private readonly _instanceId = generateUuid();
 	private readonly _queue = new Sequencer();
-	private _accountId: string | undefined;
+	private _registration: IAgentHostGitHubEnvironmentStatus['registration'];
+	/** The environment reports itself enabled while a client registration is still being configured. */
+	private _registering = false;
 
 	constructor(
 		private readonly _environment: Pick<MissionControlEnvironment, 'configure' | 'environmentId' | 'environmentName' | 'isEnabled'>,
@@ -40,18 +48,26 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 	}
 
 	get isRegistered(): boolean {
-		return this._accountId !== undefined;
+		return this._registration !== undefined;
+	}
+
+	get status(): IAgentHostGitHubEnvironmentStatus {
+		return {
+			instanceId: this._instanceId,
+			...(this._registration ? { registration: this._registration } : this._environment.isEnabled && !this._registering ? { registeredByHost: true } : {}),
+		};
 	}
 
 	register(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
 		return this._queue.queue(async () => {
-			if (this._accountId === undefined && this._environment.isEnabled) {
+			if (this._registration === undefined && this._environment.isEnabled) {
 				throw new Error('This agent host is already registered as a GitHub environment by its host.');
 			}
-			if (this._accountId !== undefined && this._accountId !== accountId) {
+			if (this._registration !== undefined && this._registration.accountId !== accountId) {
 				throw new Error('This agent host is already registered as a GitHub environment by another account.');
 			}
 			const home = this._options.homeDirectory;
+			this._registering = true;
 			try {
 				const fileSystemRoots = await (this._options.getFileSystemRoots ?? getFileSystemRoots)();
 				await this._environment.configure({
@@ -68,35 +84,46 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 				if (!environmentId) {
 					throw new Error('GitHub environment registration did not return an environment ID.');
 				}
-				this._setAccount(accountId);
-				return { environmentId, name: this._environment.environmentName };
+				const name = this._environment.environmentName;
+				this._setRegistration({ accountId, environmentId, name });
+				return { environmentId, name };
 			} catch (error) {
-				this._setAccount(undefined);
+				// Withdraw before reporting, so the status does not mistake the leftover registration for the host's own.
 				await this._environment.configure(undefined, accountId).catch(() => undefined);
+				this._setRegistration(undefined);
 				throw error;
+			} finally {
+				this._registering = false;
 			}
 		});
 	}
 
 	unregister(accountId: string): Promise<void> {
 		return this._queue.queue(async () => {
-			if (this._accountId === undefined) {
+			if (this._registration === undefined) {
 				return;
 			}
-			if (this._accountId !== accountId) {
+			if (this._registration.accountId !== accountId) {
 				throw new Error('Only the account that registered this GitHub environment can unregister it.');
 			}
-			this._setAccount(undefined);
-			await this._environment.configure(undefined, accountId);
+			try {
+				await this._environment.configure(undefined, accountId);
+			} finally {
+				this._setRegistration(undefined);
+			}
 		});
 	}
 
-	private _setAccount(accountId: string | undefined): void {
-		const wasRegistered = this.isRegistered;
-		this._accountId = accountId;
-		if (wasRegistered !== this.isRegistered) {
+	private _setRegistration(registration: IAgentHostGitHubEnvironmentStatus['registration']): void {
+		const previous = this._registration;
+		if (previous?.accountId === registration?.accountId && previous?.environmentId === registration?.environmentId && previous?.name === registration?.name) {
+			return;
+		}
+		this._registration = registration;
+		if (!previous !== !registration) {
 			this._onDidChangeRegistered.fire(this.isRegistered);
 		}
+		this._onDidChangeStatus.fire(this.status);
 	}
 }
 

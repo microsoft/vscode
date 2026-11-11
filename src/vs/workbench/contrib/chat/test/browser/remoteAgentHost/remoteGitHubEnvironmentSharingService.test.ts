@@ -10,7 +10,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostGitHubEnvironmentCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostGitHubEnvironmentMeta.js';
+import type { IAgentHostGitHubEnvironmentStatus } from '../../../../../../platform/agentHost/common/meta/agentHostGitHubEnvironmentMeta.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -19,14 +19,16 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { RemoteGitHubEnvironmentSharingService } from '../../../browser/remoteAgentHost/remoteGitHubEnvironmentSharingService.js';
 
-function initializeResult(capable: boolean): InitializeResult {
-	return { protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], ...(capable ? { _meta: { [AgentHostGitHubEnvironmentCapabilityMetaKey]: true } } : {}) };
+function initializeResult(): InitializeResult {
+	return { protocolVersion: '1.0.0', serverSeq: 0, snapshots: [] };
 }
+
+const sharesStorageKey = 'agentHost.remoteGitHubEnvironments.shared';
 
 suite('RemoteGitHubEnvironmentSharingService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -75,22 +77,44 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		return {
 			service, calls, storage,
 			addRemote(address: string, capable = true) {
-				const initialize = observableValue<InitializeResult | undefined>('initializeResult', initializeResult(capable));
+				let instance = 0;
+				const initialize = observableValue<InitializeResult | undefined>('initializeResult', initializeResult());
+				const status = observableValue<IAgentHostGitHubEnvironmentStatus | undefined>('gitHubEnvironment', capable ? { instanceId: `${address}#0` } : undefined);
+				// Mirrors the agent host, which reports its new status before it responds.
+				const setStatus = (registration?: IAgentHostGitHubEnvironmentStatus['registration'], registeredByHost?: boolean) => status.set({
+					instanceId: `${address}#${instance}`,
+					...(registration ? { registration } : {}),
+					...(registeredByHost ? { registeredByHost } : {}),
+				}, undefined);
 				const connection = new class extends mock<IAgentConnection>() {
 					override readonly initializeResult = initialize;
+					override readonly gitHubEnvironment = status;
 					override async registerGitHubEnvironment(accountId: string, credential: string) {
 						calls.push(`register ${address} ${accountId} ${credential}`);
-						return { environmentId: `environment-${address}`, name: address };
+						const registration = { accountId, environmentId: `environment-${address}`, name: address };
+						setStatus(registration);
+						return { environmentId: registration.environmentId, name: registration.name };
 					}
 					override async unregisterGitHubEnvironment(accountId: string) {
 						calls.push(`unregister ${address} ${accountId}`);
+						if (status.get()?.registration?.accountId === accountId) {
+							setStatus();
+						}
 					}
 				}();
 				remotes.set(address, { configured: true, connected: true, connection });
 				connectionsChanged.fire();
 				entriesChanged.fire();
 				return {
-					reconnect: () => initialize.set(initializeResult(capable), undefined),
+					reconnect: () => initialize.set(initializeResult(), undefined),
+					restart: () => {
+						instance++;
+						setStatus();
+						initialize.set(initializeResult(), undefined);
+					},
+					/** Simulates another client registering or unregistering the remote. */
+					setRegistration: (accountId: string | undefined) => setStatus(accountId ? { accountId, environmentId: `environment-${address}-${accountId}`, name: address } : undefined),
+					setRegisteredByHost: () => setStatus(undefined, true),
 					setConnected: (connected: boolean) => { remotes.get(address)!.connected = connected; connectionsChanged.fire(); },
 					setConfigured: (configured: boolean) => { remotes.get(address)!.configured = configured; entriesChanged.fire(); },
 				};
@@ -116,6 +140,9 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 					shares: Object.fromEntries(service.shares.get()),
 					environmentIds: [...service.environmentIds.get()],
 				};
+			},
+			stored(): unknown {
+				return JSON.parse(storage.get(sharesStorageKey, StorageScope.APPLICATION, '{}'));
 			},
 		};
 	}
@@ -182,6 +209,70 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 			unshared: { shareable: [], shares: {}, environmentIds: [] },
 			callsWhileDisconnected: ['register wsl:Ubuntu account token-1'],
 			calls: ['register wsl:Ubuntu account token-1', 'unregister wsl:Ubuntu account'],
+		});
+	});
+
+	test('follows the registration the agent host reports', async () => {
+		const context = fixture();
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+
+		ubuntu.restart();
+		await context.flush();
+		const restarted = context.snapshot().shares;
+
+		ubuntu.setRegistration(undefined);
+		await context.flush();
+		const unsharedElsewhere = { shares: context.snapshot().shares, stored: context.stored() };
+
+		ubuntu.setRegistration('account');
+		await context.flush();
+		const sharedElsewhere = context.snapshot();
+		await context.service.setShared('wsl:Ubuntu', false);
+		const stopped = context.snapshot().shares;
+
+		await context.service.setShared('wsl:Ubuntu', true);
+		ubuntu.setRegistration('other');
+		await context.flush();
+		const otherAccount = { shares: context.snapshot().shares, stored: context.stored() };
+		ubuntu.setRegisteredByHost();
+		const byHost = context.snapshot().shares;
+
+		assert.deepStrictEqual({ restarted, unsharedElsewhere, sharedElsewhere, stopped, otherAccount, byHost, calls: context.calls }, {
+			restarted: { 'wsl:Ubuntu': { state: 'enabled', environmentId: 'environment-wsl:Ubuntu' } },
+			unsharedElsewhere: { shares: {}, stored: {} },
+			sharedElsewhere: { shareable: ['wsl:Ubuntu'], shares: { 'wsl:Ubuntu': { state: 'enabled', environmentId: 'environment-wsl:Ubuntu-account' } }, environmentIds: ['environment-wsl:Ubuntu-account'] },
+			stopped: {},
+			otherAccount: { shares: { 'wsl:Ubuntu': { state: 'unavailable', unavailableReason: 'account' } }, stored: {} },
+			byHost: { 'wsl:Ubuntu': { state: 'unavailable', unavailableReason: 'host' } },
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'register wsl:Ubuntu account token-1',
+				'unregister wsl:Ubuntu account',
+				'register wsl:Ubuntu account token-1',
+			],
+		});
+	});
+
+	test('adopts a share another window added before the registration is reported', async () => {
+		const context = fixture();
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		const otherWindow = fixture();
+		otherWindow.addRemote('wsl:Ubuntu');
+		await context.flush();
+		await otherWindow.flush();
+		await otherWindow.service.setShared('wsl:Ubuntu', true);
+
+		context.storage.store(sharesStorageKey, otherWindow.storage.get(sharesStorageKey, StorageScope.APPLICATION)!, StorageScope.APPLICATION, StorageTarget.MACHINE, true);
+		await context.flush();
+		ubuntu.setRegistration('account');
+		await context.flush();
+
+		assert.deepStrictEqual({ shares: context.snapshot().shares, stored: context.stored(), calls: context.calls }, {
+			shares: { 'wsl:Ubuntu': { state: 'enabled', environmentId: 'environment-wsl:Ubuntu-account' } },
+			stored: { 'wsl:Ubuntu': { accountId: 'account', environmentId: 'environment-wsl:Ubuntu-account', instanceId: 'wsl:Ubuntu#0' } },
+			calls: [],
 		});
 	});
 });
