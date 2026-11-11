@@ -4,7 +4,7 @@ parameters:
     default: 1es-ubuntu-22.04-x64
   - name: VSCODE_BUILD_WEB_MOBILE
     type: boolean
-    default: false
+    default: true
 
 jobs:
   - job: Web
@@ -15,6 +15,7 @@ jobs:
       os: linux
     variables:
       VSCODE_ARCH: x64
+      WEB_MOBILE_ARCHIVE_READY: 'false'
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
@@ -26,15 +27,6 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
           sbomPackageName: "VS Code Linux x64 Web (Standalone)"
           sbomPackageVersion: $(Build.SourceVersion)
-        - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
-          - output: pipelineArtifact
-            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz
-            artifactName: vscode_web_linux_mobile_archive-unsigned
-            displayName: Publish mobile web archive
-            condition: and(succeeded(), ne(variables['WEB_MOBILE_ARCHIVE_PUBLISHED'], 'true'))
-            sbomBuildDropPath: $(Build.SourcesDirectory)/out-mobile
-            sbomPackageName: "VS Code Mobile Web"
-            sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ../common/checkout.yml@self
 
@@ -194,6 +186,7 @@ jobs:
       - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
         - script: |
             set -e
+            trap 'echo "##vso[task.logissue type=warning]Mobile build or validation failed; continuing without a mobile archive."' ERR
             pnpm run test-mobile
             node --test build/lib/test/mobileWebPublication.test.ts
             pnpm run bundle-mobile
@@ -202,16 +195,20 @@ jobs:
               -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
               out-mobile/out out-mobile/node_modules \
               out-mobile/extensions out-mobile/mobile.json
+            echo "##vso[task.setvariable variable=WEB_MOBILE_ARCHIVE_READY]true"
+          continueOnError: true
           displayName: Build and validate mobile web archive
 
         - script: |
             set -e
+            trap 'echo "##vso[task.logissue type=warning]Mobile CDN upload failed; continuing the ordinary release."' ERR
             AZURE_STORAGE_ACCOUNT="vscodeweb" \
             AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-cdn.ts --mobile
-          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
+          condition: and(succeeded(), eq(variables['WEB_MOBILE_ARCHIVE_READY'], 'true'), eq(variables['VSCODE_PUBLISH'], 'True'))
+          continueOnError: true
           displayName: Upload mobile web assets to the separate commit directory
 
         - script: >-
@@ -221,6 +218,19 @@ jobs:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
           continueOnError: true
           displayName: Check for a mobile archive published by an earlier attempt
+
+        - task: 1ES.PublishPipelineArtifact@1
+          inputs:
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz
+            artifactName: vscode_web_linux_mobile_archive-unsigned
+            sbomEnabled: true
+            isProduction: true
+            sbomBuildDropPath: $(Build.SourcesDirectory)/out-mobile
+            sbomPackageName: "VS Code Mobile Web"
+            sbomPackageVersion: $(Build.SourceVersion)
+          condition: and(succeeded(), eq(variables['WEB_MOBILE_ARCHIVE_READY'], 'true'), ne(variables['WEB_MOBILE_ARCHIVE_PUBLISHED'], 'true'))
+          continueOnError: true
+          displayName: Publish mobile web archive
 
       # Pipeline artifacts can't be overwritten, so a retry of this job must skip
       # the artifacts that an earlier attempt already published, for example

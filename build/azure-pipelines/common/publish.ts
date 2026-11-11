@@ -11,7 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
-import { getGatingJob, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
+import { getGatingJob, runArtifactPublishOperation, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
 import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
@@ -934,6 +934,7 @@ async function main() {
 
 	const done = new State();
 	const processing = new Set<string>();
+	const optionalFailures = new Set<string>();
 
 	for (const name of done) {
 		console.log(`\u2705 ${name}`);
@@ -966,11 +967,11 @@ async function main() {
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
 		gatingJobs = new Map(artifacts
-			.filter(a => !done.has(a.name) && !processing.has(a.name))
+			.filter(a => !done.has(a.name) && !processing.has(a.name) && !optionalFailures.has(a.name))
 			.map(a => [a.name, getGatingJob(timeline, a.name)]));
 		artifactsBlocked = [...gatingJobs].filter(([, job]) => job?.state === 'failed').map(([name]) => name);
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length + optionalFailures.size) {
 			break;
 		} else if (stagesInProgress.length > 0) {
 			console.log('Stages in progress:', stagesInProgress.join(', '));
@@ -1004,18 +1005,26 @@ async function main() {
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
-			await retry(async (attempt) => {
-				const start = Date.now();
-				console.log(`[${artifact.name}] Downloading (attempt ${attempt})...`);
-				await downloadArtifact(artifact, artifactZipPath);
-				const archiveSize = fs.statSync(artifactZipPath).size;
-				const downloadDurationS = (Date.now() - start) / 1000;
-				const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
-				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
+			const prepared = await runArtifactPublishOperation(artifact.name, async () => {
+				await retry(async (attempt) => {
+					const start = Date.now();
+					console.log(`[${artifact.name}] Downloading (attempt ${attempt})...`);
+					await downloadArtifact(artifact, artifactZipPath);
+					const archiveSize = fs.statSync(artifactZipPath).size;
+					const downloadDurationS = (Date.now() - start) / 1000;
+					const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
+					console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
+				});
+
+				const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+				return artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
 			});
 
-			const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
-			const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
+			if (!prepared.succeeded) {
+				optionalFailures.add(artifact.name);
+				continue;
+			}
+			const artifactFilePath = prepared.value;
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
@@ -1030,10 +1039,14 @@ async function main() {
 				});
 			});
 
-			const operation = promise.then(() => {
+			const operation = runArtifactPublishOperation(artifact.name, () => promise).then(result => {
 				processing.delete(artifact.name);
-				done.add(artifact.name);
-				console.log(`\u2705 ${artifact.name} `);
+				if (result.succeeded) {
+					done.add(artifact.name);
+					console.log(`\u2705 ${artifact.name} `);
+				} else {
+					optionalFailures.add(artifact.name);
+				}
 			});
 
 			operations.push({ name: artifact.name, operation });
@@ -1043,7 +1056,7 @@ async function main() {
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length + optionalFailures.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
 	const artifactsInProgress = operations.filter(o => processing.has(o.name));
 
@@ -1091,6 +1104,9 @@ async function main() {
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
+	if (optionalFailures.size > 0) {
+		console.log(`Optional artifacts not published: ${[...optionalFailures].join(', ')}`);
+	}
 }
 
 if (import.meta.main) {

@@ -15,6 +15,20 @@ export interface Timeline {
 	readonly records: TimelineRecord[];
 }
 
+/** Mobile publication is best-effort; ordinary artifact failures still block release. */
+export async function runArtifactPublishOperation<T>(name: string, operation: () => Promise<T>): Promise<{ succeeded: true; value: T } | { succeeded: false }> {
+	try {
+		return { succeeded: true, value: await operation() };
+	} catch (error) {
+		if (name !== 'vscode_web_linux_mobile_archive-unsigned') {
+			throw error;
+		}
+		const message = `[${name}] Mobile publication failed; continuing the ordinary release: ${error}`;
+		console.log(`##vso[task.logissue type=warning]${message.replaceAll('%', '%AZP25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
+		return { succeeded: false };
+	}
+}
+
 /**
  * Artifacts that can only be published once a job succeeded, by job name. The
  * platform test jobs run in parallel with the jobs that produce these artifacts

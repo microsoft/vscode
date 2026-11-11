@@ -96,11 +96,16 @@ behavior; those require separate end-to-end validation.
 
 ## Standard publication
 
-The existing product pipeline can include this target with
-`VSCODE_BUILD_WEB_MOBILE=true`. The option is false by default and requires a
-Product build with the ordinary Web stage enabled. When explicitly selected, a
-failed mobile build, guard test or upload fails that selected build; errors are
-not ignored. Ordinary builds do not run the optional mobile steps.
+The existing product pipeline selects this target by default with the
+`🎯 Mobile` checkbox (`VSCODE_BUILD_WEB_MOBILE=true`). It runs in Product builds
+with Web enabled; CI and Web-disabled builds skip mobile automatically.
+Uncheck Mobile to omit it from a Product Web build.
+
+Mobile is best-effort: build, validation, CDN upload, archive/SBOM publication,
+and artifact download/registration failures are reported without blocking the
+ordinary release. Only a fully validated and archived package can be published;
+failed registry operations are not recorded as successfully processed and can
+be retried. Ordinary Web and other platform failures still block release.
 
 The Web job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
 top-level directory, and registers its archive as platform `web-mobile` through
@@ -117,7 +122,7 @@ the expanded mobile files and their own `files.txt` under
 directory, so its preload inventory does not include mobile files.
 
 Publication contract checks run with the normal build-script tests and in the
-opted-in Web job:
+mobile-enabled Web job:
 
 ```sh
 node --test build/lib/test/mobileWebPublication.test.ts
