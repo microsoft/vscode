@@ -295,6 +295,17 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
+	test('tracks the show automation runs choice through a reader', () => {
+		const filters = createFilters();
+		const states: boolean[] = [];
+		store.add(autorun(reader => states.push(filters.isShowAutomationRuns(reader))));
+
+		filters.setShowAutomationRuns(true);
+		filters.setShowAutomationRuns(false);
+
+		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
 	test('keeps cached application groups when a remote disconnects and tracks metadata hydration', () => {
 		const connected = observableValue('connected', true);
 		const local = buildTestSession({ id: 'local', title: 'Local' });

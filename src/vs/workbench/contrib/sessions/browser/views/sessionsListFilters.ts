@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IReader } from '../../../../../base/common/observable.js';
+import { IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
@@ -160,6 +160,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	get hasInboxScope(): boolean { return this._inboxScope.workspace !== undefined || this._inboxScope.environment !== undefined; }
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly changeSignal = observableSignalFromEvent(this, this.onDidChange);
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -207,7 +208,10 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		this.save();
 	}
 
-	isShowAutomationRuns(): boolean {
+	isShowAutomationRuns(reader?: IReader): boolean {
+		if (reader) {
+			this.changeSignal.read(reader);
+		}
 		return this.excluded.get(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY) ?? false;
 	}
 

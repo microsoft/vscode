@@ -496,8 +496,32 @@ suite('SessionsListModelService', () => {
 			hidden: { listed: ['regular'], stored: undefined },
 			events: [
 				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
-				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{
+					changes: [
+						{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing },
+						{ sessionId: 'other-automation', kind: SessionListModelChangeKind.AutomationListing },
+					]
+				},
 			],
+		});
+	});
+
+	test('fires a listing change when hiding an automation run shown only by the list filter', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const before = service.isSessionListed(automation, undefined, true);
+
+		service.hideAutomationSessions([automation]);
+
+		assert.deepStrictEqual({
+			before,
+			after: service.isSessionListed(automation, undefined, true),
+			events,
+		}, {
+			before: true,
+			after: false,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
 		});
 	});
 

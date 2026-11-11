@@ -528,6 +528,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		const wasListed = unique.map(session => this.isSessionListed(session));
 		const previousShown = this._shownAutomationSessionIds.get();
 		const previousHidden = this._hiddenAutomationSessionIds.get();
+		const wasExplicitlyShown = unique.map(session => previousShown.has(session.sessionId));
+		const wasExplicitlyHidden = unique.map(session => previousHidden.has(session.sessionId));
 		const shown = new Set(previousShown);
 		const hidden = new Set(previousHidden);
 		for (const session of unique) {
@@ -544,7 +546,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			}
 		});
 		return unique
-			.filter((session, index) => this.isSessionListed(session) !== wasListed[index])
+			.filter((session, index) =>
+				this.isSessionListed(session) !== wasListed[index]
+				|| shown.has(session.sessionId) !== wasExplicitlyShown[index]
+				|| hidden.has(session.sessionId) !== wasExplicitlyHidden[index])
 			.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing }));
 	}
 

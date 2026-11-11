@@ -328,6 +328,7 @@ export interface IMarshalledAgentSessionContext {
 
 	readonly session: IAgentSession;
 	readonly sessions: IAgentSession[]; // support for multi-selection
+	readonly showAutomationRuns?: boolean;
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
