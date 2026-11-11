@@ -19,7 +19,7 @@ import { NullFilesConfigurationService, TestFileService } from '../../../../test
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -59,6 +59,25 @@ suite('Files - ExplorerView', () => {
 		assert.deepStrictEqual(
 			[getExplorerRootLabel('project', primary, 'Alternate'), getExplorerRootLabel('project', undefined, undefined), getExplorerRootLabel('project', primary, undefined)],
 			['project (Alternate)', 'project', 'project']);
+	});
+
+	test('explorer root aria label follows the presented label while switched', () => {
+		const primary = URI.file('/work/project');
+		const alternate = URI.file('/work/project-alt');
+		let switched = true;
+		const renderer = ds.add(new FilesRenderer(
+			dom.$('div'), undefined!, undefined!, () => { },
+			undefined!, configService, undefined!, undefined!,
+			{ getWorkspaceFolder: () => switched ? { uri: alternate, primaryUri: primary } : { uri: alternate } } as unknown as IWorkspaceContextService,
+			{ get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
+			undefined!));
+		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
+		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);
+		const switchedLabels = [renderer.getAriaLabel(root), renderer.getAriaLabel(child)];
+		switched = false;
+		assert.deepStrictEqual(
+			[switchedLabels, renderer.getAriaLabel(root)],
+			[['project (Alternate · feature/x)', 'a'], 'project']);
 	});
 
 	test('getContext', async function () {

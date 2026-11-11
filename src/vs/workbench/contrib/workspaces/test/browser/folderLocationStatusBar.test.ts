@@ -76,7 +76,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate · feature/x', ariaLabel: 'Folder Location, Alternate · feature/x', command: undefined, kind: 'prominent', tooltip: `The folder 'project' is at the location 'Alternate · feature/x'. Files, search, terminals and extensions use this location, but open editors stay where they are.` });
+			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: undefined, kind: 'prominent', tooltip: `The folder 'project' is at the location 'Alternate · feature/x', an alternate location of 'project'. Files, search, terminals and extensions use this location, but open editors stay where they are. Opening work in the primary location returns the folder to it.` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
@@ -91,15 +91,24 @@ suite('FolderLocationStatusBarContribution', () => {
 		};
 		assert.strictEqual(signal(), false);
 
-		fixture.switchTo();
 		const element = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		element.id = 'status.workspace.folderLocation';
-		element.style.cssText = 'width: 10px; height: 10px';
+		element.style.cssText = 'width: 10px; height: 10px; display: none';
 		ds.add({ dispose: () => element.remove() });
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+		fixture.switchTo();
+		await nextFrame();
+		const whileHidden = signal();
+
+		element.style.display = 'block';
+		for (let i = 0; i < 20 && !signal(); i++) {
+			await nextFrame();
+		}
 		const [step] = await (scenario().presentation.payload as ISpotlightPayload).resolveSteps!();
 		assert.deepStrictEqual(
-			{ signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel },
-			{ signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It' });
+			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel },
+			{ whileHidden: false, signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It' });
 
 		await step.primaryAction!.run(undefined as never);
 		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
