@@ -27,13 +27,18 @@ const router = parseModelRouter([
 	'    agent: Test Writer',
 	'    model: gone',
 	'    effort: high',
+	'  docs:',
+	'    agent: Doc Writer',
+	'    effort: high',
+	'  explore:',
+	'    description: Has the name of an agent every chat has.',
 	'  spare:',
 	'    description: Never used.',
 	'playbooks:',
 	'  feature:',
 	'    when: Building.',
 	'    main: opus',
-	'    uses: [reviewer, tester]',
+	'    uses: [reviewer, tester, docs, explore]',
 	'    guidance: Plan first.',
 	'  notes:',
 	'    when: Writing.',
@@ -48,15 +53,17 @@ const router = parseModelRouter([
 suite('modelRouterAgents', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const models = [model('opus'), model('haiku'), model('gpt')];
+	const reserved = new Set(['explore']);
+
 	test('resolves a playbook\'s plan, and none for a playbook that brings nothing', () => {
-		const models = [model('opus'), model('haiku'), model('gpt')];
 		assert.deepStrictEqual({
-			feature: resolveModelRouterAgentPlan(router, 'feature', models),
+			feature: resolveModelRouterAgentPlan(router, 'feature', models, reserved),
 			notes: resolveModelRouterAgentPlan(router, 'notes', models),
 			// "No plan" is one value, so that plans can be compared by identity.
 			quick: resolveModelRouterAgentPlan(router, 'quick', models),
 			unknown: resolveModelRouterAgentPlan(router, 'nope', models),
-			disabled: resolveModelRouterAgentPlan(router, 'feature', [model('gpt', PolicyState.Disabled)])?.agents[0],
+			disabled: { ...resolveModelRouterAgentPlan(router, 'feature', [model('gpt', PolicyState.Disabled)], reserved), guidance: undefined },
 		}, {
 			feature: {
 				router: 'Workday',
@@ -65,20 +72,28 @@ suite('modelRouterAgents', () => {
 				agents: [
 					// An effort is checked against the role's own model, which here has no effort setting.
 					{ name: 'reviewer', description: 'Reviews a change.', model: 'gpt', modelName: 'GPT' },
-					// An agent that keeps its custom agent's model gets the effort as written.
-					{ name: 'tester', description: '', agent: 'Test Writer', effort: 'high' },
+					// A role that names no model keeps its custom agent's, and gets the effort as written.
+					{ name: 'docs', description: '', agent: 'Doc Writer', effort: 'high' },
 				],
+				// A role that names models runs on one of them or not at all, and no role takes a built-in agent's name.
+				leftOut: [{ name: 'tester', reason: 'models' }, { name: 'explore', reason: 'name' }],
 			},
 			notes: { router: 'Workday', playbook: 'notes', guidance: 'Keep it short.', agents: [] },
 			quick: undefined,
 			unknown: undefined,
-			disabled: { name: 'reviewer', description: 'Reviews a change.', effort: 'high' },
+			// A model the organization turned off is not available either.
+			disabled: {
+				router: 'Workday', playbook: 'feature', guidance: undefined,
+				agents: [{ name: 'docs', description: '', agent: 'Doc Writer', effort: 'high' }],
+				leftOut: [{ name: 'reviewer', reason: 'models' }, { name: 'tester', reason: 'models' }, { name: 'explore', reason: 'name' }],
+			},
 		});
 	});
 
-	test('warns about roles without a model on this account, and unused roles', () => {
-		assert.deepStrictEqual(modelRouterRoleWarnings(router, [model('gpt')]), [
-			'Role `tester` (gone) runs on its agent\'s model, else the chat\'s: none of its models are available on this account.',
+	test('warns about roles that are left out on this account, and unused roles', () => {
+		assert.deepStrictEqual(modelRouterRoleWarnings(router, [model('gpt')], reserved), [
+			'Role `tester` (gone) is left out of chats: none of its models are available on this account.',
+			'Role `explore` is left out of chats: an agent with that name is built in. Give the role another name.',
 			'Role `spare` is not used by any playbook.',
 		]);
 	});

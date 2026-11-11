@@ -57,7 +57,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
-import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
+import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, COPILOT_RESERVED_AGENT_NAMES, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -4252,21 +4252,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _withModelRouterAgents(chatKey: string, turnId: string, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], resolution: IAgentTurnModelResolution): IAgentTurnModelResolution {
 		const playbook = resolution.routed?.playbook;
-		const plan = router && playbook ? resolveModelRouterAgentPlan(router, playbook, models) : undefined;
+		const plan = router && playbook ? resolveModelRouterAgentPlan(router, playbook, models, COPILOT_RESERVED_AGENT_NAMES) : undefined;
 		const taken = this._modelRouterAgents.setCandidate(chatKey, turnId, plan);
 		if (!plan || resolution.routed?.kept) {
 			return resolution;
 		}
 		if (taken) {
 			const agents = plan.agents.map(agent => agent.modelName ? `${agent.name} (${agent.modelName})` : agent.name);
-			this._logService.info(`[ModelRouter] ${chatKey}: playbook ${plan.playbook}; agents=${agents.join(', ') || 'none'}`);
-			return agents.length
-				? { ...resolution, notices: [...resolution.notices, localize('modelRouter.agents', "The {0} playbook brings these agents to this chat: {1}.", plan.playbook, agents.join(', '))] }
-				: resolution;
+			const leftOut = (plan.leftOut ?? []).map(role => role.reason === 'name'
+				? localize('modelRouter.leftOut.name', "{0} (an agent with that name is built in)", role.name)
+				: localize('modelRouter.leftOut.models', "{0} (none of its models are available)", role.name));
+			this._logService.info(`[ModelRouter] ${chatKey}: playbook ${plan.playbook}; agents=${agents.join(', ') || 'none'}; left out=${plan.leftOut?.map(role => `${role.name}:${role.reason}`).join(', ') || 'none'}`);
+			return {
+				...resolution,
+				notices: [
+					...resolution.notices,
+					...(agents.length ? [localize('modelRouter.agents', "The {0} playbook brings these agents to this chat: {1}.", plan.playbook, agents.join(', '))] : []),
+					...(leftOut.length ? [localize('modelRouter.agentsLeftOut', "These agents of the {0} playbook were left out of this chat: {1}.", plan.playbook, leftOut.join(', '))] : []),
+				],
+			};
 		}
 		// The chat started work before this playbook was chosen, and a chat's agents are decided once.
-		if (plan.agents.length && !this._modelRouterAgents.isFresh(chatKey) && !this._modelRouterAgents.hasCommittedPlan(chatKey)) {
-			return { ...resolution, notices: [...resolution.notices, localize('modelRouter.agentsUnavailable', "The {0} playbook's agents are set up when a chat starts, so they are not available in this chat. Start a new chat to use them.", plan.playbook)] };
+		// It may have some of these agents already, from the playbook it started with.
+		if (!this._modelRouterAgents.isFresh(chatKey)) {
+			const existing = this._modelRouterAgents.planFor(chatKey)?.agents ?? [];
+			const missing = plan.agents.filter(agent => !existing.some(other => structuralEquals(agent, other)));
+			if (missing.length) {
+				return { ...resolution, notices: [...resolution.notices, localize('modelRouter.agentsUnavailable', "These agents of the {0} playbook are not available in this chat, because a chat's agents are set up when it starts: {1}. Start a new chat to use them.", plan.playbook, missing.map(agent => agent.name).join(', '))] };
+			}
 		}
 		return resolution;
 	}

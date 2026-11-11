@@ -51,7 +51,7 @@ import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.j
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, withModelRouterAgents, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
-import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
+import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES, COPILOT_RESERVED_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
@@ -675,6 +675,21 @@ export function toRuntimeReasoningEffort(model: ModelSelection | undefined, effo
  */
 export function encodeModelRouterAgentEffort(agentModel: string | undefined, chatModel: ModelSelection | undefined, effort: string): string {
 	return toRuntimeReasoningEffort(agentModel ? { id: agentModel } : chatModel, effort as SessionConfig['reasoningEffort']) ?? effort;
+}
+
+/**
+ * Reads the agents a model router role reuses from plugins the runtime loads itself. They are
+ * not custom agents of the session, so each is read only to be copied under its role's name.
+ */
+async function readModelRouterNativeAgents(plan: CopilotSessionLaunchPlan, fileService: IFileService, availableModelIds: ReadonlySet<string>): ReturnType<typeof toSdkCustomAgents> {
+	const wanted = new Set(plan.modelRouterAgents?.agents.flatMap(agent => agent.agent ? [agent.agent.toLowerCase()] : []));
+	const natives = wanted.size ? (plan.snapshot.nativeAgents ?? []).filter(agent => wanted.has(agent.name.toLowerCase())) : [];
+	const configs = await Promise.all(natives.map(async native => {
+		const [config] = await toSdkCustomAgents([{ uri: URI.parse(native.uri), name: native.name }], fileService, availableModelIds);
+		// A role names an agent the way the user sees it, which is the name the runtime gave it.
+		return config ? [{ ...config, displayName: native.name }] : [];
+	}));
+	return configs.flat();
 }
 
 /**
@@ -1505,10 +1520,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Custom agents run on the model they name, without routing, so a router is never one of their models.
 		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
+		const routerNativeAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : readModelRouterNativeAgents(plan, this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents, computerUseTools, routerNativeAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, routerNativeAgentsPromise]);
 		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
@@ -1617,7 +1633,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const authoredAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.displayName ?? agent.name));
 		// An ephemeral session has no custom agents, so it gets no playbook agents and no briefing about them.
 		const routerPlan = plan.isEphemeral ? undefined : plan.modelRouterAgents;
-		const routerProjection = routerPlan ? withModelRouterAgents(authoredAgents, routerPlan.agents, COPILOT_BUILTIN_AGENT_NAMES, (agentModel, effort) => encodeModelRouterAgentEffort(agentModel, model, effort)) : undefined;
+		const routerProjection = routerPlan ? withModelRouterAgents(authoredAgents, routerPlan.agents, COPILOT_RESERVED_AGENT_NAMES, (agentModel, effort) => encodeModelRouterAgentEffort(agentModel, model, effort), routerNativeAgents) : undefined;
 		const authoredCustomAgents = routerProjection?.agents ?? authoredAgents;
 		const routerBriefing = routerPlan && routerProjection ? modelRouterBriefing(routerPlan, routerProjection.installed) : undefined;
 		if (routerPlan && routerProjection) {

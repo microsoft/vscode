@@ -35,6 +35,17 @@ export interface IModelRouterAgentPlan {
 	/** How the user wants the work done, for the chat's main agent. */
 	readonly guidance?: string;
 	readonly agents: readonly IModelRouterAgent[];
+	/** Roles of the playbook that no chat on this account can have, each with the reason. */
+	readonly leftOut?: readonly IModelRouterLeftOutRole[];
+}
+
+export interface IModelRouterLeftOutRole {
+	readonly name: string;
+	/**
+	 * `models`: none of the models the role names are available, and a role never runs on a model
+	 * it did not name. `name`: every chat already has an agent with the role's name.
+	 */
+	readonly reason: 'models' | 'name';
 }
 
 /** A playbook agent a session really has. */
@@ -57,21 +68,34 @@ function resolveRoleModel(role: IModelRouterRole, routable: readonly IAgentModel
 /**
  * The plan of one playbook, or `undefined` when the playbook brings neither agents nor guidance.
  * Never an empty plan: callers compare plans by identity, and "no plan" has to be one value.
+ *
+ * @param reservedNames Names of agents every chat already has. A role with one of them is left out.
  */
-export function resolveModelRouterAgentPlan(router: IModelRouter, playbook: string, models: readonly IAgentModelInfo[]): IModelRouterAgentPlan | undefined {
+export function resolveModelRouterAgentPlan(router: IModelRouter, playbook: string, models: readonly IAgentModelInfo[], reservedNames: ReadonlySet<string> = new Set()): IModelRouterAgentPlan | undefined {
 	const route = router.routes.find(candidate => candidate.name === playbook);
 	if (!route || (!route.uses?.length && !route.mainAgentGuidance)) {
 		return undefined;
 	}
 	const routable = models.filter(isRoutableModel);
+	const leftOut: IModelRouterLeftOutRole[] = [];
 	const agents = (route.uses ?? []).flatMap((name): IModelRouterAgent[] => {
 		const role = router.roles?.find(candidate => candidate.name === name);
 		if (!role) {
 			return [];
 		}
+		if (reservedNames.has(role.name)) {
+			leftOut.push({ name: role.name, reason: 'name' });
+			return [];
+		}
 		const model = resolveRoleModel(role, routable);
-		// An effort is checked against the role's own model. An agent that keeps its custom
-		// agent's model, or the chat's, gets the effort as written: that model is not known here.
+		// A role that names models runs on one of them or not at all. Only a role that names
+		// none keeps its custom agent's model, else the chat's.
+		if (role.models.length && !model) {
+			leftOut.push({ name: role.name, reason: 'models' });
+			return [];
+		}
+		// An effort is checked against the role's own model. A role without one gets the effort
+		// as written: the model it will run on is not known here.
 		const effort = role.effort && (!model || supportedModelEfforts(model).includes(role.effort)) ? role.effort : undefined;
 		return [{
 			name: role.name,
@@ -86,16 +110,24 @@ export function resolveModelRouterAgentPlan(router: IModelRouter, playbook: stri
 		playbook,
 		...(route.mainAgentGuidance ? { guidance: route.mainAgentGuidance } : {}),
 		agents,
+		...(leftOut.length ? { leftOut } : {}),
 	};
 }
 
-/** What the check tool says about a router's roles on this account. */
-export function modelRouterRoleWarnings(router: IModelRouter, models: readonly IAgentModelInfo[]): string[] {
+/**
+ * What the check tool says about a router's roles on this account.
+ *
+ * @param reservedNames Names of agents every chat already has. A role with one of them is left out.
+ */
+export function modelRouterRoleWarnings(router: IModelRouter, models: readonly IAgentModelInfo[], reservedNames: ReadonlySet<string> = new Set()): string[] {
 	const routable = models.filter(isRoutableModel);
 	const warnings: string[] = [];
 	for (const role of router.roles ?? []) {
+		if (reservedNames.has(role.name)) {
+			warnings.push(`Role \`${role.name}\` is left out of chats: an agent with that name is built in. Give the role another name.`);
+		}
 		if (role.models.length && !resolveRoleModel(role, routable)) {
-			warnings.push(`Role \`${role.name}\` (${role.models.join(', ')}) runs on ${role.agent ? 'its agent\'s model, else the chat\'s' : 'the chat\'s model'}: none of its models are available on this account.`);
+			warnings.push(`Role \`${role.name}\` (${role.models.join(', ')}) is left out of chats: none of its models are available on this account.`);
 		}
 		if (!router.routes.some(route => route.uses?.includes(role.name))) {
 			warnings.push(`Role \`${role.name}\` is not used by any playbook.`);

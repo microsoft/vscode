@@ -372,10 +372,10 @@ A playbook can bring agents: subagents its main agent can start, each on its own
 ${modelRouterAgentsExample}
 \`\`\`
 
-- \`roles\` is a map at the top of the file. Each role is one agent. It has a \`description\`, which tells the main agent what the role is for and is the agent's own instructions. Or it has an \`agent\`: the name of a custom agent the user already has, whose file supplies the instructions and tools. The role then runs a copy of that agent named after the role; the custom agent itself is unchanged. \`model\` (an id or a list, like \`main\`) and \`effort\` are optional; without \`model\` the role keeps its custom agent's model, else the chat's, and its \`effort\` is passed on as written.
+- \`roles\` is a map at the top of the file. Each role is one agent. It has a \`description\`, which tells the main agent what the role is for and is the agent's own instructions. Or it has an \`agent\`: the name of a custom agent the user already has, whose file supplies the instructions and tools. The role then runs a copy of that agent named after the role; the custom agent itself is unchanged. \`model\` (an id or a list, like \`main\`) and \`effort\` are optional; without \`model\` the role keeps its custom agent's model, else the chat's, and its \`effort\` is passed on as written. A role that names models runs on one of them or is left out of the chat; it never runs on another model. A role can't have the name of a built-in agent, such as \`explore\`, \`task\` or \`general-purpose\`.
 - A playbook lists the roles it brings in \`uses\`, at most 8. \`guidance\` on a playbook says how the user wants that kind of work done; the main agent reads it, the decision model does not.
 - A chat's agents are decided by its first message and kept for that chat. A router chosen in a chat that already has messages picks models but brings no agents; start a new chat to get them. They are also lost when VS Code restarts.
-- The check lists each playbook's \`agents\` with the model each would run on. It can't see whether a custom \`agent\` exists: a role is left out when the chat starts if its custom agent is missing, matches more than one, or is one that other agents can't start.
+- The check lists each playbook's \`agents\` with the model each would run on, and warns about a role it leaves out. It can't see whether a custom \`agent\` exists: a role is also left out when the chat starts if its custom agent is missing, matches more than one, or is one that other agents can't start.
 
 ## YAML rules
 

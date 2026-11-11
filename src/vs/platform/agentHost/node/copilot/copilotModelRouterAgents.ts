@@ -73,11 +73,6 @@ export class CopilotModelRouterAgents {
 		return this._fresh.has(chat) ? this._candidates.get(chat) : this._committed.get(chat);
 	}
 
-	/** Whether the chat's plan is decided, and it has one. */
-	hasCommittedPlan(chat: string): boolean {
-		return this._committed.has(chat);
-	}
-
 	/**
 	 * A session of the chat started root work. The first time, the plan that session was launched
 	 * with becomes the chat's plan for good; later reports change nothing.

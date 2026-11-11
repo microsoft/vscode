@@ -39,7 +39,7 @@ suite('CopilotModelRouterAgents', () => {
 	test('a chat that is not fresh never takes a plan', () => {
 		const agents = new CopilotModelRouterAgents();
 		agents.enterTurn(chat, 't1');
-		assert.deepStrictEqual({ taken: agents.setCandidate(chat, 't1', plan()), plan: agents.planFor(chat), committed: agents.hasCommittedPlan(chat) }, { taken: false, plan: undefined, committed: false });
+		assert.deepStrictEqual({ taken: agents.setCandidate(chat, 't1', plan()), plan: agents.planFor(chat) }, { taken: false, plan: undefined });
 	});
 
 	test('one turn\'s plan never reaches another turn', () => {
@@ -90,7 +90,7 @@ suite('CopilotModelRouterAgents', () => {
 		agents.commit(chat, launched);
 		// A second report, such as a resumed session's, changes nothing.
 		agents.commit(chat, undefined);
-		assert.deepStrictEqual({ committed: agents.planFor(chat) === launched, has: agents.hasCommittedPlan(chat) }, { committed: true, has: true });
+		assert.deepStrictEqual({ committed: agents.planFor(chat) === launched, fresh: agents.isFresh(chat) }, { committed: true, fresh: false });
 	});
 
 	test('committing no plan is final too', () => {
@@ -99,7 +99,7 @@ suite('CopilotModelRouterAgents', () => {
 		agents.enterTurn(chat, 't1');
 		agents.commit(chat, undefined);
 		agents.enterTurn(chat, 't2');
-		assert.deepStrictEqual({ fresh: agents.isFresh(chat), taken: agents.setCandidate(chat, 't2', plan()), plan: agents.planFor(chat), has: agents.hasCommittedPlan(chat) }, { fresh: false, taken: false, plan: undefined, has: false });
+		assert.deepStrictEqual({ fresh: agents.isFresh(chat), taken: agents.setCandidate(chat, 't2', plan()), plan: agents.planFor(chat) }, { fresh: false, taken: false, plan: undefined });
 	});
 
 	test('a routing result that arrives after the commit changes nothing', () => {

@@ -21610,13 +21610,14 @@ suite('CopilotAgent', () => {
 
 		suite('model router agents', () => {
 			const userHome = URI.file('/router-home');
-			const routerFile = (playbook: string[]) => [
+			const routerFile = (playbook: string[], roles: string[] = []) => [
 				'version: 1',
 				'description: Test.',
 				'roles:',
 				'  reviewer:',
 				'    description: Reviews a change.',
 				'    model: claude-sonnet',
+				...roles,
 				'playbooks:',
 				'  feature:',
 				'    when: Building.',
@@ -21625,15 +21626,17 @@ suite('CopilotAgent', () => {
 				'',
 			].join('\n');
 
-			async function createRoutedAgent(name: string, playbook: string[]) {
+			async function createRoutedAgent(name: string, playbook: string[], routers: Record<string, string> = {}) {
 				const fileService = createInMemoryFileService(disposables, Schemas.file);
-				await fileService.writeFile(joinPath(userHome, '.agents', 'model-routers', 'team.model-router.yaml'), VSBuffer.fromString(routerFile(playbook)));
+				for (const [router, content] of Object.entries({ team: routerFile(playbook), ...routers })) {
+					await fileService.writeFile(joinPath(userHome, '.agents', 'model-routers', `${router}.model-router.yaml`), VSBuffer.fromString(content));
+				}
 				const h = await createWarmableAgent(name, undefined, { model: { id: 'claude-sonnet' }, rootConfig: { [ModelRouterEnabledConfigKey]: true }, userHome, fileService });
 				afterTest(() => disposeAgent(h.agent));
 				/** Routes a turn as the host does, then sends it on the model the router chose. */
-				const send = async (turnId: string, routed = true) => {
+				const send = async (turnId: string, routed = true, router = 'team') => {
 					const notices = routed
-						? (await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None)).notices
+						? (await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: `model-router:${router}` }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None)).notices
 						: [];
 					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
 					return notices;
@@ -21679,9 +21682,37 @@ suite('CopilotAgent', () => {
 				// The chat has started work without agents, so a router picked later brings none and says so.
 				const later = await h.send('turn-3');
 				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, launches: h.launches() }, {
-					later: ['The feature playbook\'s agents are set up when a chat starts, so they are not available in this chat. Start a new chat to use them.'],
+					later: ['These agents of the feature playbook are not available in this chat, because a chat\'s agents are set up when it starts: reviewer. Start a new chat to use them.'],
 					prewarm: ['used'],
 					launches: [{ agents: [], briefed: false }],
+				});
+			});
+
+			test('a router picked in a chat that has agents names only the ones the chat lacks', async () => {
+				const other = routerFile(['    uses: [reviewer, tester]'], ['  tester:', '    description: Writes tests.', '    model: claude-sonnet']);
+				const h = await createRoutedAgent('router-switched', ['    uses: [reviewer]'], { other });
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const first = await h.send('turn-1');
+				// The other router's reviewer is the one the chat already has; its tester is not.
+				const later = await h.send('turn-2', true, 'other');
+				assert.deepStrictEqual({ first, later }, {
+					first: ['The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).'],
+					later: ['These agents of the feature playbook are not available in this chat, because a chat\'s agents are set up when it starts: tester. Start a new chat to use them.'],
+				});
+			});
+
+			test('a role that names only models the account lacks, or has a built-in agent\'s name, is left out and the chat says so', async () => {
+				const roles = ['  ghost:', '    description: Runs on a model nobody has.', '    model: gone', '  explore:', '    description: Has a built-in agent\'s name.'];
+				const h = await createRoutedAgent('router-left-out', [], { team: routerFile(['    uses: [reviewer, ghost, explore]'], roles) });
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const notices = await h.send('turn-1');
+				assert.deepStrictEqual({ notices, agents: h.launchConfigs.at(-1)?.customAgents?.map(agent => agent.name).filter(name => ['reviewer', 'ghost', 'explore'].includes(name)) }, {
+					notices: [
+						'The feature playbook brings these agents to this chat: reviewer (Claude Sonnet).',
+						'These agents of the feature playbook were left out of this chat: ghost (none of its models are available), explore (an agent with that name is built in).',
+					],
+					// Neither runs on the chat's model, and neither replaces an agent the runtime brings.
+					agents: ['reviewer'],
 				});
 			});
 		});

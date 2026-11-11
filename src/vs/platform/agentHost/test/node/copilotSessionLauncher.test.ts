@@ -3863,6 +3863,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterAgents'> = {},
 	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
@@ -3876,6 +3877,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
+			...planOverrides,
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [], ...runtimeOverrides };
 		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig(plan, runtime, () => { })).config;
@@ -3946,6 +3948,35 @@ suite('CopilotSessionLauncher resume config', () => {
 			[...definitions, { name: 'openBrowserPage' }, { name: 'clickElement' }],
 		];
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
+	});
+
+	test('a model router role reuses an agent of a plugin the runtime loads itself, and never takes a built-in agent\'s name', async () => {
+		const store = disposables.add(new DisposableStore());
+		const nativeUri = URI.file('/plugins/shop/agents/test-writer.agent.md');
+		const config = await buildResumeConfig(createLauncher(store, {}, '---\nname: Writes Tests\n---\nWrite tests.'), undefined, {
+			discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {},
+			// The runtime registers this agent itself, so the host forwards no definition for it.
+			nativeAgents: [{ type: CustomizationType.Agent, id: 'shop:test-writer', uri: nativeUri.toString(), name: 'Test Writer' }],
+		}, undefined, {}, {
+			modelRouterAgents: {
+				router: 'Team', playbook: 'feature',
+				agents: [
+					{ name: 'tester', description: '', agent: 'test writer', model: 'claude-haiku' },
+					{ name: 'general-purpose', description: 'Has the name of an agent the runtime brings.' },
+				],
+			},
+		});
+		const names = new Set(['tester', 'general-purpose', 'Test Writer', 'Writes Tests', getSdkCustomAgentName(nativeUri)]);
+		assert.deepStrictEqual({
+			agents: config.customAgents?.filter(agent => names.has(agent.name) || names.has(agent.displayName ?? '')).map(agent => ({ name: agent.name, prompt: agent.prompt, model: agent.model, modelPolicy: agent.modelPolicy })),
+			briefed: /Agents you can start[^]*- `tester`/.test(config.systemMessage?.content ?? ''),
+			briefedReserved: config.systemMessage?.content?.includes('`general-purpose`'),
+		}, {
+			// Only the role's copy is added: the plugin's agent stays the runtime's own.
+			agents: [{ name: 'tester', prompt: 'Write tests.', model: 'claude-haiku', modelPolicy: 'required' }],
+			briefed: true,
+			briefedReserved: false,
+		});
 	});
 
 	test('custom-agent tool reference remapping remains launch-only', async () => {

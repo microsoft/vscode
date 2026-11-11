@@ -30,7 +30,7 @@ const files: Record<string, string> = {
 	[URI.file(goodPath).fsPath]: good,
 	[URI.file('/home/.agents/model-routers/bad.model-router.yaml').fsPath]: 'version: 1\ndescription: Bad.\nroutes:\n  - model: haiku\n    when: "unclosed\n',
 	[URI.file('/home/.agents/model-routers/workday.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Big.\n    main: haiku\n  quick:\n    when: Small.\n    main: haiku\n',
-	[URI.file('/home/.agents/model-routers/team.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nroles:\n  reviewer:\n    description: Reviews.\n    model: haiku\n    effort: high\n  tester:\n    agent: Test Writer\n    model: gone\n  spare:\n    description: Unused.\nplaybooks:\n  feature:\n    when: Big.\n    main: haiku\n    uses: [reviewer, tester]\n  quick:\n    when: Small.\n    main: haiku\n',
+	[URI.file('/home/.agents/model-routers/team.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nroles:\n  reviewer:\n    description: Reviews.\n    model: haiku\n    effort: high\n  tester:\n    agent: Test Writer\n    model: gone\n  docs:\n    agent: Doc Writer\n  explore:\n    description: Has the name of a built-in agent.\n  spare:\n    description: Unused.\nplaybooks:\n  feature:\n    when: Big.\n    main: haiku\n    uses: [reviewer, tester, docs, explore]\n  quick:\n    when: Small.\n    main: haiku\n',
 };
 
 suite('check_model_router', () => {
@@ -111,17 +111,18 @@ suite('check_model_router', () => {
 		});
 	});
 
-	test('lists the agents a playbook brings, each with the model it would run on', async () => {
+	test('lists the agents a playbook brings, each with the model it would run on, and warns about the roles it leaves out', async () => {
 		const result = JSON.parse((await call({ path: '/home/.agents/model-routers/team.model-router.yaml' })).textResultForLlm);
 		assert.deepStrictEqual({ diagnostics: result.router.diagnostics, agents: result.router.routes.map((route: { agents?: unknown }) => route.agents) }, {
 			diagnostics: [
-				{ severity: 'warning', message: 'Role `tester` (gone) runs on its agent\'s model, else the chat\'s: none of its models are available on this account.' },
+				{ severity: 'warning', message: 'Role `tester` (gone) is left out of chats: none of its models are available on this account.' },
+				{ severity: 'warning', message: 'Role `explore` is left out of chats: an agent with that name is built in. Give the role another name.' },
 				{ severity: 'warning', message: 'Role `spare` is not used by any playbook.' },
 			],
 			agents: [
 				[
 					{ name: 'reviewer', matched: 'haiku', effort: 'high' },
-					{ name: 'tester', agent: 'Test Writer', matched: 'the model its agent file names, else the chat\'s model' },
+					{ name: 'docs', agent: 'Doc Writer', matched: 'the model its agent file names, else the chat\'s model' },
 				],
 				undefined,
 			],

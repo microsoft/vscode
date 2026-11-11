@@ -15,6 +15,7 @@ import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { isRoutableModel, modelContextSizes, modelRouterNameFromFileName, ModelRouterDiagnosticSeverity, parseModelRouter, resolveModelRouter, supportedModelEfforts, type IModelRouter, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
 import { modelRouterRoleWarnings, resolveModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
+import { COPILOT_RESERVED_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import type { IModelRouterFile } from './copilotModelRouterCatalog.js';
 
 export const CheckModelRouterToolName = 'check_model_router';
@@ -122,7 +123,7 @@ async function checkRouter(host: IModelRouterToolHost, file: IModelRouterFile, m
 
 function check(name: string, uri: URI, router: IModelRouterFile['router'], parseDiagnostics: readonly IModelRouterDiagnostic[], models: readonly IAgentModelInfo[], content: string | undefined): IModelRouterCheck {
 	const resolution = router ? resolveModelRouter(router, models) : undefined;
-	const roleWarnings = router ? modelRouterRoleWarnings(router, models).map(message => ({ severity: ModelRouterDiagnosticSeverity.Warning, message })) : [];
+	const roleWarnings = router ? modelRouterRoleWarnings(router, models, COPILOT_RESERVED_AGENT_NAMES).map(message => ({ severity: ModelRouterDiagnosticSeverity.Warning, message })) : [];
 	const diagnostics = [...parseDiagnostics, ...resolution?.diagnostics ?? [], ...roleWarnings].map((diagnostic: IModelRouterDiagnostic) => ({
 		severity: diagnostic.severity,
 		message: diagnostic.message,
@@ -151,7 +152,7 @@ function check(name: string, uri: URI, router: IModelRouterFile['router'], parse
 
 /** The agents a playbook brings, each with the model it would run on for this account. */
 function checkedAgents(router: IModelRouter, playbook: string | undefined, models: readonly IAgentModelInfo[]): { readonly agents?: readonly ICheckedAgent[] } {
-	const agents = playbook ? resolveModelRouterAgentPlan(router, playbook, models)?.agents : undefined;
+	const agents = playbook ? resolveModelRouterAgentPlan(router, playbook, models, COPILOT_RESERVED_AGENT_NAMES)?.agents : undefined;
 	return agents?.length ? {
 		agents: agents.map((agent): ICheckedAgent => ({
 			name: agent.name,
