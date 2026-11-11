@@ -344,6 +344,18 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ opened, picked, closed: switched() }, { opened: ['first', 'second'], picked: ['first'], closed: [] });
 	});
 
+	test('a session opened to keep the folder, as for the location the user picked, neither moves the window\'s folder nor follows its session', async () => {
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
+		const kept: ISession = { ...buildTestSession({ id: 'kept', title: 'Kept' }).session, workspace };
+		const { service, switchedTo } = createService({ sessions: () => [kept] });
+
+		await service.openChat(kept, undefined, { keepFolder: true });
+		const opened = switchedTo.splice(0).length;
+		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
+
+		assert.deepStrictEqual({ shown: service.isShowing(kept.mainChat.get().resource), opened, moved: switchedTo.length }, { shown: true, opened: 0, moved: 0 });
+	});
+
 	test('a session the user opened that comes to work elsewhere, such as in the new worktree its agent created, moves the window\'s folder there too', async () => {
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
 		const moving: ISession = { ...buildTestSession({ id: 'moving', title: 'Moving' }).session, workspace };
