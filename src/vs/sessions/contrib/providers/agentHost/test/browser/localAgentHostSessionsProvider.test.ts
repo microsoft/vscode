@@ -114,6 +114,7 @@ import type { CanvasState } from '../../../../../../platform/agentHost/common/st
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -530,6 +531,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._optimisticSessionStateValues.delete(key);
 		this._sessionStateValues.set(key, advertised);
 		this._sessionStateEmitters.get(key)?.fire(advertised);
+	}
+
+	/** Fires a state with `config` to every subscribed session of `provider`, as the host does on every update of a running session. */
+	fireRunningSessionStates(provider: string, config: SessionState['config']): void {
+		for (const [key, emitter] of this._sessionStateEmitters) {
+			if (URI.parse(key).scheme === provider) {
+				const value = this._sessionStateValues.get(key);
+				const state: SessionState = value && !(value instanceof Error) && hasKey(value, { chats: true })
+					? value
+					: { provider, title: 'Session', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [] };
+				emitter.fire({ ...state, config });
+			}
+		}
 	}
 
 	setOptimisticSessionState(rawId: string, provider: string, state: SessionState | undefined): void {
@@ -9348,9 +9362,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const changedConfigs = () => agentHost.dispatchedActions.flatMap(({ action }) =>
 			action.type === ActionType.SessionConfigChanged ? [action.config] : []);
 
-		// Nothing changed: its locations are not read again, nor sent
+		// Updates of its state, such as for every turn, change neither its folders nor the settings: its locations are not read
+		// again, nor sent
+		const runningConfig: SessionState['config'] = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', [SessionConfigKey.SensitiveEditLocations]: [{ path: 'initial-hooks', isDirectory: true }] },
+		};
+		// Reading its config follows its state, as the chat showing it does
+		provider.getSessionConfig(committed.sessionId, committed.resource);
+		agentHost.fireRunningSessionStates('copilotcli', runningConfig);
 		locationReads = 0;
-		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'unchanged' });
+		agentHost.fireRunningSessionStates('copilotcli', runningConfig);
+		agentHost.fireRunningSessionStates('copilotcli', runningConfig);
 		const unchanged = { reads: locationReads, changes: changedConfigs().length };
 
 		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, {
