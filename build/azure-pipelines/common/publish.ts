@@ -632,39 +632,41 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 	}
 }
 
-async function unzip(packagePath: string, outputPath: string): Promise<string[]> {
+export async function unzip(packagePath: string, outputPath: string): Promise<string[]> {
 	return new Promise((resolve, reject) => {
 		yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
-			if (err) {
-				return reject(err);
+			if (err || !zipfile) {
+				return reject(err ?? new Error(`Could not open archive: ${packagePath}`));
 			}
 
 			const result: string[] = [];
-			zipfile!.on('entry', entry => {
-				if (/\/$/.test(entry.fileName)) {
-					zipfile!.readEntry();
-				} else {
-					zipfile!.openReadStream(entry, (err, istream) => {
-						if (err) {
-							return reject(err);
-						}
-
+			zipfile.on('error', reject);
+			zipfile.on('entry', async entry => {
+				try {
+					if (!/\/$/.test(entry.fileName)) {
 						const filePath = path.join(outputPath, entry.fileName);
-						fs.mkdirSync(path.dirname(filePath), { recursive: true });
-
-						const ostream = fs.createWriteStream(filePath);
-						ostream.on('finish', () => {
-							result.push(filePath);
-							zipfile!.readEntry();
+						await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+						const istream = await new Promise<Readable>((resolve, reject) => {
+							zipfile.openReadStream(entry, (err, stream) => {
+								if (err || !stream) {
+									reject(err ?? new Error(`Could not read archive entry: ${entry.fileName}`));
+								} else {
+									resolve(stream);
+								}
+							});
 						});
-						istream?.on('error', err => reject(err));
-						istream!.pipe(ostream);
-					});
+						await pipeline(istream, fs.createWriteStream(filePath));
+						result.push(filePath);
+					}
+					zipfile.readEntry();
+				} catch (error) {
+					reject(error);
+					zipfile.close();
 				}
 			});
 
-			zipfile!.on('close', () => resolve(result));
-			zipfile!.readEntry();
+			zipfile.on('end', () => resolve(result));
+			zipfile.readEntry();
 		});
 	});
 }

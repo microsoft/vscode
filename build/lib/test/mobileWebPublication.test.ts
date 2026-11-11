@@ -5,11 +5,14 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
+import { pipeline as pipelineStreams } from 'node:stream/promises';
 import { load } from 'js-yaml';
+import yazl from 'yazl';
 import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from '../../azure-pipelines/web/cdnConfiguration.ts';
 import { mobileDirectory, mobileManifestName } from '../../next/mobile.ts';
 
@@ -67,11 +70,19 @@ test('both product pipeline entry points enable mobile without rejecting CI or W
 	}
 });
 
-test('the existing Web job builds a normal archive before publication and guards mobile CDN writes', async () => {
-	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
-	const pipeline = load(source) as { parameters: { name: string; default: boolean }[]; jobs: { templateContext: { outputs: object[] } }[] };
+test('mobile has a separate nonblocking job and timeout without weakening the ordinary Web job', async () => {
+	const wrapper = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
+	const pipeline = load(wrapper) as { parameters: { name: string; default: boolean }[]; jobs: object[] };
 	assert.equal(pipeline.parameters.find(parameter => parameter.name === 'VSCODE_BUILD_WEB_MOBILE')?.default, true);
-	assert.ok(!JSON.stringify(pipeline.jobs[0].templateContext.outputs).includes('vscode_web_linux_mobile_archive-unsigned'));
+	assert.deepStrictEqual(pipeline.jobs, [
+		{ template: 'product-build-web-job.yml', parameters: { VSCODE_POOL_NAME: '${{ parameters.VSCODE_POOL_NAME }}' } },
+		{ '${{ if parameters.VSCODE_BUILD_WEB_MOBILE }}': [{ template: 'product-build-web-job.yml', parameters: { VSCODE_POOL_NAME: '${{ parameters.VSCODE_POOL_NAME }}', mobile: true } }] },
+	]);
+	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web-job.yml', import.meta.url), 'utf8');
+	const job = (load(source) as { jobs: { job: string; continueOnError?: boolean; timeoutInMinutes: number; '${{ if parameters.mobile }}': { continueOnError: boolean } }[] }).jobs[0];
+	assert.deepStrictEqual({
+		name: job.job, timeout: job.timeoutInMinutes, ordinaryContinues: job.continueOnError, mobileContinues: job['${{ if parameters.mobile }}'].continueOnError,
+	}, { name: '${{ iif(parameters.mobile, \'Mobile\', \'Web\') }}', timeout: 45, ordinaryContinues: undefined, mobileContinues: true });
 	assert.match(source, /^\s*pnpm run test-mobile\s*$/m);
 	assert.ok(source.includes('node --test build/lib/test/mobileWebPublication.test.ts'));
 	assert.match(source, /^\s*pnpm run bundle-mobile\s*$/m);
@@ -83,13 +94,15 @@ test('the existing Web job builds a normal archive before publication and guards
 });
 
 test('mobile archive retries reuse the standard artifact check without changing the ordinary archive guard', async () => {
-	const mobileCondition = '${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}';
-	type Step = { script?: string; task?: string; condition?: string; continueOnError?: boolean; inputs?: { artifactName: string; sbomEnabled: boolean; isProduction: boolean }; env?: { SYSTEM_ACCESSTOKEN?: string }; [mobileCondition]?: Step[] };
-	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
+	const mobileCondition = '${{ if parameters.mobile }}';
+	const webCondition = '${{ if not(parameters.mobile) }}';
+	type Step = { script?: string; env?: { SYSTEM_ACCESSTOKEN?: string }; [mobileCondition]?: Step[]; [webCondition]?: Step[] };
+	type Output = { artifactName?: string; condition?: string; sbomEnabled?: boolean; isProduction?: boolean; [mobileCondition]?: Output[]; [webCondition]?: Output[] };
+	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web-job.yml', import.meta.url), 'utf8');
 	const pipeline = load(source) as {
 		jobs: {
 			templateContext: {
-				outputs: { artifactName?: string; condition?: string; [mobileCondition]?: { artifactName: string; condition: string }[] }[];
+				outputs: Output[];
 			};
 			steps: Step[];
 		}[];
@@ -97,25 +110,23 @@ test('mobile archive retries reuse the standard artifact check without changing 
 	const job = pipeline.jobs[0];
 	const mobileSteps = job.steps.flatMap(step => step[mobileCondition] ?? []);
 	const mobileCheck = mobileSteps.find(step => step.script?.includes('common/checkForArtifact.ts'));
-	const ordinaryCheck = job.steps.find(step => step.script?.includes('common/checkForArtifact.ts'));
-	const mobileArchive = mobileSteps.find(step => step.task === '1ES.PublishPipelineArtifact@1');
+	const ordinaryCheck = job.steps.flatMap(step => step[webCondition] ?? []).find(step => step.script?.includes('common/checkForArtifact.ts'));
+	const mobileArchive = job.templateContext.outputs.flatMap(output => output[mobileCondition] ?? [])[0];
 	assert.deepStrictEqual({
 		mobileArchive: {
-			artifactName: mobileArchive?.inputs?.artifactName,
+			artifactName: mobileArchive?.artifactName,
 			condition: mobileArchive?.condition,
-			continueOnError: mobileArchive?.continueOnError,
-			sbomEnabled: mobileArchive?.inputs?.sbomEnabled,
-			isProduction: mobileArchive?.inputs?.isProduction,
+			sbomEnabled: mobileArchive?.sbomEnabled,
+			isProduction: mobileArchive?.isProduction,
 		},
 		mobileCheck: mobileCheck?.script?.trim().split(/\s+/),
 		token: mobileCheck?.env?.SYSTEM_ACCESSTOKEN,
 		ordinaryCheck: ordinaryCheck?.script?.trim().split(/\s+/),
-		ordinaryCondition: job.templateContext.outputs.find(output => output.artifactName === 'vscode_web_linux_standalone_archive-unsigned')?.condition,
+		ordinaryCondition: job.templateContext.outputs.flatMap(output => output[webCondition] ?? [])[0]?.condition,
 	}, {
 		mobileArchive: {
 			artifactName: 'vscode_web_linux_mobile_archive-unsigned',
 			condition: 'and(succeeded(), eq(variables[\'WEB_MOBILE_ARCHIVE_READY\'], \'true\'), ne(variables[\'WEB_MOBILE_ARCHIVE_PUBLISHED\'], \'true\'))',
-			continueOnError: true,
 			sbomEnabled: true,
 			isProduction: true,
 		},
@@ -126,22 +137,24 @@ test('mobile archive retries reuse the standard artifact check without changing 
 	});
 });
 
-test('mobile script failures warn and never mark a partial archive publishable', { skip: process.platform === 'win32' }, async t => {
-	const mobileCondition = '${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}';
-	type Step = { script?: string; displayName: string; continueOnError?: boolean; condition?: string; [mobileCondition]?: Step[] };
-	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
+test('mobile script failures warn and stop the optional job before publishing a partial archive', { skip: process.platform === 'win32' }, async t => {
+	const mobileCondition = '${{ if parameters.mobile }}';
+	const webCondition = '${{ if not(parameters.mobile) }}';
+	type Step = { script?: string; displayName: string; continueOnError?: boolean; condition?: string; [mobileCondition]?: Step[]; [webCondition]?: Step[] };
+	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web-job.yml', import.meta.url), 'utf8');
 	const pipeline = load(source) as { jobs: { variables: { WEB_MOBILE_ARCHIVE_READY: string }; steps: Step[] }[] };
 	const job = pipeline.jobs[0];
 	const steps = job.steps.flatMap(step => step[mobileCondition] ?? []);
+	const webSteps = job.steps.flatMap(step => step[webCondition] ?? []);
 	const build = steps.find(step => step.displayName === 'Build and validate mobile web archive')!;
 	const upload = steps.find(step => step.script?.includes('upload-cdn.ts --mobile'))!;
 	assert.deepStrictEqual({
 		initialReady: job.variables.WEB_MOBILE_ARCHIVE_READY,
 		buildContinues: build.continueOnError,
 		uploadContinues: upload.continueOnError,
-		ordinaryBuildContinues: job.steps.find(step => step.displayName === 'Build')?.continueOnError,
-		ordinaryUploadContinues: job.steps.find(step => step.displayName === 'Upload to CDN')?.continueOnError,
-	}, { initialReady: 'false', buildContinues: true, uploadContinues: true, ordinaryBuildContinues: undefined, ordinaryUploadContinues: undefined });
+		ordinaryBuildContinues: webSteps.find(step => step.displayName === 'Build')?.continueOnError,
+		ordinaryUploadContinues: webSteps.find(step => step.displayName === 'Upload to CDN')?.continueOnError,
+	}, { initialReady: 'false', buildContinues: undefined, uploadContinues: undefined, ordinaryBuildContinues: undefined, ordinaryUploadContinues: undefined });
 	const directory = await mkdtemp(join(tmpdir(), 'mobile-publication-'));
 	t.after(() => rm(directory, { recursive: true, force: true }));
 	const bin = join(directory, 'bin');
@@ -166,4 +179,37 @@ test('mobile script failures warn and never mark a partial archive publishable',
 		cwd: directory, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}`, FAIL_AT: 'node:build/azure-pipelines/upload-cdn.ts --mobile' },
 	});
 	assert.deepStrictEqual({ exit: result.status, warning: result.stdout.includes('##vso[task.logissue type=warning]') }, { exit: 7, warning: true });
+});
+
+test('asynchronous mobile extraction failures warn instead of terminating the shared publisher', async t => {
+	const directory = await mkdtemp(join(tmpdir(), 'mobile-extraction-'));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	await writeFile(join(directory, 'corrupt.zip'), Buffer.from('504b0506000000000100010000000000000000000000', 'hex'));
+	const zip = new yazl.ZipFile();
+	zip.addBuffer(Buffer.from('mobile'), 'file.txt');
+	zip.end();
+	await pipelineStreams(zip.outputStream, createWriteStream(join(directory, 'valid.zip')));
+	await mkdir(join(directory, 'blocked', 'file.txt'), { recursive: true });
+	await writeFile(join(directory, 'blocked-parent'), '');
+	const publisherUrl = new URL('../../azure-pipelines/common/publish.ts', import.meta.url).href;
+	const gateUrl = new URL('../../azure-pipelines/common/publishGate.ts', import.meta.url).href;
+	const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+		import assert from 'node:assert/strict';
+		import { readFile } from 'node:fs/promises';
+		import { join } from 'node:path';
+		const { unzip } = await import(${JSON.stringify(publisherUrl)});
+		const { runArtifactPublishOperation } = await import(${JSON.stringify(gateUrl)});
+		const directory = ${JSON.stringify(directory)};
+		const corrupt = () => unzip(join(directory, 'corrupt.zip'), join(directory, 'output'));
+		const blocked = () => unzip(join(directory, 'valid.zip'), join(directory, 'blocked'));
+		const blockedParent = () => unzip(join(directory, 'valid.zip'), join(directory, 'blocked-parent', 'output'));
+		for (const operation of [corrupt, blocked, blockedParent]) {
+			assert.deepStrictEqual(await runArtifactPublishOperation('vscode_web_linux_mobile_archive-unsigned', operation), { succeeded: false });
+			await assert.rejects(runArtifactPublishOperation('vscode_web_linux_standalone_archive-unsigned', operation));
+		}
+		const files = await unzip(join(directory, 'valid.zip'), join(directory, 'output'));
+		assert.deepStrictEqual(files, [join(directory, 'output', 'file.txt')]);
+		assert.equal(await readFile(files[0], 'utf8'), 'mobile');
+	`], { encoding: 'utf8', env: { ...process.env, SYSTEM_ACCESSTOKEN: 'unit-test' }, timeout: 30_000 });
+	assert.equal(result.status, 0, result.stderr || result.error?.message);
 });

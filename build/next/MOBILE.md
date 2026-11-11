@@ -101,13 +101,17 @@ The existing product pipeline selects this target by default with the
 with Web enabled; CI and Web-disabled builds skip mobile automatically.
 Uncheck Mobile to omit it from a Product Web build.
 
-Mobile is best-effort: build, validation, CDN upload, archive/SBOM publication,
+Mobile runs in its own optional job, with a separate timeout and workspace,
+so its work cannot consume the ordinary Web job's time or prevent its archive
+from being published. Mobile is best-effort: build, validation, CDN upload, archive/SBOM publication,
 and artifact download/registration failures are reported without blocking the
-ordinary release. Only a fully validated and archived package can be published;
+ordinary release. Failed mobile steps stop that job before archive publication;
+failed CDN uploads therefore cannot register a build with missing CDN assets.
+Only a fully validated and archived package can be published;
 failed registry operations are not recorded as successfully processed and can
 be retried. Ordinary Web and other platform failures still block release.
 
-The Web job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
+The Mobile job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
 top-level directory, and registers its archive as platform `web-mobile` through
 the normal publisher. Source commit and quality remain the release identity.
 Normal release controls and platform-based update lookup select this asset;
@@ -122,7 +126,7 @@ the expanded mobile files and their own `files.txt` under
 directory, so its preload inventory does not include mobile files.
 
 Publication contract checks run with the normal build-script tests and in the
-mobile-enabled Web job:
+Mobile job:
 
 ```sh
 node --test build/lib/test/mobileWebPublication.test.ts
