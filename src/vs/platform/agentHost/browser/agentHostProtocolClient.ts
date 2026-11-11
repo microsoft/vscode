@@ -106,7 +106,7 @@ import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectA
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
-import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionCloseReason, type IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../common/connectionDiagnostics.js';
 import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgentHostProtocolClient.js';
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
@@ -132,7 +132,7 @@ function toAgentExtensionStatus(value: unknown): AgentExtensionStatus | undefine
 	if (typeof value !== 'string') {
 		return undefined;
 	}
-	return value === 'running' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown'
+	return value === 'running' || value === 'dormant' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown'
 		? value
 		: 'unknown';
 }
@@ -488,13 +488,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		};
 	}
 
-	private _diagnostic(phase: string, detail: string): void {
-		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase, outcome: 'info', timestamp: Date.now(), detail });
+	private _diagnostic(phase: string, detail: string, closeReason?: ConnectionCloseReason): void {
+		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase, outcome: 'info', timestamp: Date.now(), detail, ...(closeReason ? { closeReason } : {}) });
 	}
 
 	private _traceConnection<T>(phase: string, operation: () => Promise<T>, session?: URI): Promise<T> {
 		const attemptId = phase.startsWith('session.') || phase.startsWith('repository.') ? undefined : this._diagnosticAttemptId;
-		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, ...(session ? { sessionResource: session.toString() } : {}) }), phase, operation);
+		const transport = this._transport;
+		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({
+			...event, attemptId, ...(session ? { sessionResource: session.toString() } : {}),
+			...(event.outcome === 'failed' && phase.startsWith('transport.') && transport.closeReason ? { closeReason: transport.closeReason } : {}),
+		}), phase, operation);
 	}
 
 	/** Adds content-free diagnostics for client-side repository preparation on this connection. */
@@ -838,7 +842,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._relayKeepAliveTimer.cancel();
 		if (this._transportFactory && (this._state.kind === AgentHostClientState.Connected || this._state.kind === AgentHostClientState.Connecting)) {
 			this._transportListeners.clear();
-			this._handleTransportClose();
+			this._handleTransportClose('osSuspend');
 		}
 		if (this._state.kind === AgentHostClientState.Reconnecting) {
 			const reconnect = this._state.reconnect;
@@ -1023,7 +1027,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Idempotent — no-op if already closed or mid-reconnect.
 	 */
 	notifyTransportClosed(): void {
-		this._handleTransportClose();
+		this._handleTransportClose('externalClose');
 	}
 
 	/**
@@ -1035,12 +1039,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * (passive-transport SSH/relay path) we fall back to "close means closed"
 	 * and let the service decide whether to spin up a fresh client.
 	 */
-	private _handleTransportClose(): void {
+	private _handleTransportClose(reason: ConnectionCloseReason = this._transport.closeReason ?? 'unknown'): void {
 		this._closeTransportChannels();
 		this._onDidInvalidateTransport.fire(this._transport);
 		this._relayKeepAliveTimer.cancel();
 		if (this._state.kind !== AgentHostClientState.Closed) {
-			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastDataMs=${Date.now() - this._liveness.lastReadTime}`);
+			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastDataMs=${Date.now() - this._liveness.lastReadTime}`, reason);
 		}
 		switch (this._state.kind) {
 			case AgentHostClientState.Closed:
@@ -1729,7 +1733,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._describeChatSubscriptionsOnReconnect = true;
 		// Disposing the listeners closes the transport; route the close through the soft-reconnect path, as the watchdog does.
 		this._transportListeners.clear();
-		this._handleTransportClose();
+		this._handleTransportClose('protocolReinitialize');
 	}
 
 
@@ -4066,7 +4070,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._transportFactory) {
 			// In factory mode, route directly through the soft-reconnect path.
 			this._rejectPendingRequests(connectionTimeoutError(this._address, silence));
-			this._handleTransportClose();
+			this._handleTransportClose('watchdog');
 			return;
 		}
 		this._handleClose(connectionTimeoutError(this._address, silence));

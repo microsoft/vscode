@@ -1042,19 +1042,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		return this._deterministicSelection(candidates, 'standalone') ?? { kind: 'spawn' };
 	}
 
-	/**
-	 * Pick the candidate of `type` deterministically when several are live,
-	 * by sorting on `instanceId` so every renderer resolving the same
-	 * request (e.g. multiple open editor windows) converges on the same
-	 * choice without needing to coordinate.
-	 */
+	/** Picks the first candidate of `type` in the newest-first registry order preserved by the main service. */
 	private _deterministicSelection(candidates: readonly ISSHEndpointCandidate[], type: AgentHostServerType): ISSHEndpointSelection | undefined {
-		const matching = candidates.filter(candidate => candidate.type === type);
-		if (matching.length === 0) {
-			return undefined;
-		}
-		const [chosen] = matching.slice().sort((a, b) => a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0);
-		return { kind: 'candidate', type: chosen.type, pid: chosen.pid, instanceId: chosen.instanceId };
+		const chosen = candidates.find(candidate => candidate.type === type);
+		return chosen ? { kind: 'candidate', type: chosen.type, pid: chosen.pid, instanceId: chosen.instanceId } : undefined;
 	}
 }
 

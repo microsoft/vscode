@@ -95,7 +95,10 @@ export class ChatCustomizationsHover {
 	}
 
 	getSessionResource(context?: unknown, reader?: IReader): URI {
-		const active = this.harnessService.activeSessionResource.read(reader);
+		return this.getExplicitSessionResource(context) ?? this.harnessService.activeSessionResource.read(reader);
+	}
+
+	getExplicitSessionResource(context?: unknown): URI | undefined {
 		if (isObject(context)) {
 			const widgetContext: unknown = Reflect.get(context, 'widget');
 			if (widgetContext) {
@@ -116,7 +119,7 @@ export class ChatCustomizationsHover {
 				return resource;
 			}
 		}
-		return active;
+		return undefined;
 	}
 
 	getProjectRoot(sessionResource: URI, reader?: IReader): URI | undefined {
@@ -277,7 +280,7 @@ export class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
 		private readonly location: Exclude<ChatCustomizationsLocation, 'auto'>,
 		migrationAvailable: IObservable<boolean> | undefined,
 		private readonly showLabel = false,
-		private readonly extensionSuggestions: IObservable<boolean> = constObservable(false),
+		private readonly badge: IObservable<string | undefined> = constObservable(undefined),
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -313,7 +316,7 @@ export class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
 			this.label?.classList.add('monaco-button', 'monaco-text-button', 'sidebar-action-button');
 		}
 		this._register(autorun(reader => {
-			container.classList.toggle('migration-available', this.migrationAvailable.read(reader) || this.extensionSuggestions.read(reader));
+			container.classList.toggle('migration-available', this.migrationAvailable.read(reader) || this.badge.read(reader) !== undefined);
 			this.updateTooltip();
 		}));
 	}
@@ -327,19 +330,19 @@ export class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	protected override getTooltip(): string {
-		return this.migrationAvailable.get()
-			? localize('customizationsHover.migrationsLabel', "{0} (Migrations Available)", super.getTooltip())
-			: this.extensionSuggestions.get()
-				? localize('customizationsHover.extensionsLabel', "{0} (Extension Suggestions Available)", super.getTooltip())
-				: super.getTooltip();
+		if (this.migrationAvailable.get()) {
+			return localize('customizationsHover.migrationsLabel', "{0} (Migrations Available)", super.getTooltip());
+		}
+		const badge = this.badge.get();
+		return badge !== undefined
+			? localize('customizationsHover.badgeLabel', "{0}, {1}", super.getTooltip(), badge)
+			: super.getTooltip();
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
 		return this.hover.getManagedContent(this.migrationAvailable.get()
 			? localize('customizationsHover.migrations', "Some customizations need an update to keep working.")
-			: this.extensionSuggestions.get()
-				? localize('customizationsHover.extensions', "Some installed extensions can be enabled in the Agents window.")
-				: undefined, () => this._context);
+			: this.badge.get(), () => this._context);
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions {

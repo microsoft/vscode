@@ -104,9 +104,9 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_WEB_MOBILE
-    displayName: "Build the optional mobile web archive"
+    displayName: "🎯 Mobile"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -345,9 +345,6 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
-
-      - ${{ if and(eq(parameters.VSCODE_BUILD_WEB_MOBILE, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
-        - 'Mobile web requires a Product build with VSCODE_BUILD_WEB=true': error
 
       # Reject at template expansion, before allocating agents. Web uploads the matching
       # commit's webview bootstrap assets even when VSCODE_PUBLISH is false.
@@ -797,9 +794,14 @@ extends:
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
+            # The test jobs start from its workspace image when the cache has one, without waiting for it
+            - template: build/azure-pipelines/darwin/product-build-darwin-workspace-image.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: UnitElectron
                 VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -807,6 +809,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: Unit
                 VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                 VSCODE_TEST_IDS:
@@ -815,6 +818,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: BrowserRemote
                 VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                 VSCODE_TEST_IDS:
@@ -825,6 +829,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: Integration
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -832,6 +837,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: AgentHostE2E
                 VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -839,6 +845,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: Smoke
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -973,7 +980,15 @@ extends:
             - template: build/azure-pipelines/web/product-build-web.yml@self
               parameters:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
-                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
+
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WEB_MOBILE, true)) }}:
+        - stage: Mobile
+          dependsOn: []
+          jobs:
+            - template: build/azure-pipelines/web/product-build-web.yml@self
+              parameters:
+                VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                mobile: true
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
@@ -984,6 +999,7 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
+                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
       - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(variables['VSCODE_STEP_ON_IT'], false), parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
         - stage: ApproveRelease
@@ -1014,7 +1030,8 @@ extends:
                   parameters:
                     VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
+      # Azure rejects empty stages; Web and Mobile have no jobs in this native test matrix.
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_LINUX_ARMHF)) }}:
         - stage: SanityTests
           displayName: Sanity Tests
           dependsOn:

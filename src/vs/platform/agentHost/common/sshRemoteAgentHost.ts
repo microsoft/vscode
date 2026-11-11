@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeHex } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -111,6 +112,66 @@ export function computeSSHConnectionKey(config: { sshConfigHost?: string; userna
 	return config.sshConfigHost
 		? `ssh:${config.sshConfigHost}`
 		: `${config.username}@${config.host}:${config.port ?? 22}`;
+}
+
+interface ISSHRemoteAuthority {
+	readonly hostName: string;
+	readonly user?: string;
+	readonly port?: number;
+}
+
+/** Parses the plain or hex-encoded authority used by Remote - SSH. */
+export function parseSSHRemoteAuthority(remoteAuthority: string): ISSHRemoteAuthority | undefined {
+	if (!remoteAuthority.startsWith('ssh-remote+')) {
+		return undefined;
+	}
+	const host = remoteAuthority.slice('ssh-remote+'.length);
+	return host ? readSSHAuthorityObject(host) ?? parseSSHHostString(host) : undefined;
+}
+
+/** The {@link computeSSHConnectionKey} of a Remote - SSH authority, keying the Agents Window's stored settings for that host. */
+export function getSSHRemoteAuthorityConnectionKey(remoteAuthority: string): string | undefined {
+	const ssh = parseSSHRemoteAuthority(remoteAuthority);
+	if (!ssh) {
+		return undefined;
+	}
+	if (ssh.user === undefined && ssh.port === undefined) {
+		return computeSSHConnectionKey({ sshConfigHost: ssh.hostName });
+	}
+	// Without the user, the key depends on SSH config that cannot be resolved here.
+	return ssh.user === undefined ? undefined : computeSSHConnectionKey({ host: ssh.hostName, username: ssh.user, port: ssh.port });
+}
+
+function readSSHAuthorityObject(host: string): ISSHRemoteAuthority | undefined {
+	try {
+		const value: { hostName?: unknown; user?: unknown; port?: unknown } = JSON.parse(decodeHex(host).toString());
+		if (typeof value?.hostName !== 'string' || !value.hostName) {
+			return undefined;
+		}
+		return {
+			hostName: value.hostName,
+			user: typeof value.user === 'string' && value.user ? value.user : undefined,
+			port: typeof value.port === 'number' ? value.port : undefined,
+		};
+	} catch {
+		// Plain host names are not hex-encoded JSON.
+		return undefined;
+	}
+}
+
+/** Mirrors `HostInfo.fromString` of Remote - SSH. An address with more than one colon is an IPv6 address. */
+function parseSSHHostString(host: string): ISSHRemoteAuthority {
+	const { user, address = host } = /^(?:(?<user>.*)@)?(?<address>.+?)$/.exec(host)?.groups ?? {};
+	const toPort = (port: string | undefined) => port ? parseInt(port, 10) : undefined;
+	const bracketed = /^\[(?<hostName>.+?)\](?::(?<port>\d+))?$/.exec(address)?.groups;
+	if (bracketed) {
+		return { hostName: bracketed.hostName, user: user || undefined, port: toPort(bracketed.port) };
+	}
+	if (address.indexOf(':') !== address.lastIndexOf(':')) {
+		return { hostName: address, user: user || undefined };
+	}
+	const withPort = /^(?<hostName>.+?)(?::(?<port>\d+))?$/.exec(address)?.groups;
+	return { hostName: withPort?.hostName ?? address, user: user || undefined, port: toPort(withPort?.port) };
 }
 
 /**

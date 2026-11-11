@@ -187,7 +187,18 @@ export function buildMermaidConfig(
 	return {
 		startOnLoad: false,
 		look: 'classic',
-		flowchart: { subGraphTitleMargin: { ...subgraphTitleMargin } },
+		// Mermaid 12 lays out these diagram types with ELK unless a diagram sets a layout. ELK lays out diagrams with many
+		// edges in a single task that can block the webview for many seconds, so keep them on dagre, the layout before
+		// Mermaid 12 (use case and agentflow diagrams are new in Mermaid 12). The layout is set per diagram type rather
+		// than globally, so diagram types with their own default layout, such as mindmaps and swimlanes, keep it.
+		// Diagrams can still opt into `layout: elk`.
+		flowchart: { layout: 'dagre', subGraphTitleMargin: { ...subgraphTitleMargin } },
+		class: { layout: 'dagre' },
+		state: { layout: 'dagre' },
+		er: { layout: 'dagre' },
+		requirement: { layout: 'dagre' },
+		usecase: { layout: 'dagre' },
+		agentflow: { layout: 'dagre' },
 		...vsCodeThemeTracker.resolveMermaidTheme(extensionConfig),
 	};
 }

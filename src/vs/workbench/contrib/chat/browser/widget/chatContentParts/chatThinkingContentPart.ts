@@ -3080,7 +3080,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this._titleDetailRendered.value = result;
 
 		const previousTitleDetail = this.titleDetailContainer;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const hasTitleLinks = result.element.querySelector('a') !== null;
 		// Titles with links sit beside the button so the links stay interactive.
 		this._collapseButton.element.parentElement?.classList.toggle('chat-thinking-title-beside-button', hasTitleLinks);

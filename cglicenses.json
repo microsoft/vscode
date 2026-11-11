@@ -1276,5 +1276,27 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE"
 		]
+	},
+	{
+		// Reason: The OSS license check cannot verify license text for @oxlint/plugins,
+		// and ClearlyDefined has no coverage. The package is part of the oxc repository,
+		// so use the upstream MIT license from the matching oxlint release.
+		// Source: https://github.com/oxc-project/oxc/blob/oxlint_v1.90.0/LICENSE
+		"name": "@oxlint/plugins",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/oxc-project/oxc/oxlint_v1.90.0/LICENSE"
+	},
+	{
+		// Reason: ClearlyDefined is unreachable in the OSS license check for oxlint.
+		// Use the upstream MIT license from the matching release.
+		// Source: https://github.com/oxc-project/oxc/blob/oxlint_v1.90.0/LICENSE
+		"name": "oxlint",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/oxc-project/oxc/oxlint_v1.90.0/LICENSE"
+	},
+	{
+		// Reason: The OSS license check cannot find local license text for oxlint-tsgolint,
+		// and ClearlyDefined has no coverage. Use the upstream MIT license.
+		// Source: https://github.com/oxc-project/tsgolint/blob/v7.0.2005/LICENSE
+		"name": "oxlint-tsgolint",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/oxc-project/tsgolint/v7.0.2005/LICENSE"
 	}
 ]

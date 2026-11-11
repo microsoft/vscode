@@ -359,11 +359,11 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 			templateData.addedSpan.textContent = `+${data.linesAdded}`;
 			templateData.removedSpan.textContent = `-${data.linesRemoved}`;
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 		} else {
 			badge.textContent = '';
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 		}
 
