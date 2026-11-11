@@ -446,6 +446,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const animFrameRequestedWith = new Map<number /* window ID */, Window['requestAnimationFrame']>();
 	/**
+	 * The token of the pending request. Only its callback runs the queue, so a superseded request that fires late does nothing.
+	 */
+	const animFrameRequestToken = new Map<number /* window ID */, number>();
+	let lastAnimFrameRequestToken = 0;
+	/**
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
@@ -460,11 +465,12 @@ class AnimationFrameQueueItem implements IDisposable {
 		CURRENT_QUEUE.delete(vscodeWindowId);
 		animFrameRequested.delete(vscodeWindowId);
 		animFrameRequestedWith.delete(vscodeWindowId);
+		animFrameRequestToken.delete(vscodeWindowId);
 		inAnimationFrameRunner.delete(vscodeWindowId);
 	}));
 
-	const animationFrameRunner = (targetWindowId: number) => {
-		if (!animFrameRequested.has(targetWindowId)) {
+	const animationFrameRunner = (targetWindowId: number, token: number) => {
+		if (!animFrameRequested.has(targetWindowId) || animFrameRequestToken.get(targetWindowId) !== token) {
 			return;
 		}
 		animFrameRequested.set(targetWindowId, false);
@@ -499,7 +505,9 @@ class AnimationFrameQueueItem implements IDisposable {
 		if (!animFrameRequested.get(targetWindowId) || animFrameRequestedWith.get(targetWindowId) !== targetWindow.requestAnimationFrame) {
 			animFrameRequested.set(targetWindowId, true);
 			animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
-			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
+			const token = ++lastAnimFrameRequestToken;
+			animFrameRequestToken.set(targetWindowId, token);
+			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId, token));
 		}
 
 		return item;

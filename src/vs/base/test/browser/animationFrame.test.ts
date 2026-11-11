@@ -86,4 +86,43 @@ suite('Animation frame window lifetime', () => {
 
 		assert.deepStrictEqual(calls, ['high', 'current', 'low', 'next']);
 	});
+
+	test('runs after requestAnimationFrame was replaced while a frame was pending', async () => {
+		// Like a test that fakes requestAnimationFrame and restores it before the faked frame fires.
+		const { targetWindow } = createWindow();
+		const realRequestAnimationFrame = targetWindow.requestAnimationFrame;
+		const calls: string[] = [];
+		targetWindow.requestAnimationFrame = () => 0;
+		scheduleAtNextAnimationFrame(targetWindow, () => calls.push('during fake'));
+		targetWindow.requestAnimationFrame = realRequestAnimationFrame;
+
+		await new Promise<void>(resolve => scheduleAtNextAnimationFrame(targetWindow, () => {
+			calls.push('after restore');
+			resolve();
+		}));
+
+		assert.deepStrictEqual(calls, ['during fake', 'after restore']);
+	});
+
+	test('a superseded frame request does not run the queue', () => {
+		const { targetWindow } = createWindow();
+		const firstFrames: FrameRequestCallback[] = [];
+		const secondFrames: FrameRequestCallback[] = [];
+		const calls: string[] = [];
+		targetWindow.requestAnimationFrame = callback => firstFrames.push(callback);
+		scheduleAtNextAnimationFrame(targetWindow, () => {
+			calls.push('frame 1');
+			scheduleAtNextAnimationFrame(targetWindow, () => calls.push('frame 2'));
+		});
+		targetWindow.requestAnimationFrame = callback => secondFrames.push(callback);
+		scheduleAtNextAnimationFrame(targetWindow, () => { });
+
+		// Both requests fire in the same frame: only the current one runs the queue, once.
+		firstFrames.shift()!(0);
+		secondFrames.shift()!(0);
+		const sameFrame = [...calls];
+		secondFrames.shift()!(16);
+
+		assert.deepStrictEqual({ sameFrame, nextFrame: calls }, { sameFrame: ['frame 1'], nextFrame: ['frame 1', 'frame 2'] });
+	});
 });
