@@ -9104,7 +9104,7 @@ suite('Sessions - SessionsList', () => {
 
 			for (const action of ['hold', 'done'] as const) {
 				for (const target of ['header', 'row']) {
-					test(`drops selected sessions onto an Inbox ${action} ${target} with undo and without changing saved organization`, async () => {
+					test(`drops selected sessions onto an Inbox ${action} ${target}${action === 'hold' ? ' with undo' : ''} and without changing saved organization`, async () => {
 						const first = createTestSession('First').session;
 						const second = createTestSession('Second', { createdAt: new Date(1), updatedAt: new Date() }).session;
 						const existing = createTestSession('Existing').session;
@@ -9121,17 +9121,19 @@ suite('Sessions - SessionsList', () => {
 						await timeout(0);
 						h.refresh();
 						const moved = h.sections().find(section => section.id === (action === 'hold' ? SessionInboxSection.OnHold : SessionInboxSection.Done))?.sessions;
-						await h.notices[0].undo!();
+						if (action === 'hold') {
+							await h.notices[0].undo!();
+						}
 						h.refresh();
 						assert.deepStrictEqual({
 							highlighted, moved,
-							undone: [first, second].map(session => h.model.getInboxState(session)?.kind),
+							states: [first, second].map(session => h.model.getInboxState(session)?.kind),
 							membership: h.instantiationService.get(ISessionGroupsService).getGroupOfSession(first.sessionId),
 							sortKey: h.model.getSortKey(first, 'created'),
 							archived: h.managementService.archived.map(session => session.sessionId),
 							read: h.managementService.readSessions.map(session => session.sessionId),
 						}, {
-							highlighted: [label], moved: ['Existing', 'First', 'Second'], undone: [undefined, undefined],
+							highlighted: [label], moved: ['Existing', 'First', 'Second'], states: action === 'hold' ? [undefined, undefined] : ['done', 'done'],
 							membership: 'saved', sortKey: 42, archived: [], read: [],
 						});
 					});
