@@ -255,7 +255,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		}
 		if (args[0] === 'run-user-commands') {
 			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
-			return Promise.resolve({ stdout: `${JSON.stringify({ outcome: this.userCommandsExitCode ? 'error' : 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
+			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed with exit code 1.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
 		}
 		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]];
 		if (args.includes('--skip-post-create')) {
@@ -1183,7 +1183,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				}
 			},
 			{ name: 'homeNotFound', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:home\nvscode-state:noHome\n', code: 0 }; } },
-			{ name: 'userCommands', setup: service => service.userCommandsExitCode = 1 },
+			{ name: 'userCommands', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.userCommandsExitCode = 1; } },
 		];
 		const results: Record<string, { connected: boolean; reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] }> = {};
 		for (const { name, setup } of scenarios) {
@@ -1206,7 +1206,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			inspect: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'inspect', step: undefined, exitCode: undefined, target: undefined, errorMessage: 'inspect failed' }, succeeded] },
 			script: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'script', step: 'statePath', exitCode: 1, target: 'workspaces', ...progress, errorMessage: `Cannot link user state (exit 1): mkdir: cannot create directory '~/.cache': Permission denied` }, succeeded] },
 			homeNotFound: { connected: true, reports: [added, up, { stage: 'link', outcome: 'homeNotFound', target: 'workspaces', ...progress }, succeeded] },
-			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'noMount' }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: undefined }] },
+			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'linked', target: 'workspaces', ...progress }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand from devcontainer.json failed with exit code 1.\nnpm ERR! Your cache folder contains root-owned files: ~/.npm, run: sudo chown -R <user> ~/.npm' }] },
 		});
 	});
 

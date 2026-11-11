@@ -44,6 +44,10 @@ suite('DevContainerState', () => {
 			['object mount', [{ mounts: [{ source: 'data', target: '/workspaces/', type: 'volume' }] }]],
 			['runArgs', [{ runArgs: ['-v', 'data:/workspaces'] }]],
 			['additional mount', [{}, ['type=volume,source=repo,target=/workspaces,external=true']]],
+			['unresolved mount target', [{ mounts: ['source=data,target=${localEnv:ROOT},type=volume'] }]],
+			['unresolved workspace mount', [{ workspaceMount: 'source=/src,target=/workspaces/${localEnv:NAME},type=bind' }]],
+			['unresolved runArgs', [{ runArgs: ['-v', 'data:${localEnv:ROOT}'] }]],
+			['unresolved mount source', [{ mounts: ['source=${localEnv:HOME}/cache,target=/cache,type=bind'] }]],
 		];
 		assert.deepStrictEqual(cases.map(([name, args]) => [name, getDevContainerStateMountTarget(...args)]), [
 			['default', devContainerStateWorkspacesTarget],
@@ -56,6 +60,10 @@ suite('DevContainerState', () => {
 			['object mount', devContainerStateFallbackTarget],
 			['runArgs', devContainerStateFallbackTarget],
 			['additional mount', devContainerStateFallbackTarget],
+			['unresolved mount target', devContainerStateFallbackTarget],
+			['unresolved workspace mount', devContainerStateFallbackTarget],
+			['unresolved runArgs', devContainerStateFallbackTarget],
+			['unresolved mount source', devContainerStateWorkspacesTarget],
 		]);
 	});
 

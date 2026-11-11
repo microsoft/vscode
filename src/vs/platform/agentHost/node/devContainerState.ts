@@ -83,13 +83,14 @@ export interface IDevContainerStateMountConfiguration {
 
 /** Uses /workspaces unless Compose or a configured mount could conflict with a volume there. */
 export function getDevContainerStateMountTarget(configuration: IDevContainerStateMountConfiguration, additionalMounts: readonly unknown[] = []): string {
-	const usesWorkspaces = (value: unknown) => typeof value === 'string' && /(?:^|[=:])\/workspaces\/?(?=$|[,:\s])/.test(value);
+	// Unresolved variables could resolve to /workspaces.
+	const mayUseWorkspaces = (value: unknown) => typeof value === 'string' && (value.includes('${') || /(?:^|[=:])\/workspaces\/?(?=$|[,:\s])/.test(value));
 	const mounts = [...Array.isArray(configuration.mounts) ? configuration.mounts : [], ...additionalMounts];
 	const workspaceMountTarget = typeof configuration.workspaceMount === 'string' ? getMountTarget(configuration.workspaceMount) : undefined;
 	if (configuration.dockerComposeFile !== undefined
-		|| (configuration.workspaceMount !== undefined && !workspaceMountTarget?.startsWith('/workspaces/'))
-		|| (Array.isArray(configuration.runArgs) && configuration.runArgs.some(usesWorkspaces))
-		|| mounts.some(mount => usesWorkspaces(typeof mount === 'object' && mount !== null ? (mount as { readonly target?: unknown }).target : mount))) {
+		|| (configuration.workspaceMount !== undefined && (!workspaceMountTarget?.startsWith('/workspaces/') || workspaceMountTarget.includes('${')))
+		|| (Array.isArray(configuration.runArgs) && configuration.runArgs.some(mayUseWorkspaces))
+		|| mounts.some(mount => mayUseWorkspaces(typeof mount === 'string' ? getMountTarget(mount) ?? mount : typeof mount === 'object' && mount !== null ? (mount as { readonly target?: unknown }).target : mount))) {
 		return devContainerStateFallbackTarget;
 	}
 	return devContainerStateWorkspacesTarget;
