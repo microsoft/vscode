@@ -4258,7 +4258,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return resolution;
 		}
 		if (taken) {
-			const helpers = plan.helpers.map(helper => helper.modelName ? `${helper.agent ?? helper.name} (${helper.modelName})` : helper.agent ?? helper.name);
+			const helpers = plan.helpers.map(helper => helper.modelName ? `${helper.name} (${helper.modelName})` : helper.name);
 			this._logService.info(`[ModelRouter] ${chatKey}: playbook ${plan.playbook}; helpers=${helpers.join(', ') || 'none'}`);
 			return helpers.length
 				? { ...resolution, notices: [...resolution.notices, localize('modelRouter.helpers', "The {0} playbook brings these helpers to this chat: {1}.", plan.playbook, helpers.join(', '))] }

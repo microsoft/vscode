@@ -372,10 +372,10 @@ A playbook can bring helpers: subagents its main agent can start, each on its ow
 ${modelRouterHelpersExample}
 \`\`\`
 
-- \`roles\` is a map at the top of the file. Each role has a \`description\`, which tells the main agent what the helper is for and is the helper's own instructions. Or it has an \`agent\`: the name of a custom agent the user already has, whose file supplies the instructions and tools. \`model\` (an id or a list, like \`main\`) and \`effort\` are optional; without \`model\` the helper keeps its agent's model, else the chat's.
+- \`roles\` is a map at the top of the file. Each role has a \`description\`, which tells the main agent what the helper is for and is the helper's own instructions. Or it has an \`agent\`: the name of a custom agent the user already has, whose file supplies the instructions and tools. The helper is a copy of that agent named after the role; the agent itself is unchanged. \`model\` (an id or a list, like \`main\`) and \`effort\` are optional; without \`model\` the helper keeps its agent's model, else the chat's, and its \`effort\` is passed on as written.
 - A playbook lists the roles it brings in \`uses\`, at most 8. \`guidance\` on a playbook says how the user wants that kind of work done; the main agent reads it, the decision model does not.
 - A chat's helpers are decided by its first message and kept for that chat. A router chosen in a chat that already has messages picks models but brings no helpers; start a new chat to get them. They are also lost when VS Code restarts.
-- The check lists each playbook's \`helpers\` with the model each would run on. It can't see whether an \`agent\` exists: a role whose agent is missing, or matches more than one, is left out when the chat starts.
+- The check lists each playbook's \`helpers\` with the model each would run on. It can't see whether an \`agent\` exists: a role is left out when the chat starts if its agent is missing, matches more than one, or is one that other agents can't start.
 
 ## YAML rules
 

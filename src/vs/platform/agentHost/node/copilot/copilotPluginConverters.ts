@@ -268,45 +268,49 @@ export interface IModelRouterHelperProjection {
 }
 
 /**
- * Adds a model router playbook's helpers to a session's custom agents. A role the router describes
- * becomes an agent of its own. A role that reuses an authored agent puts that agent on the role's
- * model; it must match exactly one agent by authored name. A role's model is required, so its
- * helper fails rather than running on another model.
+ * Adds a model router playbook's helpers to a session's custom agents. Every helper is an agent
+ * of its own, named after its role. A role the router describes gets the description as its
+ * instructions. A role that reuses an authored agent gets a copy of that agent, which itself is
+ * left as written; it must match exactly one authored agent by name, and one another agent may
+ * start. A role's model is required, so its helper fails rather than running on another model.
+ *
+ * @param encodeEffort Encodes a helper's effort for the runtime, given the model it runs on.
  */
-export function withModelRouterHelpers(agents: readonly CustomAgentConfig[], helpers: readonly IModelRouterHelper[], reservedNames: ReadonlySet<string>): IModelRouterHelperProjection {
+export function withModelRouterHelpers(agents: readonly CustomAgentConfig[], helpers: readonly IModelRouterHelper[], reservedNames: ReadonlySet<string>, encodeEffort: (model: string | undefined, effort: string) => string = (_model, effort) => effort): IModelRouterHelperProjection {
 	const result: CustomAgentConfig[] = [...agents];
 	const installed: IInstalledModelRouterHelper[] = [];
 	const omitted: string[] = [];
-	const model = (helper: IModelRouterHelper): Partial<CustomAgentConfig> => ({
-		...(helper.model ? { model: helper.model, modelPolicy: 'required' } : {}),
-		...(isCustomAgentReasoningEffort(helper.effort) ? { reasoningEffort: helper.effort } : {}),
-	});
 	for (const helper of helpers) {
-		if (helper.agent) {
-			const wanted = helper.agent.toLowerCase();
-			const matches = result.flatMap((agent, index) => (agent.displayName ?? agent.name).toLowerCase() === wanted ? [index] : []);
-			if (matches.length !== 1) {
-				omitted.push(`${helper.name}: ${matches.length === 0 ? 'no' : 'more than one'} custom agent is named "${helper.agent}"`);
-				continue;
-			}
-			const agent = result[matches[0]];
-			result[matches[0]] = { ...agent, ...model(helper) };
-			installed.push({ name: agent.displayName ?? agent.name, agentType: agent.name, description: helper.description });
-			continue;
-		}
 		if (reservedNames.has(helper.name) || result.some(agent => agent.name === helper.name)) {
 			omitted.push(`${helper.name}: an agent with that name already exists`);
 			continue;
 		}
+		let base: CustomAgentConfig;
+		let description = helper.description;
+		if (helper.agent) {
+			// Only agents the user authored are reused, never a helper added above.
+			const wanted = helper.agent.toLowerCase();
+			const matches = agents.filter(agent => (agent.displayName ?? agent.name).toLowerCase() === wanted);
+			if (matches.length !== 1) {
+				omitted.push(`${helper.name}: ${matches.length === 0 ? 'no' : 'more than one'} custom agent is named "${helper.agent}"`);
+				continue;
+			}
+			const authored: ICopilotCustomAgentConfig = matches[0];
+			if (authored.infer === false || authored.disableModelInvocation) {
+				omitted.push(`${helper.name}: the custom agent "${helper.agent}" can't be started by another agent`);
+				continue;
+			}
+			description ||= `The user's ${authored.displayName ?? authored.name} agent.`;
+			base = { ...authored, name: helper.name, displayName: helper.name, description: customAgentDescription(helper.name, description) };
+		} else {
+			base = { name: helper.name, displayName: helper.name, description: customAgentDescription(helper.name, description), tools: null, prompt: description };
+		}
 		result.push({
-			name: helper.name,
-			displayName: helper.name,
-			description: customAgentDescription(helper.name, helper.description),
-			...model(helper),
-			tools: null,
-			prompt: helper.description,
+			...base,
+			...(helper.model ? { model: helper.model, modelPolicy: 'required' } : {}),
+			...(helper.effort ? { reasoningEffort: encodeEffort(helper.model ?? base.model, helper.effort) } : {}),
 		});
-		installed.push({ name: helper.name, agentType: helper.name, description: helper.description });
+		installed.push({ agentType: helper.name, description });
 	}
 	return { agents: result, installed, omitted };
 }

@@ -669,6 +669,11 @@ export function toRuntimeReasoningEffort(model: ModelSelection | undefined, effo
 	return isLocalModelSelectionId(model?.id) && (effort as string | undefined) === 'none' ? toSdkReasoningEffort('minimal') : effort;
 }
 
+/** Encodes a model router helper's effort the way the chat's own is, for the model the helper runs on. */
+function encodeHelperEffort(model: string | undefined, effort: string): string {
+	return toRuntimeReasoningEffort(model ? { id: model } : undefined, effort as SessionConfig['reasoningEffort']) ?? effort;
+}
+
 /**
  * Shape-checked only: the SDK deep-merges this over its own defaults and ignores
  * unrecognized keys, so field-level validation belongs at that boundary.
@@ -1609,7 +1614,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const authoredAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.displayName ?? agent.name));
 		// An ephemeral session has no custom agents, so it gets no helpers and no briefing about them.
 		const helperPlan = plan.isEphemeral ? undefined : plan.modelRouterHelpers;
-		const helperProjection = helperPlan ? withModelRouterHelpers(authoredAgents, helperPlan.helpers, COPILOT_BUILTIN_AGENT_NAMES) : undefined;
+		const helperProjection = helperPlan ? withModelRouterHelpers(authoredAgents, helperPlan.helpers, COPILOT_BUILTIN_AGENT_NAMES, encodeHelperEffort) : undefined;
 		const authoredCustomAgents = helperProjection?.agents ?? authoredAgents;
 		const helperBriefing = helperPlan && helperProjection ? modelRouterBriefing(helperPlan, helperProjection.installed) : undefined;
 		if (helperPlan && helperProjection) {

@@ -36,10 +36,9 @@ export interface IModelRouterHelperPlan {
 	readonly helpers: readonly IModelRouterHelper[];
 }
 
-/** A helper a session really has, and the name the `task` tool starts it by. */
+/** A helper a session really has. */
 export interface IInstalledModelRouterHelper {
-	/** The role's name, or the authored name of the agent it reuses. */
-	readonly name: string;
+	/** The name the `task` tool starts it by, which is its role's name. */
 	readonly agentType: string;
 	readonly description: string;
 }
@@ -70,7 +69,9 @@ export function resolveModelRouterHelperPlan(router: IModelRouter, playbook: str
 			return [];
 		}
 		const model = resolveRoleModel(role, routable);
-		const effort = role.effort && supportedModelEfforts(model).includes(role.effort) ? role.effort : undefined;
+		// An effort is checked against the role's own model. A helper that keeps its agent's
+		// model, or the chat's, gets the effort as written: that model is not known here.
+		const effort = role.effort && (!model || supportedModelEfforts(model).includes(role.effort)) ? role.effort : undefined;
 		return [{
 			name: role.name,
 			description: role.description,
@@ -119,10 +120,10 @@ export function modelRouterBriefing(plan: IModelRouterHelperPlan, installed: rea
 		lines.push('', 'How the user wants the work done:', plan.guidance);
 	}
 	if (installed.length) {
-		lines.push('', 'Helpers you can start with the task tool:');
+		lines.push('', 'Helpers you can start with the task tool, by passing the name as its agent_type:');
 		for (const helper of installed) {
 			const description = helper.description.replace(/\s+/g, ' ').trim();
-			lines.push(`- ${helper.name} (agent_type: \`${helper.agentType}\`)${description ? `: ${description}` : ''}`);
+			lines.push(`- \`${helper.agentType}\`${description ? `: ${description}` : ''}`);
 		}
 		lines.push('', 'Start a helper whenever the guidance or the work calls for it. Each helper already runs on the model the user chose for it, so do not pass a model when you start one.');
 	}

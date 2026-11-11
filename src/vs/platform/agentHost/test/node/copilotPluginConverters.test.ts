@@ -786,38 +786,49 @@ suite('copilotPluginConverters', () => {
 
 	suite('withModelRouterHelpers', () => {
 
-		test('adds described roles, puts reused agents on the role\'s model, and leaves out what it cannot place', () => {
-			const authored: CustomAgentConfig[] = [
-				{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', model: 'own-model', tools: ['read'], prompt: 'Write tests.' },
+		test('makes every helper an agent of its own, copies a reused agent, and leaves out what it cannot place', () => {
+			const authored: (CustomAgentConfig & { disableModelInvocation?: true })[] = [
+				{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', model: 'own-model', reasoningEffort: 'low', tools: ['read'], prompt: 'Write tests.' },
 				{ name: 'vscode-agent-2', displayName: 'Twin', description: 'Twin', prompt: 'One.' },
 				{ name: 'vscode-agent-3', displayName: 'twin', description: 'twin', prompt: 'Two.' },
+				{ name: 'vscode-agent-4', displayName: 'reviewer', description: 'reviewer', prompt: 'Review.' },
+				{ name: 'vscode-agent-5', displayName: 'Hidden', description: 'Hidden', infer: false, disableModelInvocation: true, prompt: 'Hidden.' },
 			];
 			const result = withModelRouterHelpers(authored, [
-				{ name: 'reviewer', description: 'Reviews a\nchange.', model: 'gpt', modelName: 'GPT', effort: 'high' },
+				{ name: 'reviewer', description: 'Reviews a\nchange.', model: 'gpt', modelName: 'GPT', effort: 'minimal' },
+				// Two roles may reuse one agent on different models; neither changes the agent itself.
 				{ name: 'tester', description: 'Writes tests.', agent: 'test writer', model: 'sonnet' },
-				{ name: 'plain', description: 'No model of its own.' },
+				{ name: 'tester-deep', description: '', agent: 'Test Writer', effort: 'high' },
+				// A role named like an authored agent does not make a later reference to that agent ambiguous.
+				{ name: 'second-reviewer', description: '', agent: 'reviewer' },
+				{ name: 'local', description: 'On an on-device model.', model: 'local-model', effort: 'none' },
 				{ name: 'missing', description: '', agent: 'Nobody' },
 				{ name: 'ambiguous', description: '', agent: 'Twin' },
+				{ name: 'hidden', description: '', agent: 'Hidden' },
 				{ name: 'explore', description: 'Clashes with a built-in agent.' },
-			], new Set(['explore']));
+			], new Set(['explore']), (model, effort) => model === 'local-model' && effort === 'none' ? 'minimal' : effort);
 			assert.deepStrictEqual(result, {
 				agents: [
-					// The agent keeps its instructions and tools; the role's model replaces its own and is required.
-					{ name: 'vscode-agent-1', displayName: 'Test Writer', description: 'Test Writer', model: 'sonnet', modelPolicy: 'required', tools: ['read'], prompt: 'Write tests.' },
-					authored[1],
-					authored[2],
-					{ name: 'reviewer', displayName: 'reviewer', description: 'reviewer: Reviews a change.', model: 'gpt', modelPolicy: 'required', reasoningEffort: 'high', tools: null, prompt: 'Reviews a\nchange.' },
-					{ name: 'plain', displayName: 'plain', description: 'plain: No model of its own.', tools: null, prompt: 'No model of its own.' },
+					...authored,
+					{ name: 'reviewer', displayName: 'reviewer', description: 'reviewer: Reviews a change.', tools: null, prompt: 'Reviews a\nchange.', model: 'gpt', modelPolicy: 'required', reasoningEffort: 'minimal' },
+					// The copy keeps the agent's instructions and tools; the role's model replaces the agent's and is required.
+					{ name: 'tester', displayName: 'tester', description: 'tester: Writes tests.', model: 'sonnet', modelPolicy: 'required', reasoningEffort: 'low', tools: ['read'], prompt: 'Write tests.' },
+					// Without a model of its own the role keeps the agent's, and its effort still applies.
+					{ name: 'tester-deep', displayName: 'tester-deep', description: 'tester-deep: The user\'s Test Writer agent.', model: 'own-model', reasoningEffort: 'high', tools: ['read'], prompt: 'Write tests.' },
+					{ name: 'second-reviewer', displayName: 'second-reviewer', description: 'second-reviewer: The user\'s reviewer agent.', prompt: 'Review.' },
+					{ name: 'local', displayName: 'local', description: 'local: On an on-device model.', tools: null, prompt: 'On an on-device model.', model: 'local-model', modelPolicy: 'required', reasoningEffort: 'minimal' },
 				],
 				installed: [
-					{ name: 'reviewer', agentType: 'reviewer', description: 'Reviews a\nchange.' },
-					// A reused agent is started by its generated name, not its authored one.
-					{ name: 'Test Writer', agentType: 'vscode-agent-1', description: 'Writes tests.' },
-					{ name: 'plain', agentType: 'plain', description: 'No model of its own.' },
+					{ agentType: 'reviewer', description: 'Reviews a\nchange.' },
+					{ agentType: 'tester', description: 'Writes tests.' },
+					{ agentType: 'tester-deep', description: 'The user\'s Test Writer agent.' },
+					{ agentType: 'second-reviewer', description: 'The user\'s reviewer agent.' },
+					{ agentType: 'local', description: 'On an on-device model.' },
 				],
 				omitted: [
 					'missing: no custom agent is named "Nobody"',
 					'ambiguous: more than one custom agent is named "Twin"',
+					'hidden: the custom agent "Hidden" can\'t be started by another agent',
 					'explore: an agent with that name already exists',
 				],
 			});

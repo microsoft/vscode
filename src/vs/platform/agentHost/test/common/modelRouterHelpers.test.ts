@@ -22,9 +22,11 @@ const router = parseModelRouter([
 	'  reviewer:',
 	'    description: Reviews a change.',
 	'    model: [gone, gpt]',
+	'    effort: high',
 	'  tester:',
 	'    agent: Test Writer',
 	'    model: gone',
+	'    effort: high',
 	'  spare:',
 	'    description: Never used.',
 	'playbooks:',
@@ -61,14 +63,16 @@ suite('modelRouterHelpers', () => {
 				playbook: 'feature',
 				guidance: 'Plan first.',
 				helpers: [
+					// An effort is checked against the role's own model, which here has no effort setting.
 					{ name: 'reviewer', description: 'Reviews a change.', model: 'gpt', modelName: 'GPT' },
-					{ name: 'tester', description: '', agent: 'Test Writer' },
+					// A helper that keeps its agent's model gets the effort as written.
+					{ name: 'tester', description: '', agent: 'Test Writer', effort: 'high' },
 				],
 			},
 			notes: { router: 'Workday', playbook: 'notes', guidance: 'Keep it short.', helpers: [] },
 			quick: undefined,
 			unknown: undefined,
-			disabled: { name: 'reviewer', description: 'Reviews a change.' },
+			disabled: { name: 'reviewer', description: 'Reviews a change.', effort: 'high' },
 		});
 	});
 
@@ -83,7 +87,7 @@ suite('modelRouterHelpers', () => {
 		const plan = resolveModelRouterHelperPlan(router, 'feature', [model('gpt')])!;
 		assert.deepStrictEqual({
 			// The tester's agent was not found at launch, so it is not mentioned.
-			withHelpers: modelRouterBriefing(plan, [{ name: 'reviewer', agentType: 'reviewer', description: 'Reviews\n a change.' }, { name: 'Docs Writer', agentType: 'vscode-agent-abc', description: '' }]),
+			withHelpers: modelRouterBriefing(plan, [{ agentType: 'reviewer', description: 'Reviews\n a change.' }, { agentType: 'docs', description: '' }]),
 			guidanceOnly: modelRouterBriefing(plan, []),
 			nothing: modelRouterBriefing({ ...plan, guidance: undefined }, []),
 		}, {
@@ -95,9 +99,9 @@ suite('modelRouterHelpers', () => {
 				'How the user wants the work done:',
 				'Plan first.',
 				'',
-				'Helpers you can start with the task tool:',
-				'- reviewer (agent_type: `reviewer`): Reviews a change.',
-				'- Docs Writer (agent_type: `vscode-agent-abc`)',
+				'Helpers you can start with the task tool, by passing the name as its agent_type:',
+				'- `reviewer`: Reviews a change.',
+				'- `docs`',
 				'',
 				'Start a helper whenever the guidance or the work calls for it. Each helper already runs on the model the user chose for it, so do not pass a model when you start one.',
 				'</model_router_playbook>',
