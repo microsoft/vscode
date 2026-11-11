@@ -53,7 +53,7 @@ import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 import '../../../../../browser/media/style.css';
-import { ITestSessionWithChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHosts, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed' } = {}): Promise<void> {
 	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld } = options;
@@ -141,6 +141,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/fixture') }));
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
+	stubSessionHosts(instantiationService, disposableStore, { session });
 	const connection = new class extends mock<IAgentConnection>() {
 		override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 			return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };

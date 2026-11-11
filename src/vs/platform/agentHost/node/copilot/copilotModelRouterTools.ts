@@ -45,7 +45,7 @@ export interface IModelRouterCheck {
 	readonly path: string;
 	readonly valid: boolean;
 	readonly diagnostics: readonly ICheckedDiagnostic[];
-	readonly routes?: readonly { readonly route: number; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string }[];
+	readonly routes?: readonly { readonly route: number; readonly playbook?: string; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string }[];
 }
 
 export function createCopilotModelRouterTools(enabled: boolean, host: IModelRouterToolHost, logService: ILogService): Tool<unknown>[] {
@@ -125,6 +125,7 @@ function check(name: string, uri: URI, router: IModelRouterFile['router'], parse
 		...(router && resolution ? {
 			routes: resolution.routes.map(resolved => ({
 				route: router.routes.indexOf(resolved.route) + 1,
+				...(resolved.route.name ? { playbook: resolved.route.name } : {}),
 				model: resolved.reference,
 				matched: readAgentModelByokIdentifier(resolved.model) ?? resolved.model.id,
 				...(resolved.effort ? { effort: resolved.effort } : {}),

@@ -4035,6 +4035,32 @@ suite('AgentSideEffects', () => {
 				await new Promise(r => setTimeout(r, 10));
 				assert.deepStrictEqual({ models: agent.changeModelCalls, sent: agent.sendMessageCalls.length }, { models: [], sent: 1 });
 			});
+
+			for (const [name, resolve] of [
+				['made no pick', async (): Promise<IAgentTurnModelResolution> => ({ selection: undefined, notices: [] })],
+				['failed', (): Promise<IAgentTurnModelResolution> => Promise.reject(new Error('boom'))],
+			] as const) {
+				test(`says on every usage report that the turn asked for a router that ${name}`, async () => {
+					setupSession();
+					const actions: StateAction[] = [];
+					disposables.add(stateManager.onDidEmitEnvelope(envelope => actions.push(envelope.action)));
+					routeWith(resolve);
+					disposables.add(sideEffects.registerProgressListener(agent));
+
+					startRoutedTurn();
+					await new Promise(r => setTimeout(r, 10));
+					agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 5, outputTokens: 1, model: 'model-a' } } });
+
+					// A restored turn's selection is the model it ran on, so this is what tells it apart from a model picked by hand.
+					assert.deepStrictEqual({
+						onUsage: actions.flatMap(action => action.type === ActionType.ChatUsage ? [readUsageInfoMeta(action.usage).modelRouterUnrouted] : []),
+						turnUsage: stateManager.getChatState(defaultChatUri)?.activeTurn?.usage,
+					}, {
+						onUsage: ['daily', 'daily'],
+						turnUsage: { inputTokens: 5, outputTokens: 1, model: 'model-a', _meta: { modelRouterUnrouted: 'daily' } },
+					});
+				});
+			}
 		});
 
 		test('calls changeModel on the agent before sending the message', async () => {
