@@ -77,6 +77,9 @@ suite('DecisionsModelRouterPicker', () => {
 		const bytesPerCharacter = (size('g'.repeat(2000)) - size('g'.repeat(1000))) / 1000;
 		const guidance = 'g'.repeat(1000 + Math.floor((modelRouterRequestLimits.request - size('g'.repeat(1000)) - 100) / bytesPerCharacter));
 		const tight = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] }));
+		// With no text, the attachment was all there was to go by, so there is nothing left to ask about.
+		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: '', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] })), ModelRouterPickerError);
+		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: ' ' })), ModelRouterPickerError);
 
 		assert.deepStrictEqual({
 			boundedLines: boundedLines.map(line => line.length <= modelRouterRequestLimits.situationLine + 2 ? line.slice(0, 40) : 'too long'),
