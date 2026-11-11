@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
+import { Direction, Grid } from '../../../../../base/browser/ui/grid/grid.js';
+import { IView } from '../../../../../base/browser/ui/grid/gridview.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -169,6 +171,68 @@ suite('ChatHostPart', () => {
 		// The first layout as the content is set, then those of the test
 		assert.deepStrictEqual(widths.slice(-3), [298, 298, 294]);
 		store.dispose();
+	});
+
+	/**
+	 * Lays out the primary side bar, the chat part when `withChat`, the editor and the secondary side bar in a grid of the
+	 * workbench, under the floating panel styles, and measures how far each sash between them is from the middle of the
+	 * gap between their cards.
+	 */
+	function measureSashOffsets(withChat: boolean): number[] {
+		const store = disposables.add(new DisposableStore());
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.floating-panels'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: absolute; top: 0; left: 0; width: 1000px; height: 400px; --vscode-panels-spacing: 16px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-sash-size: 4px; --vscode-sash-hover-size: 4px; --vscode-strokeThickness: 1px; --vscode-foreground: rgb(255, 255, 255);';
+		const cardView = (classes: string): IView => {
+			const element = $(classes);
+			element.style.boxSizing = 'border-box';
+			element.style.width = 'calc(100% - var(--modern-ui-floating-card-margin) - var(--modern-ui-floating-card-inner-margin))';
+			element.style.height = 'calc(100% - var(--modern-ui-floating-card-inner-margin) - var(--modern-ui-floating-card-statusbar-margin))';
+			return { element, minimumWidth: 0, maximumWidth: Number.POSITIVE_INFINITY, minimumHeight: 0, maximumHeight: Number.POSITIVE_INFINITY, onDidChange: Event.None, layout: () => { } };
+		};
+		const sideBar = cardView('.part.sidebar');
+		const editor = cardView('.part.editor');
+		const auxiliaryBar = cardView('.part.auxiliarybar');
+		const grid = store.add(new Grid<IView>(sideBar));
+		append(workbench, grid.element);
+		grid.layout(1000, 400);
+		const cards = [sideBar.element];
+		let reference: IView = sideBar;
+		if (withChat) {
+			const visible = new Set<Parts>([Parts.TITLEBAR_PART, Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]);
+			const layoutService = upcastPartial<IWorkbenchLayoutService>({
+				registerPart: () => toDisposable(() => { }),
+				mainContainer: workbench,
+				isFloatingPanelsEnabled: () => true,
+				isModernUICompact: () => false,
+				getPanelSpacing: () => 16,
+				getSideBarPosition: () => Position.LEFT,
+				getPanelPosition: () => Position.BOTTOM,
+				getPanelAlignment: (): PanelAlignment => 'center',
+				isVisible: (part: Parts) => visible.has(part),
+			});
+			const chatPart = store.add(new ChatHostPart(new TestThemeService(), store.add(new TestStorageService()), layoutService));
+			chatPart.create($('.part.chat'));
+			const content = $('.part.editor');
+			append(content, $('.content'));
+			store.add(chatPart.setContent(upcastPartial<IContentPart>({ element: content, minimumWidth: 0, onDidChange: Event.None, setVisible: () => { }, layout: () => { } })));
+			grid.addView(chatPart, 300, sideBar, Direction.Right);
+			cards.push(content);
+			reference = chatPart;
+		}
+		grid.addView(editor, withChat ? 300 : 600, reference, Direction.Right);
+		grid.addView(auxiliaryBar, 200, editor, Direction.Right);
+		cards.push(editor.element, auxiliaryBar.element);
+
+		const rects = cards.map(card => card.getBoundingClientRect());
+		const sashes = Array.from(grid.element.querySelectorAll<HTMLElement>('.monaco-sash.vertical')).map(sash => sash.getBoundingClientRect()).sort((a, b) => a.left - b.left);
+		const offsets = sashes.map((sash, index) => Math.round(((sash.left + sash.right) / 2) - ((rects[index].right + rects[index + 1].left) / 2)));
+		store.dispose();
+		return offsets;
+	}
+
+	test('with floating panels, the sashes beside the chat part sit in the middle of their gaps, as without it', () => {
+		assert.deepStrictEqual({ withoutChat: measureSashOffsets(false), withChat: measureSashOffsets(true) }, { withoutChat: [0, 0], withChat: [0, 0, 0] });
 	});
 
 	test('with floating panels and Modern UI, the chat card has one edge, the editor card\'s, all of it inside the part', () => {

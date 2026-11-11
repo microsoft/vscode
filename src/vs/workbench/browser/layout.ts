@@ -2471,6 +2471,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
 		this.chatPartHidden = hidden;
 		this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
+		// The sashes beside it move: where they meet the others changes too
+		this.updateSashEndpoints();
 		if (hadFocus) {
 			this.focusPanelOrEditor();
 		}
@@ -2487,6 +2489,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.chatPartHidden = true;
 			this.chatPartHiddenByLayout = true;
 			this.workbenchGrid.setViewVisible(this.chatPartView, false);
+			this.updateSashEndpoints();
 		}
 	}
 
@@ -2495,6 +2498,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.chatPartHiddenByLayout = false;
 			this.chatPartHidden = false;
 			this.workbenchGrid.setViewVisible(this.chatPartView, true);
+			this.updateSashEndpoints();
 		}
 	}
 

@@ -45,6 +45,7 @@ suite('Workbench layout sash endpoints', () => {
 		const panelPartView = view(Parts.PANEL_PART);
 		const auxiliaryBarPartView = view(Parts.AUXILIARYBAR_PART);
 		const statusBarPartView = view(Parts.STATUSBAR_PART);
+		const chatPartView = view(Parts.CHAT_PART);
 		const layout = store.add(new class extends Layout {
 			compact = false;
 			override isFloatingPanelsEnabled() { return true; }
@@ -70,10 +71,12 @@ suite('Workbench layout sash endpoints', () => {
 		grid.addView(sideBarPartView, 160, editorPartView, Direction.Left);
 		grid.addView(auxiliaryBarPartView, 160, editorPartView, Direction.Right);
 		grid.addView(panelPartView, 200, editorPartView, Direction.Down);
+		// Beside the editor, above the panel: its sash meets the panel's
+		grid.addView(chatPartView, 120, editorPartView, Direction.Left);
 		const values = new Map<string, number | string>();
 		Object.assign(layout, {
 			workbenchGrid: grid, titleBarPartView, bannerPartView, activityBarPartView, sideBarPartView,
-			editorPartView, panelPartView, auxiliaryBarPartView, statusBarPartView,
+			editorPartView, panelPartView, auxiliaryBarPartView, statusBarPartView, chatPartView, chatPartHidden: false,
 			stateModel: {
 				getRuntimeValue: (key: { name: string; defaultValue: number | string }) => values.get(key.name) ?? key.defaultValue,
 				setRuntimeValue: (key: { name: string }, value: number | string) => values.set(key.name, value),
@@ -104,6 +107,18 @@ suite('Workbench layout sash endpoints', () => {
 				const actual = endpoints();
 				updateSashEndpoints(grid.element, !compact);
 				assert.deepStrictEqual(actual, endpoints(), alignment);
+			}
+		});
+
+		test(`refreshes sash endpoints immediately after the chat part hides or shows, compact=${compact}`, () => {
+			const { layout, root, grid, endpoints } = createLayout();
+			layout.compact = compact;
+			root.classList.toggle('modern-ui-compact', compact);
+			for (const hidden of [true, false]) {
+				layout.setPartHidden(hidden, Parts.CHAT_PART);
+				const actual = endpoints();
+				updateSashEndpoints(grid.element, !compact);
+				assert.deepStrictEqual(actual, endpoints(), `hidden=${hidden}`);
 			}
 		});
 
