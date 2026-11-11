@@ -20,7 +20,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
+import { vArray, vLiteral, vObj, vOptionalProp, vString, vUnknown } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -31,7 +31,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
@@ -54,8 +54,9 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
-import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
+import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkProgress, parseLinkDevContainerStateOutput } from './devContainerState.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -139,6 +140,7 @@ export function waitForDevContainerRelayConnection(
 interface IDevContainerUpResult {
 	readonly containerId: string;
 	readonly remoteWorkspaceFolder: string;
+	readonly remoteUser?: string;
 }
 
 interface IDevContainerMount {
@@ -161,6 +163,23 @@ const devContainerUpResultValidator = vObj({
 	outcome: vLiteral('success'),
 	containerId: vString(),
 	remoteWorkspaceFolder: vString(),
+	remoteUser: vOptionalProp(vString()),
+});
+
+const devContainerUserCommandsResultValidator = vObj({
+	outcome: vLiteral('success'),
+});
+
+const devContainerStateConfigurationValidator = vObj({
+	configuration: vObj({
+		dockerComposeFile: vOptionalProp(vUnknown()),
+		workspaceMount: vOptionalProp(vUnknown()),
+		mounts: vOptionalProp(vUnknown()),
+		runArgs: vOptionalProp(vUnknown()),
+	}),
+	mergedConfiguration: vOptionalProp(vObj({
+		mounts: vOptionalProp(vArray(vUnknown())),
+	})),
 });
 
 const devContainerMountsValidator = vArray(vObj({
@@ -215,6 +234,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	readonly onDidOutput = this._onDidOutput.event;
 	private readonly _onDidChangeSandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
 	readonly onDidChangeSandboxSupport = this._onDidChangeSandboxSupport.event;
+	private readonly _onDidReportUserState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
+	readonly onDidReportUserState = this._onDidReportUserState.event;
 
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
@@ -291,7 +312,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const prepared = await this._prepareSample(config.connectionId, sample, tokenSource.token, containerId => {
 					sampleContainerStarted = true;
 					registerContainer(containerId);
-				}, config.sandboxEnabled);
+				}, config.sandboxEnabled, config.persistUserState);
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
 				repository = prepared.repository;
@@ -308,18 +329,27 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandbox.args];
 					sandboxEnvironment = sandbox.environment;
 				}
-				const up = await this._runDevContainer(
+				const userStateMountArgs = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : [];
+				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
+				const up = await this._runDevContainerStage(
 					config.connectionId,
-					['up', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, ...cacheMountArgs],
+					'up',
+					!!config.persistUserState,
+					// Lifecycle commands run after linking user state, so their changes to it persist.
+					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMountArgs, ...config.persistUserState ? ['--skip-post-create'] : []],
 					tokenSource.token,
 					sandboxEnvironment,
+					parseDevContainerUpResult,
 				);
-				const parsed = parseDevContainerUpResult(up.stdout);
-				if (up.code !== 0 || !parsed) {
+				if (!up.parsed) {
 					throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
 				}
-				upResult = parsed;
+				upResult = up.parsed;
 				registerContainer(upResult.containerId);
+				if (config.persistUserState) {
+					await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, tokenSource.token);
+					await this._runUserCommands(config.connectionId, [...selectorArgs, '--container-id', upResult.containerId], tokenSource.token, sandboxEnvironment);
+				}
 			}
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
@@ -448,7 +478,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean): Promise<IPreparedDevContainerSample> {
+	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean, persistUserState?: boolean): Promise<IPreparedDevContainerSample> {
 		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
 			onContainerStarted,
 			docker: async args => {
@@ -458,6 +488,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				return result;
 			},
 			devcontainer: args => this._runDevContainer(connectionId, args, token),
+			linkUserState: (containerId, remoteUser) => this._linkUserState(connectionId, containerId, remoteUser, token),
+			reportUserStateMount: added => this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: added ? 'added' : 'failed', reason: added ? undefined : 'volume', target: 'volume' }),
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {
@@ -472,7 +504,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					lifetime.dispose();
 				}
 			},
-		}, sandboxEnabled);
+		}, sandboxEnabled, persistUserState);
 	}
 
 	private async _readDevContainerConfiguration(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<string> {
@@ -509,6 +541,157 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._reportOutput(connectionId, `Cannot add optional shared server cache mount: ${getErrorMessage(error)}\n`);
 		}
 		return [];
+	}
+
+	private async _getUserStateMountArgs(connectionId: string, configuration: Promise<string>, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {
+		let reason = 'config';
+		let target: string | undefined;
+		try {
+			const output = await configuration;
+			const { content, error } = devContainerStateConfigurationValidator.validate(JSON.parse(output));
+			if (error) {
+				throw new Error(`Invalid Dev Container configuration: ${error.message}`);
+			}
+			// `--mount` does not substitute ${devcontainerId}, so compute the id the CLI gives a new container.
+			const { configPath } = parseDevContainerSandboxConfiguration(output);
+			const idLabels = getDefaultDevContainerIdLabels(process.platform, workspaceFolder, configPath);
+			const mountTarget = getDevContainerStateMountTarget(content.configuration, content.mergedConfiguration?.mounts);
+			target = getDevContainerStateTargetKind(mountTarget);
+			// Only new containers get the mount; adding it to an existing Compose container could recreate it.
+			reason = 'listContainers';
+			const existing = await this._runDocker(['ps', '-a', '-q', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
+			if (existing.code !== 0) {
+				throw new Error(`Cannot list Docker containers (exit ${existing.code}): ${existing.stderr}`);
+			}
+			if (existing.stdout.trim()) {
+				this._logService.info(`${LOG_PREFIX} Keeping existing container mounts; only new containers keep user state on a volume`);
+				this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'existingContainer', target });
+				return [];
+			}
+			const devContainerId = getDevContainerId(idLabels);
+			reason = 'volume';
+			await this._ensureUserStateVolume(devContainerId, token);
+			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'added', target });
+			return ['--mount', getDevContainerStateMount(devContainerId, mountTarget)];
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			this._logService.warn(`${LOG_PREFIX} Cannot add user state volume mount`, error);
+			this._reportOutput(connectionId, `Cannot add user state volume mount: ${getErrorMessage(error)}\n`);
+			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'failed', reason, target });
+			return [];
+		}
+	}
+
+	private async _ensureUserStateVolume(devContainerId: string, token: CancellationToken): Promise<void> {
+		const name = getDevContainerStateVolumeName(devContainerId);
+		const volumes = await this._runDocker(['volume', 'ls', '--format', '{{.Name}}'], token);
+		if (volumes.code !== 0) {
+			throw new Error(`Cannot list Docker volumes (exit ${volumes.code}): ${volumes.stderr}`);
+		}
+		if (volumes.stdout.split(/\r?\n/).includes(name)) {
+			return;
+		}
+		const created = await this._runDocker(['volume', 'create', ...getDevContainerStateVolumeLabels(devContainerId).flatMap(label => ['--label', label]), name], token);
+		if (created.code !== 0) {
+			throw new Error(`Cannot create Docker volume ${name} (exit ${created.code}): ${created.stderr}`);
+		}
+	}
+
+	/** Links user state folders to the container's user state volume, if it has one. */
+	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, token: CancellationToken): Promise<void> {
+		let reason = 'inspect';
+		let target: string | undefined;
+		let exitCode: number | undefined;
+		let progress: IDevContainerStateLinkProgress | undefined;
+		const getProgress = () => progress && {
+			restoredFolders: progress.restoredFolders,
+			movedFolders: progress.movedFolders,
+			createdFolders: progress.createdFolders,
+			existingFolders: progress.existingFolders,
+			skippedFolders: progress.skippedFolders,
+			skipReasons: progress.skipReasons,
+		};
+		try {
+			const mount = findDevContainerStateMount(await this._getContainerMounts(connectionId, containerId, token));
+			if (!mount) {
+				this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'noMount' });
+				return;
+			}
+			target = getDevContainerStateTargetKind(mount.Destination);
+			reason = 'remoteUser';
+			if (!remoteUser) {
+				throw new Error('The Dev Container CLI did not report the remote user');
+			}
+			reason = 'user';
+			const environment = await this._resolveShellEnvironment();
+			const user = await this._runLocalCommand('docker', ['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', 'id -u; id -g; printf "%s\\n" "$HOME"'], environment, token);
+			const [uid, gid, homeFolder] = user.stdout.trim().split(/\r?\n/);
+			if (user.code !== 0 || !uid || !gid || !homeFolder) {
+				exitCode = user.code;
+				throw new Error(`Cannot read the Dev Container user (exit ${user.code}): ${user.stderr}`);
+			}
+			reason = 'options';
+			const command = buildLinkDevContainerStateCommand({
+				volumePath: mount.Destination,
+				homeFolder,
+				uid,
+				gid,
+				serverDataFolderName: this._productService.serverDataFolderName ?? '.vscode-server-oss',
+			});
+			reason = 'script';
+			const linked = await this._runLocalCommand('docker', ['exec', '--user', 'root', containerId, '/bin/sh', '-c', command], environment, token);
+			this._reportOutput(connectionId, linked.stderr);
+			exitCode = linked.code;
+			progress = parseLinkDevContainerStateOutput(linked.stdout);
+			if (linked.code !== 0) {
+				throw new Error(`Cannot link user state (exit ${linked.code}): ${linked.stderr}`);
+			}
+			this._logService.info(`${LOG_PREFIX} Keeping user state on volume ${mount.Name}`);
+			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: progress.homeFound ? 'linked' : 'homeNotFound', target, ...getProgress() });
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			this._logService.warn(`${LOG_PREFIX} Cannot keep user state on its volume`, error);
+			this._reportOutput(connectionId, `Cannot keep user state on its volume: ${getErrorMessage(error)}\n`);
+			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'failed', reason, step: progress?.step, exitCode, target, ...getProgress() });
+		}
+	}
+
+	private async _runUserCommands(connectionId: string, selectorArgs: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined): Promise<void> {
+		const result = await this._runDevContainerStage(connectionId, 'userCommands', true, ['run-user-commands', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs], token, environment, stdout => stdout.trim().split('\n').reverse().some(line => {
+			try {
+				return !devContainerUserCommandsResultValidator.validate(JSON.parse(line)).error;
+			} catch {
+				return false;
+			}
+		}) || undefined);
+		if (!result.parsed) {
+			throw new Error(localize('devContainerAgentHost.lifecycleFailed', "Dev Container lifecycle commands failed: {0}", result.stdout.trim() || result.stderr.trim()));
+		}
+	}
+
+	/** Runs a Dev Container CLI command; `parsed` is set only if it succeeded. Optionally reports the outcome for user state telemetry. */
+	private async _runDevContainerStage<T>(connectionId: string, stage: 'up' | 'userCommands', report: boolean, args: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, parse: (stdout: string) => T | undefined): Promise<{ stdout: string; stderr: string; parsed: T | undefined }> {
+		let result: { stdout: string; stderr: string; code: number };
+		try {
+			result = await this._runDevContainer(connectionId, args, token, environment);
+		} catch (error) {
+			if (report && !isCancellationError(error) && !token.isCancellationRequested) {
+				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run' });
+			}
+			throw error;
+		}
+		const parsed = parse(result.stdout);
+		const succeeded = result.code === 0 && parsed !== undefined;
+		if (report) {
+			this._onDidReportUserState.fire(succeeded
+				? { connectionId, stage, outcome: 'succeeded' }
+				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code });
+		}
+		return { stdout: result.stdout, stderr: result.stderr, parsed: succeeded ? parsed : undefined };
 	}
 
 	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
@@ -1152,6 +1335,7 @@ export function parseDevContainerUpResult(output: string): IDevContainerUpResult
 				return {
 					containerId: content.containerId,
 					remoteWorkspaceFolder: content.remoteWorkspaceFolder,
+					...(content.remoteUser ? { remoteUser: content.remoteUser } : {}),
 				};
 			}
 		} catch {

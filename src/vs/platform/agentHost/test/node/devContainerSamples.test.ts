@@ -219,6 +219,61 @@ suite('Dev Container samples', () => {
 		assert.deepStrictEqual(configurations, [expected, expected]);
 	});
 
+	test('keeps sample user state on its volume and links it before cloning', async () => {
+		const config = { image: 'sample-image' };
+		const calls: string[] = [];
+		let upArgs: readonly string[] = [];
+		await prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: () => { },
+			readSource: async () => ({ commitSha: commit, content: JSON.stringify(config) }),
+			docker: async args => {
+				if (args[0] === 'volume' && args[1] === 'create') {
+					calls.push(`create ${args.at(-1)}`);
+				} else if (args.includes('/bin/sh')) {
+					calls.push('clone');
+				}
+				return {
+					stdout: args[0] === 'volume'
+						? args[1] === 'ls' ? getDevContainerSampleVolumeName(sample, []) : JSON.stringify({ 'vsch.local.repository': repositoryPath })
+						: args.includes('cat') ? JSON.stringify(config) : '',
+					stderr: '', code: 0,
+				};
+			},
+			devcontainer: async args => {
+				if (args[0] === 'up') {
+					upArgs = args;
+				}
+				return { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 };
+			},
+			linkUserState: async (containerId, remoteUser) => {
+				calls.push(`link ${containerId} ${remoteUser}`);
+			},
+			reportUserStateMount: added => calls.push(`mount ${added}`),
+		}, false, true);
+		const stateVolume = calls[0]?.substring('create '.length);
+		assert.match(stateVolume, /^vscode-state-[0-9a-v]{52}$/);
+		assert.deepStrictEqual({ calls, mount: upArgs.slice(-2) }, {
+			calls: [`create ${stateVolume}`, 'mount true', 'link container vscode', 'clone'],
+			mount: ['--mount', `type=volume,source=${stateVolume},target=/.vscode-volume,external=true`],
+		});
+	});
+
+	test('reports a failed sample user state volume before failing', async () => {
+		const reports: boolean[] = [];
+		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: () => { },
+			readSource: async () => ({ commitSha: commit, content: JSON.stringify({ image: 'sample-image' }) }),
+			docker: async args => ({
+				stdout: args[0] === 'volume' && args[1] === 'ls' ? getDevContainerSampleVolumeName(sample, []) : JSON.stringify({ 'vsch.local.repository': repositoryPath }),
+				stderr: '',
+				code: args[0] === 'volume' && args[1] === 'create' && args.at(-1)?.startsWith('vscode-state-') ? 1 : 0,
+			}),
+			devcontainer: async () => { throw new Error('Dev Container CLI must not run'); },
+			reportUserStateMount: added => reports.push(added),
+		}, false, true), /docker volume create failed/);
+		assert.deepStrictEqual(reports, [false]);
+	});
+
 	test('unsupported configuration fails before creating a volume or container', async () => {
 		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 			onContainerStarted: () => { throw new Error('No container should be registered'); },

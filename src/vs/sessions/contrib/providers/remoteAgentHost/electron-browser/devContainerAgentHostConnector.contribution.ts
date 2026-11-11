@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
@@ -22,7 +23,7 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -39,7 +40,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerSource.js';
@@ -59,6 +60,83 @@ type DevContainerEnvironmentClassification = {
 };
 
 type DevContainerEnvironment = Omit<DevContainerEnvironmentEvent, 'devContainerEnabled'>;
+
+type DevContainerStateVolumeEvent = {
+	stage: string;
+	outcome: string;
+	reason: string | undefined;
+	step: string | undefined;
+	target: string | undefined;
+	skipReasons: string | undefined;
+	exitCode: number | undefined;
+	restoredFolders: number | undefined;
+	movedFolders: number | undefined;
+	createdFolders: number | undefined;
+	existingFolders: number | undefined;
+	skippedFolders: number | undefined;
+	sample: boolean;
+	remote: boolean;
+};
+
+type DevContainerStateVolumeClassification = {
+	owner: 'chrmarti';
+	comment: 'Reports how keeping user and agent state on a per-container volume went, to evaluate the chat.agentHost.devContainer.stateVolume.enabled experiment.';
+	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage: mount (adding the volume), up (starting the container), link (linking state folders to it) or userCommands (lifecycle commands, which run after linking).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, linked, noMount, homeNotFound, succeeded or failed.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed.' };
+	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the volume is mounted at /workspaces or at a separate folder.' };
+	skipReasons: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifiers of why state folders were not persisted, e.g., because they are already mounted.' };
+	exitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Exit code of the failed command.' };
+	restoredFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders restored from an earlier container.' };
+	movedFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of existing state folders moved to the volume.' };
+	createdFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of new state folders created on the volume.' };
+	existingFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders that were already linked.' };
+	skippedFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders not persisted.' };
+	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
+	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
+};
+
+export function reportDevContainerUserState(telemetryService: ITelemetryService, report: IDevContainerAgentHostUserStateReport, sample: boolean, remote: boolean): void {
+	telemetryService.publicLog2<DevContainerStateVolumeEvent, DevContainerStateVolumeClassification>('vscodeAgents.devContainer/stateVolume', {
+		stage: report.stage,
+		outcome: report.outcome,
+		reason: report.reason,
+		step: report.step,
+		target: report.target,
+		skipReasons: report.skipReasons || undefined,
+		exitCode: report.exitCode,
+		restoredFolders: report.restoredFolders,
+		movedFolders: report.movedFolders,
+		createdFolders: report.createdFolders,
+		existingFolders: report.existingFolders,
+		skippedFolders: report.skippedFolders,
+		sample,
+		remote,
+	});
+}
+
+type DevContainerConnectEvent = {
+	success: boolean;
+	cancelled: boolean;
+	reconnect: boolean;
+	stateVolume: boolean;
+	sample: boolean;
+	remote: boolean;
+	durationMs: number;
+};
+
+type DevContainerConnectClassification = {
+	owner: 'chrmarti';
+	comment: 'Reports whether starting a Dev Container and its Agent Host succeeded, to compare reliability with and without the chat.agentHost.devContainer.stateVolume.enabled experiment.';
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Dev Container and its Agent Host started.' };
+	cancelled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the attempt failed because it was cancelled.' };
+	reconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is an automatic reconnect rather than the initial connection.' };
+	stateVolume: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether user state was kept on a per-container volume.' };
+	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
+	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the attempt in milliseconds.' };
+};
 
 async function hasDevContainerConfiguration(workspaceUri: URI, fileService: IFileService): Promise<boolean> {
 	const configurations = await Promise.all([
@@ -166,6 +244,8 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	readonly onDidOutput = this._output.event;
 	private readonly _sandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
 	readonly onDidChangeSandboxSupport = this._sandboxSupport.event;
+	private readonly _userState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
+	readonly onDidReportUserState = this._userState.event;
 	private readonly _connections = new Map<string, { store: DisposableStore; tokenSource: CancellationTokenSource; service?: IDevContainerAgentHostMainService }>();
 	private _disposed = false;
 
@@ -206,6 +286,9 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			store.add(Event.filter(service.onDidOutput, event => event.connectionId === config.connectionId)(event => this._output.fire(event)));
 			if (service.onDidChangeSandboxSupport) {
 				store.add(Event.filter(service.onDidChangeSandboxSupport, event => event.connectionId === config.connectionId)(event => this._sandboxSupport.fire(event)));
+			}
+			if (service.onDidReportUserState) {
+				store.add(Event.filter(service.onDidReportUserState, event => event.connectionId === config.connectionId)(event => this._userState.fire(event)));
 			}
 			return await service.connect(config);
 		} catch (error) {
@@ -326,6 +409,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IRequestService private readonly _requestService: IRequestService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
@@ -389,6 +473,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		const connectionId = generateUuid();
 		const source = sample ? { sampleId: sample.id } : { workspaceFolder: devContainerSourcePath(workspaceUri) };
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
+		const persistUserState = this._configurationService.getValue<boolean>(DevContainerStateVolumeEnabledSettingId) === true;
 		const connectionStore = new DisposableStore();
 		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService));
 		const connectionIds = new Set([connectionId]);
@@ -397,6 +482,26 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
+		const connect = async (config: IDevContainerAgentHostConfig, reconnect: boolean) => {
+			const stopWatch = StopWatch.create(false);
+			const report = (success: boolean, cancelled: boolean) => this._telemetryService.publicLog2<DevContainerConnectEvent, DevContainerConnectClassification>('vscodeAgents.devContainer/connect', {
+				success,
+				cancelled,
+				reconnect,
+				stateVolume: persistUserState,
+				sample: !!sample,
+				remote: !!sourceEntry,
+				durationMs: stopWatch.elapsed(),
+			});
+			try {
+				const connected = await mainService.connect(config);
+				report(true, false);
+				return connected;
+			} catch (error) {
+				report(false, isCancellationError(error) || (!reconnect && token.isCancellationRequested));
+				throw error;
+			}
+		};
 		try {
 			if (mainService.onDidChangeSandboxSupport) {
 				connectionStore.add(mainService.onDidChangeSandboxSupport(event => {
@@ -405,13 +510,21 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					}
 				}));
 			}
-			let result = await mainService.connect({
+			if (mainService.onDidReportUserState) {
+				connectionStore.add(mainService.onDidReportUserState(event => {
+					if (connectionIds.has(event.connectionId)) {
+						reportDevContainerUserState(this._telemetryService, event, !!sample, !!sourceEntry);
+					}
+				}));
+			}
+			let result = await connect({
 				connectionId,
 				...source,
 				name,
 				resume: options?.resume ?? true,
 				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
-			});
+				...(persistUserState ? { persistUserState } : {}),
+			}, false);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -437,13 +550,14 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				connectionIds.add(reconnectConnectionId);
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
-					result = await mainService.connect({
+					result = await connect({
 						connectionId: reconnectConnectionId,
 						...source,
 						name,
 						resume: false,
 						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
-					});
+						...(persistUserState ? { persistUserState } : {}),
+					}, true);
 					return {
 						connectionId: reconnectConnectionId,
 						close: async () => {
@@ -565,6 +679,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[DevContainerStateVolumeEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.stateVolume.enabled', "Keep user and agent state of new Dev Containers, including agent sessions and worktrees, on a per-container volume across rebuilds."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

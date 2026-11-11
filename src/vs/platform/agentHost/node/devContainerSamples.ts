@@ -5,6 +5,7 @@
 
 import { createHash, randomUUID } from 'crypto';
 import { readFile, rename, rm, writeFile } from 'fs/promises';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
@@ -13,6 +14,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
 import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
+import { devContainerStateFallbackTarget, getDevContainerId, getDevContainerStateMount, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName } from './devContainerState.js';
 
 interface ICommandResult {
 	readonly stdout: string;
@@ -25,6 +27,8 @@ interface ISampleCommands {
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly readSource: () => Promise<{ readonly commitSha: string; readonly content: string }>;
 	readonly onContainerStarted: (containerId: string) => void;
+	readonly linkUserState?: (containerId: string, remoteUser: string) => Promise<void>;
+	readonly reportUserStateMount?: (added: boolean) => void;
 }
 
 export interface IPreparedDevContainerSample {
@@ -93,7 +97,7 @@ function checked(result: ICommandResult, operation: string): string {
 	return result.stdout;
 }
 
-export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands, sandboxEnabled = false): Promise<IPreparedDevContainerSample> {
+export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands, sandboxEnabled = false, persistUserState = false): Promise<IPreparedDevContainerSample> {
 	await prepareOwnerOnlyDirectory(cacheDirectory);
 	const sourcePath = join(cacheDirectory, 'source.json');
 	let sourceContent: string | undefined;
@@ -141,7 +145,25 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	}));
 	await writeConfig(config);
 	const cliArgs = ['--override-config', configPath, ...getDevContainerSampleLabels(repository).flatMap(label => ['--id-label', label])];
-	const up = await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount]);
+	const userStateMountArgs: string[] = [];
+	if (persistUserState) {
+		const devContainerId = getDevContainerId(getDevContainerSampleLabels(repository));
+		const stateVolumeName = getDevContainerStateVolumeName(devContainerId);
+		if (!existingVolumes.includes(stateVolumeName)) {
+			try {
+				checked(await commands.docker(['volume', 'create', ...getDevContainerStateVolumeLabels(devContainerId).flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					commands.reportUserStateMount?.(false);
+				}
+				throw error;
+			}
+		}
+		commands.reportUserStateMount?.(true);
+		// The repository volume is mounted at /workspaces.
+		userStateMountArgs.push('--mount', getDevContainerStateMount(devContainerId, devContainerStateFallbackTarget));
+	}
+	const up = await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount, ...userStateMountArgs]);
 	const errors: ParseError[] = [];
 	const result: unknown = parse(up.stdout.trim().split(/\r?\n/).at(-1) ?? '', errors);
 	if (isRecord(result) && typeof result.containerId === 'string' && result.containerId) {
@@ -150,6 +172,9 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	checked(up, 'devcontainer up');
 	if (errors.length || !isRecord(result) || result.outcome !== 'success' || typeof result.containerId !== 'string' || !result.containerId || typeof result.remoteUser !== 'string' || !result.remoteUser || result.remoteWorkspaceFolder !== workspace) {
 		throw new Error(localize('devContainerSample.invalidUpResult', "The Dev Container CLI returned an invalid sample container."));
+	}
+	if (persistUserState) {
+		await commands.linkUserState?.(result.containerId, result.remoteUser);
 	}
 
 	// Publish only a complete checkout, and never replace an existing workspace.
