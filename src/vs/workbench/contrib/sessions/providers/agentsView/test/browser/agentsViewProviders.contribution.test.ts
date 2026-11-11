@@ -148,6 +148,21 @@ suite('AgentsViewProvidersService', () => {
 		assert.deepStrictEqual(events, [...providers.map(name => `register ${name}`), 'close idle composer', ...providers.map(name => `release ${name}`)]);
 	}));
 
+	test('held again while it closes an idle composer, it keeps the providers', () => runWithFakedTimers({}, async () => {
+		const events: string[] = [];
+		const service = createService({ open: true, idle: true }, events);
+
+		service.acquire().dispose();
+		// The delay passes and the composer starts closing, which takes a while
+		await timeout(AGENTS_VIEW_PROVIDERS_RELEASE_DELAY + 1);
+		const hold = service.acquire();
+		await timeout(AGENTS_VIEW_PROVIDERS_RELEASE_DELAY);
+		const whileHeld = [...events];
+		hold.dispose();
+
+		assert.deepStrictEqual(whileHeld, [...providers.map(name => `register ${name}`), 'close idle composer']);
+	}));
+
 	test('a new-session composer with input holds the providers until it is gone, as its draft is their session', () => runWithFakedTimers({}, async () => {
 		const events: string[] = [];
 		const composer = { open: true, idle: false };

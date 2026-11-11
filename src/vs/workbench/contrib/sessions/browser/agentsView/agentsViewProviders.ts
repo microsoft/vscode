@@ -5,6 +5,7 @@
 
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
@@ -24,7 +25,7 @@ export interface IAgentsViewProvidersService {
 /** How long an open waits for the session it opens to be known, such as while its provider lists its sessions. */
 export const AGENTS_VIEW_SESSION_WAIT_TIMEOUT = 5_000;
 
-/** What `find` finds among the sessions, once it does, or `undefined` once `timeout` passed. */
+/** What `find` finds among the sessions and their chats, once it does, or `undefined` once `timeout` passed. */
 export async function waitForAgentsViewSession<T>(sessionsManagementService: ISessionsManagementService, find: () => T | undefined, timeout = AGENTS_VIEW_SESSION_WAIT_TIMEOUT): Promise<T | undefined> {
 	const found = find();
 	if (found) {
@@ -33,7 +34,16 @@ export async function waitForAgentsViewSession<T>(sessionsManagementService: ISe
 	const store = new DisposableStore();
 	try {
 		return await raceTimeout(new Promise<T>(resolve => {
-			store.add(sessionsManagementService.onDidChangeSessions(() => {
+			const sessionsChanged = observableSignalFromEvent('waitForAgentsViewSession', sessionsManagementService.onDidChangeSessions);
+			store.add(autorun(reader => {
+				sessionsChanged.read(reader);
+				// A session can list a chat after it is listed itself, such as a peer chat its chats publish later: only a
+				// session that has several chats can
+				for (const session of sessionsManagementService.getSessions()) {
+					if (session.capabilities.read(reader).supportsMultipleChats) {
+						session.chats.read(reader);
+					}
+				}
 				const value = find();
 				if (value) {
 					resolve(value);

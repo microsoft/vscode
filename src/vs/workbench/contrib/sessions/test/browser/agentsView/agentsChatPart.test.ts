@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -39,6 +39,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { timeout } from '../../../../../../base/common/async.js';
 
 /** An editor group that keeps its editors in memory, as the chat part's groups do, without rendering them. */
 class FakeGroup {
@@ -290,14 +291,20 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(state(), { tabs: 0, liveSlots: 0, sessionListeners: baseline, visible: false });
 	});
 
-	test('a peer chat whose provider is registered again follows the session that replaces its session, once that lists the chat', async () => {
+	function replacedPeerChat() {
 		const spec = { id: 'parent', title: 'Parent', chats: [{ id: 'peer', title: 'Peer' }] };
 		const original = buildTestSession(spec);
 		const peer = original.chats.get('peer')!.chat.resource;
-		// The session of the provider registered again lists its peer chats only later
+		// The session of the provider registered again lists its peer chats only as it loads
 		const replacing = buildTestSession(spec);
 		const replacementChats = observableValue<readonly IChat[]>('chats', [replacing.mainChat.chat]);
-		const replacement: ISession = { ...replacing.session, chats: replacementChats };
+		const replacementLoading = observableValue('loading', true);
+		const replacement: ISession = { ...replacing.session, chats: replacementChats, loading: replacementLoading };
+		return { original, peer, replacing, replacementChats, replacementLoading, replacement };
+	}
+
+	test('a peer chat whose provider is registered again follows the session that replaces its session, once that lists the chat', async () => {
+		const { original, peer, replacing, replacementChats, replacementLoading, replacement } = replacedPeerChat();
 		let sessions: readonly ISession[] = [original.session];
 		const { service, fireSessionsChanged } = createService({ sessions: () => sessions });
 		await service.openChat(original.session, peer);
@@ -314,13 +321,33 @@ suite('AgentsChatPartService', () => {
 		sessions = [replacement];
 		fireSessionsChanged([replacement]);
 		const beforePeer = { ...shown(), showing: service.isShowing(peer) };
-		replacementChats.set([replacing.mainChat.chat, replacing.chats.get('peer')!.chat], undefined);
+		transaction(tx => {
+			replacementChats.set([replacing.mainChat.chat, replacing.chats.get('peer')!.chat], tx);
+			replacementLoading.set(false, tx);
+		});
 
 		assert.deepStrictEqual({ whileGone, beforePeer, afterPeer: shown() }, {
 			whileGone: { session: 'original', chat: 'original' },
 			beforePeer: { session: 'original', chat: 'original', showing: true },
 			afterPeer: { session: 'replacement', chat: 'replacement' },
 		});
+	});
+
+	test('a peer chat whose provider is registered again closes once the session that replaces its session loaded without it, such as when it was deleted meanwhile', async () => {
+		const { original, peer, replacement, replacementLoading } = replacedPeerChat();
+		let sessions: readonly ISession[] = [original.session];
+		const { service, fireSessionsChanged } = createService({ sessions: () => sessions });
+		await service.openChat(original.session, peer);
+
+		sessions = [];
+		fireSessionsChanged([]);
+		sessions = [replacement];
+		fireSessionsChanged([replacement]);
+		const whileLoading = service.isShowing(peer);
+		replacementLoading.set(false, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileLoading, loaded: service.isShowing(peer) }, { whileLoading: true, loaded: false });
 	});
 
 	test('opening a chat shows the chat part with the chat in a tab of its own; opening it again shows its tab', async () => {
