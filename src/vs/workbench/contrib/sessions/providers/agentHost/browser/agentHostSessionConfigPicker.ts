@@ -2149,6 +2149,11 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		}
 	}
 
+	/** Whether a repository control shows: here, all of them. */
+	protected showsRepositoryProperty(_isIsolation: boolean, _isNewSession: boolean): boolean {
+		return true;
+	}
+
 	/**
 	 * Whether the repository controls also show for the sessions that panes and composers show outside the grid, such as
 	 * those of an editor window's chat part, which has no grid. Read as the contribution is constructed.
@@ -2202,7 +2207,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				isPhoneLayout(this._layoutService),
 			).filter(([property, schema]) =>
 				isRenderableSessionConfigProperty(property, schema, config.schema, isNewSession) &&
-				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key)
+				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key) &&
+				this.showsRepositoryProperty(property === workspace.isolation?.key, isNewSession)
 			);
 			const branchIndex = properties.findIndex(([property]) => property === workspace.baseBranch?.key);
 			const isolationIndex = properties.findIndex(([property]) => property === workspace.isolation?.key);
