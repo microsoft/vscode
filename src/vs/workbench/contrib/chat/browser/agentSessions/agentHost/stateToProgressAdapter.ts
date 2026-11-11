@@ -3286,6 +3286,12 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
 	invocation.summary = getToolSummary(tc, resourceUris);
 
+	// A call that asked for approval is marked to hide once it settles, which suits one the user
+	// declined. One that was approved ran, so it stays in the transcript like any other call.
+	if (isCompleted && invocation.presentation === ToolInvocationPresentation.HiddenAfterComplete) {
+		invocation.presentation = undefined;
+	}
+
 	if (!isTerminal && invocation.toolSpecificData?.kind === 'search' && getToolKind(tc) !== 'search') {
 		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 	}

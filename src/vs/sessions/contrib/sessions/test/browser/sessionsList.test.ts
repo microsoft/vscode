@@ -638,7 +638,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('signals extension suggestions on the Customizations entry unless migrations need attention', () => {
+		test('shows the section badge on the Customizations entry unless migrations need attention', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
 				override set context(_context: unknown) { }
@@ -657,7 +657,7 @@ suite('Sessions - SessionsList', () => {
 				}
 			};
 			const customizationMigrationsAvailable = observableValue(disposables, false);
-			const customizationExtensionSuggestionsAvailable = observableValue(disposables, true);
+			const customizationsBadge = observableValue<string | undefined>(disposables, 'Some installed extensions can be enabled in the Agents window.');
 			const renderer = new SessionSectionRenderer(
 				true,
 				() => { },
@@ -681,7 +681,7 @@ suite('Sessions - SessionsList', () => {
 				undefined,
 				undefined,
 				undefined,
-				customizationExtensionSuggestionsAvailable,
+				customizationsBadge,
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -699,14 +699,14 @@ suite('Sessions - SessionsList', () => {
 				hasDot: template.icon.classList.contains('codicon-circle-filled'),
 				iconColor: template.icon.style.color,
 			});
-			const withSuggestions = readState();
+			const withBadge = readState();
 			customizationMigrationsAvailable.set(true, undefined);
 			const withMigrations = readState();
 			customizationMigrationsAvailable.set(false, undefined);
-			customizationExtensionSuggestionsAvailable.set(false, undefined);
+			customizationsBadge.set(undefined, undefined);
 
-			assert.deepStrictEqual({ withSuggestions, withMigrations, withoutSignals: readState() }, {
-				withSuggestions: {
+			assert.deepStrictEqual({ withBadge, withMigrations, withoutSignals: readState() }, {
+				withBadge: {
 					hover: 'Some installed extensions can be enabled in the Agents window.',
 					hasDot: true,
 					iconColor: 'var(--vscode-activityBarBadge-background)',
@@ -5502,8 +5502,10 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('inbox lists held sessions directly without changing their custom membership', () => {
-			const a = buildTestSession({ id: 'a', title: 'A', workspace: 'Alpha' }).session;
-			const b = buildTestSession({ id: 'b', title: 'B', workspace: 'Beta' }).session;
+			// One clock read, so the Created order comes from the sessions rather than whether the millisecond ticked between them.
+			const now = Date.now();
+			const a = buildTestSession({ id: 'a', title: 'A', workspace: 'Alpha' }, now).session;
+			const b = buildTestSession({ id: 'b', title: 'B', workspace: 'Beta', createdMinutesAgo: 1 }, now).session;
 			const harness = createListHarness(disposables, [a, b], { groups: [{ id: 'saved', name: 'Saved', createdAt: 1 }], memberships: new Map([['a', 'saved']]) });
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);

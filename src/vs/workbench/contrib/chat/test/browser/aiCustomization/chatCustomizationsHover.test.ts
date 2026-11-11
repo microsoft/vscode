@@ -161,10 +161,10 @@ suite('Chat customizations hover', () => {
 		]);
 	});
 
-	test('new entry points retain migration and extension-suggestion indicators and accessible hints', () => {
+	test('new entry points retain migration and section badge indicators and accessible hints', () => {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const migrations = observableValue(store, false);
-		const suggestions = observableValue(store, false);
+		const sectionBadge = observableValue<string | undefined>(store, undefined);
 		instantiationService.stubInstance(CustomizationMigrationState, new class extends mock<CustomizationMigrationState>() {
 			override readonly available = migrations;
 			override dispose() { }
@@ -172,7 +172,7 @@ suite('Chat customizations hover', () => {
 		const action = instantiationService.createInstance(MenuItemAction, {
 			id: 'test.customizations', title: 'Customizations', icon: Codicon.extensions,
 		}, undefined, undefined, undefined, undefined);
-		const item = store.add(instantiationService.createInstance(ChatCustomizationsActionViewItem, action, undefined, createHover().hover, 'chatInput', undefined, false, suggestions));
+		const item = store.add(instantiationService.createInstance(ChatCustomizationsActionViewItem, action, undefined, createHover().hover, 'chatInput', undefined, false, sectionBadge));
 		const container = mainWindow.document.createElement('li');
 		item.render(container);
 		const read = () => ({ badge: container.classList.contains('migration-available'), label: container.querySelector('.action-label')?.getAttribute('aria-label') });
@@ -180,11 +180,11 @@ suite('Chat customizations hover', () => {
 		migrations.set(true, undefined);
 		const migration = read();
 		migrations.set(false, undefined);
-		suggestions.set(true, undefined);
-		assert.deepStrictEqual({ initial, migration, suggestion: read() }, {
+		sectionBadge.set('Some skills need review.', undefined);
+		assert.deepStrictEqual({ initial, migration, sectionBadge: read() }, {
 			initial: { badge: false, label: 'Customizations' },
 			migration: { badge: true, label: 'Customizations (Migrations Available)' },
-			suggestion: { badge: true, label: 'Customizations (Extension Suggestions Available)' },
+			sectionBadge: { badge: true, label: 'Customizations, Some skills need review.' },
 		});
 	});
 

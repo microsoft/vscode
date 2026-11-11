@@ -1341,7 +1341,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],
-		header: { navigationShortcuts: true, customizationsCount: 8, customizationExtensionSuggestionsAvailable: true },
+		header: { navigationShortcuts: true, customizationsCount: 8, customizationsBadge: 'Some installed extensions can be enabled in the Agents window.' },
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot, not a warning dot, beside its label.'],

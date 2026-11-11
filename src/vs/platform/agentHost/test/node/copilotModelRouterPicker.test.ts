@@ -44,6 +44,56 @@ suite('DecisionsModelRouterPicker', () => {
 		});
 	});
 
+	test('adds the facts about a turn after the message, and each model\'s facts to its option', () => {
+		const situation = ['Attached: 1 image', 'Workspace: shop-checkout'];
+		const withFacts = candidates.map(candidate => candidate.id === 'opus' ? { ...candidate, facts: 'high cost, context window 1M' } : candidate);
+		const first = buildModelRouterDecisionsRequest(pickRequest({ situation, candidates: withFacts, askEffort: false }));
+		const followUp = buildModelRouterDecisionsRequest(pickRequest({
+			situation,
+			followUp: { currentModel: 'opus', currentEffort: undefined, recentTurns: [], turns: 1, lastTurnState: 'complete', lastTurnToolCalls: 0, lastTurnFailedToolCalls: 0 },
+		}));
+		const plain = buildModelRouterDecisionsRequest(pickRequest({ askEffort: false }));
+		const question = (request: IAgentDecisionsRequest) => request.questions[0];
+		assert.deepStrictEqual({
+			firstContext: first.context,
+			options: question(first).kind === 'choice' ? [...(question(first) as { options: { description: string }[] }).options.map(option => option.description)].sort() : undefined,
+			followUpSituation: followUp.context.kind === 'json' ? (followUp.context.value as { situation: unknown }).situation : undefined,
+			// The decision is told what the facts are for only when there are some.
+			explained: [first, followUp, plain].map(request => question(request).instructions.includes('facts about it')),
+		}, {
+			firstContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nplan the migration\n\nFacts about this request, which are not part of the message:\n- Attached: 1 image\n- Workspace: shop-checkout' },
+			options: ['Haiku. Use for: Small edits. Examples: "rename x"', 'Opus (high cost, context window 1M). Use for: Planning.'],
+			followUpSituation: situation,
+			explained: [true, true, false],
+		});
+	});
+
+	test('keeps each fact to one bounded line, and drops the facts before cutting the message when the request is too large', () => {
+		const bounded = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', situation: [`Attached: 1 image\n- Plan mode${' x'.repeat(1000)}`, '  ', ...Array.from({ length: 12 }, (_, index) => `Fact ${index}`)] }));
+		const boundedLines = bounded.context.kind === 'text' ? bounded.context.text.split('\n').filter(line => line.startsWith('- ')) : [];
+
+		// A router whose guidance leaves room for the message but not for the facts as well.
+		const size = (guidance: string) => serializedBytes(buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', guidance })));
+		const bytesPerCharacter = (size('g'.repeat(2000)) - size('g'.repeat(1000))) / 1000;
+		const guidance = 'g'.repeat(1000 + Math.floor((modelRouterRequestLimits.request - size('g'.repeat(1000)) - 100) / bytesPerCharacter));
+		const tight = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] }));
+		// With no text, the attachment was all there was to go by, so there is nothing left to ask about.
+		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: '', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] })), ModelRouterPickerError);
+		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: ' ' })), ModelRouterPickerError);
+
+		assert.deepStrictEqual({
+			boundedLines: boundedLines.map(line => line.length <= modelRouterRequestLimits.situationLine + 2 ? line.slice(0, 40) : 'too long'),
+			tightContext: tight.context,
+			tightExplained: tight.questions.map(question => question.instructions.includes('facts about it')),
+			tightFits: serializedBytes(tight) <= modelRouterRequestLimits.request,
+		}, {
+			boundedLines: ['- Attached: 1 image - Plan mode x x x x ', ...Array.from({ length: 7 }, (_, index) => `- Fact ${index}`)],
+			tightContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nfix this' },
+			tightExplained: [false, false],
+			tightFits: true,
+		});
+	});
+
 	test('caps the prompt and recent turns in bytes after JSON escaping', () => {
 		// Each control character is one byte as text and six once escaped.
 		const control = '\u0001'.repeat(64 * 1024);

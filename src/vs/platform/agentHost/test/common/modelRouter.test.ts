@@ -112,6 +112,65 @@ suite('modelRouter', () => {
 			});
 		});
 
+		test('parses roles, and the roles and guidance a playbook brings', () => {
+			const parsed = parseModelRouter([
+				'version: 1',
+				'description: Test.',
+				'roles:',
+				'  reviewer:',
+				'    description: Reviews a change.',
+				'    model: [gpt-a, gpt-b]',
+				'    effort: high',
+				'  tester:',
+				'    agent: Test Writer',
+				'playbooks:',
+				'  feature:',
+				'    when: Building.',
+				'    main: opus',
+				'    uses: [reviewer, tester]',
+				'    guidance: Plan first.',
+				'  quick:',
+				'    when: Questions.',
+				'    main: haiku',
+				'',
+			].join('\n'), 'workday.model-router.yaml');
+			assert.deepStrictEqual({ roles: parsed.router?.roles, routes: parsed.router?.routes, guidance: parsed.router?.guidance, diagnostics: parsed.diagnostics }, {
+				roles: [
+					{ name: 'reviewer', description: 'Reviews a change.', models: ['gpt-a', 'gpt-b'], effort: 'high' },
+					{ name: 'tester', description: '', agent: 'Test Writer', models: [] },
+				],
+				routes: [
+					{ models: ['opus'], when: 'Building.', examples: [], name: 'feature', uses: ['reviewer', 'tester'], mainAgentGuidance: 'Plan first.' },
+					{ models: ['haiku'], when: 'Questions.', examples: [], name: 'quick' },
+				],
+				// A playbook's guidance is for its main agent, never for the routing decision.
+				guidance: '',
+				diagnostics: [],
+			});
+		});
+
+		test('checks roles', () => {
+			const check = (text: string) => messages(parseModelRouter(`version: 1\ndescription: Test.\n${text}\n`, 'workday.model-router.yaml').diagnostics);
+			const playbook = (extra = '') => `playbooks:\n  one:\n    when: A.\n    main: a${extra}`;
+			const reviewer = 'roles:\n  reviewer:\n    description: Reviews.';
+			assert.deepStrictEqual({
+				unknownRole: check(playbook('\n    uses: [reviewer]')),
+				twice: check(`${reviewer}\n${playbook('\n    uses: [reviewer, reviewer]')}`),
+				empty: check(`roles:\n  reviewer:\n    model: a\n${playbook()}`),
+				badName: check(`roles:\n  Code_Reviewer:\n    description: Reviews.\n${playbook()}`),
+				// Keys of the full design that this build does not act on are named, not silently accepted.
+				notYet: check(`roles:\n  reviewer:\n    description: Reviews.\n    max-runs: 2\n    readonly: true\n${playbook('\n    uses: [reviewer]')}`),
+				withRoutes: check(`${reviewer}\nroutes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.`),
+			}, {
+				unknownRole: ['Playbook `one` uses `reviewer`, which is not in `roles`.'],
+				twice: ['Playbook `one`\'s `uses` names a role more than once.'],
+				empty: ['Role `reviewer` needs a `description`, or an `agent` to reuse.'],
+				badName: ['Role names are lowercase letters, digits and single hyphens, like `reviewer`.'],
+				notYet: ['Unknown key `max-runs` in role `reviewer` is ignored.', 'Unknown key `readonly` in role `reviewer` is ignored.'],
+				withRoutes: ['`roles` are used by playbooks, and this router has none, so they are ignored.'],
+			});
+		});
+
 		test('reads a file saved with a byte order mark', () => {
 			assert.deepStrictEqual(parseModelRouter(`\uFEFF${valid}`, 'daily-driver.model-router.yaml'), parseModelRouter(valid, 'daily-driver.model-router.yaml'));
 		});

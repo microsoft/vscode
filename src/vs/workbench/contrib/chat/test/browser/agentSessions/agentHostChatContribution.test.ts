@@ -61,7 +61,7 @@ import { ContextKeyExpr, type ContextKeyValue } from '../../../../../../platform
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TERMINAL_AUTO_APPROVE_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { permissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
-import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -1044,7 +1044,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		resolveEvent: async () => undefined,
 		...chatDebugServiceOverride,
 	});
-	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null, policyData: null, onDidChangePolicyData: Event.None });
+	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null, getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }), policyData: null, onDidChangePolicyData: Event.None });
 	const commandService = new MockCommandService();
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, onDidRegisterAuthenticationProvider: Event.None, ...authServiceOverride });
@@ -13086,6 +13086,43 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
+		}));
+
+		test('session sandbox path grant dispatches the selected scope without writing user settings or claiming a saved receipt', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			const config = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
+			const update = sinon.stub(config, 'updateValue');
+			try {
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-session-grant', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
+				fire({
+					type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-session-grant',
+					invocationMessage: 'Read /outside', confirmationTitle: 'Allow sandbox path access and retry?',
+					_meta: { 'vscode.sandboxPathGrant': { path: '/outside', access: 'read' } },
+					options: [
+						{ id: SAVE_SESSION_SANDBOX_PATH, label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve },
+						{ id: SAVE_SANDBOX_PATH, label: 'Allow for This User', kind: ConfirmationOptionKind.Approve },
+						{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+					],
+				} as ChatAction);
+				await timeout(10);
+				const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
+				assert.ok(invocation?.kind === 'toolInvocation');
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: SAVE_SESSION_SANDBOX_PATH });
+				await timeout(10);
+				const confirmations = agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/toolCallConfirmed');
+				assert.deepStrictEqual({
+					settingsWrites: update.callCount,
+					confirmations: confirmations.map(item => ({
+						option: (item.action as IToolCallConfirmedAction).selectedOptionId,
+						receipt: readAgentPermissionResponseMeta(item.action as IToolCallConfirmedAction).sandboxPathGrantSaved,
+					})),
+				}, { settingsWrites: 0, confirmations: [{ option: SAVE_SESSION_SANDBOX_PATH, receipt: undefined }] });
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+			} finally {
+				update.restore();
+			}
 		}));
 
 		for (const failSave of [false, true]) {
@@ -25730,6 +25767,8 @@ suite('AgentHostChatContribution', () => {
 				resource: 'https://api.github.com/session',
 				authorization_servers: ['https://github.com/login/oauth'],
 				scopes_supported: ['session:read'],
+				// Optional, as when the host also advertises an alternative credential.
+				required: false,
 			};
 
 			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));

@@ -37,13 +37,13 @@ import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountSer
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { ICustomizationItemConfig, readCustomizationCount, CUSTOMIZATION_ITEMS } from '../../../../workbench/contrib/sessions/browser/customizationItems.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../../../workbench/contrib/chat/common/customizationsLocation.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { observeVisibleSectionBadge, observeVisibleSectionsBadge } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
 import { ChatCustomizationsTelemetry } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { getIgnoredCustomizationMigrationGroups } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
@@ -133,7 +133,6 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
-		@IAgentsWindowExtensionSuggestionsService private readonly _extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -183,19 +182,22 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 			}
 		}));
 
-		if (this._config.showsExtensionSuggestions) {
-			this._renderExtensionSuggestionsBadge(this._button);
+		if (this._config.section) {
+			this._renderSectionBadge(this._button, this._config.section);
 		}
 	}
 
-	private _renderExtensionSuggestionsBadge(button: Button): void {
-		const description = getExtensionSuggestionsBadgeDescription();
-		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img', 'aria-label': description }));
+	private _renderSectionBadge(button: Button, section: AICustomizationManagementSection): void {
+		const description = this.instantiationService.invokeFunction(accessor => observeVisibleSectionBadge(accessor, section));
+		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img' }));
 		this._viewItemDisposables.add(autorun(reader => {
-			const visible = this._extensionSuggestionsService.showBadge.read(reader);
-			badge.classList.toggle('hidden', !visible);
-			if (visible) {
-				reader.store.add(this._hoverService.setupDelayedHover(button.element, { content: description }));
+			const content = description.read(reader);
+			badge.classList.toggle('hidden', content === undefined);
+			if (content !== undefined) {
+				badge.setAttribute('aria-label', content);
+				reader.store.add(this._hoverService.setupDelayedHover(button.element, { content }));
+			} else {
+				badge.removeAttribute('aria-label');
 			}
 		}));
 	}
@@ -243,14 +245,13 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 class SessionsCustomizationsActionViewItemFactory {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 	) { }
 
 	create(action: MenuItemAction, options: IActionViewItemOptions, location: 'sidebar' | 'chatToolbar' | 'chatInput'): ChatCustomizationsActionViewItem {
 		return this.instantiationService.createInstance(
 			ChatCustomizationsActionViewItem, action, options,
 			this.instantiationService.createInstance(ChatCustomizationsHover),
-			location, undefined, location === 'sidebar', this.extensionSuggestionsService.showBadge,
+			location, undefined, location === 'sidebar', this.instantiationService.invokeFunction(observeVisibleSectionsBadge),
 		);
 	}
 }

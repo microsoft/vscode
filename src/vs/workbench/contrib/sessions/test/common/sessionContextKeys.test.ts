@@ -242,6 +242,34 @@ suite('Session Context Keys', () => {
 		});
 	});
 
+	test('publishes the workspace of the session while no chat of it is known, such as the draft of a new-session composer, and that of the chat once it is', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const draftWorkspace: ISessionWorkspace = {
+			uri: URI.file('/draft'),
+			label: 'draft',
+			icon: Codicon.rootFolder,
+			folders: [{ root: URI.file('/draft'), workingDirectory: URI.file('/draft'), name: 'draft', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const draft = stubSession({ sessionId: 'draft', workspace: constObservable(draftWorkspace) });
+		const shownChat = observableValue<IChat | undefined>('shownChat', undefined);
+		store.add(autorun(reader => setHostSessionContextKeys(draft, shownChat.read(reader), undefined, contextKeyService, reader)));
+		const describe = () => ({
+			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
+			isVirtualWorkspace: SessionWorkspaceIsVirtualContext.getValue(contextKeyService),
+			isQuickChat: IsQuickChatSessionContext.getValue(contextKeyService),
+		});
+
+		const noChat = describe();
+		shownChat.set(stubChat, undefined);
+
+		assert.deepStrictEqual({ noChat, chatWithoutWorkspace: describe() }, {
+			noChat: { hasWorkspace: true, isVirtualWorkspace: false, isQuickChat: false },
+			chatWithoutWorkspace: { hasWorkspace: false, isVirtualWorkspace: true, isQuickChat: false },
+		});
+	});
+
 	test('publishes a chat of a quick chat that works in a folder of its own as a chat with a workspace', () => {
 		const contextKeyService = store.add(new MockContextKeyService());
 		const listContextKeyService = store.add(new MockContextKeyService());

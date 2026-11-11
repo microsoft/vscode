@@ -18,12 +18,13 @@ import { ILanguageModelToolsService } from '../../chat/common/tools/languageMode
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { readTotalCustomizationCount } from './customizationItems.js';
-import { IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { observeVisibleSectionBadges } from '../../chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
 
 export class CustomizationsNavigationState extends Disposable {
 	readonly totalCount: IObservable<number>;
-	/** Whether the Customizations entry shows a badge for installed extensions that can be enabled in the Agents window. */
-	readonly extensionSuggestionsAvailable: IObservable<boolean>;
+	/** Describes why the Customizations entry shows a badge, if it does: the badge of the first visible section that has one. */
+	readonly badge: IObservable<string | undefined>;
 	readonly migrationAvailable: IObservable<boolean>;
 
 	constructor(
@@ -39,7 +40,7 @@ export class CustomizationsNavigationState extends Disposable {
 		@IAICustomizationWorkspaceService workspaceService: IAICustomizationWorkspaceService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@IAgentsWindowExtensionSuggestionsService extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -56,7 +57,9 @@ export class CustomizationsNavigationState extends Disposable {
 				harnessService,
 			);
 		});
-		this.extensionSuggestionsAvailable = derived(this, reader => enabled.read(reader) && extensionSuggestionsService.showBadge.read(reader));
+		const sectionBadges = observeVisibleSectionBadges({ instantiationService, harnessService, workspaceService, configurationService });
+		// Only read the badges while the entry renders, as reading a badge may log an experiment trigger.
+		this.badge = derived(this, reader => enabled.read(reader) ? sectionBadges.read(reader)[0]?.badge : undefined);
 
 		const context = derived(this, reader => {
 			if (!enabled.read(reader)) {

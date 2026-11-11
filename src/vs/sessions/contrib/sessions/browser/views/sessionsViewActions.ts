@@ -1554,15 +1554,15 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
 		if (
 			sessions.length > 0
 			&& configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 			&& !accessibilityService.isMotionReduced()
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
+		}
+		for (const session of sessions) {
+			await sessionsManagementService.archiveSession(session);
 		}
 	}
 }

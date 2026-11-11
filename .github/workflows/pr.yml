@@ -300,8 +300,8 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Install build tools
-        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Install Electron headers
         run: pnpm run preinstall
@@ -417,10 +417,8 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Install dependencies
         env:
