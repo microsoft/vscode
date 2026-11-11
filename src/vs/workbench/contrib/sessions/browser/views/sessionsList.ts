@@ -65,7 +65,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
@@ -133,7 +133,7 @@ import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomizati
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
+import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
 import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensionSuggestions.js';
@@ -2068,15 +2068,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.isQuickChatContext.set(isQuickChat);
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
-			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
-			let completedStateIcon = element.completedStateIcon
-				? element.completedStateIcon.read(reader)
-				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
-				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
-				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
-			}
+			const completedStateIcon = getSessionCompletedStateIcon(element, reader, () => agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService));
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
