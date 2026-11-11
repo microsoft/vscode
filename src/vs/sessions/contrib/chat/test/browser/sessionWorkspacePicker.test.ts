@@ -8808,13 +8808,14 @@ suite('WorkspacePicker - Allowed folders', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A picker of an editor window's composer, which offers only the window's folders. */
-	function createPicker(folders: readonly string[]) {
+	function createPicker(folders: readonly string[], noWorkspace?: { selected: boolean }) {
 		const providersService = store.add(new MockSessionsProvidersService());
 		providersService.setProviders([createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL })]);
 		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', folders.map(folder => URI.file(folder)));
 		let shows = 0;
 		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
-		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
+		const getNoWorkspaceOption = noWorkspace && (() => ({ description: 'No workspace', isSelected: noWorkspace.selected, select: () => { noWorkspace.selected = true; } }));
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders, getNoWorkspaceOption }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
 		const container = document.createElement('div');
 		picker.render(container);
 		const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
@@ -8843,7 +8844,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
-	test('its workspace trigger, as the composer renders it, is read-only for one folder and never clears to no workspace, also where workspaces can be opted out of', () => {
+	test('its workspace trigger, as the composer renders it, is read-only for one folder without No Workspace and never clears to no workspace, also where workspaces can be opted out of', () => {
 		const { picker, allowedFolders } = createPicker(['/local/vscode']);
 		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
 		const container = document.createElement('div');
@@ -8851,6 +8852,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const slot = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger')!;
 		const trigger = [...slot.querySelectorAll<HTMLElement>('[role="button"]')].find(element => !element.classList.contains('sessions-workspace-clear-button'))!;
 		const snapshot = () => ({
+			hidden: slot.hidden,
 			readOnly: trigger.getAttribute('aria-disabled'),
 			popup: trigger.getAttribute('aria-haspopup'),
 			chevrons: trigger.querySelectorAll('.sessions-chat-dropdown-chevron').length,
@@ -8862,9 +8864,30 @@ suite('WorkspacePicker - Allowed folders', () => {
 		allowedFolders.set([URI.file('/local/vscode'), URI.file('/local/tools')], undefined);
 
 		assert.deepStrictEqual({ oneFolder, afterClear, twoFolders: snapshot() }, {
-			oneFolder: { readOnly: 'true', popup: 'false', chevrons: 0, clearHidden: true },
+			oneFolder: { hidden: false, readOnly: 'true', popup: 'false', chevrons: 0, clearHidden: true },
 			afterClear: '/local/vscode',
-			twoFolders: { readOnly: 'false', popup: 'listbox', chevrons: 1, clearHidden: true },
+			twoFolders: { hidden: false, readOnly: 'false', popup: 'listbox', chevrons: 1, clearHidden: true },
+		});
+	});
+
+	test('offers No Workspace as Chat before the window\'s folders, also beside its one folder, and names the current choice', () => {
+		const noWorkspace = { selected: false };
+		const { picker, allowedFolders, snapshot } = createPicker(['/local/vscode'], noWorkspace);
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
+		const slot = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger')!;
+		const trigger = slot.querySelector<HTMLElement>('[role="button"]')!;
+		const triggerState = () => ({ hidden: slot.hidden, readOnly: trigger.getAttribute('aria-disabled'), popup: trigger.getAttribute('aria-haspopup'), ariaLabel: trigger.getAttribute('aria-label') });
+		const oneFolder = { items: snapshot().items, trigger: triggerState() };
+		picker.getItems().find(item => item.label === 'Chat')!.item!.run!();
+		const oneFolderChat = triggerState();
+		allowedFolders.set([URI.file('/local/vscode'), URI.file('/local/tools')], undefined);
+
+		assert.deepStrictEqual({ oneFolder, oneFolderChat, multiRoot: snapshot().items }, {
+			oneFolder: { items: ['Chat', '', '/local/vscode'], trigger: { hidden: false, readOnly: 'false', popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
+			oneFolderChat: { hidden: false, readOnly: 'false', popup: 'listbox', ariaLabel: 'Workspace: Chat' },
+			multiRoot: ['Chat', '', '/local/vscode', '/local/tools'],
 		});
 	});
 

@@ -8,7 +8,7 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -16,7 +16,8 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
@@ -43,7 +44,7 @@ suite('Agents chat part actions', () => {
 		}));
 		return instantiationService.invokeFunction(async accessor => {
 			await CommandsRegistry.getCommand(commandId)!.handler(accessor, arg);
-			return opened.map(({ target, newComposer }) => ({ folder: target?.folderUri?.path, providerId: target?.providerId, sessionTypeId: target?.sessionTypeId, newComposer }));
+			return opened.map(({ target, newComposer }) => ({ folder: target?.folderUri?.path, providerId: target?.providerId, sessionTypeId: target?.sessionTypeId, noWorkspace: !!target && !target.folderUri, newComposer }));
 		});
 	}
 
@@ -65,14 +66,37 @@ suite('Agents chat part actions', () => {
 				session: menuWhen(SessionItemContextMenuId, 'workbench.action.agentsView.newSessionInSameFolder'),
 			},
 		}, {
-			worktree: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'claude', newComposer: true }],
+			worktree: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'claude', noWorkspace: false, newComposer: true }],
 			other: [],
-			sameFolder: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', newComposer: true }],
+			sameFolder: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', noWorkspace: false, newComposer: true }],
 			menus: {
 				sectionToolbar: 'chatIsEnabled && sessionSection.type == \'worktree\'',
 				sectionContext: 'chatIsEnabled && sessionSection.type == \'worktree\'',
 				session: 'chatIsEnabled && !sessionItem.isMultiSelection',
 			},
+		});
+	});
+
+	test('a new quick chat opens a composer of its own without a workspace, from the Chats section and the Command Palette, without a keybinding', async () => {
+		store.add(registerAgentsChatPartActions());
+		const id = 'workbench.action.agentsView.newQuickChat';
+
+		assert.deepStrictEqual({
+			opened: await run(id, undefined),
+			menus: {
+				sectionToolbar: menuWhen(SessionSectionToolbarMenuId, id),
+				sectionContext: menuWhen(Menus.SessionSectionContext, id),
+				commandPalette: menuWhen(MenuId.CommandPalette, id),
+			},
+			keybindings: KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === id).length,
+		}, {
+			opened: [{ folder: undefined, providerId: undefined, sessionTypeId: undefined, noWorkspace: true, newComposer: true }],
+			menus: {
+				sectionToolbar: 'agentHostEnabled && chatIsEnabled && sessionSection.type == \'quickchats\'',
+				sectionContext: 'agentHostEnabled && chatIsEnabled && sessionSection.type == \'quickchats\'',
+				commandPalette: 'agentHostEnabled && chatIsEnabled',
+			},
+			keybindings: 0,
 		});
 	});
 
