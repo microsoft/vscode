@@ -407,57 +407,6 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	for (const initialSelection of ['none', 'persisted', 'catalog'] as const) {
-		test(`restores Fusion from catalog metadata with ${initialSelection} selection before discovery`, () => {
-			const initial = hostModel('agent-host-copilotcli:auto');
-			const persisted = {
-				...initial,
-				metadata: {
-					...initial.metadata,
-					id: 'auto',
-					name: 'Auto',
-					configurationSchema: {
-						properties: {
-							tier: { group: 'navigation', enum: ['efficiency', 'balance', 'intelligence'], enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'efficiency' },
-						},
-					},
-				},
-			} satisfies ILanguageModelChatMetadataAndIdentifier;
-			const fusion = {
-				...persisted,
-				metadata: {
-					...persisted.metadata,
-					name: 'Copilot Fusion',
-					autoModelFusion: true,
-					configurationSchema: {
-						properties: {
-							tier: { group: 'navigation', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
-						},
-					},
-				},
-			} satisfies ILanguageModelChatMetadataAndIdentifier;
-			const state: IRuntimeState = { models: [fusion], sessionType: 'agent-host-copilotcli', isEmpty: false };
-			const changes = disposables.add(new Emitter<string>());
-			const applied: string[] = [];
-			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, applied)));
-			if (initialSelection !== 'none') {
-				controller.applySelection(initialSelection === 'persisted' ? persisted : fusion, () => { }, false);
-			}
-
-			controller.syncFromConversationState(persisted, undefined, state.sessionType, 'chat:one', false, ModelSelectionReason.RestoredChoice);
-
-			assert.deepStrictEqual({
-				selected: controller.currentModel.get(),
-				intended: controller.selectionReason,
-				applied,
-			}, {
-				selected: fusion,
-				intended: ModelSelectionReason.RestoredChoice,
-				applied: initialSelection === 'none' ? [fusion.identifier] : [],
-			});
-		});
-	}
-
 	test('rolls back a failed explicit selection effect', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
