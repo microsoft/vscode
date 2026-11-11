@@ -12,6 +12,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../base/common/resources.js';
 import Severity from '../../../../../base/common/severity.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -152,6 +153,7 @@ export interface IAgentsViewFolderLocationService {
 }
 
 const FOLDER_LOCATION_TERMINAL_STATUS_ID = 'agentsView.folderLocation';
+const CHAT_ENABLED_KEYS = new Set([ChatContextKeys.enabled.key]);
 
 export class AgentsViewFolderLocationService extends Disposable implements IAgentsViewFolderLocationService {
 
@@ -166,6 +168,8 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	private readonly _providerRegistration = this._register(new MutableDisposable());
 	/** The locations the folder has been at in this window, whose terminals started there are marked once it moves. */
 	private readonly _visitedLocations: URI[] = [];
+	/** The working directories that are no alternate location of the folder, until its folders change: opening their sessions reads nothing. */
+	private readonly _notLocations = new ResourceSet(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
 
 	constructor(
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
@@ -191,13 +195,16 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		}
 		this._started = true;
 		this._register(this._contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([ChatContextKeys.enabled.key]))) {
+			if (e.affectsSome(CHAT_ENABLED_KEYS)) {
 				this._updateForChatEnablement();
 			}
 		}));
 		this._updateForChatEnablement();
 
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._markTerminals()));
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this._notLocations.clear();
+			this._markTerminals();
+		}));
 		this._register(this._terminalService.onDidCreateInstance(instance => this._markTerminal(instance)));
 		this._markTerminals();
 	}
@@ -222,6 +229,9 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 			return this._move(request, primary, undefined, 'toPrimary');
 		}
 
+		if (this._notLocations.has(workingDirectory)) {
+			return this._move(request, primary, current, undefined);
+		}
 		let location: IFolderLocation | undefined;
 		try {
 			if (!await this._exists(workingDirectory)) {
@@ -232,6 +242,10 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 				return this._move(request, primary, current, undefined);
 			}
 			location = await this._provider.resolveLocation(primary, workingDirectory, CancellationToken.None);
+			if (!location) {
+				// Only what reads as no location is remembered: a failed read is tried again next time
+				this._notLocations.add(workingDirectory);
+			}
 		} catch (error) {
 			// Not knowing where the session works is not the same as it working elsewhere
 			this._logService.error('[agentsView] could not read where a session works', error);
