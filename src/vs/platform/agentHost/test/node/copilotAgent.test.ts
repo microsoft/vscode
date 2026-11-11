@@ -19818,15 +19818,18 @@ suite('CopilotAgent', () => {
 					chatChannelUri: identity.chatChannelUri.toString(),
 					resource: identity?.resource?.toString(),
 				});
-				const built = makeForkFake(launchPlan, identity?.chatChannelUri, remaps, revalidateTelemetryBeforeRegistration);
+				const built = makeForkFake(launchPlan, identity.owner, identity.chatChannelUri, remaps, revalidateTelemetryBeforeRegistration);
 				return built;
 			};
 			return { forks, launches, remaps };
 		}
 
-		function makeForkFake(launchPlan: CopilotSessionLaunchPlan, chatChannelUri: URI | undefined, remaps: ReadonlyMap<string, string>[], revalidateTelemetryBeforeRegistration?: () => Promise<void>): CopilotAgentSession {
+		function makeForkFake(launchPlan: CopilotSessionLaunchPlan, owner: IAgentChatOwnerRef, chatChannelUri: URI, remaps: ReadonlyMap<string, string>[], revalidateTelemetryBeforeRegistration?: () => Promise<void>): CopilotAgentSession {
 			return {
 				sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
+				get ownerSessionUri() { return owner.get(); },
+				ownerRef: owner,
+				launchOwner: owner.get(),
 				chatChannelUri,
 				sessionId: launchPlan.sessionId,
 				extensionLaunchDirectories: [],
@@ -22342,6 +22345,9 @@ suite('CopilotAgent', () => {
 				const shouldFail = callIndex === failingCallNumber;
 				return {
 					sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
+					get ownerSessionUri() { return identity.owner.get(); },
+					ownerRef: identity.owner,
+					launchOwner: identity.owner.get(),
 					chatChannelUri: identity.chatChannelUri,
 					sessionId: launchPlan.sessionId,
 					extensionLaunchDirectories: [],
@@ -27524,9 +27530,13 @@ suite('CopilotAgent', () => {
 		function stubBackingSession(agent: CopilotAgent): void {
 			(agent as unknown as ConvInternals)._createAgentSession = (launchPlan, _dir, _ac, identity) => {
 				const sessionUri = identity?.owner.get() ?? AgentSession.uri('copilotcli', launchPlan.sessionId);
+				const owner = identity?.owner ?? fixedChatOwnerRef(sessionUri);
 				const chatChannelUri = identity?.chatChannelUri ?? defaultChatUri(sessionUri);
 				return {
 					sessionUri,
+					get ownerSessionUri() { return owner.get(); },
+					ownerRef: owner,
+					launchOwner: owner.get(),
 					chatChannelUri,
 					sessionId: launchPlan.sessionId,
 					extensionLaunchDirectories: [],
@@ -28037,8 +28047,8 @@ suite('CopilotAgent', () => {
 			});
 			const context = new DeferredPromise<IAgentChatContext>();
 			const resume = stub(agent as unknown as {
-				_resolveSessionCanvasChat(session: URI, chat: URI, context: IAgentChatContext, operation: string): Promise<CopilotAgentSession>;
-			}, '_resolveSessionCanvasChat').rejects(new Error('stale watch resumed the chat'));
+				_withSessionCanvasChat: CopilotAgent['_withSessionCanvasChat'];
+			}, '_withSessionCanvasChat').rejects(new Error('stale watch resumed the chat'));
 			disposables.add(toDisposable(() => resume.restore()));
 
 			contributeActiveClient(agent, chat, exactChatContext(session, chat));
@@ -28096,8 +28106,8 @@ suite('CopilotAgent', () => {
 					canContinue: () => true,
 				});
 				const resume = error ? stub(agent as unknown as {
-					_resolveSessionCanvasChat(session: URI, chat: URI, context: IAgentChatContext, operation: string): Promise<CopilotAgentSession>;
-				}, '_resolveSessionCanvasChat').rejects(error) : undefined;
+					_withSessionCanvasChat: CopilotAgent['_withSessionCanvasChat'];
+				}, '_withSessionCanvasChat').rejects(error) : undefined;
 				if (resume) {
 					disposables.add(toDisposable(() => resume.restore()));
 				} else {
@@ -28167,14 +28177,10 @@ suite('CopilotAgent', () => {
 				reason: () => 'idle',
 				canContinue: () => true,
 			});
-			const resumed = {
-				ownerSessionUri: session,
-			} as unknown as CopilotAgentSession;
 			const resume = stub(agent as unknown as {
-				_resolveSessionCanvasChat(session: URI, chat: URI, context: IAgentChatContext, operation: string): Promise<CopilotAgentSession>;
-			}, '_resolveSessionCanvasChat').callsFake(async () => {
+				_withSessionCanvasChat: CopilotAgent['_withSessionCanvasChat'];
+			}, '_withSessionCanvasChat').callsFake(async () => {
 				watch?.dispose();
-				return resumed;
 			});
 			const releaseReasons: string[] = [];
 			const release = stub(agent as unknown as {
