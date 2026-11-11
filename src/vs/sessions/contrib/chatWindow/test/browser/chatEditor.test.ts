@@ -25,7 +25,7 @@ import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/
 import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { CHAT_MODEL_HOLD_TIMEOUT } from '../../../chatWindow/browser/chatWindowOpening.js';
+import { CHAT_MODEL_HOLD_TIMEOUT } from '../../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -44,8 +44,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Verbosity } from '../../../../../workbench/common/editor.js';
 import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
-import { IChatEditorComposer } from '../../browser/chatEditorContent.js';
+import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, registerSessionChatViewEditor, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
+import { IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 
 suite('Session chat view editor', () => {
 
@@ -108,6 +108,7 @@ suite('Session chat view editor', () => {
 	}
 
 	test('registers the chat of a session as a view editor, which shows its session as the chat windows did: its header, its Session Activity Bar and its pills', () => {
+		disposables.add(registerSessionChatViewEditor());
 		const descriptor = Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).get(SESSION_CHAT_VIEW_TYPE);
 		assert.deepStrictEqual({ registered: !!descriptor, name: descriptor?.name, options: SESSION_CHAT_VIEW_HOST_OPTIONS }, {
 			registered: true,

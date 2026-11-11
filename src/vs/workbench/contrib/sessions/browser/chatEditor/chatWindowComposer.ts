@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isCancellationError } from '../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { parse, stringify } from '../../../../base/common/marshalling.js';
-import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { IAction, toAction } from '../../../../base/common/actions.js';
-import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { getInheritedNewSessionTarget } from '../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
-import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ComposerInputSnapshot, fromStoredChatDraft, IComposerInputState, toStoredChatDraft } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
-import { IChat, ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
-import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { parse, stringify } from '../../../../../base/common/marshalling.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { getInheritedNewSessionTarget } from '../chat/newSessionAction.js';
+import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../parts/chatView.js';
+import { ISessionGroupsService } from '../sessionGroupsService.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
+import { ComposerInputSnapshot, fromStoredChatDraft, IComposerInputState, toStoredChatDraft } from '../../common/newChatDraftState.js';
+import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 
 /** The scheme of the resource of a new-session composer in a chat window: its chat until it sends its session. */
 export const CHAT_WINDOW_COMPOSER_SCHEME = 'vscode-agents-composer';

@@ -53,8 +53,8 @@ import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangese
 import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ChatEditorContent, IChatEditorComposer } from '../../../chatEditor/browser/chatEditorContent.js';
-import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY } from '../../browser/chatWindowComposer.js';
+import { ChatEditorContent, IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
@@ -75,7 +75,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ISessionChatViewHost } from '../../../chatEditor/browser/chatEditor.js';
+import { ISessionChatViewHost } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';

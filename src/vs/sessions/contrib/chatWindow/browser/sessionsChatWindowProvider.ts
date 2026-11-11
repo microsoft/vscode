@@ -50,16 +50,16 @@ import { SessionChangesEditorFileListContext } from '../../../../workbench/contr
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext, getUnsentComposerMoveReason } from '../common/chatWindows.js';
-import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
-import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
+import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
+import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
-import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
+import { ChatEditorContent, IChatEditorComposer } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 import { localize } from '../../../../nls.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';

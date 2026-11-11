@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IChat } from '../../../../workbench/services/sessions/common/session.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 
 /** How long a chat model stays held for its view to bind to it, when the view never reports having done so. */
 export const CHAT_MODEL_HOLD_TIMEOUT = 10_000;

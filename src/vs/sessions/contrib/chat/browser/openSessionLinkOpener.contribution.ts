@@ -23,7 +23,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { isChatWindowChatGone } from '../../chatWindow/browser/chatWindowOpening.js';
+import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 
