@@ -2302,6 +2302,36 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
+		test('keeps keyboard focus in the section as its reasoning moves into and out of a row', () => {
+			const part = createConversationSection(createThinkingPart('Check [the renderer](https://example.com/renderer).', 'first'));
+			getButton(part).click();
+			const link = part.domNode.querySelector<HTMLElement>('.chat-thinking-collapsible a');
+			assert.ok(link);
+			const isFocused = (element: HTMLElement) => mainWindow.document.activeElement === element;
+			const removeTool = (tool: ChatToolInvocation) => {
+				part.domNode.querySelector('.test-tool')?.parentElement?.remove();
+				part.removeMaterializedItem(tool.toolCallId);
+			};
+			link.focus();
+			const focusedAlone = isFocused(link);
+			const first = new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'first', undefined, {});
+			appendTool(part, first, 'Read renderer.ts');
+			const inRow = { rows: getRows(part), rowsExpanded: getReasoningRowButtons(part).map(button => button.ariaExpanded), linkFocused: isFocused(link) };
+			removeTool(first);
+			const aloneAgain = { rows: getRows(part), linkFocused: isFocused(link) };
+			const second = new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'second', undefined, {});
+			appendTool(part, second, 'Read renderer.ts');
+			getReasoningRowButtons(part)[0].focus();
+			removeTool(second);
+
+			assert.deepStrictEqual({ focusedAlone, inRow, aloneAgain, afterFocusedRowLeft: { rows: getRows(part), sectionHeaderFocused: isFocused(getButton(part)) } }, {
+				focusedAlone: true,
+				inRow: { rows: ['Finished thinking', 'Read renderer.ts'], rowsExpanded: ['true'], linkFocused: true },
+				aloneAgain: { rows: ['Check the renderer.'], linkFocused: true },
+				afterFocusedRowLeft: { rows: ['Check the renderer.'], sectionHeaderFocused: true },
+			});
+		});
+
 		test('a reasoning row says Thinking until its run records how long it thought', () => {
 			const part = createConversationSection(createThinkingPart());
 			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');

@@ -333,6 +333,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _decoration: TerminalCommandDecoration;
 	/** Whether the command was running when this part was created, so its completion collapses the part once. */
 	private _awaitsCompletion: boolean;
+	/** The wait for focus to leave the card before a finished command collapses. */
+	private readonly _pendingFocusCollapse = this._register(new MutableDisposable<IDisposable>());
 	private _isInThinkingContainer: boolean = false;
 	private _usesCollapsibleWrapper: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
@@ -1129,10 +1131,35 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (autoExpandFailures && exitCode !== undefined && exitCode !== 0) {
 			this.expandCollapsibleWrapper();
 		} else if (this._awaitsCompletion) {
-			this._thinkingCollapsibleWrapper?.collapse();
-			void this._toggleOutput(false).catch(onUnexpectedError);
+			this._collapseWhenUnfocused();
 		}
 		this._awaitsCompletion = false;
+	}
+
+	/**
+	 * Collapses the finished command once keyboard focus is outside its card, so the collapse
+	 * never hides the output or control a user is on.
+	 */
+	private _collapseWhenUnfocused(): void {
+		const collapse = () => {
+			this._pendingFocusCollapse.clear();
+			// The user may have chosen the card's state while the collapse waited.
+			if (!userToggledInvocations.has(this.toolInvocation)) {
+				this._thinkingCollapsibleWrapper?.collapse();
+				void this._toggleOutput(false).catch(onUnexpectedError);
+			}
+		};
+		if (!dom.isAncestorOfActiveElement(this.domNode)) {
+			collapse();
+			return;
+		}
+		this._pendingFocusCollapse.value = dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, (event: FocusEvent) => {
+			// Focus that moves within the card, or stays in it while the window is inactive, has not left.
+			const movesWithinCard = dom.isHTMLElement(event.relatedTarget) && this.domNode.contains(event.relatedTarget);
+			if (!movesWithinCard && !dom.isAncestorOfActiveElement(this.domNode)) {
+				collapse();
+			}
+		});
 	}
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {

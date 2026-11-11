@@ -1665,6 +1665,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		if (!this.isConversation || !this.wrapper) {
 			return;
 		}
+		// Moving reasoning takes keyboard focus from an element inside it, such as a link the user tabbed to.
+		const activeElement = getActiveElement();
+		const focused = isHTMLElement(activeElement) && this.wrapper.contains(activeElement) ? activeElement : undefined;
 		if (this.listsReasoningAsRows()) {
 			let row: IConversationReasoningRow | undefined;
 			for (const child of Array.from(this.wrapper.children)) {
@@ -1677,6 +1680,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 					row = this.createReasoningRow();
 					child.before(row.element);
 				}
+				if (focused && child.contains(focused)) {
+					// A collapsed row keeps its text out of the document, so the row the user is in opens.
+					row.part.expand();
+				}
 				row.part.content.appendChild(child);
 			}
 		} else {
@@ -1685,6 +1692,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				this.reasoningRows.delete(row.element);
 				this.reasoningRowStore.delete(row.store);
 			}
+		}
+		if (focused && getActiveElement() !== focused) {
+			// A removed row's header cannot take focus back, so the section's header does.
+			(focused.isConnected ? focused : this._collapseButton?.element)?.focus({ preventScroll: true });
 		}
 		for (const row of this.reasoningRows.values()) {
 			row.part.updateTitle(this.getReasoningRowTitle(row));

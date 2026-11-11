@@ -1313,6 +1313,31 @@ suite('ChatTerminalToolProgressPart completion', () => {
 			});
 		});
 
+		test(`waits for focus to leave the card before collapsing a finished command in ${mode} mode`, async () => {
+			const running = createRunningSource();
+			const harness = await createTerminalFullOutputHarness(store, running.source);
+			const { part } = await createAutoExpandedPart(harness, running, mode);
+			const output = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container [tabindex="0"]');
+			assert.ok(output);
+			output.focus();
+			running.exit(0);
+			await timeout(0);
+			const whileFocused = { ...expansion(part, mode), focused: mainWindow.document.activeElement === output };
+			// The window becoming inactive blurs the output without moving focus elsewhere
+			output.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+			await timeout(0);
+			const whileWindowInactive = expansion(part, mode);
+			output.blur();
+			output.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+			await timeout(0);
+			const expanded = { output: true, wrapper: mode === 'plain' ? undefined : true };
+			assert.deepStrictEqual({ whileFocused, whileWindowInactive, afterLeaving: expansion(part, mode) }, {
+				whileFocused: { ...expanded, focused: true },
+				whileWindowInactive: expanded,
+				afterLeaving: collapsed,
+			});
+		});
+
 		test(`starts collapsed when rebuilt for a completed tool call that expanded automatically in ${mode} mode`, async () => {
 			const running = createRunningSource();
 			const harness = await createTerminalFullOutputHarness(store, running.source);

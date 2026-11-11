@@ -51,6 +51,11 @@ export class ChatConversationReasoningPart extends ChatCollapsibleContentPart {
 		}
 	}
 
+	/** Opens the row, which attaches and shows its reasoning text. */
+	expand(): void {
+		this.setExpanded(true);
+	}
+
 	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return false;
 	}
