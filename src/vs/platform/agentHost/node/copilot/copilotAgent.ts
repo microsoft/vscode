@@ -3214,7 +3214,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const persistedById = new Map(persisted.extensions.map(extension => [extension.id, extension]));
 		const pending = this._extensionCatchUpPendingError(liveSession);
 		let reconciliation: IAgentExtensionInventory['reconciliation'] = pending ? { status: 'pending', message: pending.message } : undefined;
-		const liveExtensions = pending ? await liveSession.listExtensions() : await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'listExtensions', async () => {
+		const liveExtensions = pending || this._isExtensionEnablementCurrent(liveSession) ? await liveSession.listExtensions() : await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'listExtensions', async () => {
 			if (this._findPluginOperationSession(session, chat) !== liveSession || liveSession.isDisposed) {
 				throw new CopilotExtensionReconcileTargetUnavailableError();
 			}
@@ -6938,6 +6938,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				entry.assertScopedCredential(credential);
 			}
 			await this._catchUpExtensions(entry);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -8957,6 +8960,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			await this._applyPendingModelSelection(current, entry, token);
 			await this._catchUpExtensions(entry);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}

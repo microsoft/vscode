@@ -2788,6 +2788,46 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	test('reads current extension inventory without waiting for queued chat work', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const release = new DeferredPromise<void>();
+		afterTest(async () => {
+			release.complete();
+			await disposeAgent(agent);
+		});
+		const session = AgentSession.uri('copilotcli', 'current-extension-inventory');
+		const chat = defaultChatUri(session);
+		let listed = false;
+		setDefaultSessionStub(agent, 'current-extension-inventory', {
+			hasActiveTurn: true,
+			listExtensions: async () => {
+				listed = true;
+				return [{ id: 'user:preview', name: 'Preview', source: 'user' as const, status: 'running' as const }];
+			},
+		});
+		await agent.listAgentExtensions();
+		const entered = new DeferredPromise<void>();
+		const barrier = agent['_queueChat']('current-extension-inventory', 'current-extension-inventory', 'fixtureBlockedWork', async () => {
+			entered.complete();
+			await release.p;
+		});
+		await entered.p;
+		const request = agent.listAgentExtensions(session, chat);
+		await timeout(0);
+		const listedBeforeRelease = listed;
+		release.complete();
+		await barrier;
+		const result = await request;
+		assert.deepStrictEqual({ listedBeforeRelease, status: result.extensions[0]?.status, reconciliation: result.reconciliation }, {
+			listedBeforeRelease: true, status: 'running', reconciliation: undefined,
+		});
+	});
+
 	test('orders overlapping extension writes and catches up a superseded runtime reconcile', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
@@ -11712,6 +11752,58 @@ suite('CopilotAgent', () => {
 					},
 				};
 			}
+
+			test('blocks canvas operations on a retained runtime until failed teardown can be retried', async () => {
+				const fixture = await createFixture(false, true);
+				const { agent, session, chats, sdkSessions, client } = fixture;
+				const chat = chats[1];
+				const context = exactChatContext(session, chat);
+				const live = agent['_findPluginOperationSession'](session, chat)!;
+				client.extensionInventory = {
+					mode: 'load_and_augment',
+					extensions: [{ id: 'user:other', name: 'Other', path: '/extensions/other.mjs', source: 'user', enabled: true }],
+				};
+				sdkSessions[1].extensions.push({ id: 'project:preview', name: 'Preview', source: 'project', status: 'running' });
+				sdkSessions[1].canvases.push({
+					canvasId: 'preview', extensionId: 'project:preview', displayName: 'Preview', description: 'Preview generated content.',
+				});
+				const reconciliation = stub(live, 'reconcileExtensions').rejects(new Error('extension_reconciliation_lifecycle_failed'));
+				const destroy = stub(live, 'destroySession').rejects(new Error('fixture disconnect failed'));
+				disposables.add(toDisposable(() => { reconciliation.restore(); destroy.restore(); }));
+				try {
+					await agent.setAgentExtensionEnabled('user:other', false);
+					await assert.rejects(agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, context), /fixture disconnect failed/);
+					reconciliation.resolves();
+					const request = { canvasId: 'preview', extensionId: 'project:preview', instanceId: 'preview' };
+					await assert.rejects(agent.listSessionCanvases(session, chat, context), /needs to restart/);
+					await assert.rejects(agent.openSessionCanvas(session, request, chat, context), /needs to restart/);
+					const beforeReplacement = sdkSessions[1].canvasOpenCalls.length;
+					destroy.restore();
+					await agent.chats.sendMessage(chat, 'repair turn', undefined, undefined, 'repair-turn', undefined, context);
+					const channels: string[] = [];
+					disposables.add(agent.onDidChatProgress(signal => {
+						if (signal.kind === 'canvas') {
+							channels.push(signal.resource.toString());
+						}
+					}));
+					await agent.openSessionCanvas(session, request, chat, context);
+					sdkSessions[1].emit({
+						type: 'session.canvas.opened',
+						data: { ...request, url: 'https://example.test/preview' },
+					} as SessionEventPayload<'session.canvas.opened'>);
+					assert.deepStrictEqual({
+						beforeReplacement, openCalls: sdkSessions[1].canvasOpenCalls,
+						visibleChannels: channels.length, sends: fixture.sends(),
+					}, {
+						beforeReplacement: 0, openCalls: [request],
+						visibleChannels: 1, sends: 1,
+					});
+				} finally {
+					reconciliation.restore();
+					destroy.restore();
+					await fixture.dispose();
+				}
+			});
 
 			test('canvas list and open resume a cold exact chat without sending a message, while close only reaches a live chat', async () => {
 				const fixture = await createFixture(false, true);
@@ -26344,6 +26436,46 @@ suite('CopilotAgent', () => {
 					reconciliation: { status: 'failed', message: 'extension_reconciliation_lifecycle_failed' },
 					oldSends: [], newSends: failure ? [] : ['new turn'],
 				});
+			});
+		}
+
+		for (const operation of ['send', 'resume'] as const) {
+			test(`does not ${operation} a stopped turn after final extension catch-up`, async () => {
+				const agent = createTestAgent(disposables);
+				const release = new DeferredPromise<void>();
+				afterTest(async () => {
+					release.complete();
+					await disposeAgent(agent);
+				});
+				const session = AgentSession.uri('copilotcli', `extension-cancel-${operation}`);
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const peer = makeFakeChatSession(session, 'extension-cancel-peer');
+				let resumes = 0;
+				peer.fake.resume = async () => { resumes++; };
+				setPeerChatStub(agent, chat, peer.fake);
+				const entered = new DeferredPromise<void>();
+				let attempts = 0;
+				agent['_catchUpExtensions'] = async () => {
+					if (++attempts === 2) {
+						entered.complete();
+						await release.p;
+					}
+				};
+				const context = exactChatContext(session, chat);
+				assert.ok(agent.chats.resumeTurn);
+				const request = operation === 'send'
+					? agent.chats.sendMessage(chat, 'stopped request', undefined, undefined, 'stopped-turn', undefined, context)
+					: agent.chats.resumeTurn(chat, 'stopped-turn', context);
+				const outcome = request.then(() => undefined, error => error);
+				await entered.p;
+				await agent.chats.abort(chat, context);
+				release.complete();
+				const error = await outcome;
+				if (error) {
+					assert.ok(isCancellationError(error));
+				}
+				await agent['_queueChat'](peer.fake.sessionId, peer.fake.sessionId, 'fixtureDrain', async () => { });
+				assert.deepStrictEqual({ sends: peer.rec.sends, resumes }, { sends: [], resumes: 0 });
 			});
 		}
 
