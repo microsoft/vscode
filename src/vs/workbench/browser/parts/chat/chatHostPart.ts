@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatHostPart.css';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, getComputedStyle } from '../../../../base/browser/dom.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -37,6 +37,8 @@ export class ChatHostPart extends Part {
 	private _contentArea: HTMLElement | undefined;
 	private _horizontalMargins = 0;
 	private _visible = false;
+	/** The widths of the edge of what it shows, read once, until they can change: its content, the theme, or the window's classes change. */
+	private _contentEdge: ICardEdge | undefined;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -53,6 +55,7 @@ export class ChatHostPart extends Part {
 	/** Shows `content`, until the returned disposable is disposed; the owner of the content disposes the content. */
 	setContent(content: IContentPart): IDisposable {
 		this._content = content;
+		this._contentEdge = undefined;
 		this._contentArea?.appendChild(content.element as HTMLElement);
 		this._contentListener.value = content.onDidChange(() => this._onDidChange.fire(undefined));
 		content.setVisible(this._visible);
@@ -72,6 +75,11 @@ export class ChatHostPart extends Part {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
+		// The edge of what it shows follows the window's classes, such as for Modern UI, floating panels, or their density
+		const classObserver = new MutationObserver(() => this._contentEdge = undefined);
+		classObserver.observe(this.layoutService.mainContainer, { attributes: true, attributeFilter: ['class'] });
+		this._register(toDisposable(() => classObserver.disconnect()));
+
 		this.element = parent;
 		this._contentArea = append(parent, $('.content'));
 		if (this._content) {
@@ -94,10 +102,29 @@ export class ChatHostPart extends Part {
 		this.element.style.height = `calc(100% - ${marginTop + marginBottom}px)`;
 		this._horizontalMargins = marginLeft + marginRight;
 
-		// It draws no frame (chatHostPart.css): what it shows takes all of it
-		const contentWidth = Math.max(0, width - marginLeft - marginRight);
-		const contentHeight = Math.max(0, height - marginTop - marginBottom);
-		this._content?.layout(contentWidth, contentHeight, top + marginTop, left + marginLeft);
+		// It draws no frame (chatHostPart.css). What it shows draws its own card edge, such as an editor part the editor card's
+		// edge (editorBorder.css), inside its box: it lays out within that edge, which the part would clip otherwise
+		const edge = this._content ? this._getContentEdge(this._content.element as HTMLElement) : NO_EDGE;
+		const contentWidth = Math.max(0, width - marginLeft - marginRight - edge.left - edge.right);
+		const contentHeight = Math.max(0, height - marginTop - marginBottom - edge.top - edge.bottom);
+		this._content?.layout(contentWidth, contentHeight, top + marginTop + edge.top, left + marginLeft + edge.left);
+	}
+
+	override updateStyles(): void {
+		super.updateStyles();
+		this._contentEdge = undefined;
+	}
+
+	private _getContentEdge(element: HTMLElement): ICardEdge {
+		if (this._contentEdge) {
+			return this._contentEdge;
+		}
+		const edge = getCardEdge(element);
+		// Not yet in the window, it has no styles to read: read them again on the next layout
+		if (element.isConnected) {
+			this._contentEdge = edge;
+		}
+		return edge;
 	}
 
 	override setVisible(visible: boolean): void {
@@ -117,4 +144,20 @@ export class ChatHostPart extends Part {
 	toJSON(): object {
 		return { type: Parts.CHAT_PART };
 	}
+}
+
+interface ICardEdge {
+	readonly top: number;
+	readonly right: number;
+	readonly bottom: number;
+	readonly left: number;
+}
+
+const NO_EDGE: ICardEdge = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** The widths of the border that `element` draws, as its styles give them. */
+function getCardEdge(element: HTMLElement): ICardEdge {
+	const style = getComputedStyle(element);
+	const width = (value: string) => parseFloat(value) || 0;
+	return { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
 }

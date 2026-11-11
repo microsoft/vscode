@@ -31,3 +31,6 @@ export const AgentsViewWhen: ContextKeyExpression = ContextKeyExpr.and(AgentsVie
 
 /** The view that shows in place of the Sessions view while its shared state loads, so that its container restores. */
 export const AGENTS_VIEW_LOADING_VIEW_ID = 'workbench.view.agents.loading';
+
+/** Whether a menu shows for the chat part beside the editor area, such as the More Actions of its editor groups. */
+export const InAgentsChatPartContext = new RawContextKey<boolean>('inAgentsChatPart', false, localize('inAgentsChatPart', "Whether the context is the chat part beside the editor area."));

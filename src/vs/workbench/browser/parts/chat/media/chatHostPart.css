@@ -14,9 +14,9 @@
 }
 
 /*
- * The chat part only places what it shows: it draws no frame of its own, so that its chats look as in a chat window, whose
- * chat surface reaches the edges of its card. With floating panels it is a card as those beside it are: rounded, without
- * a stroke.
+ * The chat part only places what it shows: it draws no frame of its own. What it shows draws its card's edge, as the editor
+ * part does the editor card's (editorBorder.css), so that the chat part is one card with one edge, as the cards beside it
+ * are. With floating panels it is rounded as they are.
  */
 .monaco-workbench.floating-panels .part.chat {
 	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large));

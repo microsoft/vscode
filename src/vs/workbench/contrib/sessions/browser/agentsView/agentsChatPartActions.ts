@@ -13,7 +13,8 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
-import { Menus } from '../menus.js';
+import { Menus, SessionHeaderMenus } from '../menus.js';
+import { InAgentsChatPartContext } from './agentsView.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
 
 /** Whether the chat part of the editor window shows. */
@@ -67,6 +68,12 @@ export function registerAgentsChatPartActions(): IDisposable {
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: AgentsChatPartVisibleContext,
+				// Last in the More Actions of the chat it shows, in a group of its own: of its session header, or of its group's
+				// tabs while it shows them
+				menu: [
+					...SessionHeaderMenus.map(id => ({ id, group: 'secondary/z_close', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsChatPartVisibleContext) })),
+					{ id: MenuId.EditorTitle, group: 'z_close', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsChatPartVisibleContext, InAgentsChatPartContext) },
+				],
 			});
 		}
 		run(accessor: ServicesAccessor): void {

@@ -17,6 +17,7 @@ import { IWorkbenchLayoutService, PanelAlignment, Parts, Position } from '../../
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../browser/parts/chat/media/chatHostPart.css';
+import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 
 suite('ChatHostPart', () => {
 
@@ -43,14 +44,15 @@ suite('ChatHostPart', () => {
 	/**
 	 * Lays out, from left to right, the primary side bar, the chat part, the editor and the secondary side bar, each in a cell
 	 * of the workbench grid, and measures the cards they show: the chat part is the real part, showing an editor part, as it
-	 * does in a window; the others reserve their margins as their parts do in code, under the same floating panel styles.
+	 * does in a window; the others reserve their margins and edges as their parts do in code, under the same styles.
 	 */
-	function measureCards(floating: boolean) {
+	function measureCards(floating: boolean, modernUI = false) {
 		const store = disposables.add(new DisposableStore());
 		const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
 		store.add(toDisposable(() => workbench.remove()));
 		workbench.classList.toggle('floating-panels', floating);
-		workbench.style.cssText = 'position: absolute; top: 0; left: 0; width: 1000px; height: 400px; --vscode-panels-spacing: 16px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		workbench.classList.toggle('modern-ui', modernUI);
+		workbench.style.cssText = 'position: absolute; top: 0; left: 0; width: 1000px; height: 400px; --vscode-panels-spacing: 16px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --vscode-foreground: rgb(255, 255, 255);';
 		const grid = append(workbench, $('.monaco-grid-view'));
 		grid.style.cssText = 'display: flex; width: 100%; height: 100%;';
 		const cell = (width: number) => {
@@ -74,6 +76,7 @@ suite('ChatHostPart', () => {
 		const visible = new Set<Parts>([Parts.TITLEBAR_PART, Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]);
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({
 			registerPart: () => toDisposable(() => { }),
+			mainContainer: workbench,
 			isFloatingPanelsEnabled: () => floating,
 			isModernUICompact: () => false,
 			getPanelSpacing: () => 16,
@@ -85,31 +88,39 @@ suite('ChatHostPart', () => {
 		const chatPart = store.add(new ChatHostPart(new TestThemeService(), store.add(new TestStorageService()), layoutService));
 		const chatElement = append(chatCell, $('.part.chat'));
 		chatPart.create(chatElement);
+		// As an editor part, it sizes what it shows, and its box takes that and its own edge
 		const content = $('.part.editor');
+		const contentArea = append(content, $('.content'));
 		store.add(chatPart.setContent(upcastPartial<IContentPart>({
 			element: content,
 			minimumWidth: 0,
 			onDidChange: Event.None,
 			setVisible: () => { },
 			layout: (width: number, height: number) => {
-				content.style.width = `${width}px`;
-				content.style.height = `${height}px`;
+				contentArea.style.width = `${width}px`;
+				contentArea.style.height = `${height}px`;
 			},
 		})));
 		chatPart.layout(300, 400, 0, 200);
 
 		const cards = [sideBar, content, editor, auxiliaryBar].map(card => card.getBoundingClientRect());
+		const edgeOf = (element: HTMLElement) => {
+			const style = mainWindow.getComputedStyle(element);
+			return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth, style.borderTopStyle, style.borderTopColor, style.borderTopLeftRadius].join(' ');
+		};
 		const result = {
 			gaps: cards.slice(1).map((card, index) => card.left - cards[index].right),
 			tops: cards.map(card => card.top),
 			bottoms: cards.map(card => card.bottom),
+			edges: { part: edgeOf(chatElement), chat: edgeOf(content), editor: edgeOf(editor) },
 		};
 		store.dispose();
 		return result;
 	}
 
 	test('with floating panels, the chat part keeps the same gaps as the other cards, and their top and bottom edges', () => {
-		assert.deepStrictEqual(measureCards(true), {
+		const { gaps, tops, bottoms } = measureCards(true);
+		assert.deepStrictEqual({ gaps, tops, bottoms }, {
 			gaps: [16, 16, 16],
 			tops: [0, 0, 0, 0],
 			bottoms: [396, 396, 396, 396],
@@ -117,10 +128,58 @@ suite('ChatHostPart', () => {
 	});
 
 	test('docked, the chat part fills its cell, as the other parts do', () => {
-		assert.deepStrictEqual(measureCards(false), {
+		const { gaps, tops, bottoms } = measureCards(false);
+		assert.deepStrictEqual({ gaps, tops, bottoms }, {
 			gaps: [0, 0, 0],
 			tops: [0, 0, 0, 0],
 			bottoms: [400, 400, 400, 400],
+		});
+	});
+
+	test('reads the edge of what it shows once, and again only as the window\'s classes change', async () => {
+		const store = disposables.add(new DisposableStore());
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.modern-ui'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: absolute; width: 400px; height: 400px; --vscode-strokeThickness: 1px; --vscode-foreground: rgb(255, 255, 255);';
+		const grid = append(workbench, $('.monaco-grid-view'));
+		const layoutService = upcastPartial<IWorkbenchLayoutService>({
+			registerPart: () => toDisposable(() => { }),
+			mainContainer: workbench,
+			isFloatingPanelsEnabled: () => false,
+		});
+		const chatPart = store.add(new ChatHostPart(new TestThemeService(), store.add(new TestStorageService()), layoutService));
+		chatPart.create(append(grid, $('.part.chat')));
+		const content = $('.part.editor');
+		const widths: number[] = [];
+		store.add(chatPart.setContent(upcastPartial<IContentPart>({
+			element: content,
+			minimumWidth: 0,
+			onDidChange: Event.None,
+			setVisible: () => { },
+			layout: (width: number) => widths.push(width),
+		})));
+
+		chatPart.layout(300, 400, 0, 0);
+		content.style.borderLeftWidth = '5px';
+		chatPart.layout(300, 400, 0, 0);
+		workbench.classList.add('modern-ui-compact');
+		await Promise.resolve();
+		chatPart.layout(300, 400, 0, 0);
+
+		// The first layout as the content is set, then those of the test
+		assert.deepStrictEqual(widths.slice(-3), [298, 298, 294]);
+		store.dispose();
+	});
+
+	test('with floating panels and Modern UI, the chat card has one edge, the editor card\'s, all of it inside the part', () => {
+		const { gaps, tops, bottoms, edges } = measureCards(true, true);
+		assert.deepStrictEqual({ gaps, tops, bottoms, partDrawsNoEdge: edges.part.startsWith('0px 0px 0px 0px'), chatEdgeIsEditorEdge: edges.chat === edges.editor, chatEdgeIsDrawn: edges.chat.startsWith('1px 1px 1px 1px solid') }, {
+			gaps: [16, 16, 16],
+			tops: [0, 0, 0, 0],
+			bottoms: [396, 396, 396, 396],
+			partDrawsNoEdge: true,
+			chatEdgeIsEditorEdge: true,
+			chatEdgeIsDrawn: true,
 		});
 	});
 });

@@ -48,6 +48,7 @@ import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
 import { ChatViewVisibilityPolicy } from './chatViewVisibilityPolicy.js';
+import { InAgentsChatPartContext } from './agentsView.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
 /** The chats of the chat part, which it shows again as the window restores. */
@@ -339,7 +340,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
@@ -377,12 +378,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 		// Chat turned off, such as as AI features are disabled, closes the chat part; it is off until chat starts
 		const chatEnabledKeys = new Set([ChatContextKeys.enabled.key]);
-		let chatEnabled = !!ChatContextKeys.enabled.getValue(contextKeyService);
-		this._register(contextKeyService.onDidChangeContext(e => {
+		let chatEnabled = !!ChatContextKeys.enabled.getValue(_contextKeyService);
+		this._register(_contextKeyService.onDidChangeContext(e => {
 			if (!e.affectsSome(chatEnabledKeys)) {
 				return;
 			}
-			const enabled = !!ChatContextKeys.enabled.getValue(contextKeyService);
+			const enabled = !!ChatContextKeys.enabled.getValue(_contextKeyService);
 			if (chatEnabled && !enabled) {
 				this._layoutService.setPartHidden(true, Parts.CHAT_PART);
 			}
@@ -558,10 +559,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const container = $('.agents-chat-part');
 		container.style.width = '100%';
 		container.style.height = '100%';
+		// The menus of its groups tell it apart from the editor area, such as its More Actions, which offer to close it
+		const scopedContextKeyService = this._contextKeyService.createScoped(container);
+		InAgentsChatPartContext.bindTo(scopedContextKeyService).set(true);
 		const part = this._part = this._editorGroupsService.createEditorPart({
 			container,
 			label: localize('agentsChatPart.label', "Chat"),
-			services: new ServiceCollection([ISessionHost, this.mainWindowHost]),
+			services: new ServiceCollection([ISessionHost, this.mainWindowHost], [IContextKeyService, scopedContextKeyService]),
 		});
 		this._partStore.add(this._frame.part.setContent(part));
 		// It shows its chats as a chat window's chat part does: over the chat surface, with the same options of its tabs
@@ -573,6 +577,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(enforceChatPartOptions(part, derived(reader => getChatWindowMainPartOptions(showTabs.read(reader)))));
 		// The part goes with the window; its chats are not dirty, so nothing moves back to the editor area
 		this._partStore.add(toDisposable(() => part.forceClose()));
+		// After the part, whose context is scoped in it
+		this._partStore.add(scopedContextKeyService);
 
 		// The active tab is the window's active chat
 		const groupListeners = this._partStore.add(new DisposableMap<IEditorGroup>());
