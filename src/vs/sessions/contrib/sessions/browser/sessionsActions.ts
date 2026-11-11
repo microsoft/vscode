@@ -2100,7 +2100,7 @@ for (const menu of SessionHeaderMenus) {
 		title: localize2('chat.viewMode', "View Mode"),
 		group: 'secondary/4_manage',
 		order: 10,
-		when: ChatContextKeys.enabled,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionIsCreatedContext),
 	});
 
 	MenuRegistry.appendMenuItem(menu, {
