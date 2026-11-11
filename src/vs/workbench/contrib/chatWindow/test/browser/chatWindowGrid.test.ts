@@ -1865,12 +1865,15 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(results, Object.fromEntries(Object.keys(rows).map(name => [name, 'kept'])));
 	});
 
-	test('the split the user gave the parts, restored without the chrome, stays as the terminals first show beside it: shown from the start, registered empty and then filled, as the terminals service does, or joining later; only then, as later the terminals show among the sizes the user gave the parts', () => {
-		const run = (split: ChatWindowSplitLayout, order: 'shown' | 'filled' | 'joining') => {
+	test('the split the user gave the parts, restored without the chrome, stays as the terminals first show beside it: shown from the start, registered empty and then filled, as the terminals service does, or joining empty later and then filled, also at a height that takes all but the least sizes of the parts, and while a part hides; only then, as later the terminals show among the sizes the user gave the parts', () => {
+		type Case = { split: ChatWindowSplitLayout; order: 'shown' | 'registeredEmpty' | 'joiningEmpty'; terminalsHeight: number; hide?: ChatWindowLayoutMode };
+		const run = ({ split, order, terminalsHeight, hide }: Case) => {
 			const stacked = split === ChatWindowLayoutMode.Stacked;
 			const position = stacked ? ChatWindowTerminalPosition.FullWidth : ChatWindowTerminalPosition.UnderEditor;
 			const along = stacked ? 'height' : 'width';
 			const edge = stacked ? 'top' : 'right';
+			// The room the chat and the main part share along the split, of which the main part takes about half, then more
+			const room = stacked ? 800 - terminalsHeight : 1000;
 			const share = (target: ChatWindowGrid) => {
 				const [main, chat] = [target.partGrid!.getCellSize(ChatWindowGridCell.Main)[along], target.partGrid!.getCellSize(ChatWindowGridCell.Chat)[along]];
 				return Math.round(main * 100 / (main + chat));
@@ -1884,33 +1887,54 @@ suite('Chat window grid', () => {
 			grid.layout(1000, 800);
 			grid.partGrid!.moveCell(stacked ? ChatWindowGridCell.Chat : ChatWindowGridCell.Main, stacked ? { reference: ChatWindowGridCell.Main, direction: Direction.Up } : { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
 			originalTerminals.set(terminalsPart.part, undefined);
-			drag(container, grid, ChatWindowGridCell.Terminals, 'top', 200);
-			drag(container, grid, ChatWindowGridCell.Main, edge, stacked ? 250 : 300);
+			drag(container, grid, ChatWindowGridCell.Terminals, 'top', terminalsHeight);
+			drag(container, grid, ChatWindowGridCell.Main, edge, Math.round(room * 0.45));
 			const saved = share(grid);
 
 			const restoredTerminals = createPartWithEditors('terminals');
-			restoredTerminals.setEmpty(order !== 'filled' && order !== 'joining');
-			const terminalsCell = observableValue<IContentPart | undefined>('terminals', order === 'joining' ? undefined : restoredTerminals.part);
+			restoredTerminals.setEmpty(order !== 'shown');
+			const terminalsCell = observableValue<IContentPart | undefined>('terminals', order === 'joiningEmpty' ? undefined : restoredTerminals.part);
+			const restoredMode = observableValue<ChatWindowLayoutMode>('mode', split);
 			const restoredContainer = createAttachedContainer();
-			const restored = disposables.add(new ChatWindowGrid(restoredContainer, { ...cells(grid.exportArrangement()), terminals: terminalsCell }, constObservable(split), constObservable(0), grid.exportSizes(), constObservable(position), undefined, editorGroupsService));
+			const restored = disposables.add(new ChatWindowGrid(restoredContainer, { ...cells(grid.exportArrangement()), terminals: terminalsCell }, restoredMode, constObservable(0), grid.exportSizes(), constObservable(position), undefined, editorGroupsService));
 			restored.layout(1000, 800);
 			terminalsCell.set(restoredTerminals.part, undefined);
+			// Until the terminals have something to show, the parts keep the split
+			const whileEmpty = share(restored);
+			if (hide !== undefined) {
+				restoredMode.set(hide, undefined);
+			}
 			restoredTerminals.setEmpty(false);
+			restoredMode.set(split, undefined);
 			const first = share(restored);
 			// The user gives the parts another split; the terminals then empty and fill again
-			drag(restoredContainer, restored, ChatWindowGridCell.Main, edge, stacked ? 400 : 600);
+			drag(restoredContainer, restored, ChatWindowGridCell.Main, edge, Math.round(room * 0.6));
 			const live = share(restored);
 			restoredTerminals.setEmpty(true);
 			restoredTerminals.setEmpty(false);
-			return { firstShow: Math.abs(first - saved) <= 1 ? 'kept' : `${saved} -> ${first}`, laterShow: Math.abs(share(restored) - live) <= 1 ? 'kept' : `${live} -> ${share(restored)}`, terminals: restored.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height };
+			const kept = (from: number, to: number) => Math.abs(to - from) <= 1 ? 'kept' : `${from} -> ${to}`;
+			return { whileEmpty: kept(saved, whileEmpty), firstShow: kept(saved, first), laterShow: kept(live, share(restored)), terminals: restored.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height };
 		};
-		const results: Record<string, unknown> = {};
+		const cases: Record<string, Case> = {};
 		for (const split of [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.SideBySide] as const) {
-			for (const order of ['shown', 'filled', 'joining'] as const) {
-				results[`${split === ChatWindowLayoutMode.Stacked ? 'stacked, reordered' : 'side by side, swapped'}, ${order}`] = run(split, order);
+			const name = split === ChatWindowLayoutMode.Stacked ? 'stacked, reordered' : 'side by side, swapped';
+			for (const terminalsHeight of [200, 600]) {
+				for (const order of ['shown', 'registeredEmpty', 'joiningEmpty'] as const) {
+					cases[`${name}, ${order}, terminals ${terminalsHeight}`] = { split, order, terminalsHeight };
+				}
+				for (const hide of [ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly] as const) {
+					cases[`${name}, registeredEmpty, filled while ${hide === ChatWindowLayoutMode.ChatOnly ? 'main' : 'chat'} hides, terminals ${terminalsHeight}`] = { split, order: 'registeredEmpty', terminalsHeight, hide };
+				}
 			}
 		}
-		assert.deepStrictEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, { firstShow: 'kept', laterShow: 'kept', terminals: 200 }])));
+		const results = Object.fromEntries(Object.entries(cases).map(([name, row]) => {
+			try {
+				return [name, run(row)];
+			} catch (error) {
+				return [name, String(error)];
+			}
+		}));
+		assert.deepStrictEqual(results, Object.fromEntries(Object.entries(cases).map(([name, row]) => [name, { whileEmpty: 'kept', firstShow: 'kept', laterShow: 'kept', terminals: row.terminalsHeight }])));
 	});
 
 	test('the main part hidden with the terminals under it while they have nothing to show is as wide after a reload as the user made it', () => {
