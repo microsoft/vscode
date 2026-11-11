@@ -1475,7 +1475,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!provider) {
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
-		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true, requireConnected: true });
 	}
 
 	/**

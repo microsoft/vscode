@@ -2367,8 +2367,8 @@ suite('WorkspacePicker - Connection Status', () => {
 			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 		}, {
 			stableItemIds: [
-				'workspacePicker.workspace.file:///agent-host/project',
-				'workspacePicker.workspace.file:///agent-host/project',
+				'workspacePicker.workspace.0',
+				'workspacePicker.workspace.0',
 			],
 			initialSubmenu: [
 				{ label: 'Use This Computer', tooltip: '', checked: true },
@@ -7818,6 +7818,34 @@ suite('WorkspacePicker - Tab discovery', () => {
 			'Select Remote',
 		]);
 		assert.deepStrictEqual(picker.getItemsForFilter('folder-10').flatMap(entry => entry.item?.folderUri?.path ?? []), ['/local/folder-10']);
+	});
+
+	test('keeps workspace row IDs stable across filtering and refreshes', () => {
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, ['first', 'second', 'third'].map(name => ({
+			uri: URI.file(`/local/${name}`),
+			providerId: 'local-1',
+			checked: false,
+		})));
+		providersService.setProviders([createMockProvider('local-1')]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+		const getWorkspaceIds = (items: readonly IActionListItem<IWorkspacePickerItem>[]) => items
+			.filter(entry => entry.item?.folderUri)
+			.map(entry => ({ folder: entry.item?.folderUri?.path, id: entry.item?.id }));
+
+		const initial = getWorkspaceIds(picker.getItems());
+		const filtered = getWorkspaceIds(picker.getItemsForFilter('third'));
+		const refreshed = getWorkspaceIds(picker.getItemsForFilter(''));
+
+		assert.deepStrictEqual({ initial, filtered, refreshed }, {
+			initial: [
+				{ folder: '/local/first', id: 'workspacePicker.workspace.0' },
+				{ folder: '/local/second', id: 'workspacePicker.workspace.1' },
+				{ folder: '/local/third', id: 'workspacePicker.workspace.2' },
+			],
+			filtered: [{ folder: '/local/third', id: 'workspacePicker.workspace.2' }],
+			refreshed: initial,
+		});
 	});
 
 	test('strips only trailing ellipses from unified browse action labels', () => {

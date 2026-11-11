@@ -218,7 +218,7 @@ jobs:
     outputs:
       checks-failed: ${{ steps.failed-checks.outputs.failed }}
     env:
-      # Hygiene and ESLint check only the files that changed since this commit, unless
+      # Hygiene and oxlint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
       # run in the scheduled and manual product builds.
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -286,9 +286,9 @@ jobs:
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
-      # Without the base commit, hygiene and ESLint check every file.
+      # Without the base commit, hygiene and oxlint check every file.
       - name: Fetch pull request base
-        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and ESLint will check every file."
+        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and oxlint will check every file."
 
       - &node-without-image
         name: Setup Node.js
@@ -356,12 +356,13 @@ jobs:
           pnpm -C extensions/markdown-language-features run test-markdown-editor-package-json
           pnpm -C extensions/markdown-language-features run test-markdown-editor-clipboard
 
-      # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
+      # Hygiene and oxlint check only the changed files, so they take seconds and fail the job
       # before the compilation checks start. --continue-on-error reports both when both fail.
-      # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
-      - name: Hygiene & ESLint
+      # oxlint runs the rules of eslint.config.js (see oxlint.config.ts). It stays out of the
+      # compilation checks so that the memory of its processes doesn't overlap theirs.
+      - name: Hygiene & oxlint
         id: hygiene
-        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "eslint --changed-since $PR_BASE_SHA"
+        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "oxlint --changed-since $PR_BASE_SHA"
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
