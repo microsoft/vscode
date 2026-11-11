@@ -174,24 +174,39 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 			}
 		}
 
+		function getName(node: TSESTree.Node): string | undefined {
+			return 'name' in node && typeof node.name === 'string' ? node.name : undefined;
+		}
+
+		function visitCallExpression(node: TSESTree.CallExpression) {
+			const callee = node.callee;
+			if (callee.type === AST_NODE_TYPES.MemberExpression) {
+				const objectName = getName(callee.object);
+				const propertyName = getName(callee.property);
+				if (objectName === 'nls' && (propertyName === 'localize' || propertyName === 'localize2')) {
+					// nls.localize(...), nls.localize2(...)
+					visitLocalizeCall(node);
+				} else if (propertyName === 't' && (objectName === 'l10n' || ('property' in callee.object && getName(callee.object.property) === 'l10n'))) {
+					// l10n.t(...), vscode.l10n.t(...)
+					visitL10NCall(node);
+				}
+			} else {
+				// localize(...), localize2(...)
+				const calleeName = getName(callee);
+				if ((calleeName === 'localize' || calleeName === 'localize2') && node.arguments.length >= 2) {
+					visitLocalizeCall(node);
+				}
+			}
+		}
+
 		return {
 			['Literal']: (node: ESTree.Literal) => collectDoubleQuotedStrings(node),
-			['ExpressionStatement[directive] Literal:exit']: (node: TSESTree.Literal) => doubleQuotedStringLiterals.delete(node),
-
-			// localize(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
-
-			// localize2(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize2"]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
-
-			// vscode.l10n.t(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.property.name="l10n"][callee.property.name="t"]:exit']: (node: TSESTree.CallExpression) => visitL10NCall(node),
-
-			// l10n.t(...)
-			['CallExpression[callee.object.name="l10n"][callee.property.name="t"]:exit']: (node: TSESTree.CallExpression) => visitL10NCall(node),
-
-			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
-			['CallExpression[callee.name="localize2"][arguments.length>=2]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
+			['ExpressionStatement:exit']: (node: ESTree.ExpressionStatement) => {
+				if (typeof (node as TSESTree.ExpressionStatement).directive === 'string') {
+					doubleQuotedStringLiterals.delete(node.expression as TSESTree.Expression);
+				}
+			},
+			['CallExpression:exit']: (node: ESTree.CallExpression) => visitCallExpression(node as TSESTree.CallExpression),
 			['Program:exit']: reportBadStringsAndBadKeys,
 		};
 	}

@@ -403,7 +403,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('bulk inbox actions are undoable and never archive or mark sessions as read', async () => {
+	test('bulk inbox clearing avoids banners while other triage actions remain undoable', async () => {
 		const sessions = ['first', 'second', 'archived'].map(id => buildTestSession({ id, title: id, isArchived: id === 'archived', isRead: false }).session);
 		const harness = createListHarness(store, sessions);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -419,24 +419,23 @@ suite('Sessions - View Menu', () => {
 		model.setInboxState([sessions[0]], 'untilActivity');
 		await run('sessionsViewPane.inboxDone');
 		const done = states();
-		await notices[0].undo!();
-		const undone = states();
+		const clearNotices = notices.length;
 		await run('sessionsViewPane.inboxResume');
 		const resumed = states();
-		await notices[1].undo!();
+		await notices[0].undo!();
 		const restored = states();
 		await run('sessionsViewPane.inboxHold');
 		const held = states();
-		await notices[2].undo!();
-		assert.deepStrictEqual({ done, undone, resumed, restored, held, holdUndone: states(), archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown) }, {
-			done: ['done', 'done', undefined], undone: ['untilActivity', undefined, undefined],
-			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
-			held: ['hold', 'hold', undefined], holdUndone: ['untilActivity', undefined, undefined], archived: [false, false, true],
-			countdowns: [false, true, true],
+		await notices[1].undo!();
+		assert.deepStrictEqual({ done, clearNotices, resumed, restored, held, holdUndone: states(), archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown) }, {
+			done: ['done', 'done', undefined], clearNotices: 0,
+			resumed: [undefined, undefined, undefined], restored: ['done', 'done', undefined],
+			held: ['hold', 'hold', undefined], holdUndone: ['done', 'done', undefined], archived: [false, false, true],
+			countdowns: [true, true],
 		});
 	});
 
-	test('single-session inbox hold, resume, and snooze avoid Undo banners but dismissal retains one', async () => {
+	test('single-session inbox triage actions avoid Undo banners', async () => {
 		const session = buildTestSession({ id: 'session', title: 'Session' }).session;
 		const harness = createListHarness(store, [session]);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -450,7 +449,7 @@ suite('Sessions - View Menu', () => {
 			await CommandsRegistry.getCommand(`sessionsViewPane.${action}`)!.handler(harness.instantiationService, session);
 			counts.push(notices.length);
 		}
-		assert.deepStrictEqual({ counts, archived: session.isArchived.get() }, { counts: [0, 0, 0, 1], archived: false });
+		assert.deepStrictEqual({ counts, state: model.getInboxState(session)?.kind, archived: session.isArchived.get() }, { counts: [0, 0, 0, 0], state: 'done', archived: false });
 	});
 
 	test('inbox keeps the real archive toolbar target visible throughout onboarding', async () => {

@@ -1,5 +1,5 @@
 parameters:
-  # Hygiene and ESLint check only the files that the commits of the build change, unless a change can affect other
+  # Hygiene and oxlint check only the files that the commits of the build change, unless a change can affect other
   # files (see build/lib/changedFiles.ts). Other builds check every file.
   - name: VSCODE_CHECK_CHANGED_FILES
     type: boolean
@@ -390,7 +390,7 @@ jobs:
         continueOnError: true
 
       # The NOTICE outputs are already in the artifact staging directory. Remove the
-      # intermediates from the repository so ESLint and hygiene below don't check them.
+      # intermediates from the repository so oxlint and hygiene below don't check them.
       - script: rm -rf .oss-build-out ThirdPartyNotices.generated.txt
         displayName: Remove NOTICE intermediates
 
@@ -398,17 +398,18 @@ jobs:
         - script: node build/azure-pipelines/common/computeChangedSince.ts
           env:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-          displayName: Determine hygiene and ESLint scope
+          displayName: Determine hygiene and oxlint scope
 
-        # With VSCODE_CHANGED_SINCE, hygiene and ESLint check only the files that changed since that commit, so they
+        # With VSCODE_CHANGED_SINCE, hygiene and oxlint check only the files that changed since that commit, so they
         # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
-        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs. No `--`
-        # before the arguments: pnpm passes it on to the script, where it ends option parsing.
+        # fail. oxlint runs the rules of eslint.config.js (see oxlint.config.ts) and stays out of the compilation checks
+        # so that the memory of its processes doesn't overlap theirs. No `--` before the arguments: pnpm passes it on to
+        # the script, where it ends option parsing.
         - script: |
             set -e
             changed_since="${VSCODE_CHANGED_SINCE:+ --changed-since $VSCODE_CHANGED_SINCE}"
-            pnpm exec npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
-          displayName: Hygiene & ESLint
+            pnpm exec npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "oxlint$changed_since"
+          displayName: Hygiene & oxlint
 
         - script: pnpm exec npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
           env:
@@ -416,7 +417,7 @@ jobs:
           displayName: Compile
 
       - ${{ else }}:
-        - script: pnpm exec npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        - script: pnpm exec npm-run-all2 -lp core-ci hygiene oxlint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
           env:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Compile & Hygiene
