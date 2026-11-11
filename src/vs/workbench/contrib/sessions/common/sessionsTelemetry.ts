@@ -9,10 +9,10 @@ import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../..
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSSHHostKeyDeniedError } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../../common/sessionArtifactOpenTelemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
-import { ISession, SessionArtifactKind } from './session.js';
+import { ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
@@ -36,14 +36,15 @@ export function getSessionsTelemetryAgentId(sessionTypeId: string): string {
 /**
  * Removes connection details from a model identifier. Remote agent host models are
  * identified as `{sessionType}:{model}` and that session type embeds the connection
- * authority, so only the provider-local model identifier is kept for them.
+ * authority, so only the provider-local model identifier is kept for them. Model
+ * routers are reported as `modelRouter`.
  */
 export function getSessionsTelemetryModelId(sessionTypeId: string, modelId: string | undefined): string | undefined {
 	if (!modelId || !isRemoteAgentHostSessionType(sessionTypeId)) {
-		return modelId;
+		return normalizeModelRouterTelemetryId(modelId);
 	}
 	const vendorPrefix = `${sessionTypeId}:`;
-	return modelId.startsWith(vendorPrefix) ? modelId.slice(vendorPrefix.length) : undefined;
+	return modelId.startsWith(vendorPrefix) ? normalizeModelRouterTelemetryId(modelId.slice(vendorPrefix.length)) : undefined;
 }
 
 /** Hashes a session identifier while preserving deterministic event correlation. */
@@ -91,16 +92,24 @@ export interface ISessionComparisonAttemptCompletedTelemetry {
 	readonly comparisonId: string;
 	readonly attemptIndex: number;
 	readonly elapsedMs: number;
+	readonly inputTokens?: number;
+	readonly cachedTokens?: number;
+	readonly outputTokens?: number;
+	readonly tokenCountIsComplete: boolean;
 }
 
 type SessionComparisonAttemptCompletedEvent = ISessionComparisonAttemptCompletedTelemetry;
 
 type SessionComparisonAttemptCompletedClassification = {
 	owner: 'meganrogge';
-	comment: 'Tracks the elapsed time of a comparison attempt before its first turn becomes terminal.';
+	comment: 'Tracks elapsed time and token usage of a comparison attempt when its first turn becomes terminal.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to join this attempt with its Judge model outcome.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of this attempt among the attempts reviewed by the Judge.' };
 	elapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider-reported elapsed milliseconds for the terminal first turn.' };
+	inputTokens?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens for the first turn, omitted when usage is unavailable.' };
+	cachedTokens?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cached input tokens for the first turn, omitted when accounting is incomplete. Already included in inputTokens.' };
+	outputTokens?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Output tokens for the first turn, omitted when usage is unavailable.' };
+	tokenCountIsComplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether token accounting covers the complete first turn. False when usage is missing or partial.' };
 };
 
 export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetryService, data: ISessionComparisonAttemptCompletedTelemetry): void {

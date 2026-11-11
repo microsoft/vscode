@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { parseModelRouter } from '../../common/modelRouter.js';
 import { buildCopilotBuiltinSkillsContainer, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 
 suite('Copilot builtin troubleshoot skill', () => {
@@ -46,5 +47,41 @@ suite('Copilot builtin troubleshoot skill', () => {
 			readable: hasReadableCustomizationContent(uri),
 			writable: container.writable,
 		}, { name: 'troubleshoot', builtin: true, readable: false, writable: false });
+	});
+
+	test('offers the model-router skill only while model routers are on', async () => {
+		let enabled = false;
+		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => enabled);
+		const options = { signal: new AbortController().signal };
+		const snapshot = async () => ({
+			listed: (await provider.listSkills(options)).map(skill => skill.name),
+			readable: (await provider.readSkill('model-router', options))?.includes('check_model_router') ?? false,
+		});
+		const off = await snapshot();
+		enabled = true;
+		assert.deepStrictEqual({
+			off,
+			on: await snapshot(),
+			container: [buildCopilotBuiltinSkillsContainer(false), buildCopilotBuiltinSkillsContainer(true)].map(container => container.children!.map(child => child.name)),
+		}, {
+			off: { listed: ['troubleshoot'], readable: false },
+			on: { listed: ['troubleshoot', 'model-router'], readable: true },
+			container: [['troubleshoot'], ['troubleshoot', 'model-router']],
+		});
+	});
+
+	test('the model-router skill\'s example is a valid router', async () => {
+		const content = await createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => true).readSkill('model-router', { signal: new AbortController().signal });
+		const example = /```yaml\n([\s\S]*?)\n```/.exec(content ?? '')?.[1];
+		assert.deepStrictEqual(parseModelRouter(example ?? '', 'daily-driver.model-router.yaml').diagnostics, []);
+	});
+
+	test('the model-router skill names the host\'s own router and session folders', async () => {
+		const content = await createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => true).readSkill('model-router', { signal: new AbortController().signal }) ?? '';
+		assert.deepStrictEqual({
+			routers: content.includes(URI.file('/copilot-home/model-routers').fsPath),
+			sessions: content.includes(`${URI.file('/copilot-home/session-state').fsPath}/*/events.jsonl`),
+			unresolved: content.includes('{{'),
+		}, { routers: true, sessions: true, unresolved: false });
 	});
 });

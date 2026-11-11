@@ -30,7 +30,7 @@ import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../../base/brows
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
-import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
@@ -52,7 +52,7 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -134,6 +134,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _connectedTabOverflowEdge: HTMLElement;
 	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
+	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _sessionMenuArgs: unknown[] = [];
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
@@ -212,7 +213,7 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsRow.appendChild(this._sessionActionsContainer);
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
-		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._sessionMenuArgs },
@@ -286,6 +287,7 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._delegate = delegate;
+		this._sessionToolbar.context = delegate?.session;
 		this._sessionMenuArgs.splice(0, this._sessionMenuArgs.length, ...(delegate?.session ? sessionMenuArgs(delegate.session, undefined, this._sessionHost) : []));
 
 		const store = new DisposableStore();

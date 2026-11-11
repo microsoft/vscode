@@ -7,13 +7,13 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildSessionCustomizationSections } from '../../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
-import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../../workbench/services/sessions/common/session.js';
 
 suite('Session Customizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const customization = (id: string, kind: SessionCustomizationKind, name: string): ISessionChatCustomization =>
-		({ id, kind, name, uri: URI.file(`/repo/${id}.md`) });
+	({ id, kind, name, uri: URI.file(`/repo/${id}.md`) });
 	const sessionFolder = (name: string, workingDirectory: URI): ISessionFolder => ({
 		root: workingDirectory,
 		workingDirectory,

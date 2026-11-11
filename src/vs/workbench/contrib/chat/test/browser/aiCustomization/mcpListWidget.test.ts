@@ -87,7 +87,7 @@ import {
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { registerMcpInlineButtonAction, registerMcpSignInButtonAction, renderMcpServerSignInButton } from '../../../browser/aiCustomization/mcpServerSignInButton.js';
-import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getEffectiveMcpServerCounts, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -305,6 +305,7 @@ suite('mcpListWidget', () => {
 				children: [sameNameEntry, targetEntry],
 			}],
 			list: {
+				getParentElement: () => null,
 				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
 				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
 				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
@@ -345,6 +346,7 @@ suite('mcpListWidget', () => {
 				children: [sameNameEntry, connectorEntry],
 			}],
 			list: {
+				getParentElement: () => null,
 				reveal: (entry: object) => calls.push(entry === connectorEntry ? 'reveal' : 'reveal-other'),
 				setFocus: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'focus' : 'focus-other'),
 				setSelection: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'select' : 'select-other'),
@@ -356,6 +358,50 @@ suite('mcpListWidget', () => {
 			revealed: widget.revealAndSelectServer(undefined, 'Mail', 'mail'),
 			calls,
 		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
+		});
+	});
+
+	test('identifies a Connector row by its server name rather than its display label', () => {
+		const connectorEntry = {
+			type: 'connector-item' as const,
+			id: 'copilot-connector:mail:mail-mcp',
+			label: 'Mail',
+			description: 'Connector',
+			connector: {
+				id: 'mail:mail-mcp',
+				connector: { name: 'mail', displayName: 'Mail' },
+				serverName: 'mail-mcp',
+			},
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			searchQuery: '',
+			installedEntries: [{ entry: connectorEntry }],
+			galleryServers: [
+				{ id: 'mail-mcp', name: 'mail-mcp', label: 'mail-mcp', installState: McpServerInstallState.Uninstalled },
+				{ id: 'other-mcp', name: 'other-mcp', label: 'Other', installState: McpServerInstallState.Uninstalled },
+			],
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [connectorEntry],
+			}],
+			list: {
+				getParentElement: () => null,
+				reveal: () => calls.push('reveal'),
+				setFocus: () => calls.push('focus'),
+				setSelection: () => calls.push('select'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as Pick<McpListWidget, 'revealAndSelectServer'> & { getAvailableGalleryServers(): IWorkbenchMcpServer[] };
+
+		assert.deepStrictEqual({
+			available: widget.getAvailableGalleryServers().map(server => server.id),
+			revealed: widget.revealAndSelectServer(undefined, 'mail-mcp'),
+			calls,
+		}, {
+			available: ['other-mcp'],
 			revealed: true,
 			calls: ['reveal', 'focus', 'select', 'dom-focus'],
 		});
@@ -608,15 +654,15 @@ suite('mcpListWidget', () => {
 		], [
 			'user',
 			'workspace',
-			'plugins',
-			'plugins',
-			'extensions',
-			'builtin',
-			'builtin',
+			'user',
+			'user',
+			'user',
+			'application',
+			'user',
 		]);
 	});
 
-	test('renders User before Workspace even when User has no servers', () => {
+	test('renders Workspace before User even when User has no servers', () => {
 		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
 			type: 'server-item',
 			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
@@ -656,8 +702,8 @@ suite('mcpListWidget', () => {
 			]),
 			userEmpty: renderGroupLabels([localEntry(LocalMcpServerScope.Workspace)]),
 		}, {
-			bothGroupsPopulated: ['User', 'Workspace'],
-			userEmpty: ['User', 'Workspace'],
+			bothGroupsPopulated: ['Workspace', 'User'],
+			userEmpty: ['Workspace', 'User'],
 		});
 	});
 
@@ -707,9 +753,9 @@ suite('mcpListWidget', () => {
 			label: group.element.label,
 			servers: group.children?.map(child => child.element.type === 'server-item' ? child.element.server.id : ''),
 		})), [
+			{ label: 'Workspace · First', servers: ['first'] },
+			{ label: 'Workspace · Second', servers: ['second'] },
 			{ label: 'User', servers: [] },
-			{ label: 'First', servers: ['first'] },
-			{ label: 'Second', servers: ['second'] },
 		]);
 	});
 
@@ -746,7 +792,7 @@ suite('mcpListWidget', () => {
 			'user',
 			'workspace',
 			'workspace',
-			'builtin',
+			'application',
 		]);
 	});
 
@@ -768,11 +814,11 @@ suite('mcpListWidget', () => {
 			{ name: 'local-memory', group: 'user' },
 			{ name: 'github', group: 'user' },
 			{ name: 'workspace-server', group: 'workspace' },
-			{ name: 'plugin-server', group: 'plugins' },
-			{ name: 'github-mcp-server', group: 'builtin' },
-			{ name: 'managed-server', group: 'builtin' },
+			{ name: 'plugin-server', group: 'user' },
+			{ name: 'github-mcp-server', group: 'application' },
+			{ name: 'managed-server', group: 'user' },
 			{ name: 'my-mcp-server-618d857f', group: 'user' },
-			{ name: 'legacy-server', group: 'builtin' },
+			{ name: 'legacy-server', group: 'user' },
 		]);
 	});
 
@@ -864,6 +910,20 @@ suite('mcpListWidget', () => {
 		const count = derived(reader => getEffectiveMcpServerCount([], servers, reader, undefined));
 
 		assert.strictEqual(count.get(), 1);
+	});
+
+	test('authentication count excludes disabled and silently authenticating MCP servers', () => {
+		const servers = [
+			createAgentHostServer({ id: 'auth', name: 'auth', status: McpServerStatus.AuthRequired }),
+			createAgentHostServer({ id: 'ready', name: 'ready' }),
+			createAgentHostServer({ id: 'silent', name: 'silent', status: McpServerStatus.AuthRequired, authenticating: true }),
+			createAgentHostServer({ id: 'disabled', name: 'disabled', status: McpServerStatus.AuthRequired, enabled: false }),
+			createAgentHostServer({ id: 'plugin-disabled', name: 'plugin-disabled', status: McpServerStatus.AuthRequired, disabledReason: { source: 'plugin', plugin: { id: 'p', name: 'p', uri: 'file:///p', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] } } }),
+		];
+		const counts = getEffectiveMcpServerCounts([], servers, undefined, undefined);
+		assert.deepStrictEqual({ ...counts, authRequiredServers: counts.authRequiredServers.map(server => server.id) }, {
+			total: 3, authRequired: 1, authRequiredServers: ['auth'],
+		});
 	});
 
 	test('one native publication per source matches local rows and preserves disabled counts', () => {
@@ -1737,7 +1797,7 @@ suite('mcpListWidget', () => {
 			hasSameMcpMembership('server:one:session', 'server:one:session'),
 			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
 			hasSameMcpMembership(getMembershipSignature(URI.file('/workspace/old.json')), getMembershipSignature(URI.file('/workspace/new.json'))),
-			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'user')),
+			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'builtin')),
 			hasSameMcpMembership(getMembershipSignature(undefined, 'managed'), getMembershipSignature(undefined, 'managed', 'Linear')),
 		], [true, false, false, false, false]);
 	});
@@ -2798,7 +2858,7 @@ suite('mcpListWidget', () => {
 				detail: { source: detail.source, label: detail.provenance?.label, ariaLabel: detail.provenance?.ariaLabel },
 				openedExtensions: ctx.openedExtensions,
 			}, {
-				group: 'builtin',
+				group: 'application',
 				source: {
 					label: 'Built-in: GitHub Copilot Chat',
 					hover: 'Open extension details for GitHub Copilot Chat',

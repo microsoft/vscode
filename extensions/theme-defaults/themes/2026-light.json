@@ -114,6 +114,7 @@
 		"commandCenter.border": "#D8D8D8AA",
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#202020",
+		"editor.placeholder.foreground": "#707070",
 		"editorLineNumber.foreground": "#606060",
 		"editorLineNumber.activeForeground": "#202020",
 		"editorCursor.foreground": "#202020",

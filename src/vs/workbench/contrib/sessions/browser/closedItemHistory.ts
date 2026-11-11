@@ -8,10 +8,10 @@ import { autorun, ISettableObservable, observableValue, transaction } from '../.
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsHasClosedItemContext } from '../common/contextkeys.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionsPartService } from './sessionsPartService.js';
-import { VisibleSessions } from './visibleSessions.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 
 export const enum ClosedItemKind {

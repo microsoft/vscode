@@ -14,7 +14,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../common/session.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, ISession } from '../../../services/sessions/common/session.js';
 
 /** Cached per session, then per chat (`''` for the session folder). */
 const agentMergeSessionStateBySession = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();

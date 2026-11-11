@@ -4,23 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
+import { isStringArray } from '../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { agentSessionNeedsInputForeground } from '../../../common/agentsColors.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../common/sessionConfig.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { getSessionInboxActivity, isSessionInboxStateCurrent, SessionInboxAction, SessionInboxState } from '../common/sessionInbox.js';
+import { ISessionAttentionService } from '../common/sessionAttentionService.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Sort = 'sort',
 	/** Whether an automation session is shown in the sessions list. */
 	AutomationListing = 'automationListing',
+	Inbox = 'inbox',
 }
 
 /**
@@ -61,6 +68,10 @@ export interface ISessionsListModelService {
 	unpinSession(session: ISession): void;
 	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
+
+	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined;
+	/** Changes local triage state, returning an undo that does not overwrite subsequent decisions. */
+	setInboxState(sessions: readonly ISession[], action: SessionInboxAction): () => void;
 
 	// -- Automation sessions --
 
@@ -130,11 +141,18 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
+type StoredSessionInboxState = SessionInboxState | { readonly kind: 'resumed' };
+
+interface ISessionInboxUndoToken {
+	state: StoredSessionInboxState;
+}
+
 export class SessionsListModelService extends Disposable implements ISessionsListModelService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
+	private static readonly INBOX_STATE_KEY = 'sessionsListControl.inboxState';
 	private static readonly SHOWN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.shownAutomationSessions';
 	private static readonly HIDDEN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.hiddenAutomationSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
@@ -149,6 +167,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	readonly onDidChange: Event<ISessionListModelChangeEvent> = this._onDidChange.event;
 
 	private readonly _pinnedSessionIds: Set<string>;
+	private readonly _inboxState = observableValue<ReadonlyMap<string, StoredSessionInboxState>>(this, new Map());
+	private readonly _inboxUndoTokens = new Map<string, ISessionInboxUndoToken>();
+	private readonly _snoozeTimer = this._register(new RunOnceScheduler(() => this.expireSnoozes(), 0));
 	private readonly _shownAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	/** Automation sessions the user hid from the list; neither a later message nor the setting shows them again. */
 	private readonly _hiddenAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
@@ -162,10 +183,49 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionAttentionService private readonly sessionAttentionService: ISessionAttentionService,
 	) {
 		super();
 
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
+		this.loadInboxState();
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SessionsListModelService.INBOX_STATE_KEY, this._store)(e => {
+			if (e.external) {
+				this.loadInboxState();
+			}
+		}));
+		const catalog = observableFromEvent(this, this.sessionsManagementService.onDidChangeSessions, () => this.sessionsManagementService.getSessions());
+		this._register(autorun(reader => {
+			const sessions = new Map(catalog.read(reader).map(session => [session.sessionId, session]));
+			const state = this._inboxState.read(reader);
+			const attention = this.sessionAttentionService.sessionAttention.read(reader);
+			const next = new Map(state);
+			for (const [id, value] of state) {
+				if (value.kind === 'resumed') {
+					continue;
+				}
+				const session = sessions.get(id);
+				const currentAttention = attention.get(id);
+				if (!isSessionInboxStateCurrent(value, session, Date.now(), reader, currentAttention)) {
+					next.set(id, { kind: 'resumed' });
+					continue;
+				}
+				const pendingInput = currentAttention?.pendingInput;
+				if ((value.kind === 'done' || value.kind === 'untilActivity') && session && !session.loading.read(reader)
+					&& pendingInput && pendingInput.notificationId !== pendingInput.provisionalId && value.notificationIds?.includes(pendingInput.provisionalId)) {
+					// Hydration acknowledges this input, not future inputs sharing the provider timestamp.
+					const hydrated = { ...value, notificationIds: value.notificationIds.map(id => id === pendingInput.provisionalId ? pendingInput.notificationId : id) };
+					next.set(id, hydrated);
+					const undoToken = this._inboxUndoTokens.get(id);
+					if (undoToken?.state === value) {
+						undoToken.state = hydrated;
+					}
+				}
+			}
+			if ([...next].some(([id, value]) => state.get(id) !== value)) {
+				this.saveInboxState(next);
+			}
+		}));
 		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
 		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
 		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
@@ -302,6 +362,127 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	isSessionPinned(session: ISession): boolean {
 		return this._pinnedSessionIds.has(session.sessionId);
+	}
+
+	getInboxState(session: ISession, reader?: IReader): SessionInboxState | undefined {
+		const state = this._inboxState.read(reader).get(session.sessionId);
+		const attention = this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId);
+		if (state) {
+			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
+		}
+		if (attention?.isHistoricalCompletion) {
+			const unreadToday = !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
+			if (!unreadToday) {
+				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
+			}
+		}
+		return undefined;
+	}
+
+	setInboxState(sessions: readonly ISession[], action: SessionInboxAction): () => void {
+		if (typeof action === 'number' && (!Number.isFinite(action) || action <= Date.now())) {
+			throw new Error('Snooze time must be in the future');
+		}
+		const previous = new Map<string, StoredSessionInboxState | undefined>();
+		const applied = new Map<string, ISessionInboxUndoToken>();
+		const next = new Map(this._inboxState.get());
+		for (const session of sessions) {
+			if (session.isArchived.get() || previous.has(session.sessionId)) {
+				continue;
+			}
+			previous.set(session.sessionId, next.get(session.sessionId));
+			const state: StoredSessionInboxState = action === undefined ? { kind: 'resumed' }
+				: typeof action === 'number' ? { kind: 'snoozed', until: action }
+					: action === 'hold' ? { kind: 'hold' }
+						: { kind: action, activity: getSessionInboxActivity(session), notificationIds: this.sessionAttentionService.sessionAttention.get().get(session.sessionId)?.notificationIds };
+			applied.set(session.sessionId, { state });
+			next.set(session.sessionId, state);
+		}
+		this.saveInboxState(next);
+		for (const [id, token] of applied) {
+			this._inboxUndoTokens.set(id, token);
+		}
+		return () => {
+			const restored = new Map(this._inboxState.get());
+			for (const [id, state] of previous) {
+				const token = applied.get(id)!;
+				if (this._inboxUndoTokens.get(id) === token && restored.get(id) === token.state) {
+					this._inboxUndoTokens.delete(id);
+					if (state) {
+						restored.set(id, state);
+					} else {
+						restored.delete(id);
+					}
+				}
+			}
+			this.saveInboxState(restored);
+		};
+	}
+
+	private loadInboxState(): void {
+		const state = new Map<string, StoredSessionInboxState>();
+		const raw = this.storageService.get(SessionsListModelService.INBOX_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const entries: unknown = JSON.parse(raw);
+				if (!Array.isArray(entries)) {
+					throw new Error('Invalid sessions inbox state');
+				}
+				for (const entry of entries) {
+					if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !entry[1] || typeof entry[1] !== 'object') {
+						throw new Error('Invalid sessions inbox entry');
+					}
+					const value = entry[1];
+					if (value.kind === 'snoozed' && typeof value.until === 'number' && Number.isFinite(value.until)) {
+						state.set(entry[0], { kind: 'snoozed', until: value.until });
+					} else if (value.kind === 'hold' || value.kind === 'resumed') {
+						state.set(entry[0], { kind: value.kind });
+					} else if ((value.kind === 'done' || value.kind === 'untilActivity') && typeof value.activity === 'string'
+						&& (value.notificationIds === undefined || isStringArray(value.notificationIds))) {
+						state.set(entry[0], { kind: value.kind, activity: value.activity, notificationIds: value.notificationIds });
+					} else {
+						throw new Error('Invalid sessions inbox value');
+					}
+				}
+			} catch (error) {
+				onUnexpectedError(error);
+				return;
+			}
+		}
+		this.updateInboxState(state);
+	}
+
+	private saveInboxState(state: ReadonlyMap<string, StoredSessionInboxState>): void {
+		this.storageService.store(SessionsListModelService.INBOX_STATE_KEY, JSON.stringify([...state]), StorageScope.PROFILE, StorageTarget.USER);
+		this.updateInboxState(state);
+	}
+
+	private updateInboxState(state: ReadonlyMap<string, StoredSessionInboxState>): void {
+		const previous = this._inboxState.get();
+		for (const [id, token] of this._inboxUndoTokens) {
+			if (token.state !== state.get(id)) {
+				this._inboxUndoTokens.delete(id);
+			}
+		}
+		this._inboxState.set(state, undefined);
+		this._snoozeTimer.cancel();
+		const deadlines = [...state.values()].flatMap(value => value.kind === 'snoozed' ? [value.until] : []);
+		if (deadlines.length) {
+			this._snoozeTimer.schedule(Math.min(0x7fffffff, Math.max(0, Math.min(...deadlines) - Date.now())));
+		}
+		this.fireChanges([...new Set([...previous.keys(), ...state.keys()])]
+			.filter(id => previous.get(id) !== state.get(id))
+			.map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.Inbox })));
+	}
+
+	private expireSnoozes(): void {
+		const state = new Map(this._inboxState.get());
+		for (const [id, value] of state) {
+			if (value.kind === 'snoozed' && value.until <= Date.now()) {
+				state.set(id, { kind: 'resumed' });
+			}
+		}
+		this.saveInboxState(state);
 	}
 
 	// -- Automation sessions --
@@ -506,7 +687,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.InProgress:
 				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput:
-				return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
+				return { ...Codicon.reportQuestion, color: themeColorFromId(agentSessionNeedsInputForeground) };
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
@@ -526,6 +707,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Cleanup --
 
 	private deleteSession(session: ISession): void {
+		this._inboxUndoTokens.delete(session.sessionId);
+		if (this._inboxState.get().has(session.sessionId)) {
+			const state = new Map(this._inboxState.get());
+			state.delete(session.sessionId);
+			this.saveInboxState(state);
+		}
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
 		if (this._pinnedSessionIds.delete(session.sessionId)) {
 			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);

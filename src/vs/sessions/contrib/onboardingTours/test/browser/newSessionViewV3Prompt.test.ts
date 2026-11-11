@@ -19,7 +19,7 @@ import { IGitRepository, IGitService } from '../../../../../workbench/contrib/gi
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
@@ -364,24 +364,24 @@ suite('NewSessionViewV3Prompt', () => {
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issues', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issues', color: 'charts.green' } },
 						STANDARD_OPTIONS[0],
 					],
 				},
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issues', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issues', color: 'charts.green' } },
 						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
 					],
 				},
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issues', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issues', color: 'charts.green' } },
 						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
 					],
 				},
@@ -508,7 +508,7 @@ suite('NewSessionViewV3Prompt', () => {
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issues', color: 'charts.green' } },
 						STANDARD_OPTIONS[0],
 						STANDARD_OPTIONS[1],
 					],
@@ -516,7 +516,7 @@ suite('NewSessionViewV3Prompt', () => {
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issues', color: 'charts.green' } },
 						STANDARD_OPTIONS[0],
 						STANDARD_OPTIONS[1],
 					],
@@ -557,7 +557,7 @@ suite('NewSessionViewV3Prompt', () => {
 			},
 			{ reviewLookupNeverResolves: true },
 		);
-		const issueOption = { title: 'Tackle issue #14', description: 'Assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } };
+		const issueOption = { title: 'Tackle issue #14', description: 'Assigned issue', icon: { id: 'issues', color: 'charts.green' } };
 		const ciOption = { title: 'Fix CI #21', description: 'CI is failing', icon: { id: 'git-pull-request-error', color: 'charts.orange' } };
 
 		assert.deepStrictEqual({
@@ -648,7 +648,7 @@ suite('NewSessionViewV3Prompt', () => {
 			{ pullRequests: [], issues: [issue('Unknown linkage', '2026-08-07T13:00:00Z', 9)] },
 			{ issueLinkageLookupNeverResolves: true },
 		);
-		const issueOption = { title: 'Tackle issue #9', description: 'Unknown linkage', icon: { id: 'issue-opened', color: 'charts.green' } };
+		const issueOption = { title: 'Tackle issue #9', description: 'Unknown linkage', icon: { id: 'issues', color: 'charts.green' } };
 
 		assert.deepStrictEqual({
 			states: summarizePromptOptionStates(result.promptOptionStates),

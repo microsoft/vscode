@@ -30,7 +30,7 @@ import { isInConversationModelChoice, resolveModelIdentifier } from '../../../..
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../chat/test/browser/widget/input/modelSelectionConformance.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../common/session.js';
+import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../../browser/chat/sessionModelSelection.js';
 import { AutomationModelConfiguration } from '../../../browser/automationModelConfiguration.js';
 import { modelConfigurationSourceKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';

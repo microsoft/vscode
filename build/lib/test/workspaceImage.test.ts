@@ -33,21 +33,31 @@ function loadSteps(workflow: string, job: string): readonly IStep[] {
 
 suite('workspace images', () => {
 	// image.ts finds vhd.ps1 in the win32 folder beside it, which the download keeps. The jobs of a
-	// test workflow share their steps, so its first job stands for all of them.
-	test('the test jobs download the scripts like the jobs that build the images', () => {
+	// test workflow share their steps, so its first job stands for all of them. The jobs of pr.yml
+	// and component-fixtures.yml list the jobs that start from an image.
+	test('the jobs that use the images download the scripts like the jobs that build them', () => {
 		const download = (workflow: string, job: string) => {
 			const step = loadSteps(workflow, job).find(step => step.id === 'image-scripts');
 			return { name: step?.name, shell: step?.shell, env: step?.env, run: step?.run };
 		};
+		const jobs: readonly (readonly [workflow: string, job: string])[] = [
+			['pr-workspace-images.yml', 'windows'],
+			['pr-linux-test.yml', 'electron-unit-electron'],
+			['pr-win32-test.yml', 'electron-unit'],
+			...['compile', 'monaco-editor', 'copilot-check-test-cache', 'copilot-linux-tests', 'copilot-windows-tests', 'chat-lib-linux-tests', 'chat-lib-windows-tests'].map(job => ['pr.yml', job] as const),
+			['component-fixtures.yml', 'playwright'],
+			['component-fixtures.yml', 'screenshots'],
+		];
+		const builder = download('pr-workspace-images.yml', 'linux');
 		assert.deepEqual(
-			{ linux: download('pr-linux-test.yml', 'electron-unit-electron'), windows: download('pr-win32-test.yml', 'electron-unit') },
-			{ linux: download('pr-workspace-images.yml', 'linux'), windows: download('pr-workspace-images.yml', 'windows') }
+			jobs.map(([workflow, job]) => ({ workflow, job, download: download(workflow, job) })),
+			jobs.map(([workflow, job]) => ({ workflow, job, download: builder }))
 		);
 	});
 
 	// image.ts runs before the checkout, without the files of the repository, so it lists the inputs
-	// of the base key of the node_modules caches itself
-	test('compare the inputs of the base key of the node_modules caches', () => {
+	// of the base key of node_modules folders itself
+	test('compare the inputs of the base key of node_modules folders', () => {
 		const read = new Set<string>();
 		const key = computeNodeModulesBaseCacheKey([], file => {
 			read.add(file);

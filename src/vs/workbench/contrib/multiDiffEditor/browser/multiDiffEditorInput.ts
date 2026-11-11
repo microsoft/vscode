@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from '../../../.
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { IObservable, ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -212,6 +212,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._resourceOrder.set(order, undefined);
 	}
 
+	private readonly _resolvingDocuments = observableValue<IObservable<boolean> | undefined>(this, undefined);
+
+	/**
+	 * Whether the documents of the resources are resolving: from a change of the resources until the documents of all of
+	 * them resolved or failed to, during which the view model keeps the documents of before.
+	 */
+	public readonly isResolvingDocuments: IObservable<boolean> = derived(this, reader => this._resolvingDocuments.read(reader)?.read(reader) ?? false);
+
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
@@ -291,6 +299,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				.map(resource => documentsByResource.get(resource)!);
 		});
 
+		// The resolution of the documents of these resources settled, whether they resolved or failed to.
+		const settledDocumentsPromises = observableValue<readonly Promise<RefCounted<IDocumentDiffItemWithMultiDiffEditorItem> | undefined>[] | undefined>('settledDocumentsPromises', undefined);
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
 			const cancellationToken = cancelOnDispose(reader.store);
@@ -300,14 +310,21 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				return;
 			}
 			const newDocuments = docs.filter(isDefined);
-			documents.set(newDocuments, undefined);
+			transaction(tx => {
+				documents.set(newDocuments, tx);
+				settledDocumentsPromises.set(docsPromises, tx);
+			});
 		});
 
 		const a = recomputeInitiallyAndOnChange(updateDocuments);
+		this._resolvingDocuments.set(derived(reader => documentsWithPromises.read(reader) !== settledDocumentsPromises.read(reader)), undefined);
 		await updateDocuments.get();
 
 		const result: IMultiDiffEditorModel & IDisposable = {
-			dispose: () => a.dispose(),
+			dispose: () => {
+				a.dispose();
+				this._resolvingDocuments.set(undefined, undefined);
+			},
 			documents: new ValueWithChangeEventFromObservable(orderedDocuments),
 			contextKeys: source.source?.contextKeys,
 		};

@@ -25,11 +25,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
-import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsProvider, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
@@ -972,11 +972,19 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let loadSession: () => void;
 	/** The resources a chat widget was looked up for. */
 	let widgetLookups: string[];
+	let backgroundChat: IChat;
+	let backgroundCalls: { chat: IChat; options: ISendRequestOptions }[];
+	let backgroundAcceptance: DeferredPromise<void>;
 
 	setup(() => {
 		widgetOps = [];
 		addedEntries = [];
 		widgetLookups = [];
+		backgroundCalls = [];
+		backgroundAcceptance = new DeferredPromise<void>();
+		backgroundChat = new class extends mock<IChat>() {
+			override readonly resource = URI.parse('test:/session/1/peer');
+		}();
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -996,7 +1004,11 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			override onDidDeleteSession = Event.None;
 			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
-				return { providerId, sessionId: 'session-1' } as unknown as ISession;
+				return { providerId, sessionId: 'session-1', chats: observableValue('chats', [backgroundChat]) } as unknown as ISession;
+			}
+			override async sendRequestInBackground(_session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+				backgroundCalls.push({ chat, options });
+				await backgroundAcceptance.p;
 			}
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
@@ -1039,6 +1051,55 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
 		fileA = URI.parse('file:///a.ts');
+	});
+
+	for (const agentHost of [true, false]) {
+		test(`background feedback preserves attachment scope and waits for acceptance without a widget (agentHost=${agentHost})`, async () => {
+			if (!agentHost) {
+				providerId = 'legacy';
+			}
+			sessionLoaded = false;
+			const first = service.addFeedback(session, fileA, r(1), 'Selected');
+			const other = service.addFeedback(session, fileA, r(2), 'Other');
+			let accepted = false;
+			const pending = service.submitFeedback(session, {
+				targetChat: backgroundChat.resource, background: true, feedbackIds: [first.id], onRequestAccepted: () => { accepted = true; },
+			});
+			const before = service.getFeedback(session).map(item => item.state);
+			assert.strictEqual(accepted, false);
+			await backgroundAcceptance.complete();
+			await pending;
+			const attachment = backgroundCalls[0].options.attachedContext?.[0];
+			assert.deepStrictEqual({
+				target: backgroundCalls[0].chat,
+				query: backgroundCalls[0].options.query,
+				ids: attachment?.kind === 'agentFeedback' ? attachment.feedbackItems.map(item => item.id) : [],
+				before,
+				after: service.getFeedback(session).map(item => item.state),
+				accepted,
+				widgetLookups,
+			}, {
+				target: backgroundChat, query: '/act-on-feedback',
+				ids: agentHost ? [first.id] : [first.id, other.id],
+				before: [AgentFeedbackState.Accepted, AgentFeedbackState.Accepted],
+				after: agentHost ? [AgentFeedbackState.Submitted, AgentFeedbackState.Accepted] : [AgentFeedbackState.Resolved, AgentFeedbackState.Resolved],
+				accepted: true, widgetLookups: [],
+			});
+		});
+	}
+
+	test('rejected background feedback is not marked submitted or acknowledged', async () => {
+		const item = service.addFeedback(session, fileA, r(1), 'Selected');
+		let accepted = false;
+		const pending = service.submitFeedback(session, {
+			targetChat: backgroundChat.resource, background: true, feedbackIds: [item.id], onRequestAccepted: () => { accepted = true; },
+		});
+		const rejection = assert.rejects(pending, /Rejected/);
+		await backgroundAcceptance.error(new Error('Rejected'));
+		await rejection;
+		assert.deepStrictEqual({ states: service.getFeedback(session).map(item => item.state), accepted, widgetLookups }, {
+			states: [AgentFeedbackState.Accepted], accepted: false, widgetLookups: [],
+		});
 	});
 
 	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {

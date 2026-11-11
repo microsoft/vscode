@@ -26,7 +26,7 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
-import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, SignedOutWindowGate } from '../../workbench/contrib/sessions/browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, SignedOutWindowGate } from '../../workbench/services/sessions/browser/sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';

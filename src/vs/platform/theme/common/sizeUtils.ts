@@ -32,9 +32,18 @@ export interface SizeValue {
 export interface SizeContribution {
 	readonly id: SizeIdentifier;
 	readonly description: string;
-	readonly defaults: SizeDefaults | SizeValue | null;
+	readonly defaults: SizeDefaults | SizeValue | SizeIdentifier | null;
 	readonly deprecationMessage: string | undefined;
+	readonly customization: SizeCustomization | undefined;
 }
+
+/** Numeric pixel customizations supported by a semantic size token. */
+export interface SizeCustomization {
+	readonly minimum: number;
+	readonly maximum: number;
+}
+
+export type SizeCustomizations = Readonly<Record<SizeIdentifier, number>>;
 
 /**
  * Returns the css variable name for the given size identifier. Dots (`.`) are replaced with hyphens (`-`) and
@@ -110,7 +119,7 @@ export interface ISizeRegistry {
 	 * @param defaults The default values
 	 * @param description the description
 	 */
-	registerSize(id: string, defaults: SizeDefaults | SizeValue | null, description: string): SizeIdentifier;
+	registerSize(id: string, defaults: SizeDefaults | SizeValue | SizeIdentifier | null, description: string, deprecationMessage?: string, customization?: SizeCustomization): SizeIdentifier;
 
 	/**
 	 * Deregister a size from the registry.
@@ -126,6 +135,10 @@ export interface ISizeRegistry {
 	 * Gets the default size of the given id
 	 */
 	resolveDefaultSize(id: SizeIdentifier, theme: IColorTheme): SizeValue | undefined;
+
+	resolveSize(id: SizeIdentifier, theme: IColorTheme, customizations: SizeCustomizations): SizeValue | undefined;
+
+	getSizeCustomizationSchema(): IJSONSchema;
 
 	/**
 	 * JSON schema for an object to assign size values to one of the size contributions.
@@ -153,6 +166,7 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 
 	private sizesById: { [key: string]: SizeContribution };
 	private sizeSchema: IJSONSchemaForSizes = { type: 'object', properties: {} };
+	private sizeCustomizationSchema: IJSONSchemaForSizes = { type: 'object', properties: {}, additionalProperties: false };
 	private sizeReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
@@ -170,14 +184,14 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 		this._onDidChangeSchema.fire();
 	}
 
-	public registerSize(id: string, defaults: SizeDefaults | SizeValue | null, description: string, deprecationMessage?: string): SizeIdentifier {
-		const sizeContribution: SizeContribution = { id, description, defaults, deprecationMessage };
+	public registerSize(id: string, defaults: SizeDefaults | SizeValue | SizeIdentifier | null, description: string, deprecationMessage?: string, customization?: SizeCustomization): SizeIdentifier {
+		const sizeContribution: SizeContribution = { id, description, defaults, deprecationMessage, customization };
 		this.sizesById[id] = sizeContribution;
 
 		// Determine whether this token uses unitless values (e.g. font weights).
 		// The pattern is chosen per-token so that length tokens still require a unit.
 		const isUnitless = (() => {
-			if (!defaults) { return false; }
+			if (!defaults || typeof defaults === 'string') { return false; }
 			if (isSizeDefaults(defaults)) {
 				const sample = defaults.dark ?? defaults.light ?? defaults.hcDark ?? defaults.hcLight;
 				return sample?.unit === '';
@@ -205,6 +219,17 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 			description,
 			...propertySchema
 		};
+		if (customization) {
+			this.sizeCustomizationSchema.properties[id] = {
+				description,
+				type: 'integer',
+				minimum: customization.minimum,
+				maximum: customization.maximum,
+				deprecationMessage,
+			};
+		} else {
+			delete this.sizeCustomizationSchema.properties[id];
+		}
 
 		this.sizeReferenceSchema.enum.push(id);
 		this.sizeReferenceSchema.enumDescriptions.push(description);
@@ -216,6 +241,7 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 	public deregisterSize(id: string): void {
 		delete this.sizesById[id];
 		delete this.sizeSchema.properties[id];
+		delete this.sizeCustomizationSchema.properties[id];
 		const index = this.sizeReferenceSchema.enum.indexOf(id);
 		if (index !== -1) {
 			this.sizeReferenceSchema.enum.splice(index, 1);
@@ -229,12 +255,36 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 	}
 
 	public resolveDefaultSize(id: SizeIdentifier, theme: IColorTheme): SizeValue | undefined {
+		return this.resolveSize(id, theme, {});
+	}
+
+	public resolveSize(id: SizeIdentifier, theme: IColorTheme, customizations: SizeCustomizations): SizeValue | undefined {
+		return this.resolveSizeWithReferences(id, theme, customizations, new Set());
+	}
+
+	private resolveSizeWithReferences(id: SizeIdentifier, theme: IColorTheme, customizations: SizeCustomizations, resolving: Set<SizeIdentifier>): SizeValue | undefined {
+		if (resolving.has(id)) {
+			throw new Error(`Circular size token reference: ${[...resolving, id].join(' -> ')}`);
+		}
 		const sizeDesc = this.sizesById[id];
+		const customized = customizations[id];
+		if (sizeDesc?.customization && typeof customized === 'number'
+			&& Number.isInteger(customized) && customized >= sizeDesc.customization.minimum && customized <= sizeDesc.customization.maximum) {
+			return size(customized);
+		}
 		if (sizeDesc?.defaults) {
+			if (typeof sizeDesc.defaults === 'string') {
+				resolving.add(id);
+				return this.resolveSizeWithReferences(sizeDesc.defaults, theme, customizations, resolving);
+			}
 			const sizeValue = isSizeDefaults(sizeDesc.defaults) ? sizeDesc.defaults[theme.type] : sizeDesc.defaults;
 			return sizeValue ?? undefined;
 		}
 		return undefined;
+	}
+
+	public getSizeCustomizationSchema(): IJSONSchema {
+		return this.sizeCustomizationSchema;
 	}
 
 	public getSizeSchema(): IJSONSchema {
@@ -263,8 +313,8 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 const sizeRegistry = new SizeRegistry();
 platform.Registry.add(Extensions.SizeContribution, sizeRegistry);
 
-export function registerSize(id: string, defaults: SizeDefaults | SizeValue | null, description: string, deprecationMessage?: string): SizeIdentifier {
-	return sizeRegistry.registerSize(id, defaults, description, deprecationMessage);
+export function registerSize(id: string, defaults: SizeDefaults | SizeValue | SizeIdentifier | null, description: string, deprecationMessage?: string, customization?: SizeCustomization): SizeIdentifier {
+	return sizeRegistry.registerSize(id, defaults, description, deprecationMessage, customization);
 }
 
 export function getSizeRegistry(): ISizeRegistry {
@@ -272,11 +322,16 @@ export function getSizeRegistry(): ISizeRegistry {
 }
 
 export const workbenchSizesSchemaId = 'vscode://schemas/workbench-sizes';
+export const sizeCustomizationsSchemaId = 'vscode://schemas/size-customizations';
 
 const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(workbenchSizesSchemaId, sizeRegistry.getSizeSchema());
+schemaRegistry.registerSchema(sizeCustomizationsSchemaId, sizeRegistry.getSizeCustomizationSchema());
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchSizesSchemaId), 200);
+const delayer = new RunOnceScheduler(() => {
+	schemaRegistry.notifySchemaChanged(workbenchSizesSchemaId);
+	schemaRegistry.notifySchemaChanged(sizeCustomizationsSchemaId);
+}, 200);
 
 sizeRegistry.onDidChangeSchema(() => {
 	if (!delayer.isScheduled()) {

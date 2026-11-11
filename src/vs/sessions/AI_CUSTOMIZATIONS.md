@@ -91,6 +91,8 @@ Customization source-folder providers may assign an opaque workspace group ident
 
 `AICustomizationSource` distinguishes local, user, extension, plugin, and built-in items. Source providers and workspace services apply their applicable discovery policy before view-model grouping. Filtering changes presentation only; it does not mutate the underlying customization.
 
+`AICustomizationScope` is an internal presentation axis that answers who a customization applies to: `user`, `workspace`, or `application` (built into VS Code or the agent, shown as Built-in). Scope drives the primary grouping of every management section; storage source continues to drive what can be done with an item. Who supplied an item within its scope is a separate `origin`: a plugin, an extension, or an organization is shown as a nested row in that scope, and the agent's own items are tagged in Built-in. The shared normalizer derives scope from the source and identifies organization files from the default chat extension. Extensions and organization customizations belong to the user. Agent Host adapters derive scope from existing discovery-source metadata (`repository`, `user`, `plugin`, or `builtin`) and MCP configuration sources, retaining an internal scope override for read-only items whose grouping comes from a parent configuration. Built-in agents declare `source: 'builtin'` through `vscode.customizationDiscovery`; no separate scope field crosses the extension API or Agent Host boundary. Absent or unknown host provenance does not establish that an item is built in. Internal items may also carry an origin and a `syncedFromClient` delivery for items synced to a remote agent environment. Overridden customizations are not listed: agent hosts omit them, and local discovery skips same-named duplicates and hides built-in skills that a user or workspace skill replaces. The legacy `remote-host` and `remote-client` group keys are delivery markers, not display groups.
+
 ## Item pipeline
 
 Customization sources adapt their data into the shared item contract. The management model aggregates those items, applies harness and storage filters, and projects list items for the active section.
@@ -104,6 +106,8 @@ source providers
 ```
 
 Section counts and rendered rows consume the same filtered model so hidden or disabled sources cannot appear in one surface but not the other.
+
+Controls belonging to an unfocused chat use a disposable session-scoped items model over the same discovery and filtering pipeline. Reading their counts and section links must not retarget the window's active customization harness.
 
 Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 

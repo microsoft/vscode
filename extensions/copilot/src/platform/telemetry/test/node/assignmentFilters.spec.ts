@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+// eslint-disable-next-line local/code-layering, local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getUserKind } from '../../../../extension/completions-core/vscode-node/lib/src/auth/orgs';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -12,7 +13,7 @@ import { CopilotToken, createTestExtendedTokenInfo } from '../../../authenticati
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
-import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { CopilotAssignmentsFilterProvider } from '../../vscode-node/microsoftExperimentationService';
 
 vi.mock('vscode', async importOriginal => ({
@@ -48,7 +49,6 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
-			integratorid: INTEGRATION_ID,
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',

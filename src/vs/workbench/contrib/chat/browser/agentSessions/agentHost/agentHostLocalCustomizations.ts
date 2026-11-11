@@ -310,21 +310,11 @@ export async function resolveCustomizationRefs(
 	}
 
 	// Plugin prompt discovery is not guaranteed to be hydrated before an agent
-	// host registration resolves (notably in the Agents window). Include every
-	// enabled plugin with a concrete contribution directly; `pluginRefs`
+	// host registration resolves (notably in the Agents window), and plugins can
+	// ship content only the agent host runtime understands (for example Copilot
+	// extensions with canvases). Include every installed plugin; `pluginRefs`
 	// de-duplicates those already found through prompt-file enumeration.
 	for (const plugin of plugins) {
-		if (pluginRefs.has(plugin.uri.toString())) {
-			continue;
-		}
-		if (plugin.hooks.get().length === 0
-			&& plugin.commands.get().length === 0
-			&& plugin.skills.get().length === 0
-			&& plugin.agents.get().length === 0
-			&& plugin.instructions.get().length === 0
-			&& plugin.mcpServerDefinitions.get().length === 0) {
-			continue;
-		}
 		addPluginRef(plugin);
 	}
 

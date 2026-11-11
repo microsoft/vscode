@@ -56,11 +56,11 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../cha
 import { getChatSessionType, getNewChatSessionResource } from '../../../chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
-import { isPhoneLayout } from '../mobileLayout.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../common/contextkeys.js';
-import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -644,7 +644,8 @@ export class ChatView extends AbstractChatView {
 		this._setupInitialTranscriptContext(chatModel);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported(), {
-			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING),
+			useActionMenu: () => true,
+			showOnSelection: configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) !== false,
 			onAction: (variant, action) => logResponseSelectionWidgetAction(telemetryService, variant, action),
 		}));
 
@@ -711,6 +712,9 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
+			}
+			if (e.affectsConfiguration(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
+				this._selectionSideChatController.setShowOnSelection(this.configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) !== false);
 			}
 		}));
 

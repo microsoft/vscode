@@ -24,8 +24,8 @@ import { ILifecycleService, LifecyclePhase } from '../../../../workbench/service
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISession, isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { getSessionOnboardingTargetId } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createAgentsWindowInvitationTour, IAgentsWindowInvitationTourCopy } from './tours/agentsWindowInvitationTour.js';

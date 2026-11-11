@@ -11,8 +11,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceSelectionSnapshot } from '../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../services/sessions/common/workspaceSelection.js';
 import { ISendRequestOptions } from '../common/sessionsManagement.js';
+import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 
@@ -86,6 +87,13 @@ export interface INewSessionComposer {
 
 export const INewSessionComposerService = createDecorator<INewSessionComposerService>('newSessionComposerService');
 
+/** The user selected a custom agent for a session in a picker, or cleared it ({@link INewSessionComposerService.onDidSelectAgent}). */
+export interface IUserAgentSelection {
+	readonly sessionId: string;
+	/** The selected custom agent; `undefined` when the user chose the agent's default. */
+	readonly agent: ISessionAgentRef | undefined;
+}
+
 export interface INewSessionComposerService {
 	readonly _serviceBrand: undefined;
 	readonly activeComposer: IObservable<INewSessionComposer | undefined>;
@@ -101,6 +109,13 @@ export interface INewSessionComposerService {
 	notifyUserNavigation(): void;
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
+	/**
+	 * Fires as the user selects a custom agent for a session, or clears it, in a picker: not as a picker selects one for a
+	 * draft itself, such as the agent it remembers, or as the session's agent binds it under another URI.
+	 */
+	readonly onDidSelectAgent: Event<IUserAgentSelection>;
+	/** Called by a picker before it applies the user's custom agent selection. */
+	notifyUserAgentSelection(selection: IUserAgentSelection): void;
 	/** Hidden composers retain draft tracking but cannot receive global composer actions. */
 	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>): IDisposable;
 }
@@ -134,6 +149,13 @@ export class NewSessionComposerService extends Disposable implements INewSession
 
 	notifyUserNavigation(): void {
 		this._userNavigationVersion.set(this._userNavigationVersion.get() + 1, undefined);
+	}
+
+	private readonly _onDidSelectAgent = this._register(new Emitter<IUserAgentSelection>());
+	readonly onDidSelectAgent: Event<IUserAgentSelection> = this._onDidSelectAgent.event;
+
+	notifyUserAgentSelection(selection: IUserAgentSelection): void {
+		this._onDidSelectAgent.fire(selection);
 	}
 
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void {
