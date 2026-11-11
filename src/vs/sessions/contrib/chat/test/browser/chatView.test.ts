@@ -2690,7 +2690,7 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			beforeChat,
 			chat: inputOptions?.chat?.get()?.resource.toString(),
-			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element')) : renderRepositoryControls,
+			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element'), instantiationService) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
 		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
 	});

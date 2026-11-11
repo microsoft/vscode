@@ -2595,6 +2595,11 @@ export class AutomationsCustomViewContribution extends Disposable {
 			}
 		}));
 
+		for (const id of ['sessionsView.newAutomation', 'sessions.automations.import']) {
+			this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, id, (action, options, instantiationService) => action instanceof MenuItemAction
+				? instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, id === 'sessions.automations.import')
+				: undefined));
+		}
 		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.refresh', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -2846,8 +2851,9 @@ registerAction2(class NewAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.newAutomation',
-			title: localize2('newAutomation', "New Automation"),
+			title: localize2('createAutomationManually', "Create manually"),
 			precondition: ChatAutomationsEnabledContext,
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatContextKeys.enabled) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -2880,8 +2886,9 @@ registerAction2(class ImportAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.import',
-			title: localize2('importAutomation', "Import Automation"),
+			title: localize2('importAutomation', "Import"),
 			precondition: ChatAutomationsEnabledContext,
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatContextKeys.enabled) }],
 		});
 	}
 

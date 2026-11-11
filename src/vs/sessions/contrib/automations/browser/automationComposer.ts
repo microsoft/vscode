@@ -7,19 +7,18 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -30,6 +29,8 @@ import { INewChatInputSendRequest } from '../../../../workbench/contrib/sessions
 import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { WorkspacePicker } from '../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { IPreferredSessionType } from '../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AutomationComposerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
@@ -37,6 +38,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { BUILTIN_SKILLS_URI } from '../../chat/browser/promptsService.js';
 import { canSelectAutomationWorkspace } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
+import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 
 /** Hosts the normal session composer without sharing the manual dialog's Automation draft. */
 export class AutomationComposer extends Disposable {
@@ -75,7 +77,7 @@ export class AutomationComposer extends Disposable {
 		@IChatViewFactory chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -105,9 +107,22 @@ export class AutomationComposer extends Disposable {
 			workspaceChanged.read(reader);
 			return this.workspacePicker.selectedFolderUri;
 		});
-		this.input = this._register(instantiationService.createInstance(SharedChatInputComposer, {
+		const composerContext = this._register(contextKeyService.createScoped(this.element));
+		AutomationComposerContext.bindTo(composerContext).set(true);
+		const composerInstantiation = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, composerContext])));
+		this.input = this._register(composerInstantiation.createInstance(SharedChatInputComposer, {
 			session: this.session,
 			inputEditorOptions: chatViewFactory.inputEditorOptions,
+			inputToolbar: Menus.AutomationsDialogInputToolbar,
+			renderRepositoryControls: (container, hoverDelegate, scopedInstantiation) => {
+				const store = new DisposableStore();
+				const toolbar = store.add(createNewSessionControlToolbar(container, scopedInstantiation,
+					localize('automation.composer.sessionControls', "Session controls"), hoverDelegate));
+				return {
+					visible: observableFromEvent(this, toolbar.onDidChangeMenuItems, () => toolbar.getItemsLength() > 0),
+					dispose: () => store.dispose(),
+				};
+			},
 			persistDraft: false,
 			placeholder: localize('automation.composer.placeholder', "Describe what you want to automate"),
 			onboardingTargetId: 'sessions.automations.create',
@@ -147,17 +162,6 @@ export class AutomationComposer extends Disposable {
 		this.input.render(inputHost, root);
 		DOM.append(this.element, this.message);
 		this.message.hidden = true;
-		const actions = DOM.append(this.element, DOM.$('.automation-authoring-actions'));
-		for (const [label, command] of [
-			[localize('automation.composer.manual', "Create manually"), 'sessionsView.newAutomation'],
-			[localize('automation.composer.import', "Import"), 'sessions.automations.import'],
-		]) {
-			const button = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-			button.label = label;
-			this._register(button.onDidClick(() => {
-				void commandService.executeCommand(command).catch(error => this.showError(error));
-			}));
-		}
 		const pickChanged = observableSignalFromEvent(this, this.input.sessionTypePicker.onDidChangeSelectedPick);
 		const typesChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessionTypes);
 		let creatingDraft = false;

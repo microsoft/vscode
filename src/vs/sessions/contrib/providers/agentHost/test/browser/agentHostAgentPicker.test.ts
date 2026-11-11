@@ -32,7 +32,7 @@ import { ILifecycleService } from '../../../../../../workbench/services/lifecycl
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AutomationComposerContext, IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IChat, ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -123,6 +123,18 @@ suite('agentHostAgentPicker', () => {
 			config: ['sessions.modelPicker'],
 			control: ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'],
 		});
+	});
+
+	test('automation authoring omits the Agent picker while keeping normal execution controls', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
+		IsPhoneLayoutContext.bindTo(context).set(false);
+		ChatContextKeys.enabled.bindTo(context).set(true);
+		AutomationComposerContext.bindTo(context).set(true);
+		assert.deepStrictEqual({
+			input: controls(context, Menus.AutomationsDialogInputToolbar),
+			below: controls(context, Menus.NewSessionControl),
+		}, { input: ['sessions.modelPicker'], below: ['sessions.agentHost.newSessionModePicker'] });
 	});
 
 	test('uses the same desktop and phone agent controls in the automation prompt', () => {

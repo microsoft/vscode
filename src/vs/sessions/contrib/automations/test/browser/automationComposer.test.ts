@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -15,9 +15,10 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -108,8 +109,6 @@ suite('Automation composer', () => {
 			}
 		});
 		instantiationService.stub(INotificationService, { error: message => notifications.push(String(message)) });
-		const commands: string[] = [];
-		instantiationService.stub(ICommandService, { executeCommand: async command => { commands.push(command); } });
 		const workspaceChanged = store.add(new Emitter<void>());
 		let selectedFolder: URI | undefined;
 		instantiationService.stubInstance(WorkspacePicker, {
@@ -136,16 +135,23 @@ suite('Automation composer', () => {
 			getInputValue: () => input.value,
 			dispose: () => { },
 		});
-		const creations = spy(instantiationService, 'createInstance');
-		store.add(toDisposable(() => creations.restore()));
+		const creations: ReturnType<typeof spy>[] = [];
+		const createChild = stub(instantiationService, 'createChild').callsFake(services => {
+			const child = store.add(new TestInstantiationService(services, false, instantiationService));
+			const creation = spy(child, 'createInstance');
+			creations.push(creation);
+			store.add(toDisposable(() => creation.restore()));
+			return child;
+		});
+		store.add(toDisposable(() => createChild.restore()));
 		const root = DOM.$('div');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 		const composer = store.add(instantiationService.createInstance(AutomationComposer, root));
-		const options = creations.getCalls().find(call => call.args[0] === SharedChatInputComposer)!.args[1] as INewChatComposerInputOptions;
+		const options = creations.flatMap(creation => creation.getCalls()).find(call => call.args[0] === SharedChatInputComposer)!.args[1] as INewChatComposerInputOptions;
 		root.appendChild(composer.element);
 		return {
-			composer, root, input, providers, prompts, disabledSkills, drafts, requests, discarded, telemetry, commands, configuration, options, opened, notifications, currentDraft,
+			composer, root, input, providers, prompts, disabledSkills, drafts, requests, discarded, telemetry, configuration, options, opened, notifications, currentDraft,
 			selectFolder: (folder: URI | undefined) => { selectedFolder = folder; workspaceChanged.fire(); },
 			selectHarness: (value: IPreferredSessionType) => { pick = value; pickChanged.fire(value); },
 			setSendFailure: (error: Error | undefined) => { sendFailure = error; },
@@ -205,19 +211,16 @@ suite('Automation composer', () => {
 		assert.deepStrictEqual({ providerUnavailable, aiDisabled, requests }, { providerUnavailable: false, aiDisabled: false, requests: [] });
 	});
 
-	test('manual creation and import do not send or change the authoring draft', async () => {
-		const { composer, options, drafts, requests, commands, input } = setup();
-		const buttons = Array.from(composer.element.querySelectorAll<HTMLElement>('.automation-authoring-actions .monaco-button'));
-		for (const button of buttons) {
-			button.click();
-		}
-		await Promise.resolve();
+	test('uses the automation input menu and lower provider controls without inline creation buttons', () => {
+		const { composer, options, input } = setup();
 		assert.deepStrictEqual({
-			labels: buttons.map(button => button.textContent), commands, requests,
-			drafts: drafts.length, input: input.value, persistDraft: options.persistDraft, metrics: options.inputEditorOptions,
+			menu: options.inputToolbar,
+			lowerControls: typeof options.renderRepositoryControls,
+			inlineButtons: composer.element.querySelectorAll('.automation-authoring-actions').length,
+			input: input.value, persistDraft: options.persistDraft, metrics: options.inputEditorOptions,
 		}, {
-			labels: ['Create manually', 'Import'], commands: ['sessionsView.newAutomation', 'sessions.automations.import'], requests: [],
-			drafts: 1, input: 'Review changes', persistDraft: false, metrics: { fontSize: 16, lineHeight: 24 },
+			menu: Menus.AutomationsDialogInputToolbar, lowerControls: 'function', inlineButtons: 0,
+			input: 'Review changes', persistDraft: false, metrics: { fontSize: 16, lineHeight: 24 },
 		});
 	});
 

@@ -311,7 +311,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				sandboxToggleChecked: observeSessionSandboxToggle(this.options.session, derived(this, reader => this._getChatResource(reader)), this.sessionsProvidersService),
 				editorOverflowWidgetsDomNode,
 				menus: {
-					inputToolbar: Menus.NewSessionChatInputToolbar,
+					inputToolbar: this.options.inputToolbar ?? Menus.NewSessionChatInputToolbar,
 					telemetrySource: 'sessions.newChatComposer',
 				},
 				// The input sits flush with the composer's picker rows.
@@ -385,7 +385,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			getJumpGameElement: this.options.getChatPetJumpGameElement,
 		}));
 
-		this._renderSessionControls(parent);
+		this._renderSessionControls(parent, widgetInstantiationService);
 		if (this._pendingAttachments.length) {
 			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
 		}
@@ -452,7 +452,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	 * Renders the session controls row after the input, as a sibling the host's
 	 * layout positions, for example above the input on phones.
 	 */
-	private _renderSessionControls(parent: HTMLElement): void {
+	private _renderSessionControls(parent: HTMLElement, widgetInstantiationService: IInstantiationService): void {
 		const bottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container.sessions-shared-chat-input-controls'));
 		this._register(toDisposable(() => bottomContainer.remove()));
 		if (this.options.inputVisible) {
@@ -465,7 +465,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		let repositoryToolbar: MenuWorkbenchToolBar | undefined;
 		let hostRepositoryControls: IComposerRepositoryControls | undefined;
 		if (typeof this.options.renderRepositoryControls === 'function') {
-			hostRepositoryControls = this._register(this.options.renderRepositoryControls(repositoryControlsContainer, this.pickerHoverDelegate));
+			hostRepositoryControls = this._register(this.options.renderRepositoryControls(repositoryControlsContainer, this.pickerHoverDelegate, widgetInstantiationService));
 		} else if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
 			const shownChat = this._shownChat;

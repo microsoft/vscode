@@ -28,7 +28,7 @@ import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../..
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AutomationComposerContext, IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
@@ -276,7 +276,7 @@ registerAction2(class extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
-					ChatContextKeys.inAutomationsDialog,
+					ContextKeyExpr.or(ChatContextKeys.inAutomationsDialog, AutomationComposerContext),
 					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 				),
 			}, {

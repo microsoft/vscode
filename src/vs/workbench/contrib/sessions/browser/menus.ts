@@ -43,7 +43,7 @@ export const Menus = {
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 	/** Context menu for session-backed Automation history rows. */
 	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
-	/** Input toolbar actions in the Automation dialog prompt editor. */
+	/** Input toolbar actions in Automation prompt editors. */
 	AutomationsDialogInputToolbar: new MenuId('AutomationsDialogInputToolbar'),
 
 	/** Input toolbar of the new-session and new-chat composers. */

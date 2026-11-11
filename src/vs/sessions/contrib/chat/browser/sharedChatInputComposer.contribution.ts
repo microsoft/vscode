@@ -85,7 +85,9 @@ for (const [id, title, busy] of [
 				id,
 				title,
 				f1: false,
-				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 100, when: SharedChatInputComposerBusyContext.isEqualTo(busy) },
+				menu: [Menus.NewSessionChatInputToolbar, Menus.AutomationsDialogInputToolbar].map(id => ({
+					id, group: 'navigation', order: 100, when: SharedChatInputComposerBusyContext.isEqualTo(busy),
+				})),
 			});
 		}
 		override run(): void { /* progress only */ }
@@ -183,7 +185,9 @@ export class SharedChatInputComposerContribution extends Disposable implements I
 	constructor(@IActionViewItemService actionViewItemService: IActionViewItemService) {
 		super();
 		for (const id of [COMPOSER_INITIALIZING_ACTION_ID, COMPOSER_SENDING_ACTION_ID]) {
-			this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, id, action => new ComposerBusyActionViewItem(undefined, action)));
+			for (const menu of [Menus.NewSessionChatInputToolbar, Menus.AutomationsDialogInputToolbar]) {
+				this._register(actionViewItemService.register(menu, id, action => new ComposerBusyActionViewItem(undefined, action)));
+			}
 		}
 		this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, COMPOSER_SESSION_CONTROLS_ACTION_ID, (action, _options, instantiationService) => new ComposerSessionControlsActionViewItem(action, instantiationService)));
 	}

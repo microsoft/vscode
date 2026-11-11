@@ -110,17 +110,6 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.automation-authoring-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: var(--vscode-spacing-size80);
-	margin-top: var(--vscode-spacing-size120);
-}
-
-.automation-authoring-actions > .monaco-button {
-	width: auto;
-}
-
 .automation-authoring-message {
 	margin-top: var(--vscode-spacing-size80);
 }

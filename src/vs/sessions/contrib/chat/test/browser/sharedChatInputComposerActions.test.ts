@@ -9,6 +9,9 @@ import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { MenuRegistry, isIMenuItem } from '../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -19,10 +22,24 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SendInBackgroundAction } from '../../browser/sharedChatInputComposer.contribution.js';
+import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SendInBackgroundAction } from '../../browser/sharedChatInputComposer.contribution.js';
 
 suite('Send in Background', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('automation input menus omit Add Context and inline session controls without changing ordinary composers', () => {
+		const includes = (menu: typeof Menus.NewSessionChatInputToolbar) => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.filter(item => [CHAT_ATTACH_CONTEXT_ACTION_ID, COMPOSER_SESSION_CONTROLS_ACTION_ID].includes(item.command.id))
+			.map(item => item.command.id);
+		assert.deepStrictEqual({
+			automation: includes(Menus.AutomationsDialogInputToolbar),
+			ordinary: includes(Menus.NewSessionChatInputToolbar),
+		}, {
+			automation: [],
+			ordinary: [CHAT_ATTACH_CONTEXT_ACTION_ID, COMPOSER_SESSION_CONTROLS_ACTION_ID],
+		});
+	});
 
 	test('Alt+Enter applies only to a sendable background-capable composer input in the Agents window', () => {
 		const keybinding = decodeKeybinding(KeyMod.Alt | KeyCode.Enter, OS)!;

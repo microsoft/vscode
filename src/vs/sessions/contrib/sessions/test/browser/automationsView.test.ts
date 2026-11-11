@@ -2237,7 +2237,30 @@ suite('AutomationsCardsWidget', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ empty, populated, aiDisabled, automationsDisabled: hasNewAutomation() }, {
-			empty: false, populated: false, aiDisabled: false, automationsDisabled: false,
+			empty: true, populated: true, aiDisabled: false, automationsDisabled: false,
+		});
+	});
+
+	test('contributes manual creation and Import buttons beside Refresh in the view header', () => {
+		const { instantiationService, contextKeyService, actionFactories, widget } = setup();
+		const actions = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		for (const action of actions()) {
+			disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!).render(container);
+		}
+		const buttons = [...container.querySelectorAll<HTMLElement>('.monaco-button')].map(button => ({
+			label: button.getAttribute('aria-label'), secondary: button.classList.contains('secondary'),
+		}));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		assert.deepStrictEqual({
+			buttons, inlineButtons: widget.element.querySelectorAll('.automation-authoring-actions').length,
+			hiddenWhenAIDisabled: actions().filter(action => action.id !== 'sessions.automations.refresh').length === 0,
+		}, {
+			buttons: [{ label: 'Create manually', secondary: false }, { label: 'Import', secondary: true }, { label: 'Refresh', secondary: true }],
+			inlineButtons: 0, hiddenWhenAIDisabled: true,
 		});
 	});
 
@@ -4968,7 +4991,7 @@ suite('AutomationsCardsWidget', () => {
 			persistent: content.includes('The creation input stays at the top even when automations exist.'),
 			defaultWorkspace: content.includes('The automation will use the selected workspace by default.'),
 			send: content.includes('use Send or your configured chat submit keybinding'),
-			actions: content.includes('Create manually and Import are separate buttons on the right below the input.'),
+			actions: content.includes('Create manually and Import are buttons beside Refresh in the view header.'),
 			obsolete: content.includes('Start session') || content.includes('Create with agent'),
 		}, { persistent: true, defaultWorkspace: true, send: true, actions: true, obsolete: false });
 	});

@@ -5,6 +5,8 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { IChatViewOptions } from '../parts/chatView.js';
@@ -110,6 +112,8 @@ export interface IComposerRepositoryControls extends IDisposable {
 export interface INewChatComposerInputOptions {
 	/** Whether this host shares the persisted New Session draft. Defaults to true. */
 	readonly persistDraft?: boolean;
+	/** Overrides the input's contributed actions without changing other composer hosts. */
+	readonly inputToolbar?: MenuId;
 	readonly inputEditorOptions?: IChatViewOptions['inputEditorOptions'];
 	readonly session: IObservable<ISession | undefined>;
 	/**
@@ -143,8 +147,9 @@ export interface INewChatComposerInputOptions {
 	 * The repository controls (such as isolation and branch). By default the session provider
 	 * contributes them; `false` renders none, and a function renders the host's own controls in
 	 * their place, so they are positioned like the provider's.
+	 * The factory receives the composer's scoped services.
 	 */
-	readonly renderRepositoryControls?: boolean | ((container: HTMLElement, hoverDelegate: IHoverDelegate) => IComposerRepositoryControls);
+	readonly renderRepositoryControls?: boolean | ((container: HTMLElement, hoverDelegate: IHoverDelegate, instantiationService: IInstantiationService) => IComposerRepositoryControls);
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
