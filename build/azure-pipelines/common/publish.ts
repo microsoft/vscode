@@ -11,7 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
-import { getGatingJob, runArtifactPublishOperation, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
+import { getGatingJob, isOptionalMobileStageFailure, runArtifactPublishOperation, warnIfMobileArtifactMissing, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
 import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
@@ -1094,6 +1094,10 @@ async function main() {
 		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			if (isOptionalMobileStageFailure(timeline, stage, record.result)) {
+				console.log('##vso[task.logissue type=warning]Only the optional Mobile job did not succeed in the Web stage; continuing the ordinary release.');
+				continue;
+			}
 			failed.add(`stage ${stage}`);
 			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
@@ -1105,6 +1109,7 @@ async function main() {
 		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 
+	warnIfMobileArtifactMissing(timeline, artifacts.map(artifact => artifact.name));
 	console.log(`All ${done.size} artifacts published!`);
 	if (optionalFailures.size > 0) {
 		console.log(`Optional artifacts not published: ${[...optionalFailures].join(', ')}`);

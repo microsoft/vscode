@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { artifactsByGatingJob, getGatingJob, runArtifactPublishOperation, type TimelineRecord } from '../../azure-pipelines/common/publishGate.ts';
+import { artifactsByGatingJob, getGatingJob, isOptionalMobileStageFailure, runArtifactPublishOperation, warnIfMobileArtifactMissing, type TimelineRecord } from '../../azure-pipelines/common/publishGate.ts';
 
 function phase(identifier: string, state: string, result: string | null = null): TimelineRecord {
 	return { type: 'Phase', identifier, name: identifier.split('.').pop()!, state, result };
@@ -22,6 +22,47 @@ function gate(records: TimelineRecord[], artifact = 'vscode_cli_linux_x64_cli') 
 }
 
 suite('Publish gate', () => {
+	test('a mobile-only cancellation or failure does not override successful required Web phases', () => {
+		for (const result of ['failed', 'canceled', 'skipped', 'abandoned']) {
+			const timeline = { records: [phase('Web.Web', 'completed', 'succeeded'), phase('Web.Mobile', 'completed', result)] };
+			assert.deepStrictEqual([
+				isOptionalMobileStageFailure(timeline, 'Web', 'failed'),
+				isOptionalMobileStageFailure(timeline, 'Web', 'canceled'),
+				isOptionalMobileStageFailure(timeline, 'Web', 'skipped'),
+				isOptionalMobileStageFailure(timeline, 'Quality', 'failed'),
+			], [true, true, false, false]);
+		}
+	});
+
+	test('mobile isolation never hides missing, pending or failed required Web phases or unrelated stage failures', () => {
+		const mobile = phase('Web.Mobile', 'completed', 'canceled');
+		const web = phase('Web.Web', 'completed', 'succeeded');
+		for (const records of [
+			[mobile],
+			[web],
+			[mobile, phase('Web.Web', 'pending'), job('Web.Web', 'completed', 'succeeded')],
+			[mobile, phase('Web.Web', 'completed', 'failed')],
+			[mobile, phase('Web.Web', 'completed', 'canceled')],
+			[mobile, phase('Web.Web', 'completed', 'skipped')],
+			[mobile, web, phase('Web.RequiredChecks', 'completed', 'failed')],
+			[web, phase('Web.Mobile', 'pending')],
+			[web, phase('Web.Mobile', 'completed', 'succeeded')],
+		]) {
+			assert.equal(isOptionalMobileStageFailure({ records }, 'Web', 'canceled'), false, JSON.stringify(records));
+		}
+	});
+
+	test('an enabled mobile job that produces no archive warns instead of silently disappearing', t => {
+		const messages: string[] = [];
+		t.mock.method(console, 'log', (message: string) => messages.push(message));
+		warnIfMobileArtifactMissing({ records: [] }, []);
+		warnIfMobileArtifactMissing({ records: [phase('Web.Mobile', 'pending')] }, []);
+		const timeline = { records: [phase('Web.Mobile', 'completed', 'succeededWithIssues')] };
+		warnIfMobileArtifactMissing(timeline, ['vscode_web_linux_mobile_archive-unsigned']);
+		warnIfMobileArtifactMissing(timeline, ['vscode_web_linux_standalone_archive-unsigned']);
+		assert.deepStrictEqual(messages, ['##vso[task.logissue type=warning]Mobile was enabled but vscode_web_linux_mobile_archive-unsigned was not produced. Check the Mobile job; continuing the ordinary release.']);
+	});
+
 	test('mobile operation failures warn without reporting a successful publication', async t => {
 		const messages: string[] = [];
 		t.mock.method(console, 'log', (message: string) => messages.push(message));

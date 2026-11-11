@@ -105,17 +105,24 @@ Mobile runs in its own optional job, with a separate timeout and workspace,
 so its work cannot consume the ordinary Web job's time or prevent its archive
 from being published. Mobile is best-effort: build, validation, CDN upload, archive/SBOM publication,
 and artifact download/registration failures are reported without blocking the
-ordinary release. Failed mobile steps stop that job before archive publication;
-failed CDN uploads therefore cannot register a build with missing CDN assets.
+ordinary release. Failed mobile build or CDN upload steps stop that job before
+archive publication, so failed uploads cannot register a build with missing CDN assets.
 Only a fully validated and archived package can be published;
 failed registry operations are not recorded as successfully processed and can
 be retried. Ordinary Web and other platform failures still block release.
+If Mobile alone times out or is canceled, the publisher requires successful
+current-attempt phase records for Web and every other required job in that
+stage before allowing the ordinary release. An enabled Mobile job that produces
+no archive also emits a warning in Publish. Canceling the whole run still stops
+the release.
 
 The Mobile job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
 top-level directory, and registers its archive as platform `web-mobile` through
 the normal publisher. Source commit and quality remain the release identity.
 Normal release controls and platform-based update lookup select this asset;
 there is no mobile-specific release registry.
+The standalone Mobile job does not run the ordinary Web gulp compile; its
+embedded build date therefore uses the bundler's Git commit-date fallback.
 
 Both Web archives use the standard existing-artifact check so retrying the job
 does not republish an immutable pipeline artifact.

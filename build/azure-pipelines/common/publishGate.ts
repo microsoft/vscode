@@ -15,12 +15,34 @@ export interface Timeline {
 	readonly records: TimelineRecord[];
 }
 
+const mobileArtifactName = 'vscode_web_linux_mobile_archive-unsigned';
+
+/** A mobile timeout must not override successful required jobs in the Web stage. */
+export function isOptionalMobileStageFailure(timeline: Timeline, stage: string, result: string | null): boolean {
+	if (stage !== 'Web' || (result !== 'failed' && result !== 'canceled')) {
+		return false;
+	}
+	const jobs = timeline.records.filter(record => record.type === 'Phase' && record.identifier?.startsWith('Web.'));
+	const mobile = jobs.find(record => record.identifier === 'Web.Mobile');
+	const required = jobs.filter(record => record.identifier !== 'Web.Mobile');
+	return mobile?.state === 'completed'
+		&& ['failed', 'canceled', 'skipped', 'abandoned'].includes(mobile.result ?? '')
+		&& required.some(record => record.identifier === 'Web.Web')
+		&& required.every(record => record.state === 'completed' && (record.result === 'succeeded' || record.result === 'succeededWithIssues'));
+}
+
+export function warnIfMobileArtifactMissing(timeline: Timeline, artifactNames: readonly string[]): void {
+	if (timeline.records.some(record => record.type === 'Phase' && record.identifier === 'Web.Mobile' && record.state === 'completed') && !artifactNames.includes(mobileArtifactName)) {
+		console.log(`##vso[task.logissue type=warning]Mobile was enabled but ${mobileArtifactName} was not produced. Check the Mobile job; continuing the ordinary release.`);
+	}
+}
+
 /** Mobile publication is best-effort; ordinary artifact failures still block release. */
 export async function runArtifactPublishOperation<T>(name: string, operation: () => Promise<T>): Promise<{ succeeded: true; value: T } | { succeeded: false }> {
 	try {
 		return { succeeded: true, value: await operation() };
 	} catch (error) {
-		if (name !== 'vscode_web_linux_mobile_archive-unsigned') {
+		if (name !== mobileArtifactName) {
 			throw error;
 		}
 		const message = `[${name}] Mobile publication failed; continuing the ordinary release: ${error}`;
