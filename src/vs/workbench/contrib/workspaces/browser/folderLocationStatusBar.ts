@@ -233,10 +233,10 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const contextService = accessor.get(IWorkspaceContextService);
 		const folder = contextService.getWorkspace().folders[0];
-		const primary = folder?.primaryUri;
-		if (!primary) {
+		if (!folder) {
 			return;
 		}
+		const primary = folder.primaryUri ?? folder.uri;
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
