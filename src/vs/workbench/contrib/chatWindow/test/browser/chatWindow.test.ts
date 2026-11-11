@@ -382,6 +382,44 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ afterRestoredOpen, afterUserOpen, afterFailedRestore: window.layoutMode.get() }, { afterRestoredOpen: ChatWindowLayoutMode.ChatOnly, afterUserOpen: ChatWindowLayoutMode.SideBySide, afterFailedRestore: ChatWindowLayoutMode.SideBySide });
 	});
 
+	test('as the window restores the editors of its main part, the user opening one of them that the restore did not open yet shows the main part right away, and the restore keeps the order and the active editor', async () => {
+		const { service, windows: [a] } = createService(['a']);
+		const group = a.main.group;
+		const first = editor();
+		const queued = editor();
+		const last = editor();
+		const gate = new DeferredPromise<void>();
+		// As a group opens an editor: it is in the group right away, before its pane shows; the others of a batch open after the first one's pane
+		const openEditor = async (input: EditorInput, options?: { inactive?: boolean }) => {
+			if (!group.contains(input)) {
+				group.open(input, !options?.inactive);
+			}
+			await gate.p;
+			return undefined;
+		};
+		Reflect.set(group, 'openEditor', openEditor);
+		Reflect.set(group, 'openEditors', async (inputs: { editor: EditorInput; options?: { inactive?: boolean } }[]) => {
+			for (const { editor: input, options } of inputs) {
+				await openEditor(input, options);
+			}
+		});
+		a.window.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+
+		const restoring: Promise<void> = Reflect.get(service, '_openEditors').call(service, { editors: [first, queued, last], activeEditor: queued }, a.main.part, a.window);
+		const whileRestoring = a.window.layoutMode.get();
+		group.open(queued);
+		const afterUserOpen = a.window.layoutMode.get();
+		gate.complete();
+		await restoring;
+
+		assert.deepStrictEqual({ whileRestoring, afterUserOpen, afterRestore: a.window.layoutMode.get(), order: group.testEditors.map(input => input === first ? 'first' : input === queued ? 'queued' : 'last') }, {
+			whileRestoring: ChatWindowLayoutMode.ChatOnly,
+			afterUserOpen: ChatWindowLayoutMode.SideBySide,
+			afterRestore: ChatWindowLayoutMode.SideBySide,
+			order: ['first', 'queued', 'last'],
+		});
+	});
+
 	test('an editor of its main part dropped beside the chat splits the chat part and empties the main part, which changes no mode: never Editor Only', () => {
 		const { window, main, chat } = createWindow();
 		const file = editor();
