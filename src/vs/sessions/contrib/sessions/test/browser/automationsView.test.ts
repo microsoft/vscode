@@ -4173,7 +4173,7 @@ suite('AutomationsCardsWidget', () => {
 			confirmation: {
 				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain.',
+				detail: 'This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
 				primaryButton: 'Delete',
 			},
 			options: [{ deleteHistory: true }],
@@ -4215,12 +4215,12 @@ suite('AutomationsCardsWidget', () => {
 			confirmations: [{
 				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain.',
+				detail: 'This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
 				primaryButton: 'Delete',
 			}, {
 				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain.',
+				detail: 'This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
 				primaryButton: 'Delete',
 			}],
 			deleteCalls: [source.id],

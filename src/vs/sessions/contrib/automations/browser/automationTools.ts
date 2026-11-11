@@ -396,7 +396,7 @@ export class DeleteAutomationTool implements IToolImpl {
 				title: localize('automation.tool.delete.confirmationTitle', "Delete Automation?"),
 				message: new MarkdownString(localize(
 					'automation.tool.delete.confirmationMessage',
-					"Delete **{0}** (`{1}`)? Its saved configuration will be permanently removed. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain. Runs already in flight will continue.",
+					"Delete **{0}** (`{1}`)? This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone. Runs already in flight will continue.",
 					automation.name,
 					automation.id,
 				)),
