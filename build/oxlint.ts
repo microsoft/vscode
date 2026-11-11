@@ -11,10 +11,10 @@ import path from 'path';
 import { parseArgs } from 'util';
 import { getChangedFilesScope, getEslintScope, typeAwareLintFolders } from './lib/changedFiles.ts';
 
-// Runs oxlint with the rules of eslint.config.js (see oxlint.config.ts) and reports like `npm run eslint`, so the two
-// can be compared. oxlint runs JS plugin rules on one thread per process, so a large run is split into processes by
-// folder. The extensions that use rules with type information run in a separate process with `--type-aware`, so
-// that only that process builds TypeScript programs.
+// Runs oxlint with the rules of eslint.config.js (see oxlint.config.ts) and reports like `npm run eslint`, with
+// ESLint's rule names, which the editor and disable directives use. oxlint runs JS plugin rules on one thread per
+// process, so a large run is split into processes by folder. The extensions that use rules with type information run
+// in a separate process with `--type-aware`, so that only that process builds TypeScript programs.
 
 const root = path.dirname(import.meta.dirname);
 const oxlintBin = path.join(path.dirname(createRequire(import.meta.url).resolve('oxlint/package.json')), 'bin', 'oxlint');
@@ -174,7 +174,7 @@ async function runAll<T>(tasks: readonly (() => Promise<T>)[], concurrency: numb
 
 /**
  * Formats diagnostics like ESLint's compact formatter, with ESLint's rule names, so that the output of both linters
- * can be compared.
+ * reads the same and can be diffed.
  */
 export function formatCompact(diagnostics: readonly IOxlintDiagnostic[], cwd: string): string {
 	const lines = diagnostics.map(diagnostic => {

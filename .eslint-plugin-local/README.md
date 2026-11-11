@@ -112,7 +112,7 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 
 # Running the rules with oxlint
 
-[oxlint](https://oxc.rs/docs/guide/usage/linter.html) can run the same rules as ESLint, to compare the two: `pnpm run oxlint` takes the same arguments as `pnpm run eslint` (files, or `--changed-since <ref>`) and reports in the same format, with ESLint's rule names. The `oxlint (comparison)` step of pull request CI runs it next to ESLint without failing the job.
+Pull request and product build CI run the rules with [oxlint](https://oxc.rs/docs/guide/usage/linter.html), which is faster than ESLint. ESLint still runs them in the editor and the pre-commit hook, and with `pnpm run eslint`. `pnpm run oxlint` takes the same arguments as `pnpm run eslint` (files, or `--changed-since <ref>`) and reports in the same format, with ESLint's rule names.
 
 There is one configuration: [oxlint.config.ts](../oxlint.config.ts) converts `eslint.config.js` when oxlint loads it (see `build/lib/oxlintConfig.ts`). oxlint implements ESLint's core rules and the `@typescript-eslint` rules natively, and loads the other plugins as JS plugins, which run on one thread per process; `build/oxlint.ts` therefore splits a full run into several processes by folder, and lints the extensions that use type information in a separate process with `--type-aware`.
 
