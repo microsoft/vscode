@@ -194,7 +194,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
 					} : {
 						result: 'success',
-						requests: managedShellApprovalRequired || isWindows ? [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }] : [],
+						requests: managedShellApprovalRequired ? [{ kind: 'shell', managedApprovalRequired: true }] : [],
 					}, phase);
 
 					if (managedShellApprovalRequired) {

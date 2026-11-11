@@ -977,6 +977,7 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
 			case 'disconnected':
 				switch (status.reason) {
 					case AgentHostTransportFailureReason.Unknown:
+					case AgentHostTransportFailureReason.AuthenticationFailed:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.Unknown };
 					case AgentHostTransportFailureReason.HostNotRunning:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.HostNotRunning };
@@ -7811,7 +7812,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
-		this._setSessionArchived(sessionId, true);
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection) {
+			throw new Error(localize('sessionArchiveUnavailable', "Connect to this session's host to mark it as done."));
+		}
+		const subscription = connection.getSubscription(StateComponents.Session, cached.backendUri, 'archiveSession');
+		try {
+			const result = await connection.dispatchConfirmed(cached.backendUri.toString(), subscription.object, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, CancellationToken.None);
+			if (result.rejectionReason) {
+				throw new Error(result.rejectionReason);
+			}
+			this._setSessionArchivedLocally(sessionId, true);
+		} finally {
+			subscription.dispose();
+		}
 	}
 
 	async importSession(sessionId: string): Promise<void> {
@@ -8030,6 +8047,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	get supportsForceWorktreeCleanup(): boolean {
 		return supportsForceWorktreeCleanup(this.connection?.initializeResult.get());
+	}
+
+	async prepareSessionWorktreeCleanup(sessionId: string): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!session || !connection?.prepareSessionWorktreeCleanup) {
+			throw new Error(localize('worktreeCleanupPreparationUnavailable', "Connect to an updated session host to prepare worktree cleanup."));
+		}
+		await connection.prepareSessionWorktreeCleanup(session.backendUri);
 	}
 
 	async sessionWorktreeCleanup(sessionId: string, retry: boolean, force?: boolean) {

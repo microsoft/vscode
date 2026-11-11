@@ -3151,7 +3151,7 @@ suite('SessionServerTools', () => {
 		const md = (content: string): ResponsePart => ({ kind: ResponsePartKind.Markdown, id: 'm', content });
 		const toolPart = (tc: ToolCallState): ResponsePart => ({ kind: ResponsePartKind.ToolCall, toolCall: tc });
 		const turn = (id: string, user: string, parts: ResponsePart[], state = TurnState.Complete): Turn =>
-			({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
+		({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
 
 		const snapshot: IChatContextSnapshot = {
 			turns: [
@@ -3357,7 +3357,7 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {
+		test('execute distinguishes an unavailable transcript from an empty conversation', async () => {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
@@ -3366,8 +3366,10 @@ suite('SessionServerTools', () => {
 			assert.strictEqual(live.transcript.length, 2);
 
 			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
-			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
-				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
+			await assert.rejects(async () => cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }), /requested chat transcript is unavailable/);
+			const empty = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => ({ turns: [], pendingMessages: [], hasMoreHistory: false }) }));
+			assert.deepStrictEqual(JSON.parse(await empty.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
+				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], messagesSentByMe: [], hasMoreHistory: false, truncated: false,
 			});
 			store.dispose();
 		});

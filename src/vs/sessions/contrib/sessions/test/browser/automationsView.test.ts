@@ -479,6 +479,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	}
 	sessionExists = true;
 	private firstSessionCataloged = true;
+	onGetSessions: (() => void) | undefined;
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly isArchived = observableValue<boolean>(this, false);
@@ -571,6 +572,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	readonly markAllReadCompleted = new DeferredPromise<void>();
 
 	override getSessions(): ISession[] {
+		this.onGetSessions?.();
 		if (!this.sessionExists) {
 			return [];
 		}
@@ -1127,7 +1129,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			initial, resolved: sessionsManagementService.resolved, becameOpenable,
 			removed: !cloudRow.classList.contains('can-open') && !cloudRow.querySelector('.session-main')!.hasAttribute('tabindex'),
-		}, { initial: [{ highlightable: false, role: null }, { highlightable: false, role: null }], resolved: [], becameOpenable: true, removed: true });
+		}, { initial: [{ highlightable: false, role: null }], resolved: [], becameOpenable: true, removed: true });
 	});
 
 	test('cloud fallback toolbar actions do not also open the session', async () => {
@@ -1852,36 +1854,92 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(automationDialogService.lastOptions?.existing?.enabled, false);
 	});
 
-	test('preserves a temporary Working row until its session resolves', () => {
-		const { automationService, widget } = setup();
+	test('keeps a local run on its card until the session resolves without reviving after deletion', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		const pendingRun = run({ status: 'pending', sessionResource: undefined });
 		automationService.setRuns([pendingRun]);
-		const temporaryRow = widget.element.querySelector('.automations-temporary-run');
-		const spinner = widget.element.querySelector('.automations-temporary-run .session-icon .monaco-pixel-spinner');
+		const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+		const runButton = card.querySelector<HTMLElement>('.automations-card-run-button')!;
+		const pending = {
+			historyRows: widget.element.querySelectorAll('.automations-history-group-runs .session-item').length,
+			prompt: card.querySelector('.automations-card-prompt')?.textContent,
+			buttonDisabled: runButton.getAttribute('aria-disabled'),
+			buttonLabel: runButton.getAttribute('aria-label'),
+			cardLabel: card.getAttribute('aria-label'),
+		};
 
 		automationService.setRuns([{ ...pendingRun, status: 'running' }]);
-		const runningRow = widget.element.querySelector('.automations-temporary-run');
-		const runningSpinner = widget.element.querySelector('.automations-temporary-run .session-icon .monaco-pixel-spinner');
+		const running = {
+			historyRows: widget.element.querySelectorAll('.automations-history-group-runs .session-item').length,
+			cardLabel: card.getAttribute('aria-label'),
+		};
 
 		automationService.setRuns([{ ...pendingRun, status: 'running', sessionResource: SESSION_RESOURCE }]);
+		const resolved = {
+			historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			prompt: card.querySelector('.automations-card-prompt')?.textContent,
+			buttonDisabled: runButton.getAttribute('aria-disabled'),
+			buttonLabel: runButton.getAttribute('aria-label'),
+			cardLabel: card.getAttribute('aria-label'),
+		};
+		const completedRun = { ...pendingRun, status: 'completed' as const, sessionResource: SESSION_RESOURCE };
+		automationService.setRuns([completedRun]);
+		await sessionsManagementService.deleteSession(sessionsManagementService.session);
+		const deleted = {
+			historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			prompt: card.querySelector('.automations-card-prompt')?.textContent,
+			buttonDisabled: runButton.getAttribute('aria-disabled'),
+			buttonLabel: runButton.getAttribute('aria-label'),
+			cardLabel: card.getAttribute('aria-label'),
+		};
+		automationService.setRuns([{ ...completedRun, sessionResource: undefined }]);
 
 		assert.deepStrictEqual({
-			title: temporaryRow?.querySelector('.session-title')?.textContent,
-			status: temporaryRow?.querySelector('.session-description')?.textContent,
-			rowPreserved: runningRow === temporaryRow,
-			spinnerPreserved: runningSpinner === spinner,
-			spinnerUsesSharedIconSlot: spinner?.parentElement?.classList.contains('session-icon'),
-			temporaryRowsAfterCommit: widget.element.querySelectorAll('.automations-temporary-run').length,
-			sessionRowsAfterCommit: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			pending,
+			running,
+			resolved,
+			deleted,
+			sessionlessCompleted: {
+				historyRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+				prompt: card.querySelector('.automations-card-prompt')?.textContent,
+				buttonDisabled: runButton.getAttribute('aria-disabled'),
+				buttonLabel: runButton.getAttribute('aria-label'),
+				cardLabel: card.getAttribute('aria-label'),
+			},
 		}, {
-			title: 'Daily review',
-			status: 'Working...',
-			rowPreserved: true,
-			spinnerPreserved: true,
-			spinnerUsesSharedIconSlot: true,
-			temporaryRowsAfterCommit: 0,
-			sessionRowsAfterCommit: 1,
+			pending: {
+				historyRows: 0,
+				prompt: 'Starting run...',
+				buttonDisabled: 'true',
+				buttonLabel: 'Running',
+				cardLabel: 'Daily review — Running',
+			},
+			running: {
+				historyRows: 0,
+				cardLabel: 'Daily review — Running',
+			},
+			resolved: {
+				historyRows: 1,
+				prompt: automation().prompt,
+				buttonDisabled: 'false',
+				buttonLabel: 'Run now',
+				cardLabel: 'Daily review — Hourly',
+			},
+			deleted: {
+				historyRows: 0,
+				prompt: automation().prompt,
+				buttonDisabled: 'false',
+				buttonLabel: 'Run now',
+				cardLabel: 'Daily review — Hourly',
+			},
+			sessionlessCompleted: {
+				historyRows: 0,
+				prompt: automation().prompt,
+				buttonDisabled: 'false',
+				buttonLabel: 'Run now',
+				cardLabel: 'Daily review — Hourly',
+			},
 		});
 	});
 
@@ -1898,7 +1956,7 @@ suite('AutomationsCardsWidget', () => {
 			row.querySelector('.monaco-highlighted-label')?.textContent ?? row.querySelector('.session-title')?.textContent);
 		automationService.setRuns([local, cloud]);
 		const pending = titles();
-		const cloudRow = [...widget.element.querySelectorAll('.automations-temporary-run')][1];
+		const cloudRow = widget.element.querySelector('.automations-temporary-run')!;
 		const cloudAction = cloudRow.querySelector<HTMLElement>('[aria-label="Open on GitHub"]')!;
 		cloudAction.focus();
 		automationService.setRuns([{ ...local, status: 'running', sessionResource: SESSION_RESOURCE }, cloud]);
@@ -1909,7 +1967,7 @@ suite('AutomationsCardsWidget', () => {
 			pending, running, completed: titles(), cloudFocusPreserved,
 			cloudRowPreserved: widget.element.querySelector('.automations-temporary-run') === cloudRow,
 		}, {
-			pending: ['Daily review', 'Cloud review'], running: ['Daily review', 'Cloud review'],
+			pending: ['Cloud review'], running: ['Daily review', 'Cloud review'],
 			completed: ['Daily review', 'Cloud review'], cloudFocusPreserved: true, cloudRowPreserved: true,
 		});
 	});
@@ -1939,7 +1997,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('keeps a temporary row until a terminal run enters the committed session catalog', () => {
+	test('waits for the committed session catalog before showing local history', () => {
 		const { automationService, sessionsManagementService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		sessionsManagementService.setFirstSessionCataloged(false);
@@ -1951,15 +2009,25 @@ suite('AutomationsCardsWidget', () => {
 			temporaryRows: widget.element.querySelectorAll('.automations-temporary-run').length,
 			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 		};
+		let transition: { cardLabel: string | null | undefined; sessionRows: number } | undefined;
+		sessionsManagementService.onGetSessions = () => transition ??= {
+			cardLabel: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+		};
 		sessionsManagementService.setFirstSessionCataloged(true);
 
 		assert.deepStrictEqual({
 			beforeCatalogCommit,
+			transition,
 			temporaryRowsAfterCommit: widget.element.querySelectorAll('.automations-temporary-run').length,
 			sessionRowsAfterCommit: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 		}, {
 			beforeCatalogCommit: {
-				temporaryRows: 1,
+				temporaryRows: 0,
+				sessionRows: 0,
+			},
+			transition: {
+				cardLabel: 'Daily review — Running',
 				sessionRows: 0,
 			},
 			temporaryRowsAfterCommit: 0,
@@ -2062,12 +2130,13 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
 	});
 
-	test('run feedback survives acknowledgement and refresh until a new run appears', async () => {
+	test('run feedback survives acknowledgement and refresh until the new run session appears', async () => {
 		const clock = useFakeTimers();
 		disposables.add(toDisposable(() => clock.restore()));
 		const { automationService, runner, widget } = setup();
 		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ sessionResource: undefined })]);
+		const previousRun = run({ status: 'failed', sessionResource: undefined });
+		automationService.setRuns([previousRun]);
 		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
 		runner.whenDispatched = dispatched.p;
 		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
@@ -2091,14 +2160,18 @@ suite('AutomationsCardsWidget', () => {
 		await dispatched.complete({ kind: 'accepted' });
 		await clock.tickAsync(10_000);
 		automationService.setAutomations([automation({ prompt: 'Updated prompt' })]);
-		automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'unrelated', automationId: 'other', sessionResource: undefined })]);
+		automationService.setRuns([previousRun, run({ id: 'unrelated', automationId: 'other', sessionResource: undefined })]);
 		runButton.click();
 		const accepted = state();
-		automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'new-run', status: 'pending', sessionResource: undefined })]);
-		assert.deepStrictEqual({ starting, accepted, restored: state(), requests: runner.runCalls }, {
+		automationService.setRuns([previousRun, run({ id: 'new-run', status: 'pending', sessionResource: undefined })]);
+		const pending = state();
+		automationService.setRuns([previousRun, run({ id: 'new-run', status: 'running', sessionResource: SESSION_RESOURCE })]);
+		assert.deepStrictEqual({ starting, accepted, pending, restored: state(), cardLabel: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'), requests: runner.runCalls }, {
 			starting: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
 			accepted: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
+			pending: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
 			restored: { disabled: 'false', label: 'Run now', spinner: false, prompt: 'Updated prompt' },
+			cardLabel: 'Daily review — Hourly',
 			requests: 1,
 		});
 		widget.dispose();
@@ -2154,10 +2227,13 @@ suite('AutomationsCardsWidget', () => {
 		await timeout(0);
 		const accepted = readState();
 		automationService.setRuns([run({ sessionResource: undefined, status: 'pending' })]);
-		assert.deepStrictEqual({ starting, accepted, discovered: readState() }, {
+		const discovered = readState();
+		automationService.setRuns([run({ sessionResource: undefined, status: 'failed' })]);
+		assert.deepStrictEqual({ starting, accepted, discovered, failed: readState() }, {
 			starting: { prompt: 'Starting run...', spinner: true, disabled: 'true' },
 			accepted: { prompt: 'Starting run...', spinner: true, disabled: 'true' },
-			discovered: { prompt: automation().prompt, spinner: false, disabled: 'false' },
+			discovered: { prompt: 'Starting run...', spinner: true, disabled: 'true' },
+			failed: { prompt: automation().prompt, spinner: false, disabled: 'false' },
 		});
 	});
 
@@ -4731,6 +4807,74 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),
 			true,
 		);
+	});
+
+	test('accessible view reports unresolved local startup on the card without a history row', () => {
+		const { automationService, sessionsManagementService, instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
+		if (!accessibleView) {
+			throw new Error('Expected the sessions automations accessible view');
+		}
+		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+		if (!accessibleProvider) {
+			throw new Error('Expected the sessions automations accessible view provider');
+		}
+		disposables.add(accessibleProvider);
+		automationService.setAutomations([
+			automation(),
+			automation({ id: 'disabled', name: 'Disabled review', enabled: false }),
+		]);
+		automationService.setRuns([
+			run({ status: 'pending', sessionResource: undefined }),
+			run({ id: 'disabled-run', automationId: 'disabled', status: 'pending', sessionResource: undefined }),
+		]);
+		let sessionCatalogReads = 0;
+		sessionsManagementService.onGetSessions = () => sessionCatalogReads++;
+
+		const content = accessibleProvider.provideContent();
+
+		assert.deepStrictEqual({
+			enabledCardRunning: content.includes('Daily review, enabled, Running'),
+			disabledCardRunning: content.includes('Disabled review, disabled, Running'),
+			historyRun: content.includes('Daily review, Pending, started'),
+			sessionCatalogReads,
+		}, {
+			enabledCardRunning: true,
+			disabledCardRunning: true,
+			historyRun: false,
+			sessionCatalogReads: 1,
+		});
+	});
+
+	test('accessible view preserves retained history while its completed session is not cataloged', () => {
+		const { automationService, sessionsManagementService, instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
+		if (!accessibleView) {
+			throw new Error('Expected the sessions automations accessible view');
+		}
+		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+		if (!accessibleProvider) {
+			throw new Error('Expected the sessions automations accessible view provider');
+		}
+		disposables.add(accessibleProvider);
+		automationService.historyStates.set('automation-1', 'retained');
+		automationService.setAutomations([]);
+		automationService.setRuns([run({ status: 'completed', sessionResource: SESSION_RESOURCE })]);
+		sessionsManagementService.setFirstSessionCataloged(false);
+
+		const content = accessibleProvider.provideContent();
+
+		assert.deepStrictEqual({
+			owner: content.includes('Daily review, Completed, started'),
+			guidance: content.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
+		}, {
+			owner: true,
+			guidance: true,
+		});
 	});
 
 	test('accessible local progress clears stale descriptions only while active', () => {

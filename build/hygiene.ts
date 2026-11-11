@@ -13,7 +13,7 @@ import VinylFile from 'vinyl';
 import vfs from 'vinyl-fs';
 import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.ts';
 import eslint from './gulp-eslint.ts';
-import * as formatter from './lib/formatter.ts';
+import { Formatter } from './lib/formatter.ts';
 import gulpstylelint from './stylelint.ts';
 
 const copyrightHeaderLines = [
@@ -173,20 +173,22 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const formatting = es.map(function (file: any, cb) {
-		try {
-			const rawInput = file.contents!.toString('utf8');
-			if (!formatter.verifyFormatting(file.path, rawInput)) {
-				console.error(
-					`File not formatted. Run the 'Format Document' command to fix it:`,
-					file.relative
-				);
-				errorCount++;
-			}
-			cb(undefined, file);
-		} catch (err) {
-			cb(err);
-		}
+	// Started for the first file that the formatting check covers.
+	let formatter: Promise<Formatter> | undefined;
+	const formatting = es.map(function (file: VinylFile, cb) {
+		formatter ??= Formatter.start();
+		formatter
+			.then(f => f.verifyFormatting(file.path, file.contents!.toString('utf8')))
+			.then(formatted => {
+				if (!formatted) {
+					console.error(
+						`File not formatted. Run the 'Format Document' command to fix it:`,
+						file.relative
+					);
+					errorCount++;
+				}
+				cb(undefined, file);
+			}, err => cb(err));
 	});
 
 	let input: NodeJS.ReadWriteStream;
@@ -268,7 +270,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 				}
 				this.emit('data', data);
 			},
-			function () {
+			async function () {
+				await formatter?.then(f => f.dispose(), () => undefined);
 				process.stdout.write('\n');
 				console.log(`Hygiene checked ${checkedFiles.size} file${checkedFiles.size === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
 				if (requestedPaths && checkedFiles.size === 0) {

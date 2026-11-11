@@ -82,6 +82,7 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
 
 const connectionDetails = {
+	suspendCount: 0, suspendedMs: 0,
 	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
 	taskCreationPath: 'unknown', reservationWaitMs: 0,
 	preparationMs: 0, connectionMs: 0,
@@ -345,6 +346,12 @@ suite('CloudSandboxAgentHostService', () => {
 		assert.ok(options.resolveInitialAuthentication && options.sealAuthenticationToken);
 		const identity = await options.resolveInitialAuthentication();
 		assert.ok(identity);
+		const unavailable = new Error('network unavailable');
+		fixture.setIdentityResult(async () => { throw unavailable; });
+		await assert.rejects(options.resolveInitialAuthentication(), error => error === unavailable);
+		fixture.setIdentityResult(async () => { throw new CloudSandboxRequestError(401, 'sign in required'); });
+		await assert.rejects(options.resolveInitialAuthentication(), InitialAuthenticationError);
+		fixture.setIdentityResult(async () => ({ token: 'identity-only-token' }));
 		const token = await options.sealAuthenticationToken({ ...identity, key, challenge: 'a'.repeat(32) });
 		fixture.setEnvironmentKeys([key]);
 		await assert.rejects(options.sealAuthenticationToken({ ...identity, key: { ...key, public_key: 'substituted' } }), /does not match/);
@@ -355,7 +362,10 @@ suite('CloudSandboxAgentHostService', () => {
 		}, {
 			identity: { resource: 'https://api.github.com', token: 'identity-only-token' },
 			renewed: { resource: 'https://api.github.com', token: 'identity-only-token' },
-			sealed: true, identityRequests: [{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: true }],
+			sealed: true, identityRequests: [
+				{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: false },
+				{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: true },
+			],
 			controlPlaneRequests: 1, environmentReads: 1,
 		});
 	});

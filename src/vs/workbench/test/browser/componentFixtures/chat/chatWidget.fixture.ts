@@ -19,7 +19,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
+import { ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo, IChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
@@ -81,6 +81,7 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly parts?: IParsedChatRequest['parts'];
 	readonly variables?: readonly IChatRequestVariableEntry[];
 	readonly timestamp?: number;
 	readonly modeInfo?: IChatRequestModeInfo;
@@ -445,7 +446,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	for (const message of options.messages) {
 		const request = model.addRequest(
-			makeUserMessage(message.user),
+			message.parts ? { text: message.user, parts: message.parts } : makeUserMessage(message.user),
 			{ variables: message.variables ?? [] },
 			0,
 			message.modeInfo,
@@ -2529,10 +2530,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
-/**
- * A request whose pasted image and file are shown as pills inline with its
- * text, see `chat.inlineAttachments.enabled`, optionally in a custom chat font.
- */
+/** A request with image, slash-command, and file pills, optionally in a custom chat font. */
 async function renderInlineAttachmentPills(context: ComponentFixtureContext, chatFont?: IChatWidgetFixtureOptions['chatFont']): Promise<void> {
 	const canvas = dom.$<HTMLCanvasElement>('canvas');
 	canvas.width = 48;
@@ -2548,15 +2546,21 @@ async function renderInlineAttachmentPills(context: ComponentFixtureContext, cha
 	canvasContext.fillRect(6, 14, 36, 4);
 	canvasContext.fillRect(6, 22, 18, 4);
 	const imageBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
+	const text = 'Pasted Image /explain #file:index.ts';
 
 	await renderChatWidget(context, {
 		messages: [{
-			user: 'Why does #file:index.ts look different from Pasted Image?',
+			user: text,
+			parts: [
+				new ChatRequestTextPart(new OffsetRange(0, 13), new Range(1, 1, 1, 14), text.slice(0, 13)),
+				new ChatRequestSlashPromptPart(new OffsetRange(13, 21), new Range(1, 14, 1, 22), 'explain'),
+				new ChatRequestTextPart(new OffsetRange(21, text.length), new Range(1, 22, 1, text.length + 1), text.slice(21)),
+			],
 			variables: [
 				{ kind: 'file', id: 'file:///repo/src/index.ts', name: 'index.ts', value: URI.file('/repo/src/index.ts') },
 				{ kind: 'image', id: 'pasted-image', name: 'Pasted Image', value: imageBytes, mimeType: 'image/png', isPasted: true },
 			],
-			assistant: [{ kind: 'markdown', text: 'Both pills should center their label vertically.' }],
+			assistant: [{ kind: 'markdown', text: 'Attachment pills and slash commands should share a vertical center.' }],
 		}],
 		height: 200,
 		listHeight: 200,

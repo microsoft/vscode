@@ -13,6 +13,7 @@ import { reportAgentHostProcessError } from '../../platform/agentHost/common/age
 import type { IAgentHostProcessExitEvent } from '../../platform/agentHost/common/agentHostProcessExit.js';
 import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostIpcChannels, IAgentService, IAgentHostManagementService, IMissionControlOptions } from '../../platform/agentHost/common/agentService.js';
+import { reviveConnectionDiagnosticError } from '../../platform/agentHost/common/connectionDiagnostics.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService } from '../../platform/log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../platform/log/common/logIpc.js';
@@ -209,7 +210,10 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			await this._trackClientConnections(connection);
 			if (this._options.githubEnvironment) {
 				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
-				await management.configureMissionControl(this._options.githubEnvironment);
+				const result = await management.configureMissionControl(this._options.githubEnvironment);
+				if (result) {
+					throw reviveConnectionDiagnosticError(result.error);
+				}
 				const environmentId = await management.getMissionControlEnvironmentId();
 				if (!environmentId) {
 					throw new Error('GitHub environment registration did not return an environment ID');

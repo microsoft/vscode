@@ -13,13 +13,14 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.30-preview.0",
+    "@github/copilot-sdk": "1.0.32-preview.0",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
+    "@vscode/diff": "0.0.2-128",
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -64,5 +65,5 @@
     "yazl": "^2.4.3",
     "zod": "^4.4.3"
   },
-  "copilotRuntimeVersion": "1.0.108-0"
+  "copilotRuntimeVersion": "1.0.110-0"
 }
