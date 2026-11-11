@@ -17,6 +17,7 @@ import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../.
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
+import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
@@ -29,7 +30,7 @@ suite('FolderLocationStatusBarContribution', () => {
 	const alternate = URI.file('/work/project-alt');
 	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
 
-	function createFixture() {
+	function createFixture(shown = { value: false }) {
 		const entries: IStatusbarEntry[] = [];
 		const added: { alignment: unknown; priority: unknown }[] = [];
 		let visible = false;
@@ -52,7 +53,8 @@ suite('FolderLocationStatusBarContribution', () => {
 				}
 			} as unknown as IStatusbarService,
 			{ mainContainer: { ownerDocument: mainWindow.document } } as unknown as ILayoutService,
-			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService
+			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
+			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService
 		));
 
 		return {
@@ -123,6 +125,56 @@ suite('FolderLocationStatusBarContribution', () => {
 
 		fixture.returnToPrimary();
 		assert.strictEqual(signal(), false);
+	});
+
+	suite('introduction observation', () => {
+
+		function setup(shown: { value: boolean }) {
+			const fixture = createFixture(shown);
+			const trigger = onboardingScenarioRegistry.getScenario('workbench.folderLocation.introduction')!.trigger;
+			const signal = () => trigger.kind === 'observable' && trigger.signal.get();
+			const element = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			element.id = 'status.workspace.folderLocation';
+			element.style.cssText = 'width: 10px; height: 10px; display: block';
+			ds.add({ dispose: () => element.remove() });
+			const frames = async (count: number) => {
+				for (let i = 0; i < count; i++) {
+					await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				}
+			};
+			return { fixture, signal, element, frames };
+		}
+
+		test('no observer when the introduction was already shown', async () => {
+			const { fixture, signal, frames } = setup({ value: true });
+			fixture.switchTo();
+			await frames(5);
+			assert.strictEqual(signal(), false);
+		});
+
+		test('observation ends once the introduction is ready', async () => {
+			const { fixture, signal, element, frames } = setup({ value: false });
+			fixture.switchTo();
+			await frames(5);
+			assert.strictEqual(signal(), true);
+
+			element.style.display = 'none';
+			element.style.width = '20px';
+			await frames(5);
+			assert.strictEqual(signal(), true);
+		});
+
+		test('no observer when switching again after it was shown', async () => {
+			const shown = { value: false };
+			const { fixture, signal, frames } = setup(shown);
+			fixture.switchTo();
+			await frames(5);
+			shown.value = true;
+			fixture.returnToPrimary();
+			fixture.switchTo();
+			await frames(5);
+			assert.strictEqual(signal(), false);
+		});
 	});
 
 	test('return command switches back to the primary location', async () => {
