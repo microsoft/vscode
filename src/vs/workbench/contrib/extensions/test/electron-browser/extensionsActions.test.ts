@@ -77,7 +77,6 @@ import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelega
 import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionsInput } from '../../common/extensionsInput.js';
 
@@ -309,70 +308,6 @@ suite('ExtensionsActions', () => {
 				installsAfterCancel: 0,
 				installs: 3
 			});
-		});
-
-		test(`legacy install restrictions hide ${installPreReleaseVersion ? 'pre-release' : 'release'} installation and reject stale actions`, async () => {
-			let prompts = 0;
-			let installs = 0;
-			instantiationService.stub(IDialogService, {
-				prompt: async () => { prompts++; return { result: undefined }; }
-			});
-			instantiationService.stub(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'install', async () => { installs++; });
-			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion }));
-			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { hasPreReleaseVersion: true }), undefined);
-			const initiallyEnabled = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
-			action.extension = extension;
-			await initiallyEnabled;
-			extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { [extension.identifier.id]: { disallowInstall: true } } });
-			const hidden = Event.toPromise(Event.filter(action.onDidChange, e => e.hidden === true));
-			action.update();
-			await hidden;
-			await action.run();
-			assert.deepStrictEqual({ hidden: action.hidden, enabled: action.enabled, prompts, installs }, {
-				hidden: true,
-				enabled: false,
-				prompts: 0,
-				installs: 0
-			});
-		});
-	}
-
-	for (const confirmation of ['signature', 'deprecation']) {
-		test(`legacy install restrictions prevent installation after pending ${confirmation} confirmation`, async () => {
-			await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
-			const prompted = new DeferredPromise<void>();
-			const accepted = new DeferredPromise<void>();
-			let prompts = 0;
-			let installs = 0;
-			instantiationService.stub(IExtensionGalleryManifestService, {
-				getExtensionGalleryManifest: async () => ({
-					version: '1.0.0', resources: [],
-					capabilities: { extensionQuery: {}, signing: { allPublicRepositorySigned: true } }
-				})
-			});
-			instantiationService.stub(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'install', async () => { installs++; });
-			instantiationService.stubPromise(IExtensionsWorkbenchService, 'open', undefined);
-			instantiationService.stub(IDialogService, {
-				prompt: async <T>(prompt: IPrompt<T>) => {
-					if (++prompts === 1) {
-						await prompted.complete();
-					}
-					await accepted.p;
-					return { result: await prompt.buttons![0].run({}) };
-				}
-			});
-			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
-			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { isSigned: confirmation !== 'signature' }), undefined);
-			if (confirmation === 'deprecation') {
-				extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { [extension.identifier.id]: {} } });
-			}
-			action.extension = extension;
-			const running = action.run();
-			await prompted.p;
-			extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { [extension.identifier.id]: { disallowInstall: true } } });
-			await accepted.complete();
-			await running;
-			assert.deepStrictEqual({ prompts, installs }, { prompts: 1, installs: 0 });
 		});
 	}
 
@@ -2065,46 +2000,50 @@ suite('RemoteInstallAction', () => {
 
 	setup(() => setupTest(disposables));
 
-	for (const { name, properties, enabled } of [
-		{ name: 'blocked', properties: { blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension } }, enabled: false },
-		{ name: 'legacy restricted', properties: {}, enabled: false },
-		{ name: 'Marketplace deprecated', properties: { deprecationInfo: { source: 'marketplace' } }, enabled: true }
-	]) {
-		test(`Test remote install action is ${enabled ? 'enabled' : 'disabled'} for ${name} extensions`, async () => {
-			await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
-			const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
-			const localExtensionManagementService = createExtensionManagementService([localWorkspaceExtension]);
-			if (name === 'legacy restricted') {
-				localExtensionManagementService.getExtensionsControlManifest = async () => ({
-					malicious: [], search: [], deprecated: { [localWorkspaceExtension.identifier.id]: { disallowInstall: true } }
-				});
-			}
-			const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService);
-			instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-			instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
-			const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
-			instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+	test('Test remote install action is disabled for blocked extensions', async () => {
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
+		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
+		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
+		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {
-				identifier: localWorkspaceExtension.identifier,
-				...properties
-			})));
-			const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
-			disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {
+			identifier: localWorkspaceExtension.identifier,
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }
+		})));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
-			const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
-			await workbenchService.queryGallery(CancellationToken.None);
-			testObject.extension = extensions[0];
+		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
+		await workbenchService.queryGallery(CancellationToken.None);
+		testObject.extension = extensions[0];
 
-			assert.strictEqual(testObject.enabled, enabled);
-			if (name === 'legacy restricted') {
-				let installs = 0;
-				instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'installInServer', async () => { installs++; });
-				await testObject.run();
-				assert.strictEqual(installs, 0);
-			}
-		});
-	}
+		assert.strictEqual(testObject.enabled, false);
+	});
+
+	test('Test remote install action is enabled for Marketplace deprecated extensions', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
+		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
+		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
+		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {
+			identifier: localWorkspaceExtension.identifier,
+			deprecationInfo: { source: 'marketplace' }
+		})));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+
+		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
+		await workbenchService.queryGallery(CancellationToken.None);
+		testObject.extension = extensions[0];
+
+		assert.strictEqual(testObject.enabled, true);
+	});
 
 	test('Test remote install action is enabled for local workspace extension', async () => {
 		// multi server setup

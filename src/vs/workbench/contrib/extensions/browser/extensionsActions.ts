@@ -503,9 +503,6 @@ export class InstallAction extends ExtensionAction {
 		if (this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
-		if (this.extension.deprecationInfo?.disallowInstall) {
-			return;
-		}
 		if (this.options.installPreReleaseVersion && (!this.extension.hasPreReleaseVersion || this.allowedExtensionsService.isAllowed({ id: this.extension.identifier.id, publisherDisplayName: this.extension.publisherDisplayName, prerelease: true }) !== true)) {
 			return;
 		}
@@ -521,7 +518,7 @@ export class InstallAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<any> {
-		if (!this.extension || this.extension.deprecationInfo?.disallowInstall) {
+		if (!this.extension) {
 			return;
 		}
 
@@ -543,7 +540,7 @@ export class InstallAction extends ExtensionAction {
 					run: () => false
 				}
 			});
-			if (!result || !this.extension || this.extension.deprecationInfo?.disallowInstall) {
+			if (!result) {
 				return;
 			}
 		}
@@ -614,10 +611,6 @@ export class InstallAction extends ExtensionAction {
 			if (result !== DeprecationChoice.InstallAnyway) {
 				return;
 			}
-		}
-
-		if (!this.extension || this.extension.deprecationInfo?.disallowInstall) {
-			return;
 		}
 
 		if (this.opensExtensionEditor) {
@@ -833,7 +826,6 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			!this.extension
 			|| !this.server
 			|| !this.extension.local
-			|| this.extension.deprecationInfo?.disallowInstall
 			|| !!this.extension.blockingInfo
 			|| this.extension.state !== ExtensionState.Installed
 			|| this.extension.type !== ExtensionType.User
@@ -877,7 +869,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<void> {
-		if (!this.extension?.local || this.extension.deprecationInfo?.disallowInstall) {
+		if (!this.extension?.local) {
 			return;
 		}
 		if (!this.extension?.server) {
