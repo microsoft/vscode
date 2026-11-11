@@ -50,7 +50,6 @@ export enum BrowserViewCommandId {
 	AddElementCommentToChat = `${commandPrefix}.addElementCommentToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
-	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
 	AddFullPageScreenshotToChat = `${commandPrefix}.addFullPageScreenshotToChat`,
 
 	// Dev Tools

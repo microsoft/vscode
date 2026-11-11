@@ -83,7 +83,6 @@ export class WebContentsViewHost extends Disposable {
 			get element() { return getPresentedContainer(); },
 			get covered() { return isCovered(); },
 			get url() { return getUrl(); },
-			capturesOnClick: true,
 			capture: () => this._capturePage(),
 		}));
 

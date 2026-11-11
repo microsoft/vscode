@@ -57,31 +57,34 @@ suite('Browser screenshot actions', () => {
 				return createPng(4, 2);
 			},
 		});
-		const editor = upcastPartial<BrowserEditor>({ onDidChangeModel: Event.None, model, window: mainWindow });
+		const browserContainer = $('div');
+		const editor = upcastPartial<BrowserEditor>({ onDidChangeModel: Event.None, model, window: mainWindow, browserContainer });
 		const feature = store.add(instantiationService.createInstance(BrowserEditorChatIntegration, editor));
-		return { feature, service, telemetry, attached, pageCaptures, warnings };
+		return { feature, service, telemetry, attached, pageCaptures, warnings, browserContainer };
 	}
 
-	test('each action attaches its capture right away, where it can be edited', async () => {
-		const { feature, service, telemetry, attached, pageCaptures } = create();
+	test('each action attaches its capture right away, where it can be edited, and the tool is limited to the page', async () => {
+		const { feature, service, telemetry, attached, pageCaptures, browserContainer } = create();
 		const page = { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 };
 		service.result = { kind: 'captured', mode: 'page', image: page, layerUrls: ['http://localhost:3000/'] };
 		await feature.addScreenshotToChat();
 		service.result = { kind: 'cancelled', mode: 'none' };
-		await feature.addAreaScreenshotToChat();
+		await feature.addScreenshotToChat();
 		await feature.addFullPageScreenshotToChat();
 		assert.deepStrictEqual({
 			pageCaptures,
 			attached: attached.map(entry => ({ name: entry.name, mimeType: entry.kind === 'image' ? entry.mimeType : undefined, editable: service.getEditableAttachment(entry)?.original.width })),
 			tool: service.requests,
+			limitedToPage: service.scopes.map(scope => scope === browserContainer),
 			captures: telemetry.captures,
 		}, {
 			pageCaptures: [{ fullPage: true, format: 'png' }],
 			attached: [{ name: 'Browser Screenshot', mimeType: 'image/jpeg', editable: 4 }, { name: 'Browser Full Page Screenshot', mimeType: 'image/png', editable: 4 }],
 			tool: ['capture', 'capture'],
+			limitedToPage: [true, true],
 			captures: [
 				{ entryPoint: 'browserScreenshot', outcome: 'attached', mode: 'page' },
-				{ entryPoint: 'browserAreaScreenshot', outcome: 'cancelled', mode: 'none' },
+				{ entryPoint: 'browserScreenshot', outcome: 'cancelled', mode: 'none' },
 				{ entryPoint: 'browserFullPageScreenshot', outcome: 'attached', mode: 'fullPage' },
 			],
 		});
@@ -91,7 +94,7 @@ suite('Browser screenshot actions', () => {
 		const { feature, service, attached, warnings } = create();
 		const capture = async (layerUrls: (string | undefined)[]) => {
 			service.result = { kind: 'captured', mode: 'area', image: { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 }, layerUrls };
-			await feature.addAreaScreenshotToChat();
+			await feature.addScreenshotToChat();
 			// The warning is cancelled, which attaches nothing.
 			return { warnings: warnings.splice(0).length, attached: attached.splice(0).length };
 		};

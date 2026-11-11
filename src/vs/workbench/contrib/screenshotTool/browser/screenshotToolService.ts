@@ -31,7 +31,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { ImageCarouselEditorInput } from '../../imageCarousel/browser/imageCarouselEditorInput.js';
 import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 import { getScreenshotSelectionHint, IScreenshotRect, ScreenshotSelection, ScreenshotSelectionOverlay } from './screenshotSelection.js';
-import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolActiveContext, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface, toImageCarouselMarkUp } from './screenshotTool.js';
+import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCaptureEvent, IScreenshotToolCaptureOptions, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolLayer, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolActiveContext, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface, toImageCarouselMarkUp } from './screenshotTool.js';
 
 /** How long the window gets to repaint without the overlay before it is captured. */
 const OVERLAY_REMOVAL_DELAY = 100;
@@ -149,25 +149,32 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async capture(targetWindow: CodeWindow, token = CancellationToken.None): Promise<ScreenshotToolResult> {
+	async capture(targetWindow: CodeWindow, token = CancellationToken.None, options?: IScreenshotToolCaptureOptions): Promise<ScreenshotToolResult> {
 		const session = this.startSession(targetWindow);
 		if (!session) {
 			return { kind: 'cancelled', mode: 'none' };
 		}
+		const scopeElement = options?.scope;
+		const scope = scopeElement && getVisibleRect(targetWindow, scopeElement);
 		let mode: ScreenshotToolMode = 'none';
 		try {
-			const selection = await this.select(targetWindow, session, token);
+			const selection = await this.select(targetWindow, session, token, scope);
 			if (!selection || token.isCancellationRequested) {
 				this.accessibilityService.status(localize('screenshotCancelled', "Screenshot cancelled."));
 				return { kind: 'cancelled', mode };
 			}
-			const page = selection.kind === 'click' ? this.getClickLayer(targetWindow, selection.x, selection.y) : undefined;
-			let capture = page && await this.capturePage(page.layer);
-			if (capture) {
+			let capture: Omit<ICapture, 'mode'> | undefined;
+			if (selection.kind === 'area') {
+				mode = 'area';
+				capture = await this.captureWindowArea(targetWindow, selection.rect, true);
+			} else if (scope) {
 				mode = 'page';
+				// A layer captures its content directly, unless other UI covers it, which the window capture shows as the user sees it.
+				const layer = [...this.layers].find(layer => layer.element === scopeElement && !layer.covered);
+				capture = (layer && await this.capturePage(layer)) ?? await this.captureWindowArea(targetWindow, scope, true);
 			} else {
-				mode = selection.kind === 'area' ? 'area' : 'window';
-				capture = await this.captureWindowArea(targetWindow, selection.kind === 'area' ? selection.rect : undefined, true);
+				mode = 'window';
+				capture = await this.captureWindowArea(targetWindow, undefined, true);
 			}
 			if (!capture) {
 				this.accessibilityService.alert(localize('screenshotFailed', "The screenshot could not be captured."));
@@ -374,18 +381,18 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return session;
 	}
 
-	private async select(targetWindow: CodeWindow, session: ISession, token: CancellationToken): Promise<ScreenshotSelection | undefined> {
+	private async select(targetWindow: CodeWindow, session: ISession, token: CancellationToken, scope: IScreenshotRect | undefined): Promise<ScreenshotSelection | undefined> {
 		const store = new DisposableStore();
 		try {
 			const overlay = store.add(new ScreenshotSelectionOverlay(this.layoutService.getContainer(targetWindow), {
-				getClickTarget: (x, y) => this.getClickLayer(targetWindow, x, y)?.rect,
+				scope,
 				shouldForwardKey: event => this.isAccessibilityHelpKey(event),
 			}));
 			store.add(token.onCancellationRequested(() => overlay.cancel()));
 			session.surface = overlay;
 			store.add(toDisposable(() => session.surface = undefined));
 			overlay.focus();
-			this.accessibilityService.status(this.getSelectionAnnouncement());
+			this.accessibilityService.status(this.getSelectionAnnouncement(!!scope));
 			return await overlay.selection;
 		} finally {
 			store.dispose();
@@ -397,8 +404,8 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return result.kind === ResultKind.KbFound && result.commandId === AccessibilityCommandId.OpenAccessibilityHelp;
 	}
 
-	private getSelectionAnnouncement(): string {
-		const message = localize('screenshotModeAnnouncement', "Screenshot mode. {0}", getScreenshotSelectionHint());
+	private getSelectionAnnouncement(scoped: boolean): string {
+		const message = localize('screenshotModeAnnouncement', "Screenshot mode. {0}", getScreenshotSelectionHint(scoped));
 		if (!this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.ScreenshotTool)) {
 			return message;
 		}
@@ -480,28 +487,24 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return { image: { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height }, layerUrls };
 	}
 
-	private getClickLayer(targetWindow: CodeWindow, x: number, y: number): ILayerBounds | undefined {
-		return this.getVisibleLayers(targetWindow).find(({ layer, rect }) => layer.capturesOnClick && !layer.covered && contains(rect, x, y));
-	}
-
 	private getVisibleLayers(targetWindow: CodeWindow): ILayerBounds[] {
 		const result: ILayerBounds[] = [];
 		for (const layer of this.layers) {
-			const element = layer.element;
-			if (!element?.isConnected || getWindow(element) !== targetWindow) {
-				continue;
-			}
-			const { left, top, width, height } = element.getBoundingClientRect();
-			if (width > 0 && height > 0) {
-				result.push({ layer, rect: { x: left, y: top, width, height } });
+			const rect = layer.element && getVisibleRect(targetWindow, layer.element);
+			if (rect) {
+				result.push({ layer, rect });
 			}
 		}
 		return result;
 	}
 }
 
-function contains(rect: IScreenshotRect, x: number, y: number): boolean {
-	return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+function getVisibleRect(targetWindow: CodeWindow, element: HTMLElement): IScreenshotRect | undefined {
+	if (!element.isConnected || getWindow(element) !== targetWindow) {
+		return undefined;
+	}
+	const { left, top, width, height } = element.getBoundingClientRect();
+	return width > 0 && height > 0 ? { x: left, y: top, width, height } : undefined;
 }
 
 function intersect(a: IScreenshotRect, b: IScreenshotRect): IScreenshotRect | undefined {

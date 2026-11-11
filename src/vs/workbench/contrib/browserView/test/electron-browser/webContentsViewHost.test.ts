@@ -236,11 +236,11 @@ suite('WebContentsViewHost', () => {
 		host.setVisible(false, true);
 
 		assert.deepStrictEqual({
-			beforeShown, shown, capturesOnClick: layers[0].capturesOnClick, covered: layers[0].covered, url: layers[0].url,
+			beforeShown, shown, covered: layers[0].covered, url: layers[0].url,
 			captured: captured && { data: captured.data.toString(), mimeType: captured.mimeType },
 			afterHidden: layers.map(layer => layer.element),
 		}, {
-			beforeShown: [undefined], shown: [true], capturesOnClick: true, covered: false, url: 'https://example.test',
+			beforeShown: [undefined], shown: [true], covered: false, url: 'https://example.test',
 			captured: { data: 'page', mimeType: 'image/jpeg' },
 			afterHidden: [undefined],
 		});

@@ -754,27 +754,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	// -- Screenshot ----------------------------------------------------
 
 	/**
-	 * Lets the user capture this page, another page, an area or the window with the screenshot tool, and attaches the
+	 * Lets the user capture this page, or drag to capture an area of it, with the screenshot tool, and attaches the
 	 * capture to chat.
 	 */
 	async addScreenshotToChat(): Promise<void> {
-		return this._captureWithScreenshotTool(ScreenshotToolEntryPoint.BrowserScreenshot);
-	}
-
-	/**
-	 * Like {@link addScreenshotToChat}, where a drag captures an area.
-	 */
-	async addAreaScreenshotToChat(): Promise<void> {
-		return this._captureWithScreenshotTool(ScreenshotToolEntryPoint.BrowserAreaScreenshot);
-	}
-
-	private async _captureWithScreenshotTool(entryPoint: ScreenshotToolEntryPoint): Promise<void> {
 		if (!this.editor.model) {
 			return;
 		}
 		const stopWatch = StopWatch.create(false);
-		const result = await this.screenshotToolService.capture(this.editor.window);
-		return this._attachScreenshotToolResult(entryPoint, result, stopWatch);
+		const result = await this.screenshotToolService.capture(this.editor.window, undefined, { scope: this.editor.browserContainer });
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, stopWatch);
 	}
 
 	/**
@@ -799,9 +788,8 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	}
 
 	/**
-	 * Attaches what the user captured with the screenshot tool, after confirming the risk of page
-	 * content. The capture can show other pages than the one that started it, such as another browser
-	 * in the window, so every page it shows is checked. The attached screenshot can be edited from chat.
+	 * Attaches what the user captured with the screenshot tool, after confirming the risk of the content of every page
+	 * that the capture shows. The attached screenshot can be edited from chat.
 	 */
 	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, stopWatch: StopWatch): Promise<void> {
 		let outcome: ScreenshotToolOutcome = result.kind === 'captured' ? 'failed' : result.kind;
@@ -1014,33 +1002,6 @@ class AddScreenshotToChatAction extends Action2 {
 	}
 }
 
-class AddAreaScreenshotToChatAction extends Action2 {
-	static readonly ID = BrowserViewCommandId.AddAreaScreenshotToChat;
-
-	constructor() {
-		super({
-			id: AddAreaScreenshotToChatAction.ID,
-			title: localize2('browser.addAreaScreenshotToChatAction', 'Add Area Screenshot to Chat'),
-			category: BrowserActionCategory,
-			icon: Codicon.screenFull,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
-			menu: {
-				id: MenuId.BrowserChatActionsMenu,
-				group: '3_screenshots',
-				order: 2,
-				when: ChatContextKeys.enabled
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addAreaScreenshotToChat();
-		}
-	}
-}
-
 class AddFullPageScreenshotToChatAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.AddFullPageScreenshotToChat;
 
@@ -1056,7 +1017,7 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
-				order: 3,
+				order: 2,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
 			}
 		});
@@ -1074,7 +1035,6 @@ registerAction2(AddElementCommentToChatAction);
 registerAction2(StopElementSelectionAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
-registerAction2(AddAreaScreenshotToChatAction);
 registerAction2(AddFullPageScreenshotToChatAction);
 
 // Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.

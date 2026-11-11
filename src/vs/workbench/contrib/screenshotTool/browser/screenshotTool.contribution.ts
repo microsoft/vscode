@@ -27,7 +27,8 @@ class ScreenshotToolAccessibilityHelp implements IAccessibleViewImplementation {
 			{ type: AccessibleViewType.Help },
 			() => [
 				localize('screenshotTool.accessibilityHelp.overview', "You are in the screenshot tool."),
-				localize('screenshotTool.accessibilityHelp.capture', "Press Enter to capture the whole window, or Escape to cancel. With a pointer, click to capture the window or a browser page, or drag to capture an area."),
+				localize('screenshotTool.accessibilityHelp.capture', "Press Enter to capture the whole window, or Escape to cancel. With a pointer, click to capture the window, or drag to capture an area."),
+				localize('screenshotTool.accessibilityHelp.page', "Started from the Integrated Browser, the screenshot tool only captures its page: press Enter or click the page to capture it, drag to capture an area of it, or click outside it to cancel."),
 				localize('screenshotTool.accessibilityHelp.attach', "The screenshot is attached right away. To mark up an attached screenshot, focus it and press Enter. In chat, this opens the Images Preview, where Mark Up starts the markup of an image in the input."),
 				localize('screenshotTool.accessibilityHelp.markUp', "While marking up, use Tab and Shift+Tab to move between the drawing tools, Undo, Redo, and Done. Select Done or press Escape to apply your changes."),
 			].join('\n'),

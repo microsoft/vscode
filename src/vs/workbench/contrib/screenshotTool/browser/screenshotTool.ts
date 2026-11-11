@@ -25,7 +25,6 @@ export const enum ScreenshotToolEntryPoint {
 	ChatAddContext = 'chatAddContext',
 	IssueReporter = 'issueReporter',
 	BrowserScreenshot = 'browserScreenshot',
-	BrowserAreaScreenshot = 'browserAreaScreenshot',
 	BrowserFullPageScreenshot = 'browserFullPageScreenshot',
 }
 
@@ -93,15 +92,21 @@ export interface IScreenshotToolLayer {
 	/**
 	 * Whether UI other than the screenshot tool's selection overlay, such as a dialog or the markup of a screenshot, covers
 	 * the native content. Window captures then show that UI over the content's placeholder, as the user sees them, rather
-	 * than the content, and a click there does not capture the content alone.
+	 * than the content.
 	 */
 	readonly covered: boolean;
 	/** The URL of the native content, such as a browser page's. */
 	readonly url: string | undefined;
-	/** Whether a click on the layer captures only its content. */
-	readonly capturesOnClick: boolean;
 	/** Captures what the layer shows, or resolves `undefined` when it shows nothing. */
 	capture(): Promise<{ readonly data: VSBuffer; readonly mimeType: string } | undefined>;
+}
+
+export interface IScreenshotToolCaptureOptions {
+	/**
+	 * Limits the capture to an element, such as the browser page that started it: a click on the element or Enter
+	 * captures what it shows, a drag captures an area of it, and a click elsewhere cancels.
+	 */
+	readonly scope?: HTMLElement;
 }
 
 export interface IScreenshotToolService {
@@ -116,8 +121,8 @@ export interface IScreenshotToolService {
 	 */
 	readonly isSupported: boolean;
 
-	/** Lets the user click to capture the window or a browser page, or drag to capture an area. */
-	capture(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
+	/** Lets the user click or press Enter to capture the window, or drag to capture an area, unless `options` limit it. */
+	capture(targetWindow: CodeWindow, token?: CancellationToken, options?: IScreenshotToolCaptureOptions): Promise<ScreenshotToolResult>;
 
 	/** Captures the whole window, including its layers, without letting the user select. */
 	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
