@@ -689,12 +689,24 @@ export class ChatWindowGrid extends Disposable {
 			const grid = this._grid.value;
 			grid?.layout(width, height);
 			// Squeezed where the window had too little room, such as as a part showed in a short one: they take the height the
-			// user gave them back as it grows, as far as the others leave room
+			// user gave them back as it grows, as far as the others leave room. Not mid-drag, which saves the height it ends at.
 			const given = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
-			if (given !== undefined && grid?.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < given) {
-				this._resizeTerminals(grid, given);
+			if (grid && given !== undefined && !this._resizing.get()) {
+				if (grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < given && this._isInColumn(grid, ChatWindowGridCell.Terminals)) {
+					this._resizeTerminals(grid, given);
+				}
+				// The height a hidden part restores them to was squeezed too, if the window had too little room when it hid
+				if (this._beforeHide?.terminalsHeight !== undefined && this._beforeHide.terminalsHeight < given) {
+					this._beforeHide.terminalsHeight = given;
+				}
 			}
 		}
+	}
+
+	/** Whether `cell` is in a column, so that its height is its own, not that of a row it is in. */
+	private _isInColumn(grid: PartGrid, cell: string): boolean {
+		const current = grid.serializeGrid();
+		return !!current && findLineOf(current.root, current.orientation, cell)?.orientation === Orientation.VERTICAL;
 	}
 
 	private _resizeTerminals(grid: PartGrid, height: number): void {

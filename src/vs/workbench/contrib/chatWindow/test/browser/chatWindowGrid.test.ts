@@ -1441,6 +1441,33 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ untouched: untouched === initial, dragged: height() }, { untouched: true, dragged: 250 });
 	});
 
+	test('the terminals that take their height back as the window grows while a part is hidden keep it as that part shows', () => {
+		const { mode, grid, position, open, userResize, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.layout(1000, 450);
+		const squeezed = height();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.layout(1000, 800);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ squeezed: squeezed < 400, shown: height() }, { squeezed: true, shown: 400 });
+	});
+
+	test('the terminals in a row above a part, as a user arranged them, do not squeeze that part to take their height back', () => {
+		const { grid, position, open, userResize } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Down });
+		grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { reference: ChatWindowGridCell.Chat, direction: Direction.Right });
+		grid.layout(1000, 450);
+		const main = grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height;
+
+		assert.deepStrictEqual({ mainAtItsMinimum: main <= 50 }, { mainAtItsMinimum: false });
+	});
+
 	test('a part hidden while the terminals open shows again at its share, beside the terminals at their height: the chat in Stacked, and the main part with the terminals under it', () => {
 		const roundTrip = (initial: ChatWindowLayoutMode, hiding: ChatWindowLayoutMode, position: ChatWindowTerminalPosition, cell: ChatWindowGridCell) => {
 			const { mode, position: terminalPosition, grid, open, height } = setupWithTerminals(initial);
