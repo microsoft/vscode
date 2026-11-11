@@ -20,7 +20,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
 import { GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatFolder, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -170,6 +170,8 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	});
 	/** Whether it is a new-session composer that has not sent its session yet. */
 	get isComposer(): boolean { return !!this._composer.get(); }
+	/** Whether it is a new-session composer whose closing loses nothing (see {@link ChatWindowComposerModel.isPristine}). */
+	get isPristineComposer(): boolean { return !!this._composer.get()?.isPristine(); }
 	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
 	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
 	/** The session the chat was last known in, so that its end is known while the session no longer lists it. */
@@ -538,25 +540,25 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 	/**
 	 * Opens a new-session composer as a tab of the window's active chat, in its group, or beside it, which starts its session
-	 * in the folder of the options, or else as the active chat's (see {@link getChatWindowComposerTarget}), and whose
-	 * sessions join the custom group of the sessions list the active chat's session is in. While the active chat is a
-	 * composer that has not sent its session, it shows that one instead, aimed at the folder of the options. The composer's
-	 * chat becomes its session's main chat once it sends it in the foreground.
+	 * in the folder of the options (see {@link _getFolderTarget}), or else as the active chat's (see
+	 * {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions list the active chat's
+	 * session is in. Without a folder, while the active chat is a composer that has not sent its session, it shows that one
+	 * instead; with a folder, it replaces that composer when closing it loses nothing. The composer's chat becomes its
+	 * session's main chat once it sends it in the foreground.
 	 */
 	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
 		const active = this.activeChat.get();
-		const folderTarget: INewSessionTarget | undefined = options?.folder && { folderUri: options.folder.uri, ...(options.folder.providerId ? { providerId: options.folder.providerId } : {}) };
-		if (active?.isComposer) {
-			if (folderTarget) {
-				active.composer.get()?.draftHost.setRequestedTarget?.(folderTarget, 'user');
-			}
+		if (active?.isComposer && !options?.folder) {
 			await this._chatWindowService.open(active.chat.get(), { window, preserveFocus: options?.preserveFocus });
 			return;
 		}
+		const replaced = options?.folder && active?.isPristineComposer ? active.chat.get() : undefined;
 		const session = active?.session.get();
 		const resource = createChatWindowComposerResource();
 		const init: IChatWindowComposerInit = {
-			target: folderTarget ?? getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
+			target: options?.folder
+				? this._getFolderTarget(options.folder)
+				: getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
 			groupId: session && this._sessionGroupsService.getGroupOfSession(session.sessionId),
 		};
 		this._pendingComposers.set(resource.toString(), this._composers.create(resource, init, this._openStartedSession(resource)));
@@ -567,6 +569,18 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			// Not taken by a chat, such as when the window went away meanwhile
 			this._pendingComposers.deleteAndDispose(resource.toString());
 		}
+		if (replaced && this.showsChat(resource)) {
+			await this.closeChat(replaced);
+		}
+	}
+
+	/**
+	 * What a composer opened for `folder` starts its session with: the folder, and the provider that resolved it with that
+	 * provider's first session type for the folder, as a new session in a folder of a provider starts in the main window.
+	 */
+	private _getFolderTarget(folder: IChatWindowNewChatFolder): INewSessionTarget {
+		const sessionTypeId = folder.providerId === undefined ? undefined : this._sessionsManagementService.getSessionTypesForFolder(folder.uri).find(type => type.providerId === folder.providerId)?.sessionType.id;
+		return { folderUri: folder.uri, ...(folder.providerId ? { providerId: folder.providerId } : {}), ...(sessionTypeId ? { sessionTypeId } : {}) };
 	}
 
 	/** Whether `chat` is one of its new-session composers that has not sent its session. */
