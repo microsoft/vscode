@@ -80,6 +80,41 @@ suite('SessionActionViewItem', () => {
 		return viewItem;
 	}
 
+	function createSessionArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions): SessionArchiveActionViewItem {
+		const action = new MenuItemAction(
+			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new class extends mock<IContextKeyService>() {
+				override contextMatchesRules(): boolean { return true; }
+			}(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand<R = unknown>(): Promise<R | undefined> {
+					await run();
+					return undefined;
+				}
+			}(),
+		);
+		const viewItem = disposables.add(new SessionArchiveActionViewItem(
+			action,
+			options,
+			new TestExperimentTriggerTelemetryService(),
+			new class extends mock<IKeybindingService>() { }(),
+			new TestNotificationService(),
+			new class extends mock<IContextKeyService>() { }(),
+			new TestThemeService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+		));
+		viewItem.actionRunner = disposables.add(new ActionRunner());
+		viewItem.element = dom.$('button');
+		return viewItem;
+	}
+
 	test('uses confetti for archive actions when enabled', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
@@ -157,7 +192,7 @@ suite('SessionActionViewItem', () => {
 		});
 	});
 
-	test('animates archive actions only after successful completion', async () => {
+	test('keeps post-action animations limited to successful completion', async () => {
 		const success = new DeferredPromise<void>();
 		const successfulViewItem = createArchiveActionViewItem(() => success.p);
 		const successfulClick = successfulViewItem.onClick(new MouseEvent('click'));
@@ -184,6 +219,26 @@ suite('SessionActionViewItem', () => {
 		});
 	});
 
+	test('starts archive animation before action completion', async () => {
+		const completion = new DeferredPromise<void>();
+		const configurationService = new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true });
+		const viewItem = createSessionArchiveActionViewItem(() => completion.p, getSessionArchiveActionViewItemOptions({}, configurationService));
+		const click = viewItem.onClick(new MouseEvent('click'));
+		const animationBeforeCompletion = document.body.querySelector('.animation-overlay');
+		await completion.error(new Error('Archive failed'));
+		await click;
+		const animationsAfterFailure = document.body.querySelectorAll('.animation-overlay');
+		animationBeforeCompletion?.remove();
+
+		assert.deepStrictEqual({
+			animationBeforeCompletion: !!animationBeforeCompletion,
+			animationCountAfterFailure: animationsAfterFailure.length,
+		}, {
+			animationBeforeCompletion: true,
+			animationCountAfterFailure: 1,
+		});
+	});
+
 	for (const confirmed of [false, true]) {
 		test(`checks animation eligibility against the original context after disposal (${confirmed})`, async () => {
 			const context = { confirmed };
@@ -205,16 +260,17 @@ suite('SessionActionViewItem', () => {
 		});
 	}
 
-	test('keeps confetti at the original button position when archiving disposes the view item', async () => {
+	test('starts confetti at the button position before archiving disposes the view item', async () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		const row = dom.append(workbench, dom.$('div'));
 		const completion = new DeferredPromise<void>();
-		const viewItem = createArchiveActionViewItem(() => {
+		const configurationService = new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true });
+		const viewItem = createSessionArchiveActionViewItem(() => {
 			viewItem.dispose();
 			row.remove();
 			return completion.p;
-		});
+		}, getSessionArchiveActionViewItemOptions({}, configurationService));
 		const button = viewItem.element!;
 		button.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
 		row.appendChild(button);
@@ -235,7 +291,7 @@ suite('SessionActionViewItem', () => {
 			particleOrigin: particle && [particle.style.left, particle.style.top],
 			inheritsWorkbenchTheme: overlay?.parentElement === workbench,
 		}, {
-			animationBeforeCompletion: null,
+			animationBeforeCompletion: overlay,
 			element: undefined,
 			buttonConnected: false,
 			bounds: ['120px', '80px', '48px', '24px'],
