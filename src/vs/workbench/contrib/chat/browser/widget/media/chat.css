@@ -596,7 +596,8 @@
 	pointer-events: auto;
 }
 
-.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+/* Not in session chats, which pad it themselves, whatever window shows them. */
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container:where(:not(.sessions-chat *)) {
 	box-sizing: border-box;
 	padding-inline-end: var(--vscode-spacing-size160);
 }

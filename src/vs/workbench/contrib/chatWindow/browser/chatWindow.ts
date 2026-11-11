@@ -158,6 +158,15 @@ export interface IChatWindowChrome {
  */
 export const CHAT_PART_OPTIONS = { tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 } satisfies Partial<IEditorPartOptions>;
 
+/**
+ * The options of the main part of a chat window: its tabs follow `workbench.editor.showTabs`, live, as the main window's
+ * editor area does; `none` shows as `single`, so that the part keeps its title with its actions. Double-clicking a tab
+ * does not maximize or expand a group: the window arranges its parts.
+ */
+export function getChatWindowMainPartOptions(showTabs: string | undefined): DeepPartial<IEditorPartOptions> {
+	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
+}
+
 /** The look facet: how a provider's chat windows look. */
 export interface IChatWindowLook {
 	/** The gap between the parts of the window, in pixels. */
