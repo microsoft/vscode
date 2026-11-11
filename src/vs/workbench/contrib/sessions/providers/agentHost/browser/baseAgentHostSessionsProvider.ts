@@ -58,6 +58,7 @@ import { observableConfigValue } from '../../../../../../platform/observable/com
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { readSessionWorkspaceMcpServers, type ISessionWorkspaceMcpServers } from '../../../../../../platform/agentHost/common/meta/agentHostWorkspaceMcpServersMeta.js';
 import { getAgentModelPolicyError, IAgentModelPreferences, resolveAgentModelPreference, resolveAgentModelPreferences, resolveAgentReasoningEffort } from '../../../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -3346,6 +3347,10 @@ export const AGENT_MODE_KIND = 'agent';
 
 function customizationsChanged(previous: SessionState, state: SessionState): boolean {
 	if (previous.customizations !== state.customizations) {
+		return true;
+	}
+	// The host publishes its decision for the workspace's MCP servers next to the customizations it gates.
+	if (!structuralEquals(readSessionWorkspaceMcpServers(previous._meta), readSessionWorkspaceMcpServers(state._meta))) {
 		return true;
 	}
 	const previousActiveCustomizations = flattenActiveClientCustomizations(previous);
@@ -7797,6 +7802,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				? { ...entry, uri: connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
 				: entry),
 		});
+	}
+
+	getWorkspaceMcpServers(sessionId: string): ISessionWorkspaceMcpServers | undefined {
+		const connection = this.connection;
+		const published = readSessionWorkspaceMcpServers(this._lastSessionStates.get(sessionId)?._meta);
+		if (!connection || !published) {
+			return undefined;
+		}
+		return {
+			enabled: published.enabled,
+			enablement: published.enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+				? { ...entry, uri: connection.resourceUris.fromAgentHost(URI.parse(entry.uri)).toString() }
+				: entry),
+		};
+	}
+
+	async setWorkspaceMcpServersEnablement(sessionId: string, enablement: readonly CustomizationEnablement[]): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		const connection = this.connection;
+		if (!sessionUri || !connection?.setWorkspaceMcpServersEnablement) {
+			return;
+		}
+		await connection.setWorkspaceMcpServersEnablement(sessionUri, enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+			? { ...entry, uri: connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
+			: entry));
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

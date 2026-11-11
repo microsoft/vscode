@@ -19,12 +19,17 @@ export function createNoopCustomizationEnablementService(): IAgentHostCustomizat
 		enabled: true,
 		workingDirectory: { kind: 'workspaceless' },
 	};
+	// Never settles the workspace MCP server class, so the contribution that mirrors
+	// it into session `_meta` stays inert and `_meta` expectations stay unchanged.
+	const pendingClass: CustomizationEnablementResolution = { kind: 'pending', reason: 'session' };
 	return {
 		_serviceBrand: undefined,
 		onDidChange: Event.None,
 		initializeSession: async () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve: () => resolution,
+		resolveWorkspaceMcpServers: () => pendingClass,
+		replaceWorkspaceMcpServersEnablement: () => pendingClass,
 		adoptMcpServerOwnership: () => { },
 		applyClientGlobalEnablement: () => resolution,
 		replaceEnablement: () => resolution,

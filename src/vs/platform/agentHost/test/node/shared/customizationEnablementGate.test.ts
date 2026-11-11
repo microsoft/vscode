@@ -8,10 +8,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
+import { toClientPluginMcpServerSourcesMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { withRuntimePluginEnablement } from '../../../common/meta/pluginEnablementMeta.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
-import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 
 class TestEnablementService implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -69,6 +71,14 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, _kind: CustomizationEnablementKind, _enabled: boolean): CustomizationEnablementResolution {
 		return this.resolve(session, target);
+	}
+
+	resolveWorkspaceMcpServers(): CustomizationEnablementResolution {
+		return this._resolved([]);
+	}
+
+	replaceWorkspaceMcpServersEnablement(): CustomizationEnablementResolution {
+		return this._resolved([]);
 	}
 
 	async whenIdle(): Promise<void> { }
@@ -431,6 +441,71 @@ suite('CustomizationEnablementGate', () => {
 		}, {
 			disabledSdkAgents: [],
 			reenabledSdkAgents: ['agent'],
+		});
+	});
+
+	test('marks workspace-sourced MCP servers as workspace-configured wherever the source was recorded', () => {
+		const workspaceServer: McpServerCustomization = { ...server(), _meta: withMcpServerSourceMeta(undefined, 'workspace') };
+		const userServer: McpServerCustomization = { ...server(), _meta: withMcpServerSourceMeta(undefined, 'user') };
+		const pluginServer: McpServerCustomization = { ...server(), _meta: withMcpServerSourceMeta(undefined, 'plugin') };
+		const pluginUri = 'file:///plugins/example';
+
+		assert.deepStrictEqual({
+			workspace: targetForMcpServer(workspaceServer, undefined, false).isWorkspaceConfigured,
+			user: targetForMcpServer(userServer, undefined, false).isWorkspaceConfigured,
+			unmarked: targetForMcpServer(server(), undefined, false).isWorkspaceConfigured,
+			// A plugin's own servers carry the plugin source; a client bundle only transports a forwarded workspace server.
+			pluginOwned: targetForMcpServer(pluginServer, pluginUri, false).isWorkspaceConfigured,
+			bundled: targetForMcpServer(workspaceServer, pluginUri, true).isWorkspaceConfigured,
+		}, {
+			workspace: true,
+			user: undefined,
+			unmarked: undefined,
+			pluginOwned: undefined,
+			bundled: true,
+		});
+	});
+
+	test('a client bundle keeps the source the client recorded for each forwarded MCP server', () => {
+		const service = new TestEnablementService();
+		const session = URI.parse('ahp://copilot/session-1');
+		const workspaceChild: McpServerCustomization = { ...server(), id: 'workspace-child', name: 'repo-tools' };
+		const userChild: McpServerCustomization = { ...server(), id: 'user-child', name: 'my-tools' };
+		const bundle = plugin([workspaceChild, userChild]);
+		const clientPlugin: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: bundle.id,
+			uri: bundle.uri,
+			name: bundle.name,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			childEnablement: {
+				'repo-tools': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				'my-tools': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			},
+			_meta: toClientPluginMcpServerSourcesMeta({ 'repo-tools': 'workspace', 'my-tools': 'user' }),
+		};
+		const targets: ICustomizationEnablementTarget[] = [];
+		const resolve = service.resolve.bind(service);
+		service.resolve = (sessionKey, target) => {
+			targets.push(target);
+			return resolve(sessionKey, target);
+		};
+
+		const resolved = resolveCustomizationEnablement(service, session, [bundle], new Map([[bundle.uri, clientPlugin.childEnablement!]]), new Map([[bundle.uri, clientPlugin]]));
+		recordClientPluginEnablement(service, session, bundle, clientPlugin);
+		const children = (resolved.customizations[0] as PluginCustomization).children ?? [];
+
+		assert.deepStrictEqual({
+			publishedSources: children.map(child => child.type === CustomizationType.McpServer ? [child.name, readMcpServerSource(child)] : undefined),
+			workspaceConfigured: targets.filter(target => target.type === CustomizationType.McpServer).map(target => [target.name, target.isWorkspaceConfigured ?? false, target.isClientBundled]),
+		}, {
+			publishedSources: [['repo-tools', 'workspace'], ['my-tools', 'user']],
+			workspaceConfigured: [
+				['repo-tools', true, true],
+				['my-tools', false, true],
+				['repo-tools', true, true],
+				['my-tools', false, true],
+			],
 		});
 	});
 });

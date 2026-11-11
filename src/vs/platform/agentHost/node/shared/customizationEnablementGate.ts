@@ -5,7 +5,9 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { readClientPluginMcpServerSource } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
@@ -36,7 +38,23 @@ export function targetForMcpServer(server: McpServerCustomization, owningPluginU
 		isClientBundled,
 		defaultEnabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled,
 		...(owningPluginUri ? { owningPluginSource: URI.parse(owningPluginUri) } : {}),
+		// The source is where the configuration was read, so it survives a client bundle, which only
+		// transports forwarded servers (see {@link withClientBundledMcpServerSource}). A plugin's own
+		// servers carry the plugin source and stay governed by the plugin.
+		...(readMcpServerSource(server) === 'workspace' ? { isWorkspaceConfigured: true } : {}),
 	};
+}
+
+/**
+ * Stamps the configuration source the client recorded for a server it forwarded in a bundle, so the
+ * published child and its enablement target carry the same origin as a server the host discovered.
+ */
+function withClientBundledMcpServerSource(child: McpServerCustomization, clientPlugin: ClientPluginCustomization | undefined): McpServerCustomization {
+	const source = clientPlugin ? readClientPluginMcpServerSource(clientPlugin, child.name) : undefined;
+	if (source === undefined || readMcpServerSource(child) === source) {
+		return child;
+	}
+	return { ...child, _meta: withMcpServerSourceMeta(child._meta, source) };
 }
 
 export function targetForMcpSkill(skill: SkillCustomization): ICustomizationEnablementTarget {
@@ -128,18 +146,20 @@ export function resolveCustomizationEnablement(
 		}
 		let changed = pluginResolution.customization !== customization;
 		const childEnablement = clientChildEnablement?.get(customization.uri);
+		const clientPlugin = clientPlugins?.get(customization.uri);
 		const children = pluginResolution.customization.children?.map(child => {
 			if (child.type !== CustomizationType.McpServer) {
 				return child;
 			}
 			const isClientBundled = isClientBundledMcpServer(childEnablement, child.name);
+			const sourced = isClientBundled ? withClientBundledMcpServerSource(child, clientPlugin) : child;
 			const resolution = applyClientGlobal(
 				service,
 				session,
-				targetForMcpServer(child, pluginResolution.customization.uri, isClientBundled),
+				targetForMcpServer(sourced, pluginResolution.customization.uri, isClientBundled),
 				isClientBundled ? childEnablement![child.name] : undefined,
 			);
-			const resolved = applyResolution(child, resolution);
+			const resolved = applyResolution(sourced, resolution);
 			pending ||= resolved.pending;
 			if (resolved.pending) {
 				// A plugin directory can cause the SDK to discover its child, so
@@ -199,7 +219,8 @@ export function recordClientPluginEnablement(
 	for (const child of plugin.children ?? []) {
 		if (child.type === CustomizationType.McpServer) {
 			const isClientBundled = isClientBundledMcpServer(childEnablement, child.name);
-			applyClientGlobal(service, session, targetForMcpServer(child, plugin.uri, isClientBundled), isClientBundled ? childEnablement![child.name] : undefined);
+			const sourced = isClientBundled ? withClientBundledMcpServerSource(child, clientPlugin) : child;
+			applyClientGlobal(service, session, targetForMcpServer(sourced, plugin.uri, isClientBundled), isClientBundled ? childEnablement![child.name] : undefined);
 		}
 	}
 }

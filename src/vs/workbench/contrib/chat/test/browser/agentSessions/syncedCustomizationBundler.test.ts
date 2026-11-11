@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationEnablementKind, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { parsePlugin } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { isClientPluginStandalone, readClientPluginMcpServerSource } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { AgentCustomizationContentExpander } from '../../../browser/agentSessions/agentHost/agentCustomizationContentExpander.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
@@ -596,6 +596,33 @@ suite('SyncedCustomizationBundler', () => {
 				mcpDefaultCwds: { srv: null },
 			},
 			manifestName: 'VS Code Standalone Customizations',
+		});
+	});
+
+	test('records where each forwarded MCP server was configured so the host can gate workspace servers', async () => {
+		const bundler = createBundler('test-agent-sources', { standalone: true });
+		const configuration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'srv' };
+		const servers: ISyncableMcpServer[] = [
+			{ ...enabledMcpServer('repo-tools', configuration), source: 'workspace' },
+			{ ...enabledMcpServer('my-tools', configuration), source: 'user' },
+			enabledMcpServer('unknown-origin', configuration),
+		];
+
+		const first = await bundler.bundle([], servers);
+		const reused = await bundler.bundle([], servers);
+		const resourced = await bundler.bundle([], servers.map(server => server.name === 'unknown-origin' ? { ...server, source: 'workspace' as const } : server));
+		assert.ok(first && reused && resourced);
+
+		assert.deepStrictEqual({
+			sources: ['repo-tools', 'my-tools', 'unknown-origin'].map(name => readClientPluginMcpServerSource(first.ref, name)),
+			reusedNonce: reused.ref.nonce === first.ref.nonce,
+			resourcedNonce: resourced.ref.nonce !== first.ref.nonce,
+			resourcedSource: readClientPluginMcpServerSource(resourced.ref, 'unknown-origin'),
+		}, {
+			sources: ['workspace', 'user', undefined],
+			reusedNonce: true,
+			resourcedNonce: true,
+			resourcedSource: 'workspace',
 		});
 	});
 

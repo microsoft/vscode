@@ -21,6 +21,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
+import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpResourceFilesystem } from '../../common/mcpResourceFilesystem.js';
 import { McpService } from '../../common/mcpService.js';
@@ -35,6 +36,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 	let transport: TestMcpMessageTransport;
 	let fs: McpResourceFilesystem;
+	let mcpService: McpService;
 
 	setup(() => {
 		const storageService = ds.add(new TestStorageService());
@@ -53,7 +55,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService, new TestUserDataProfileService()));
+		mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService, new TestUserDataProfileService()));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(
@@ -82,6 +84,30 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 
 		const response = await fs.readFile(URI.parse('mcp-resource://746573742D736572766572/custom/hello/world.txt'));
 		assert.strictEqual(new TextDecoder().decode(response), 'Hello World');
+	});
+
+	test('does not start a disabled server to read or watch its resources', async () => {
+		let reads = 0;
+		transport.setResponder('resources/read', msg => {
+			reads++;
+			const request = msg as { id: string | number; params: { uri: string } };
+			return { id: request.id, jsonrpc: '2.0', result: { contents: [{ uri: request.params.uri, text: 'Hello World' }] } satisfies MCP.ReadResourceResult };
+		});
+		mcpService.enablementModel.setEnabled('test-server', ContributionEnablementState.DisabledProfile);
+		const resource = URI.parse('mcp-resource://746573742D736572766572/custom/hello/world.txt');
+
+		await assert.rejects(() => fs.readFile(resource), (err: Error) => toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.FileNotFound);
+		let watchError: Error | undefined;
+		try {
+			fs.watch(resource, { recursive: false, excludes: [] });
+		} catch (err) {
+			watchError = err as Error;
+		}
+		assert.deepStrictEqual({
+			reads,
+			watchError: watchError && toFileSystemProviderErrorCode(watchError),
+			connection: mcpService.servers.get()[0].connection.get(),
+		}, { reads: 0, watchError: FileSystemProviderErrorCode.FileNotFound, connection: undefined });
 	});
 
 	test('stat returns file information', async () => {

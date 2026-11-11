@@ -54,11 +54,12 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
 import { CodexChatHistory } from './codexChatHistory.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
-import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
-import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
@@ -1398,7 +1399,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				affectedConfigurations.set(session.owner.get().toString(), session.owner.get());
 				const controller = session.mcpController;
 				if (controller) {
-					controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
+					controller.applyAll(this._sessionSdkMcpServers(session));
 				}
 				session.materializedMcpSig = undefined;
 				if (session.firstTurnSent) {
@@ -2897,8 +2898,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			Object.entries(configuredRoot)
 				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
 		);
-		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
-		const enabledWorkspace = Object.fromEntries(Object.entries(workspace).filter(([name]) => this._isMcpServerEnabledForSdk(session, name)));
+		const enabledWorkspace = this._enabledWorkspaceMcpServers(session);
 		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session), session.workingDirectory);
 		const configuredServers = { ...root, ...enabledWorkspace, ...clientPlugins };
 		const enabledConfiguredServers = session.agentMergeTurn
@@ -2947,6 +2947,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			const discovery = store.add(new SessionMcpDiscovery(roots, this._fileService));
 			store.add(discovery.onDidChange(() => {
 				session.materializedMcpSig = undefined;
+				// Declarations came or went: republish them with their provenance, stopped until codex reports them.
+				this._applyMcpInventoryToSession(session);
 				if (session.firstTurnSent) {
 					this._markSessionForReload(session);
 				}
@@ -2958,8 +2960,70 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _isMcpServerEnabledForSdk(session: ICodexSession, name: string): boolean {
-		const resolution = this._customizationEnablementService.resolve(this._launchOwner(session).toString(), targetForUnownedMcpServer(name));
+		return this._isMcpServerTargetEnabledForSdk(session, targetForUnownedMcpServer(name));
+	}
+
+	private _isMcpServerTargetEnabledForSdk(session: ICodexSession, target: ICustomizationEnablementTarget): boolean {
+		const resolution = this._customizationEnablementService.resolve(this._launchOwner(session).toString(), target);
 		return resolution.kind === 'resolved' && resolution.enabled;
+	}
+
+	/**
+	 * The session's workspace-discovered (`.mcp.json`) servers that enablement
+	 * admits. Each resolves through its discovered customization rather than
+	 * by name alone so its workspace source keeps it behind
+	 * `chat.mcp.workspaceServersEnabled`.
+	 */
+	private _enabledWorkspaceMcpServers(session: ICodexSession): Record<string, ICodexMcpServerConfigJson> {
+		const definitions = this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? [];
+		const workspace = codexMcpServersFromDefinitions(definitions);
+		// Session decisions are keyed by the published id, so resolve the published entry when there is one.
+		const published = new Map(session.mcpController?.topLevelCustomizations().flatMap(customization => customization.type === CustomizationType.McpServer ? [[customization.name, customization] as const] : []));
+		return Object.fromEntries(Object.entries(workspace).filter(([name]) => {
+			const definition = definitions.find(candidate => candidate.name === name);
+			if (definition === undefined) {
+				return false;
+			}
+			const server = published.get(name);
+			return this._isMcpServerTargetEnabledForSdk(session, targetForMcpServer(server && readMcpServerSource(server) === 'workspace' ? server : definition.customization, undefined, false));
+		}));
+	}
+
+	/**
+	 * Where a server codex reports in its inventory is configured, when this
+	 * host supplied that configuration. Workspace discovery is the only origin
+	 * the published customization must carry: it marks the server as
+	 * workspace-configured for enablement and lets clients open its `.mcp.json`.
+	 * The origin is a fact about the declaration, so it does not follow the
+	 * gate: a server that is still running after the gate closed stays a
+	 * workspace server, published disabled until the thread reloads.
+	 */
+	private _resolveMcpServerProvenance(session: ICodexSession, serverName: string): IMcpServerProvenance | undefined {
+		// A client plugin that declares the name owns it, enabled or not, as the MCP controller sees it.
+		if (codexPluginMcpServerSources(session.clientCustomizations.plugins()).has(serverName)) {
+			return undefined;
+		}
+		const definition = this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions.find(candidate => candidate.name === serverName);
+		return definition ? { source: 'workspace', sourceUri: definition.uri.toString() } : undefined;
+	}
+
+	/**
+	 * The servers the session's MCP controller publishes: codex's live inventory,
+	 * plus every workspace-discovered declaration codex does not report, as
+	 * stopped. A declaration the class gate withholds from `thread/start` is thus
+	 * still listed, disabled, so the gate decision has something to show and the
+	 * Workspace override stays reachable; so is one codex has not started yet.
+	 */
+	private _sessionSdkMcpServers(session: ICodexSession): ISdkMcpServer[] {
+		const inventory = this._mcpInventory.forThread(session.threadId);
+		const servers = inventoryToSdkServers(inventory);
+		const pluginServers = codexPluginMcpServerSources(session.clientCustomizations.plugins());
+		for (const definition of this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []) {
+			if (!inventory.has(definition.name) && !pluginServers.has(definition.name) && !servers.some(server => server.name === definition.name)) {
+				servers.push({ name: definition.name, state: { kind: McpServerStatus.Stopped } });
+			}
+		}
+		return servers;
 	}
 
 	/**
@@ -2974,8 +3038,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
 				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
 		);
-		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
-		const enabledWorkspace = Object.fromEntries(Object.entries(workspace).filter(([name]) => this._isMcpServerEnabledForSdk(session, name)));
+		const enabledWorkspace = this._enabledWorkspaceMcpServers(session);
 		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session), session.workingDirectory);
 		const configuredServers = { ...root, ...enabledWorkspace, ...clientPlugins };
 		const builtInGitHub = this._builtInGitHubMcpServer(session, configuredServers);
@@ -8556,9 +8619,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				return [];
 			}
 			const catalogConnection = this._connection.kind === 'ready' ? this._connection : undefined;
+			// The workspace's `.mcp.json` declarations are listed before codex starts them, so the
+			// class gate of `chat.mcp.workspaceServersEnabled` can be seen and overridden up front.
+			await this._refreshSessionMcpDiscovery(session);
+			if (session.disposed) {
+				return [];
+			}
 			const controller = this._getOrCreateMcpController(session);
 			if (controller) {
-				controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
+				controller.applyAll(this._sessionSdkMcpServers(session));
 				this._refreshMcpCustomizationIds(session, controller);
 			}
 			const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
@@ -8818,7 +8887,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!controller) {
 			return undefined;
 		}
-		controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
+		controller.applyAll(this._sessionSdkMcpServers(session));
 		this._refreshMcpCustomizationIds(session, controller);
 		return controller.serverNameForCustomizationId(id);
 	}
@@ -8914,7 +8983,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		if (preferred?.mcpController) {
-			preferred.mcpController.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(preferred.threadId)), true);
+			preferred.mcpController.applyAll(this._sessionSdkMcpServers(preferred), true);
 		}
 	}
 
@@ -8935,6 +9004,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				emit: action => this._emitMcpCustomizationAction(session, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
 				pluginMcpServerSources: () => codexPluginMcpServerSources(session.clientCustomizations.plugins()),
+				resolveProvenance: serverName => this._resolveMcpServerProvenance(session, serverName),
 				resolveEnablement: (server, owningPluginUri) => {
 					const resolution = this._customizationEnablementService.resolve(session.owner.get().toString(), targetForMcpServer(server, owningPluginUri, false));
 					return resolution.kind === 'resolved' ? resolution.enablement : undefined;
@@ -8955,7 +9025,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!controller) {
 			return;
 		}
-		controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
+		controller.applyAll(this._sessionSdkMcpServers(session));
 		this._refreshMcpCustomizationIds(session, controller);
 	}
 

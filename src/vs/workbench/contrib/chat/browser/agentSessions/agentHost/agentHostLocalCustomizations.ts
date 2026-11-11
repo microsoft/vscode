@@ -23,7 +23,8 @@ import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServe
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
-import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
+import { AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
+import type { McpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -203,20 +204,43 @@ export async function resolveLocalCustomAgents(
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
 	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
-	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
+	return resolved.flatMap(({ server, definition, source, delivery, projectedConfiguration }) => {
 		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
 			return [];
 		}
+		const forwardedSource = toForwardedMcpServerSource(source.kind);
 		return [{
 			name: server.definition.label,
 			configuration: projectedConfiguration,
 			...(definition.defaultCwd && { defaultCwd: definition.defaultCwd }),
+			// The Global decision is the per-server profile decision; the class gate of
+			// `chat.mcp.workspaceServersEnabled` is applied by the host from the source.
 			enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 				kind: CustomizationEnablementKind.Global,
 				enabled: mcpService.enablementModel.readProfileEnabled(server.definition.id),
 			}),
+			...(forwardedSource ? { source: forwardedSource } : {}),
 		} satisfies ISyncableMcpServer];
 	});
+}
+
+/** The configuration source a forwarded server carries to the host, so workspace servers stay gated there. */
+function toForwardedMcpServerSource(kind: AgentHostMcpServerSourceKind): McpServerSource | undefined {
+	switch (kind) {
+		case AgentHostMcpServerSourceKind.UserProfile:
+		case AgentHostMcpServerSourceKind.RemoteUser:
+		case AgentHostMcpServerSourceKind.CursorUser:
+		case AgentHostMcpServerSourceKind.ClaudeDesktop:
+		case AgentHostMcpServerSourceKind.Windsurf:
+			return 'user';
+		case AgentHostMcpServerSourceKind.VscodeWorkspaceFolder:
+		case AgentHostMcpServerSourceKind.WorkspaceConfiguration:
+		case AgentHostMcpServerSourceKind.WorkspaceDotMcp:
+		case AgentHostMcpServerSourceKind.CursorWorkspace:
+			return 'workspace';
+		default:
+			return undefined;
+	}
 }
 
 /**

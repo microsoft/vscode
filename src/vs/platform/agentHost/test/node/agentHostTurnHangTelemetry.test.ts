@@ -52,7 +52,8 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
@@ -180,7 +181,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const telemetryService = disposables.add(new AgentHostTelemetryService(telemetry));
 		const sessionDataService = createNullSessionDataService();
-		const customizationEnablementService = { onDidChange: Event.None } as IAgentHostCustomizationEnablementService;
+		const customizationEnablementService = createNoopCustomizationEnablementService();
 		workingDirectoryGate = undefined;
 		checkpointGate = undefined;
 		const checkpointService: IAgentHostCheckpointService = {
@@ -269,6 +270,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		services.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
 		// Blocked-turn hang telemetry is reported by `SessionInputNeededContribution`,
 		// so the built-in contributions must be registered for this graph to mirror
 		// production wiring.

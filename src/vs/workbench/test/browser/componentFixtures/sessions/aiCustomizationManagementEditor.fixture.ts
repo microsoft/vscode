@@ -101,6 +101,7 @@ import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServe
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
+import { TestWorkspaceMcpServersEnablement } from '../../../../contrib/mcp/test/common/testMcpService.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -257,6 +258,8 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
 		override async authenticateMcpServer() { return true; }
+		override getWorkspaceMcpServers() { return undefined; }
+		override async setWorkspaceMcpServersEnablement() { }
 	}();
 }
 
@@ -1880,6 +1883,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IAgentHostActiveClientService, activeClientService);
 			const mcpService = new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([]);
+				override readonly workspaceServersEnablement = new TestWorkspaceMcpServersEnablement();
 				override readonly enablementModel = {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
 					readProfileEnabled: () => true,
@@ -2180,6 +2184,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable((options.mcpRuntimeServers ?? mcpRuntimeServers) as never[]);
+				override readonly workspaceServersEnablement = new TestWorkspaceMcpServersEnablement();
 				override readonly enablementModel = {
 					readEnabled: (serverId: string) => {
 						if (serverId.includes('mcp-web-search')) {
@@ -2922,6 +2927,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([] as never[]);
+				override readonly workspaceServersEnablement = new TestWorkspaceMcpServersEnablement();
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);
@@ -3216,6 +3222,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([] as never[]);
+				override readonly workspaceServersEnablement = new TestWorkspaceMcpServersEnablement();
 			}());
 			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
 				override readonly collections = constObservable([]);

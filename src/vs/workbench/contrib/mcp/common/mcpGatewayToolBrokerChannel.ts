@@ -12,6 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpGatewayServerDescriptor } from '../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../../../platform/mcp/common/modelContextProtocol.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpServer } from './mcpServer.js';
 import { IMcpServer, IMcpService, McpCapability, McpServerCacheState, McpToolVisibility } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
@@ -87,7 +88,7 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 		let serversInitialized = false;
 		this._register(autorun(reader => {
-			const servers = this._mcpService.servers.read(reader);
+			const servers = this._mcpService.servers.read(reader).filter(server => isContributionEnabled(server.enablement.read(reader)));
 
 			if (serversInitialized) {
 				this._logService.debug('[McpGateway][ToolBroker] Servers changed, firing onDidChangeServers');
@@ -98,8 +99,16 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		}));
 	}
 
+	/**
+	 * The servers the gateway exposes. A disabled server is never started or
+	 * called on a gateway client's behalf: listing its tools would start it.
+	 */
+	private _enabledServers(): readonly IMcpServer[] {
+		return this._mcpService.servers.get().filter(server => isContributionEnabled(server.enablement.get()));
+	}
+
 	private _getServerById(serverId: string): IMcpServer | undefined {
-		for (const server of this._mcpService.servers.get()) {
+		for (const server of this._enabledServers()) {
 			if (server.definition.id === serverId) {
 				return server;
 			}
@@ -199,7 +208,7 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	}
 
 	private _listServers(): readonly IMcpGatewayServerDescriptor[] {
-		const servers = this._mcpService.servers.get();
+		const servers = this._enabledServers();
 		const result: IMcpGatewayServerDescriptor[] = [];
 		for (const server of servers) {
 			result.push({ id: server.definition.id, label: server.definition.label });

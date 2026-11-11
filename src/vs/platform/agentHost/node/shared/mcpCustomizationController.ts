@@ -913,7 +913,9 @@ export function applyMcpServerEnablement(customizations: readonly Customization[
 
 function applyMcpEnablement(customization: McpServerCustomization, desiredById: ReadonlyMap<string, readonly CustomizationEnablement[] | undefined>): McpServerCustomization {
 	// SDK-backed declarations have already resolved current provider defaults and host decisions.
-	if (readCustomizationDiscoveryMeta(customization)?.defaultEnabled !== undefined) {
+	// Workspace-configured servers resolve the host's decisions on every publication too, including
+	// the class decision of `chat.mcp.workspaceServersEnabled`, which no toggle action records on them.
+	if (readCustomizationDiscoveryMeta(customization)?.defaultEnabled !== undefined || readMcpServerSource(customization) === 'workspace') {
 		return customization;
 	}
 	if (!desiredById.has(customization.id)) {

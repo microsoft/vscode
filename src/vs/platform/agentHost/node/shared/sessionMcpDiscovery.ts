@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { makeMcpServerCustomization, readJsonFile, resolveMcpServersMap, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { fromCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
+import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 
 class RootMcpDiscovery extends Disposable {
 
@@ -83,12 +84,14 @@ class RootMcpDiscovery extends Disposable {
 		for (const [name, value] of Object.entries(raw)) {
 			const configuration = fromCopilotMcpServerConfiguration(value);
 			if (configuration) {
+				const customization = makeMcpServerCustomization(this._definitionUri, name);
 				definitions.push({
 					name,
 					configuration,
 					defaultCwd: this._root,
 					uri: this._definitionUri,
-					customization: makeMcpServerCustomization(this._definitionUri, name),
+					// The source lets enablement gate the server behind `chat.mcp.workspaceServersEnabled`.
+					customization: { ...customization, _meta: withMcpServerSourceMeta(customization._meta, 'workspace') },
 				});
 			}
 		}

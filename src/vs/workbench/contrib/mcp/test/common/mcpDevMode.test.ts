@@ -7,14 +7,15 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileChangesEvent, FileChangeType, IFileService, IWatchOptionsWithoutCorrelation } from '../../../../../platform/files/common/files.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { McpDevModeServerAttache } from '../../common/mcpDevMode.js';
-import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
+import { IMcpHostDelegate, IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { IMcpServer, McpCollectionDefinition, McpServerDefinition } from '../../common/mcpTypes.js';
 
 suite('MCP Dev Mode', () => {
@@ -37,6 +38,7 @@ suite('MCP Dev Mode', () => {
 		const definitions = constObservable({ collection, server: definition });
 		const server = upcastPartial<IMcpServer>({
 			readDefinitions: () => definitions,
+			enablement: constObservable(ContributionEnablementState.EnabledProfile),
 			start: async () => {
 				startCalls++;
 				return upcastPartial({});
@@ -82,6 +84,56 @@ suite('MCP Dev Mode', () => {
 			watchOptions: { excludes: [], recursive: true },
 			startCalls: 1,
 			stopCalls: 1,
+		});
+	});
+
+	test('does not auto-start or restart a disabled server until it is enabled', async () => {
+		const root = URI.file('/workspace');
+		const fileChanges = store.add(new Emitter<FileChangesEvent>());
+		const enablement = observableValue('enablement', ContributionEnablementState.DisabledProfile);
+		let startCalls = 0;
+		let stopCalls = 0;
+
+		const collection = upcastPartial<McpCollectionDefinition>({
+			presentation: { origin: URI.joinPath(root, '.vscode', 'mcp.json') },
+		});
+		const definition = upcastPartial<McpServerDefinition>({
+			devMode: { watch: ['mcp/*.mjs'] },
+		});
+		const server = upcastPartial<IMcpServer>({
+			readDefinitions: () => constObservable({ collection, server: definition }),
+			enablement,
+			start: async () => {
+				startCalls++;
+				return upcastPartial({});
+			},
+			stop: async () => {
+				stopCalls++;
+			},
+		});
+		const fileService = upcastPartial<IFileService>({
+			watch: () => Disposable.None,
+			hasCapability: () => false,
+			onDidFilesChange: fileChanges.event,
+		});
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({
+			getWorkspaceFolder: () => toWorkspaceFolder(root),
+		});
+		const registry = upcastPartial<IMcpRegistry>({
+			delegates: constObservable([upcastPartial<IMcpHostDelegate>({ canStart: () => true })]),
+		});
+
+		store.add(new McpDevModeServerAttache(server, { lastModeDebugged: false }, registry, fileService, workspaceContextService));
+		fileChanges.fire(new FileChangesEvent([{ resource: URI.joinPath(root, 'mcp', 'server.mjs'), type: FileChangeType.UPDATED }], false));
+		await timeout(0);
+		const whileDisabled = { startCalls, stopCalls };
+
+		enablement.set(ContributionEnablementState.EnabledWorkspace, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileDisabled, afterEnable: { startCalls, stopCalls } }, {
+			whileDisabled: { startCalls: 0, stopCalls: 1 },
+			afterEnable: { startCalls: 1, stopCalls: 1 },
 		});
 	});
 });

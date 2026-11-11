@@ -583,6 +583,14 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
 
+/**
+ * Root config key mirrored from VS Code's `chat.mcp.workspaceServersEnabled` setting: whether MCP
+ * servers configured by a workspace (`.mcp.json`, forwarded `.vscode/mcp.json` entries) are enabled by
+ * default. It is the Global decision for the workspace MCP server class; Workspace and Session
+ * decisions override it.
+ */
+export const AgentHostWorkspaceMcpServersEnabledConfigKey = 'workspaceMcpServersEnabled';
+
 /** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
 export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
@@ -949,6 +957,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
+		default: true,
+	}),
+	[AgentHostWorkspaceMcpServersEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.workspaceMcpServersEnabled.title', "Workspace MCP Servers"),
+		description: localize('agentHost.config.workspaceMcpServersEnabled.description', "Whether MCP servers configured by a workspace are enabled by default. A workspace or session decision can override this for its own servers."),
 		default: true,
 	}),
 	[AgentHostComputerUseEnabledConfigKey]: schemaProperty<boolean>({

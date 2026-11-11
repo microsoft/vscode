@@ -35,6 +35,7 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomat
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import type { CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -332,6 +333,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._requireClient().getSessionStateFile(session, chat);
+	}
+
+	setWorkspaceMcpServersEnablement(session: URI, enablement: readonly CustomizationEnablement[]): Promise<void> {
+		return this._requireClient().setWorkspaceMcpServersEnablement(session, enablement);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {

@@ -19,6 +19,7 @@ import { createFileSystemProviderError, FileChangeType, FileSystemProviderCapabi
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { isContributionDisabled } from '../../chat/common/enablement.js';
 import { McpServer } from './mcpServer.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { IMcpService, McpCapability, McpResourceURI } from './mcpTypes.js';
@@ -241,6 +242,10 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 		const server = this._mcpService.servers.get().find(s => s.definition.id === definitionId);
 		if (!server) {
 			throw createFileSystemProviderError(`MCP server ${definitionId} not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+		if (isContributionDisabled(server.enablement.get())) {
+			// Reading or watching a resource starts the server, which a disabled server must not do.
+			throw createFileSystemProviderError(`MCP server ${definitionId} is disabled`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		const cap = server.capabilities.get();

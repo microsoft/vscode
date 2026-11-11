@@ -3,5 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export type { ClientPluginMcpDefaultCwds } from './vscode/clientPluginCustomizationMeta.js';
-export { toClientPluginMcpDefaultCwdsMeta, hasClientPluginMcpDefaultCwds, hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd, toClientPluginStandaloneMeta, isClientPluginStandalone } from './vscode/clientPluginCustomizationMeta.js';
+export type { ClientPluginMcpDefaultCwds, ClientPluginMcpServerSources } from './vscode/clientPluginCustomizationMeta.js';
+export { toClientPluginMcpDefaultCwdsMeta, hasClientPluginMcpDefaultCwds, hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd, toClientPluginMcpServerSourcesMeta, readClientPluginMcpServerSource, toClientPluginStandaloneMeta, isClientPluginStandalone } from './vscode/clientPluginCustomizationMeta.js';

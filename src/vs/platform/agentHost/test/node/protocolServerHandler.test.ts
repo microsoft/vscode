@@ -55,7 +55,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetWorkspaceMcpServersEnablementExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, supportsAgentHostWorkspaceMcpServers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -106,7 +106,7 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
-import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, McpAuthRequiredReason, type CustomizationEnablement } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
@@ -281,6 +281,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	agentExtensionInventory: IAgentExtensionInventory = { mode: 'load_and_augment', extensions: [] };
 	readonly listAgentExtensionsCalls: { session: string | undefined; chat: string | undefined }[] = [];
 	readonly setAgentExtensionEnabledCalls: { extensionId: string; enabled: boolean; session: string | undefined; chat: string | undefined }[] = [];
+	readonly setWorkspaceMcpServersEnablementCalls: { session: string; enablement: readonly CustomizationEnablement[] }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -466,6 +467,9 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
 		this.setAgentExtensionEnabledCalls.push({ extensionId, enabled, session: session?.toString(), chat: chat?.toString() });
+	}
+	async setWorkspaceMcpServersEnablement(session: URI, enablement: readonly CustomizationEnablement[]): Promise<void> {
+		this.setWorkspaceMcpServersEnablementCalls.push({ session: session.toString(), enablement });
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -813,6 +817,7 @@ suite('ProtocolServerHandler', () => {
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
 				'vscode.copilotExtensions': true,
+				'vscode.workspaceMcpServers': true,
 			},
 		});
 	});
@@ -2533,6 +2538,104 @@ suite('ProtocolServerHandler', () => {
 			errorCodes: [JsonRpcErrorCodes.MethodNotFound, JsonRpcErrorCodes.MethodNotFound],
 			listCalls: [],
 			setCalls: [],
+		});
+	});
+
+	test('advertises and routes workspace MCP server class decisions, validating each wire entry', async () => {
+		const transport = connectClient('client-workspace-mcp-servers');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const enablement: CustomizationEnablement[] = [
+			{ kind: CustomizationEnablementKind.Session, enabled: false },
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
+		];
+
+		const accepted = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SetWorkspaceMcpServersEnablementExtensionMethod, { session: 'copilotcli:/session-1', enablement }));
+		const invalid = [
+			[21, {}],
+			[22, { session: 'copilotcli:/session-1' }],
+			[23, { session: '', enablement: [] }],
+			[24, { session: 'copilotcli:/session-1', enablement: [{ kind: 'universe', enabled: true }] }],
+			[25, { session: 'copilotcli:/session-1', enablement: [{ kind: CustomizationEnablementKind.Workspace, enabled: true }] }],
+			[26, { session: 'copilotcli:/session-1', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: 'yes' }] }],
+		] as const;
+		const rejected = invalid.map(([id, params]) => {
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, SetWorkspaceMcpServersEnablementExtensionMethod, params));
+			return response;
+		});
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostWorkspaceMcpServers(initialized.result as InitializeResult),
+			accepted: await accepted,
+			rejected: (await Promise.all(rejected)).map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			calls: agentService.setWorkspaceMcpServersEnablementCalls,
+		}, {
+			supported: true,
+			accepted: { jsonrpc: '2.0', id: 20, result: null },
+			rejected: invalid.map(() => JsonRpcErrorCodes.InvalidParams),
+			calls: [{ session: 'copilotcli:/session-1', enablement }],
+		});
+	});
+
+	test('routes workspace MCP server class decisions over the renderer data plane, which has no host-control access', async () => {
+		const dataPlane = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, dataPlane,
+			{ allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = disposables.add(new MockProtocolTransport());
+		dataPlane.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'data-plane' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SetWorkspaceMcpServersEnablementExtensionMethod, { session: 'copilotcli:/session-1', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostWorkspaceMcpServers(initialized.result as InitializeResult),
+			response: await response,
+			calls: agentService.setWorkspaceMcpServersEnablementCalls,
+		}, {
+			supported: true,
+			response: { jsonrpc: '2.0', id: 20, result: null },
+			calls: [{ session: 'copilotcli:/session-1', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }],
+		});
+	});
+
+	test('rejects workspace MCP server class decisions from relay connections', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		const relayHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: true },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SetWorkspaceMcpServersEnablementExtensionMethod, { session: 'copilotcli:/session-1', enablement: [] }));
+		await relayHandler.whenIdle();
+
+		assert.deepStrictEqual({
+			response: await response,
+			calls: agentService.setWorkspaceMcpServersEnablementCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 20,
+				error: {
+					code: JsonRpcErrorCodes.InvalidRequest,
+					message: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				},
+			},
+			calls: [],
 		});
 	});
 
