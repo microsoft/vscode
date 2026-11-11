@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -106,6 +107,45 @@ suite('WorkspaceFolderRepositories', () => {
 			// Only the folder that joined and the one that failed are read again.
 			added: { repositories: ['/work/vscode', '/work/denied', '/work/other'], reads: 5, warnings: 1 },
 			removedAtOnce: { repositories: ['/work/denied', '/work/other'], reads: 5, warnings: 1 },
+		});
+	});
+
+	test('drops a replaced folder\'s repository before the read of the folder replacing it settles', async () => {
+		const readOfB = new DeferredPromise<void>();
+		const fileService = upcastPartial<IFileService>({
+			stat: async (resource: URI) => {
+				if (resource.path === '/work/b/.git') {
+					await readOfB.p;
+				}
+				return upcastPartial<IFileStatWithMetadata>({ isDirectory: true });
+			},
+		});
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		let folders = [URI.file('/work/a')];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+		}));
+		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const settled = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve(); } };
+		const published = () => repositories.repositories.get().map(uri => uri.path);
+
+		await settled();
+		const beforeReplace = published();
+		folders = [URI.file('/work/b')];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		await settled();
+		const whileBIsRead = published();
+		readOfB.complete();
+		await settled();
+
+		assert.deepStrictEqual({ beforeReplace, whileBIsRead, afterBIsRead: published() }, {
+			beforeReplace: ['/work/a'],
+			whileBIsRead: [],
+			afterBIsRead: ['/work/b'],
 		});
 	});
 });
