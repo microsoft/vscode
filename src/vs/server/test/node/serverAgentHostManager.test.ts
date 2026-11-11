@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
 import { AgentHostIpcChannels } from '../../../platform/agentHost/common/agentService.js';
+import { getConnectionDiagnosticError } from '../../../platform/agentHost/common/connectionDiagnostics.js';
 import { NullLogService, NullLoggerService } from '../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { readGithubEnvironmentOptions, ServerAgentHostManager, type IServerAgentHostManagerOptions } from '../../node/serverAgentHostManager.js';
@@ -329,6 +330,28 @@ suite('ServerAgentHostManager', () => {
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	test('preserves a structured GitHub environment configuration failure instead of reporting a missing ID', async () => {
+		const failure = new Error('Socket error', {
+			cause: Object.assign(new Error('Network timed out'), { code: 'ETIMEDOUT' }),
+		});
+		const diagnostic = getConnectionDiagnosticError(failure);
+		starter.managementChannel.setCallResult('configureMissionControl', { error: diagnostic });
+		const ready: string[] = [];
+		const manager = createManager({ githubEnvironment, onGithubEnvironmentReady: id => ready.push(id) });
+		let received: ReturnType<typeof getConnectionDiagnosticError> | undefined;
+		try {
+			await manager.ensureStarted();
+			assert.fail('Configuration must fail');
+		} catch (error) {
+			received = getConnectionDiagnosticError(error);
+		}
+		assert.deepStrictEqual({
+			error: received, ready,
+			lookedUpId: starter.managementChannel.calls.some(call => call.command === 'getMissionControlEnvironmentId'),
+			disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, { error: diagnostic, ready: [], lookedUpId: false, disposed: true });
 	});
 
 	test('allows the CLI to gracefully shut down a registered GitHub environment', async () => {
