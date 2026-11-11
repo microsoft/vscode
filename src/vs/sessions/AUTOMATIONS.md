@@ -4,7 +4,7 @@
 
 ## Scope and authority
 
-Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned and repository-owned GitHub automations through the Copilot gateway.
+Automations schedule or manually start agent sessions through their selected provider, or deliver notification-only reminders. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned and repository-owned GitHub automations through the Copilot gateway.
 
 The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported provider never falls back to browser execution or to another provider.
 
@@ -80,6 +80,18 @@ Projected definition and run identifiers are opaque, concrete-provider-scoped id
 Saved configuration is a preference, not a durable permission grant. Providers resolve it against current models, agents, schema, feature enablement, and managed policy for each configuration draft and run. Same-target edits preserve unknown or temporarily unavailable template values unless explicitly changed. Selecting another agent does not carry the previous agent's template into the new one.
 
 Compatibility decoding for configuration values in existing AHP definitions is separate from definition ownership. Flat configuration input aliases may be translated at the provider boundary but cannot override an explicit session template.
+
+### Notification-only reminders
+
+A reminder is an Automation definition with typed reminder state and exactly one absolute `Once` trigger, negotiated through `automations.reminders`. It uses the same durable host catalogue and serialized mutation path as agent automations, not a second store or renderer scheduler. The host transitions a scheduled reminder to due and clears its next-run time without allocating a run, creating a provider session, or sending a prompt. Persisted due reminders remain due across reconnects and restarts. An unsupported one-time trigger never becomes a manual or recurring automation.
+
+The initial authoring surface is the desktop Agents Window's local Agent Host. Reminder targets identify the Automation provider without requiring a harness, workspace, model, or Automation configuration draft. Inbox observes due reminders in its own section; Automations observes the same records, including scheduled reminders and dismissed/sent history. Closing a notification does not dismiss the underlying reminder. Notification delivery can repeat across windows or restarts; durable reminder state, not toast delivery, is authoritative.
+
+`/remind` executes locally before provider session creation. Its bounded English parser accepts one-time relative durations and explicit local calendar times, and asks for clarification rather than guessing unsupported, past, recurring, or ambiguous times. Confirmation belongs to the originating input. Only explicit attachments are serialized; implicit editor context and conversation transcripts are not captured.
+
+Postpone reschedules the same definition; dismiss changes its reminder state. Mutations use host `expectedModifiedAt` concurrency checks. Send to Session opens an editable draft without overwriting existing input or submitting a request. An opaque client-only handoff token survives draft serialization, is stripped before provider submission, and correlates the successful Sessions management event to the reminder. Only that successful submission changes the reminder to sent and records its session link. If saving the handoff result fails after submission, the UI offers to retry saving the link rather than submitting again.
+
+Reminder attachment snapshots and handoff correlation live in typed VS Code metadata; execution semantics stay in the protocol's reminder and trigger fields. Recurring reminders, cloud/remote authoring, blueprint export, and reminder editing through the agent configuration tool are not supported.
 
 ### Captured customizations
 

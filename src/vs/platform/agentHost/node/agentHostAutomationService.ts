@@ -28,7 +28,7 @@ import { AUTOMATION_CATALOG_URI, type AutomationState, type ErrorInfo, type Mess
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationReminderStatus, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunLifecycle, type AutomationRunOrigin, type AutomationRunState, type AutomationRunSummary } from '../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
@@ -120,7 +120,7 @@ export interface IAgentHostAutomationService {
 	handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void>;
 	handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void>;
 	handleRemove(action: AutomationRemovedAction): Promise<void>;
-	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string, expectedModifiedAt?: string): Promise<readonly string[]>;
 	acknowledgeAutomationDeletion(requestId: string): Promise<void>;
 	handleCancel(resource: string, action: AutomationRunCancelRequestedAction): Promise<void>;
 	listTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
@@ -194,7 +194,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		this._catalog = stored?.catalog ? {
 			entries: stored.catalog.automations.map(automation => {
-				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE);
+				const migrated = migrateStoredAutomation(automation);
+				const restored = withRunWindow(migrated.definition.reminder ? this._withInitialScheduleState(migrated, new Date()) : migrated, this._runs, RUN_HISTORY_PAGE_SIZE);
 				return { ...restored, operations: this._operationsForItem(restored) };
 			}),
 			...(stored.catalog._meta ? { _meta: stored.catalog._meta } : {}),
@@ -251,6 +252,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return this.isAvailable ? {
 			create: {},
 			schedules: {},
+			reminders: {},
 			customizations: {},
 			runCancellation: {},
 			runHistoryLimit: RUN_HISTORY_PAGE_SIZE,
@@ -265,7 +267,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return [
 			AutomationOperation.Update,
 			...(automation.runs.some(run => !isTerminalLifecycle(run.lifecycle)) ? [] : [AutomationOperation.Remove]),
-			...(this._isAutomationsEnabled() ? [AutomationOperation.Run] : []),
+			...(this._isAutomationsEnabled() && !automation.definition.reminder ? [AutomationOperation.Run] : []),
 		];
 	}
 
@@ -328,6 +330,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (existing) {
 			throw new Error(`Automation already exists: ${action.resource}`);
 		}
+		if (definition.reminder && definition.reminder.status !== AutomationReminderStatus.Scheduled) {
+			throw new Error('Reminders must be created in the scheduled state.');
+		}
 
 		const timestamp = new Date().toISOString();
 		const customizations = await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
@@ -339,7 +344,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			operations: [
 				AutomationOperation.Update,
 				AutomationOperation.Remove,
-				...(this._isAutomationsEnabled() ? [AutomationOperation.Run] : []),
+				...(this._isAutomationsEnabled() && !definition.reminder ? [AutomationOperation.Run] : []),
 			],
 			createdAt: timestamp,
 			modifiedAt: timestamp,
@@ -348,7 +353,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
-		logAutomationCreated(this._telemetryService, this._definitionTelemetry(automation));
+		if (!definition.reminder) {
+			logAutomationCreated(this._telemetryService, this._definitionTelemetry(automation));
+		}
 		this._scheduleNext();
 	}
 
@@ -363,6 +370,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error(`Automation not found: ${action.resource}`);
 		}
 		this._requireOperation(existing, AutomationOperation.Update);
+		if (action.expectedModifiedAt !== undefined && action.expectedModifiedAt !== existing.modifiedAt) {
+			throw new Error('Automation was modified since this update was prepared.');
+		}
 
 		let automation: AutomationEntry = {
 			...existing,
@@ -370,13 +380,19 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...existing.definition,
 				...action.changes,
 			},
-			modifiedAt: new Date().toISOString(),
+			modifiedAt: nextModifiedAt(existing.modifiedAt),
 		};
 		this._validateDefinition(automation.definition);
+		if (!!existing.definition.reminder !== !!automation.definition.reminder) {
+			throw new Error('Automation execution mode cannot be changed.');
+		}
+		if (action.changes.reminder?.status === AutomationReminderStatus.Due && existing.definition.reminder?.status !== AutomationReminderStatus.Due) {
+			throw new Error('Only the host can mark a reminder due.');
+		}
 		if (action.changes.session !== undefined) {
 			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		}
-		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
+		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined || action.changes.reminder !== undefined) {
 			automation = this._withInitialScheduleState(automation, new Date());
 		}
 		automation = { ...automation, operations: this._operationsForItem(automation) };
@@ -389,7 +405,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const sessionConfigurationChanged = !equals(existing.definition.session, automation.definition.session);
 		const promptChanged = !equals(existing.definition.message, automation.definition.message);
 		const titleChanged = existing.definition.title !== automation.definition.title;
-		if (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || titleChanged) {
+		if (!automation.definition.reminder && (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || titleChanged)) {
 			logAutomationUpdated(this._telemetryService, {
 				...this._definitionTelemetry(automation),
 				enabledChanged,
@@ -414,11 +430,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	async handleRemove(action: AutomationRemovedAction): Promise<void> {
-		await this.deleteAutomation(action.resource, true);
+		await this.deleteAutomation(action.resource, true, [], undefined, action.expectedModifiedAt);
 	}
 
-	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = [], requestId?: string): Promise<readonly string[]> {
-		const prepared = await this._enqueueMutation(() => this._prepareAutomationDeletion(resource, deleteHistory, legacySessions, requestId));
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = [], requestId?: string, expectedModifiedAt?: string): Promise<readonly string[]> {
+		const prepared = await this._enqueueMutation(() => this._prepareAutomationDeletion(resource, deleteHistory, legacySessions, requestId, expectedModifiedAt));
 		await this._enqueueMutation(() => this._customizations.collectGarbage(this._requireCatalog().entries));
 		return prepared ?? this._runHistoryDeletion(resource);
 	}
@@ -434,9 +450,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		});
 	}
 
-	private async _prepareAutomationDeletion(resource: string, deleteHistory: boolean, legacySessions: readonly URI[], requestId: string | undefined): Promise<readonly string[] | undefined> {
+	private async _prepareAutomationDeletion(resource: string, deleteHistory: boolean, legacySessions: readonly URI[], requestId: string | undefined, expectedModifiedAt: string | undefined): Promise<readonly string[] | undefined> {
 		const catalog = this._requireCatalog();
 		const existing = catalog.entries.find(automation => automation.resource === resource);
+		if (expectedModifiedAt !== undefined && expectedModifiedAt !== existing?.modifiedAt) {
+			throw new Error('Automation was modified or removed since this deletion was prepared.');
+		}
 		if (!existing) {
 			const receipt = requestId ? this._historyDeletionReceipts.get(requestId) : undefined;
 			return receipt?.automation === resource ? receipt.sessions : [];
@@ -494,7 +513,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
 		this._catalog = next;
 		this._publishAutomation(next, resource);
-		logAutomationDeleted(this._telemetryService, this._definitionTelemetry(existing));
+		if (!existing.definition.reminder) {
+			logAutomationDeleted(this._telemetryService, this._definitionTelemetry(existing));
+		}
 		this._scheduleNext();
 		return deleteHistory ? undefined : [];
 	}
@@ -827,6 +848,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private _withInitialScheduleState(automation: AutomationEntry, now: Date): AutomationEntry {
 		const cursors: Record<string, string> = {};
+		if (automation.definition.reminder) {
+			const trigger = automation.definition.triggers[0];
+			return {
+				...automation,
+				nextRunAt: automation.definition.enabled && automation.definition.reminder.status === AutomationReminderStatus.Scheduled && trigger?.kind === AutomationTriggerKind.Once ? trigger.at : undefined,
+				_meta: withScheduleCursors(automation._meta, cursors),
+			};
+		}
 		if (automation.definition.enabled) {
 			for (const trigger of automation.definition.triggers) {
 				if (trigger.kind === AutomationTriggerKind.Schedule) {
@@ -849,20 +878,21 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const catalog = this._catalog;
 		this._executionAvailabilityWatcher.value = autorun(reader => {
-			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
+			const available = catalog.entries.filter(automation => !getAgentHostAutomationHistoryState(automation)
+				&& (automation.definition.reminder || this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader)));
 			this._scheduleTimer.clear();
 			if (!this._isAutomationsEnabled()) {
 				return;
 			}
 			// Scheduled work waits until the machine is fully awake and reconnected; manual runs are never held.
 			const readyForScheduledWork = this._systemWake.isReadyForScheduledWork.read(reader);
+			const fullyAwake = this._systemWake.isFullyAwake.read(reader);
 			this._startPendingRuns(available, readyForScheduledWork);
-			if (!readyForScheduledWork) {
-				return;
-			}
 			const timestamps = available
 				.filter(automation => automation.definition.enabled
-					&& automation.operations.includes(AutomationOperation.Run)
+					&& (automation.definition.reminder
+						? fullyAwake && automation.definition.reminder.status === AutomationReminderStatus.Scheduled
+						: readyForScheduledWork && automation.operations.includes(AutomationOperation.Run))
 					&& automation.nextRunAt)
 				.map(automation => Date.parse(automation.nextRunAt!))
 				.filter(timestamp => Number.isFinite(timestamp));
@@ -883,7 +913,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _claimDueRuns(): Promise<readonly { readonly run: AutomationRunState; readonly definition: AutomationDefinition }[]> {
 		const catalog = this._requireAvailableCatalog();
-		if (!this._systemWake.isReadyForScheduledWork.get()) {
+		if (!this._systemWake.isFullyAwake.get()) {
 			return [];
 		}
 		const now = new Date();
@@ -896,6 +926,22 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 		for (const current of catalog.entries) {
 			if (!current.definition.enabled) {
+				continue;
+			}
+			if (current.definition.reminder) {
+				if (current.definition.reminder.status === AutomationReminderStatus.Scheduled && current.nextRunAt && Date.parse(current.nextRunAt) <= nowTimestamp) {
+					const automation: AutomationEntry = {
+						...current,
+						definition: { ...current.definition, reminder: { status: AutomationReminderStatus.Due } },
+						nextRunAt: undefined,
+						modifiedAt: nextModifiedAt(current.modifiedAt, nowTimestamp),
+					};
+					nextCatalog = automationReducer(nextCatalog, { type: ActionType.AutomationSet, automation }, this._log);
+					changed.set(automation.resource, automation);
+				}
+				continue;
+			}
+			if (!this._systemWake.isReadyForScheduledWork.get()) {
 				continue;
 			}
 			if (!current.operations.includes(AutomationOperation.Run)) {
@@ -1087,6 +1133,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private async _startRun(initialRun: AutomationRunState, definition: AutomationDefinition): Promise<void> {
+		if (definition.reminder) {
+			return;
+		}
 		try {
 			await this._startup;
 			const entry = this._catalog?.entries.find(candidate => candidate.resource === initialRun.automation);
@@ -1517,23 +1566,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _validateDefinition(definition: AutomationDefinition): void {
-		if (definition.title.trim().length === 0) {
-			throw new Error('Automation title must not be empty.');
-		}
-		if (definition.message.origin.kind !== MessageKind.Automation) {
-			throw new Error('Automation message must have an automation origin.');
-		}
-		const triggerIds = new Set<string>();
-		for (const trigger of definition.triggers) {
-			if (trigger.id.trim().length === 0 || triggerIds.has(trigger.id)) {
-				throw new Error(`Automation trigger ids must be non-empty and unique: ${trigger.id}`);
-			}
-			triggerIds.add(trigger.id);
-			if (trigger.kind === AutomationTriggerKind.Event) {
-				throw new Error(`Automation event trigger type is not available: ${trigger.type}`);
-			}
-			validateAutomationCron(trigger.schedule.expression, trigger.schedule.timeZone);
-		}
+		validateDefinition(definition);
 	}
 
 	private _requireOperation(automation: AutomationEntry, operation: AutomationOperation): void {
@@ -1569,6 +1602,77 @@ function getExecutionSessionTemplate(definition: AutomationDefinition): Automati
 		: { ...definition.session, model: definition.message.model };
 }
 
+function nextModifiedAt(previous: string, now = Date.now()): string {
+	return new Date(Math.max(now, Date.parse(previous) + 1)).toISOString();
+}
+
+function isUtcTimestamp(value: string): boolean {
+	if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) {
+		return false;
+	}
+	const timestamp = Date.parse(value);
+	const normalized = value.includes('.') ? value.slice(0, -1).padEnd(23, '0') + 'Z' : value.slice(0, -1) + '.000Z';
+	return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === normalized;
+}
+
+function validateDefinition(definition: AutomationDefinition): void {
+	if (typeof definition?.title !== 'string' || definition.title.trim().length === 0) {
+		throw new Error('Automation title must not be empty.');
+	}
+	if (definition.message?.origin?.kind !== MessageKind.Automation || typeof definition.message.text !== 'string') {
+		throw new Error('Automation message must have text and an automation origin.');
+	}
+	if (!definition.session || typeof definition.session !== 'object' || Array.isArray(definition.session)
+		|| typeof definition.enabled !== 'boolean' || !Array.isArray(definition.triggers)) {
+		throw new Error('Invalid automation definition.');
+	}
+	const reminder = definition.reminder;
+	if (reminder !== undefined) {
+		if (!reminder || typeof reminder !== 'object' || Array.isArray(reminder)
+			|| definition.triggers.length !== 1 || definition.triggers[0]?.kind !== AutomationTriggerKind.Once
+			|| definition.disableConditions !== undefined && (!Array.isArray(definition.disableConditions) || definition.disableConditions.length > 0)) {
+			throw new Error('A reminder requires exactly one once trigger and no disable conditions.');
+		}
+		switch (reminder.status) {
+			case AutomationReminderStatus.Scheduled:
+			case AutomationReminderStatus.Due:
+			case AutomationReminderStatus.Dismissed:
+				if (Object.hasOwn(reminder, 'session')) {
+					throw new Error('Only a sent reminder may reference a session.');
+				}
+				break;
+			case AutomationReminderStatus.Sent:
+				if (typeof reminder.session !== 'string' || !reminder.session || reminder.session.trim() !== reminder.session || !URI.parse(reminder.session, true).scheme) {
+					throw new Error('A sent reminder requires a session resource.');
+				}
+				break;
+			default:
+				throw new Error('Unknown reminder status.');
+		}
+	}
+	const triggerIds = new Set<string>();
+	for (const trigger of definition.triggers) {
+		if (typeof trigger?.id !== 'string' || trigger.id.trim().length === 0 || triggerIds.has(trigger.id)) {
+			throw new Error('Automation trigger ids must be non-empty and unique.');
+		}
+		triggerIds.add(trigger.id);
+		switch (trigger.kind) {
+			case AutomationTriggerKind.Once:
+				if (!reminder || !isUtcTimestamp(trigger.at)) {
+					throw new Error('A once trigger requires a reminder and a valid UTC timestamp.');
+				}
+				break;
+			case AutomationTriggerKind.Schedule:
+				validateAutomationCron(trigger.schedule.expression, trigger.schedule.timeZone);
+				break;
+			case AutomationTriggerKind.Event:
+				throw new Error(`Automation event trigger type is not available: ${trigger.type}`);
+			default:
+				throw new Error('Unknown automation trigger kind.');
+		}
+	}
+}
+
 function isStoredAutomationCatalog(value: unknown): value is IStoredAutomationCatalog {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
@@ -1601,10 +1705,13 @@ function isStoredAutomations(value: unknown): value is IStoredAutomations {
 		return false;
 	}
 	const stored = value as Record<string, unknown>;
+	const catalog = stored['catalog'];
+	const runs = stored['runs'];
 	const runProviders = stored['runProviders'];
 	return (stored['version'] === undefined || stored['version'] === 1)
-		&& isStoredAutomationCatalog(stored['catalog'])
-		&& (stored['runs'] === undefined || Array.isArray(stored['runs']) && stored['runs'].every(isAutomationRunState))
+		&& isStoredAutomationCatalog(catalog)
+		&& (runs === undefined || Array.isArray(runs) && runs.every(isAutomationRunState)
+			&& runs.every(run => !catalog.automations.some(automation => automation.resource === run.automation && automation.definition.reminder)))
 		&& (runProviders === undefined || !!runProviders && typeof runProviders === 'object' && !Array.isArray(runProviders)
 			&& Object.values(runProviders).every(provider => typeof provider === 'string' && provider.length > 0))
 		&& (stored['sessionCreations'] === undefined || Array.isArray(stored['sessionCreations']) && stored['sessionCreations'].every(isStoredSessionCreation))
@@ -1648,12 +1755,18 @@ function isAutomationEntry(value: unknown): value is AutomationEntry {
 		return false;
 	}
 	const record = value as Record<string, unknown>;
+	try {
+		validateDefinition(record['definition'] as AutomationDefinition);
+	} catch {
+		return false;
+	}
 	return typeof record['resource'] === 'string'
 		&& typeof record['definition'] === 'object' && record['definition'] !== null && !Array.isArray(record['definition'])
 		&& Array.isArray(record['runs'])
+		&& (!(record['definition'] as AutomationDefinition).reminder || record['runs'].length === 0)
 		&& Array.isArray(record['operations'])
 		&& typeof record['createdAt'] === 'string'
-		&& typeof record['modifiedAt'] === 'string';
+		&& typeof record['modifiedAt'] === 'string' && Number.isFinite(Date.parse(record['modifiedAt']));
 }
 
 function isAutomationRunState(value: unknown): value is AutomationRunState {

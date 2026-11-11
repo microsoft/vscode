@@ -36,6 +36,8 @@ export class WorkspaceNotTrustedError extends Error {
  * management-only concerns that the provider is not aware of.
  */
 export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions {
+	/** Client-only draft correlation, emitted after successful submission and not forwarded to providers. */
+	readonly handoffId?: string;
 	/**
 	 * Start the session without navigating into it: the composer stays put and
 	 * the started session/chat shows up in the sessions list. Honored by

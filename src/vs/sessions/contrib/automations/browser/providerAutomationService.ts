@@ -18,6 +18,7 @@ import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../wor
  * Providers own persistence and execution; this service combines their observable state without a fallback store.
  */
 export class ProviderAutomationService extends Disposable implements IAutomationService {
+	readonly canCreateReminder = derived(this, reader => this.availableProviders.read(reader).some(provider => provider.supportsReminders));
 
 	declare readonly _serviceBrand: undefined;
 
@@ -73,7 +74,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			return this.getAvailableProviders(reader)
 				.filter(provider => !isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.read(reader) !== false)
 				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.canCreateAutomation.read(reader))
-				.map(provider => ({ id: provider.id, label: provider.label }));
+				.map(provider => ({ id: provider.id, label: provider.label, ...(provider.automations?.canCreateReminder?.read(reader) === true ? { supportsReminders: true } : {}) }));
 		});
 		this.automations = derived(this, reader => {
 			return this.getStores(reader).flatMap(store => [...store.automations.read(reader)])
@@ -123,6 +124,9 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		const store = providerId ? this.sessionsProvidersService.getProvider(providerId)?.automations : undefined;
 		if (!store || store.enabled?.get() === false || !store.canCreateAutomation.get()) {
 			throw new AutomationUnavailableError(localize('automationCreateUnavailable', "Connect to an Agent Host that supports automations before creating one."));
+		}
+		if ((options.reminder || options.schedule.interval === 'once' || options.target.kind === 'reminder') && !store.canCreateReminder?.get()) {
+			throw new AutomationUnavailableError(localize('automationReminderUnavailable', "This provider does not support reminders."));
 		}
 		return store.createAutomation(options, mutationGuard);
 	}

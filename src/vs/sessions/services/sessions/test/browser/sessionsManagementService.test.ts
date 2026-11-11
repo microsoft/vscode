@@ -6197,6 +6197,38 @@ suite('SessionsManagementService', () => {
 		});
 	}
 
+	for (const sendKind of ['foreground', 'background', 'headless'] as const) {
+		test(`${sendKind} reminder handoff correlation stays on the client and is reported only after submission`, async () => {
+			const session = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+			let submittedOptions: ISendRequestOptions | undefined;
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(folder: URI): ISessionWorkspace {
+					return { uri: folder, label: 'repo', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				}
+				override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+					submittedOptions = options;
+					return session;
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			if (sendKind !== 'headless') {
+				service.createNewSession(URI.file('/repo'), { providerId: provider.id });
+			}
+			const sent = Event.toPromise(service.onDidSendRequest);
+			const options = { query: 'Review', handoffId: 'reminder-handoff', background: sendKind === 'background' };
+			if (sendKind === 'headless') {
+				await service.createAndSendNewChatRequest(URI.file('/repo'), options, { providerId: provider.id });
+			} else {
+				await service.sendNewChatRequest(session, options);
+			}
+			const event = await sent;
+			assert.deepStrictEqual({ submittedOptions, reportedOptions: event.options }, {
+				submittedOptions: { query: 'Review', background: sendKind === 'background' },
+				reportedOptions: options,
+			});
+		});
+	}
+
 	for (const isolation of ['worktree', 'folder'] as const) {
 		for (const sendKind of ['foreground', 'background', 'headless'] as const) {
 			test(`${sendKind} new session captures ${isolation} configuration before the draft is replaced`, async () => {

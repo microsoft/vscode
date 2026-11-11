@@ -33,6 +33,8 @@ export interface IChatSlashData {
 	 * Whether a silent command can execute independently while the chat has a request in progress.
 	 */
 	executeDuringRequest?: boolean;
+	/** Runs in the composer before provider session creation, without executing on completion selection. */
+	executeLocally?: boolean;
 
 	/**
 	 * Whether the command should be added as a request/response
@@ -71,6 +73,7 @@ export interface IChatSlashCommandCompletionVariant {
 /** Original composer text captured before a slash command clears its input. */
 export interface IChatSlashCommandExecutionContext {
 	readonly input: string;
+	readonly inputUri?: URI;
 }
 
 export interface IChatSlashFragment {

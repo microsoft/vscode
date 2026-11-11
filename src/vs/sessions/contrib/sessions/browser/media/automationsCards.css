@@ -64,6 +64,7 @@
 
 /* Centered content band */
 .automations-cards-header,
+.automation-reminders,
 .automations-cards-grid,
 .automations-cards-empty,
 .automations-cards-state,
@@ -74,6 +75,48 @@
 .automations-history {
 	width: 100%;
 	max-width: 900px;
+}
+
+.automation-reminders {
+	margin-bottom: var(--vscode-spacing-size240);
+}
+
+.automation-reminders-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size120);
+}
+
+.automation-reminders-header > .monaco-button {
+	width: auto;
+}
+
+.automation-reminders h3,
+.automation-reminders h4 {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automation-reminders p {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automation-reminders ul {
+	list-style: none;
+	padding: 0;
+}
+
+.automation-reminders li {
+	margin-block: var(--vscode-spacing-size80);
+}
+
+.automation-reminders li > .monaco-button {
+	justify-content: flex-start;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: left;
+	padding: var(--vscode-spacing-size80);
 }
 
 /* Header */

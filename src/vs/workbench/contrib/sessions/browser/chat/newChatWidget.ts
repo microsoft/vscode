@@ -529,7 +529,7 @@ export class NewChatWidget extends Disposable {
 				: this._workspacePicker.selectionSnapshot,
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
-			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			sendRequest: async ({ query, attachments, background, userInteraction, handoffId }) => this._send(query, attachments, background, userInteraction, handoffId),
 			inputSnapshot: this._draftHost?.input,
 			get preserveInputFocusOnSend() { return backgroundSend || viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox; },
 			confirmSend: async query => this._comparisonSelection.enabled.get() || !this._worktreeSuggestion || this._worktreeSuggestion.confirmBeforeSend(query),
@@ -2437,7 +2437,7 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction, handoffId?: string): Promise<boolean> {
 		background = this._backgroundSend || background;
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
 		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox);
@@ -2481,6 +2481,10 @@ export class NewChatWidget extends Disposable {
 				this.notificationService.info(localize('newSession.comparisonInMainWindow', "Compare Agents is available from the new session in the main window."));
 				return false;
 			}
+			if (handoffId) {
+				this.notificationService.info(localize('reminder.singleSession', "Turn off Compare Agents to send this reminder to one session."));
+				return false;
+			}
 			const started = await this._sendComparison(session, request, requestContext, showBackgroundSendStatus);
 			if (showBackgroundSendStatus && started && !this._newChatInput.hasInput) {
 				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
@@ -2498,6 +2502,7 @@ export class NewChatWidget extends Disposable {
 		const reseedFolderUri = background ? folderUri : undefined;
 		const sendOptions = {
 			query: request,
+			...(handoffId ? { handoffId } : {}),
 			attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
 			background,
 			...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),

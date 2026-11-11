@@ -336,6 +336,8 @@ export interface AutomationCapabilities {
 	create?: AutomationCreateCapability;
 	/** Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}. */
 	schedules?: AutomationScheduleCapabilities;
+	/** Present when notification-only reminders and conditional automation updates and removals are supported. */
+	reminders?: AutomationRemindersCapability;
 	/**
 	 * Present when clients may request cancellation of `pending` or `running`
 	 * automation runs.
@@ -364,6 +366,19 @@ export interface AutomationCapabilities {
  * @category Commands
  */
 export interface AutomationCustomizationsCapability { }
+
+/**
+ * Presence capability for notification-only one-time automation reminders and
+ * {@link AutomationUpdateRequestedAction.expectedModifiedAt} and conditional
+ * automation removal.
+ *
+ * Clients MUST NOT submit reminders or once triggers without this capability.
+ * Hosts MUST reject unsupported trigger kinds rather than execute them as
+ * session automations.
+ *
+ * @category Commands
+ */
+export interface AutomationRemindersCapability { }
 
 /**
  * Presence capability for {@link AutomationCreateRequestedAction |

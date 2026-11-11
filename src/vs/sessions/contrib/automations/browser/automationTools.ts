@@ -52,7 +52,9 @@ interface IAutomationToolOutput {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationDescriptor['cloudTrigger'];
+	readonly reminderStatus?: string;
 	readonly target:
+	| { readonly kind: 'reminder'; readonly providerId: string }
 	| {
 		readonly kind: 'workspace';
 		readonly folderUri: string;
@@ -823,6 +825,9 @@ The change uses the current tool-approval policy. When approval is required, the
 	}
 
 	private resolveAvailableTarget(target: AutomationTarget, existing?: IAutomationDescriptor): AutomationTarget {
+		if (target.kind === 'reminder') {
+			throw new AutomationToolInputError('Use the Reminders section in Automations to edit notification-only reminders.');
+		}
 		const candidates = target.kind === 'quickChat'
 			? this.sessionsManagementService.getQuickChatSessionTypes()
 			: this.sessionsManagementService.getSessionTypesForFolder(target.folderUri);
@@ -858,6 +863,9 @@ The change uses the current tool-approval policy. When approval is required, the
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
+		if (existing?.reminder) {
+			throw new AutomationToolInputError('Use the Reminders section in Automations to edit notification-only reminders.');
+		}
 		if (automationId && !existing) {
 			throw new AutomationToolInputError(`Automation "${automationId}" does not exist. Call listAutomations to refresh the available IDs.`);
 		}
@@ -1203,7 +1211,10 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 			sessionTypeId: automation.target.sessionTypeId ?? null,
 			isolation: automation.target.isolation,
 		}
-		: {
+		: automation.target.kind === 'reminder' ? {
+			kind: 'reminder',
+			providerId: automation.target.providerId,
+		} : {
 			kind: 'quickChat',
 			providerId: automation.target.providerId,
 			sessionTypeId: automation.target.sessionTypeId,
@@ -1212,6 +1223,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		id: automation.id,
 		name: automation.name,
 		prompt: automation.prompt,
+		...(automation.reminder ? { reminderStatus: automation.reminder.status } : {}),
 		schedule: automation.schedule,
 		...(automation.cloudTrigger ? { cloudTrigger: automation.cloudTrigger } : {}),
 		target,
@@ -1244,7 +1256,7 @@ function toAutomationListToolOutput(automation: IAutomationDescriptor, automatio
 		...(activeRun ? { activeRun: { id: activeRun.id, status: activeRun.status, startedAt: activeRun.startedAt } } : {}),
 		availableOperations: [
 			...(automationService.canRunAutomation(automation.id) && getUncertainAutomationRun(automation, automationService) === undefined ? ['run'] as const : []),
-			...(automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
+			...(!automation.reminder && automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
 			...(automationService.canDeleteAutomation(automation.id) ? ['delete'] as const : []),
 		],
 	};

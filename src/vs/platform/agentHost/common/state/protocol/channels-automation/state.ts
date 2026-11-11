@@ -105,6 +105,24 @@ export const enum AutomationTriggerKind {
 	Schedule = 'schedule',
 	/** A host-defined external event discovered from trigger definitions. */
 	Event = 'event',
+	/** One notification-only reminder at an absolute UTC instant. */
+	Once = 'once',
+}
+
+/**
+ * Delivers a notification-only reminder once, including after a missed wake.
+ *
+ * Requires {@link AutomationCapabilities.reminders} and
+ * {@link AutomationDefinition.reminder}; it never starts an automation run.
+ *
+ * @category Automation State
+ */
+export interface AutomationOnceTrigger {
+	/** Identifier unique and stable within this automation definition. */
+	id: string;
+	kind: AutomationTriggerKind.Once;
+	/** ISO 8601 UTC timestamp ending in `Z`. */
+	at: string;
 }
 
 /**
@@ -169,7 +187,7 @@ export interface AutomationEventTrigger {
 }
 
 /**
- * An automatic trigger that can create runs for an enabled automation.
+ * An automatic trigger for session runs or notification-only reminders.
  *
  * Manual execution is not represented as a trigger. An empty trigger list
  * therefore means the automation is manual-only.
@@ -178,7 +196,76 @@ export interface AutomationEventTrigger {
  */
 export type AutomationTrigger =
 	| AutomationScheduleTrigger
-	| AutomationEventTrigger;
+	| AutomationEventTrigger
+	| AutomationOnceTrigger;
+
+/**
+ * Lifecycle of a notification-only automation reminder.
+ *
+ * @category Automation State
+ * @exhaustive
+ */
+export const enum AutomationReminderStatus {
+	Scheduled = 'scheduled',
+	Due = 'due',
+	Dismissed = 'dismissed',
+	Sent = 'sent',
+}
+
+/**
+ * Waiting for the host to claim the one-time trigger.
+ *
+ * @category Automation State
+ */
+export interface AutomationReminderScheduledState {
+	status: AutomationReminderStatus.Scheduled;
+}
+
+/**
+ * Durably due for client presentation, including after reconnect or restart.
+ *
+ * @category Automation State
+ */
+export interface AutomationReminderDueState {
+	status: AutomationReminderStatus.Due;
+}
+
+/**
+ * Acknowledged without sending the reminder to an agent.
+ *
+ * @category Automation State
+ */
+export interface AutomationReminderDismissedState {
+	status: AutomationReminderStatus.Dismissed;
+}
+
+/**
+ * Explicitly handed off by a client to an agent session.
+ *
+ * @category Automation State
+ */
+export interface AutomationReminderSentState {
+	status: AutomationReminderStatus.Sent;
+	/** Canonical session resource returned by the host for the explicit handoff. */
+	session: URI;
+}
+
+/**
+ * Notification-only execution mode and durable reminder lifecycle.
+ *
+ * The host alone advances scheduled reminders to due, atomically clearing
+ * {@link AutomationEntry.nextRunAt}. Clients may postpone with scheduled and
+ * a replacement once trigger, dismiss, or record an explicit successful handoff
+ * as sent. Clients SHOULD use {@link AutomationUpdateRequestedAction.expectedModifiedAt}
+ * to reject stale actions.
+ *
+ * @category Automation State
+ */
+export type AutomationReminderState =
+	| AutomationReminderScheduledState
+	| AutomationReminderDueState
+	| AutomationReminderDismissedState
+	| AutomationReminderSentState;
 
 /**
  * Discriminant for an {@link AutomationDisableCondition}.
@@ -339,14 +426,25 @@ export interface AutomationDefinition {
 	/** Human-readable automation name. */
 	title: string;
 	/**
-	 * Initial message sent to every newly created run session. Its
+	 * Initial message sent to every newly created run session, or notification
+	 * content when {@link AutomationDefinition.reminder} is present. Its
 	 * {@link Message.origin} kind MUST be {@link MessageKind.Automation}.
 	 */
 	message: Message;
-	/** Template used to create fresh sessions for each run. */
+	/** Template for fresh run sessions, or an explicit reminder handoff. */
 	session: AutomationSessionTemplate;
 	/**
-	 * Whether automatic triggers may create runs. Manual runs remain available
+	 * Notification-only execution mode, requiring {@link AutomationCapabilities.reminders}.
+	 * A reminder has exactly one {@link AutomationOnceTrigger}, no disable
+	 * conditions, and is created scheduled. Its session template is only a saved
+	 * explicit-handoff template; due delivery MUST NOT allocate, create, or send
+	 * to a session, require a model, or create a run. Hosts MUST NOT advertise
+	 * {@link AutomationOperation.Run} for reminders. Existing automations cannot
+	 * change between reminder and session-execution modes.
+	 */
+	reminder?: AutomationReminderState;
+	/**
+	 * Whether automatic triggers may fire. Manual runs remain available
 	 * whenever {@link AutomationOperation.Run} is advertised.
 	 */
 	enabled: boolean;
@@ -391,7 +489,7 @@ export interface AutomationEntry {
 	resource: URI;
 	/** Current durable definition. */
 	definition: AutomationDefinition;
-	/** Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
+	/** Earliest schedule or reminder occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
 	nextRunAt?: string;
 	/**
 	 * Host-owned count of scheduled runs consumed against the current
@@ -435,7 +533,7 @@ export interface AutomationEntry {
 	customizations?: PluginCustomization[];
 	/** Creation timestamp in ISO 8601 format. */
 	createdAt: string;
-	/** Last definition modification timestamp in ISO 8601 format. */
+	/** Last definition modification timestamp in ISO 8601 format, including reminder lifecycle changes. Strictly increases for each accepted definition mutation. */
 	modifiedAt: string;
 	/** Opaque host-defined state metadata. */
 	_meta?: Record<string, unknown>;

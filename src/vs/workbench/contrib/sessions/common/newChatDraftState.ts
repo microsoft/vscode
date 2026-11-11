@@ -33,6 +33,7 @@ export function toStoredChatDraft(draft: IChatDraft): object {
 		inputText: draft.inputText,
 		attachments: draft.attachments.map(IChatRequestVariableEntry.toExport),
 		references: draft.references,
+		...(draft.handoffId ? { handoffId: draft.handoffId } : {}),
 	};
 }
 
@@ -45,7 +46,7 @@ export function fromStoredChatDraft(value: unknown): IChatDraft {
 	}
 	// Drafts saved before references were saved, or with invalid ones, keep their text and attachments.
 	const references = Array.isArray(draft.references) && draft.references.every(isDynamicVariable) ? draft.references : undefined;
-	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport), references };
+	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport), references, ...(typeof draft.handoffId === 'string' ? { handoffId: draft.handoffId } : {}) };
 }
 
 /** A send of a composer whose input was cleared for it, until the send is rejected, fails or starts. */

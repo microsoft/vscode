@@ -157,12 +157,13 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 		case 'cron':
 			return { interval: 'cron', cronExpression: schedule.cronExpression, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		case 'custom':
-			throw new AutomationBlueprintParseError('unsupportedSchedule', 'custom');
+		case 'once':
+			throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 	}
 }
 
 function assertPortableSchedule(schedule: IAutomationSchedule): void {
-	if (schedule.interval === 'custom' || (schedule.timeZone === 'UTC' && (schedule.interval === 'daily' || schedule.interval === 'weekdays' || schedule.interval === 'weekly'))) {
+	if (schedule.interval === 'custom' || schedule.interval === 'once' || (schedule.timeZone === 'UTC' && (schedule.interval === 'daily' || schedule.interval === 'weekdays' || schedule.interval === 'weekly'))) {
 		throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 	}
 	// Blueprints can only express `timeZone: local`, so a cron schedule bound to another zone would import at the wrong time.
@@ -202,7 +203,8 @@ function readSchedule(root: YamlMapNode): IAutomationSchedule {
 function toCronExpression(schedule: IAutomationSchedule): string {
 	switch (schedule.interval) {
 		case 'custom':
-			throw new AutomationBlueprintParseError('unsupportedSchedule', 'custom');
+		case 'once':
+			throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 		case 'manual':
 			throw new Error('Manual Automation schedules do not have cron expressions.');
 		case 'hourly':

@@ -11,7 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
+import { AutomationReminder, IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -125,6 +125,7 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	readonly reminder?: AutomationReminder;
 	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
@@ -165,6 +166,7 @@ export interface IAutomationCustomizationChoice {
  * replaces the complete discriminated target atomically.
  */
 export interface IUpdateAutomationOptions {
+	readonly reminder?: AutomationReminder;
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
@@ -199,7 +201,7 @@ export type IGuardedAutomationUpdateResult =
  * canonical serialized form so any mismatch fails closed as a conflict.
  */
 export function serializeAutomationEditableState(automation: IAutomationDescriptor): string {
-	const target = automation.target.kind === 'quickChat'
+	const target = automation.target.kind !== 'workspace'
 		? {
 			kind: automation.target.kind,
 			providerId: automation.target.providerId,
@@ -219,6 +221,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		prompt: automation.prompt,
 		schedule: {
 			interval: automation.schedule.interval,
+			at: automation.schedule.at,
 			cronExpression: automation.schedule.cronExpression,
 			cronTimeZone: automation.schedule.cronTimeZone,
 			scheduleHour: automation.schedule.scheduleHour,
@@ -233,6 +236,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
 		cloudTrigger: automation.cloudTrigger,
+		reminder: automation.reminder,
 	});
 }
 
@@ -268,6 +272,7 @@ export type AutomationHistoryState = 'retained' | 'deleting' | 'interrupted';
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
+	readonly canCreateReminder?: IObservable<boolean>;
 	refresh?(options?: IAutomationRefreshOptions): Promise<void>;
 	/** Full catalogue refresh activity, including its history read but excluding independent history polling. */
 	readonly isRefreshing?: IObservable<boolean>;
@@ -348,6 +353,7 @@ export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 
 export interface IAutomationProviderDescriptor {
 	readonly id: string;
 	readonly label: string;
+	readonly supportsReminders?: boolean;
 	/** Optional category for grouping providers without interpreting localized explanations. */
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */

@@ -36,6 +36,7 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	readonly catalogueState: IObservable<AutomationCatalogueState> = derived(this, reader => this.currentStore.read(reader)?.catalogueState.read(reader)
 		?? (this.connectionState.read(reader) === 'initializing' ? 'loading' : 'unavailable'));
 	readonly canCreateAutomation = derived(this, reader => this.currentStore.read(reader)?.canCreateAutomation.read(reader) ?? false);
+	readonly canCreateReminder = derived(this, reader => this.currentStore.read(reader)?.canCreateReminder.read(reader) ?? false);
 	readonly unavailableReasonCode = derived(this, reader => {
 		const state = this.connectionState.read(reader);
 		return state === 'connected' ? undefined : state;

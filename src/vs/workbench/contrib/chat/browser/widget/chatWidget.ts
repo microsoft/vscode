@@ -179,11 +179,11 @@ function isTransientChat(widget: IChatWidget): boolean {
 	return widget.location !== ChatAgentLocation.Chat || isInlineChat(widget) || isQuickChat(widget);
 }
 
-export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatRequest): ChatRequestSlashCommandPart | undefined {
+export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatRequest, localOnly = false): ChatRequestSlashCommandPart | undefined {
 	return parsedRequest.parts.find((part): part is ChatRequestSlashCommandPart =>
 		part instanceof ChatRequestSlashCommandPart
 		&& part.range.start === 0
-		&& part.slashCommand.executeImmediately === true
+		&& (part.slashCommand.executeLocally === true || !localOnly && part.slashCommand.executeImmediately === true)
 		&& part.slashCommand.silent === true
 	);
 }
@@ -354,6 +354,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** User input accepted by this widget for sending or queuing, excluding preserved-input background requests. */
 	readonly onDidAcceptRequest = this._onDidAcceptRequest.event;
 	private _submitHandlerInFlight = false;
+	private _localCommandInFlight = false;
 	private _participantRedirectInFlight = false;
 
 	private _onDidChangeAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
@@ -3964,9 +3965,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				? []
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext().asArray() : this.input.getAttachedAndImplicitContext().asArray(),
 		};
-		const immediateCommandResult = this.viewModel.model.hasActiveRequest.get()
-			? await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined, immediateCommandOptions)
-			: undefined;
+		const immediateCommandResult = await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined, immediateCommandOptions, !this.viewModel.model.hasActiveRequest.get());
 		if (immediateCommandResult?.executed) {
 			if (forkPromptSourceInput) {
 				forkPromptSourceInput.clear();
@@ -4358,7 +4357,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return resolved.flat();
 	}
 
-	private async _tryExecuteImmediateSlashCommand(input: string, parsedInput: IParsedChatRequest | undefined, requestOptions: IChatSendRequestOptions): Promise<{ readonly executed: boolean; readonly preserveInput: boolean }> {
+	private async _tryExecuteImmediateSlashCommand(input: string, parsedInput: IParsedChatRequest | undefined, requestOptions: IChatSendRequestOptions, localOnly = false): Promise<{ readonly executed: boolean; readonly preserveInput: boolean }> {
+		if (!input.startsWith('/')) {
+			return { executed: false, preserveInput: false };
+		}
 		const viewModel = this.viewModel;
 		if (!viewModel) {
 			return { executed: false, preserveInput: false };
@@ -4371,7 +4373,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
 				sessionType: getChatSessionType(viewModel.model.sessionResource)
 			});
-		const commandPart = getImmediateSilentSlashCommandPart(parsedRequest);
+		const commandPart = getImmediateSilentSlashCommandPart(parsedRequest, localOnly);
 		if (!commandPart) {
 			return { executed: false, preserveInput: false };
 		}
@@ -4385,20 +4387,37 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: request.response.response.toString() }] });
 		}
 
+		const sourceModel = this.inputEditor.getModel();
+		const sourceVersion = sourceModel?.getVersionId();
+		const sourceAttachments = [...this.attachmentModel.attachments];
 		const command = commandPart.slashCommand.command;
-		const result = await this.chatSlashCommandService.executeCommand(
-			command,
-			input.slice(commandPart.range.endExclusive).trimStart(),
-			new Progress(() => { }),
-			history,
-			this.location,
-			viewModel.sessionResource,
-			CancellationToken.None,
-			requestOptions,
-			{ input: parsedRequest.text },
-		);
-		this.chatTipService.recordSlashCommandUsage(command);
-		return { executed: true, preserveInput: result?.preserveInput === true };
+		if (this._localCommandInFlight) {
+			return { executed: true, preserveInput: true };
+		}
+		this._localCommandInFlight = commandPart.slashCommand.executeLocally === true;
+		try {
+			const result = await this.chatSlashCommandService.executeCommand(
+				command,
+				input.slice(commandPart.range.endExclusive).trimStart(),
+				new Progress(() => { }),
+				history,
+				this.location,
+				viewModel.sessionResource,
+				CancellationToken.None,
+				requestOptions,
+				{ input: parsedRequest.text, inputUri: this.input.inputUri },
+			);
+			this.chatTipService.recordSlashCommandUsage(command);
+			const changed = sourceModel !== this.inputEditor.getModel() || sourceVersion !== sourceModel?.getVersionId()
+				|| sourceAttachments.length !== this.attachmentModel.attachments.length
+				|| sourceAttachments.some((attachment, index) => attachment !== this.attachmentModel.attachments[index]);
+			if (commandPart.slashCommand.executeLocally && !result?.preserveInput && !changed) {
+				this.attachmentModel.clear();
+			}
+			return { executed: true, preserveInput: result?.preserveInput === true || changed };
+		} finally {
+			this._localCommandInFlight = false;
+		}
 	}
 
 	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {

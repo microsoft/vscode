@@ -107,6 +107,8 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
 export interface IAgentsWindowDraft {
+	/** Client-only correlation, never part of the model's prompt. */
+	readonly handoffId?: string;
 	readonly inputText: string;
 	/** URI-aware serialized chat attachments, including exported image data. */
 	readonly attachments: string;

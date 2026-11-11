@@ -14,6 +14,17 @@ suite('New chat draft state', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('persists handoff correlation and clears it when a different draft replaces it', () => {
+		const storage = store.add(new InMemoryStorageService());
+		writeNewChatDraftState(storage, { inputText: 'Edited reminder', attachments: [], handoffId: 'handoff' });
+		const restored = readNewChatDraftState(storage);
+		writeNewChatDraftState(storage, { inputText: 'Unrelated task', attachments: [] });
+		assert.deepStrictEqual({ restored, replaced: readNewChatDraftState(storage) }, {
+			restored: { inputText: 'Edited reminder', attachments: [], handoffId: 'handoff', references: undefined },
+			replaced: { inputText: 'Unrelated task', attachments: [], references: undefined },
+		});
+	});
+
 	test('keeps the references that bind mentions to attachments, and reads drafts saved without them', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const first = { kind: 'file' as const, id: 'a', name: 'index.ts', value: URI.file('/a/index.ts') };

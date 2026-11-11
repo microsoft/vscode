@@ -83,6 +83,10 @@ interface INewSessionOwnership {
 }
 
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
+	private providerSendOptions(options: ISendRequestOptions): Omit<ISendRequestOptions, 'handoffId'> {
+		const { handoffId: _handoffId, ...result } = options;
+		return result;
+	}
 
 	declare readonly _serviceBrand: undefined;
 
@@ -983,7 +987,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._pendingSendChatResources.add(chatResourceKey);
 			let updatedSession: ISession;
 			try {
-				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, this.providerSendOptions(options));
 			} finally {
 				this._pendingSendChatResources.delete(chatResourceKey);
 			}
@@ -1393,7 +1397,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		});
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, this.providerSendOptions(options));
 		} finally {
 			cancellationListener.dispose();
 			this._pendingSendChatResources.delete(chatResourceKey);
@@ -1439,7 +1443,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, this.providerSendOptions(options));
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
@@ -1470,7 +1474,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, this.providerSendOptions(options));
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}

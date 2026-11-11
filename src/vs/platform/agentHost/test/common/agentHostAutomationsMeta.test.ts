@@ -7,6 +7,7 @@ import assert from 'assert';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getAgentHostAutomationScheduleKind, withAgentHostAutomationScheduleKind } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationReminderContext, withAgentHostAutomationReminderContext } from '../../common/meta/agentHostAutomationRemindersMeta.js';
 import type { AutomationDefinition } from '../../common/state/protocol/state.js';
 
 suite('Agent Host Automation schedule metadata', () => {
@@ -34,6 +35,29 @@ suite('Agent Host Automation schedule metadata', () => {
 		const values = [undefined, null, true, 'hourly', { kind: 'cron' }];
 		assert.deepStrictEqual(values.map(value => getAgentHostAutomationScheduleKind(upcastPartial<AutomationDefinition>({
 			_meta: { 'vscode.automationScheduleKind': value },
+		}))), values.map(() => undefined));
+	});
+});
+
+suite('Agent Host Automation reminder metadata', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves opaque context and unrelated metadata without inventing absent metadata', () => {
+		const original = { vendor: { keep: true } };
+		const context = { attachments: 'serialized draft', handoffId: 'handoff' };
+		const marked = withAgentHostAutomationReminderContext(original, context);
+		assert.deepStrictEqual({
+			original,
+			context: getAgentHostAutomationReminderContext(upcastPartial<AutomationDefinition>({ _meta: marked })),
+			cleared: withAgentHostAutomationReminderContext(marked, undefined),
+			absent: withAgentHostAutomationReminderContext(undefined, undefined),
+		}, { original: { vendor: { keep: true } }, context, cleared: original, absent: undefined });
+	});
+
+	test('ignores malformed context instead of exposing unvalidated values', () => {
+		const values = [undefined, null, [], 'draft', { attachments: [] }, { handoffId: 1 }, { attachments: 'valid', handoffId: false }];
+		assert.deepStrictEqual(values.map(value => getAgentHostAutomationReminderContext(upcastPartial<AutomationDefinition>({
+			_meta: { 'vscode.reminderContext': value },
 		}))), values.map(() => undefined));
 	});
 });

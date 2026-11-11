@@ -18,6 +18,9 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationScheduleKind } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationReminderContext, withAgentHostAutomationReminderContext } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationRemindersMeta.js';
+import { AutomationReminderStatus } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -106,6 +109,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 	readonly canCreateAutomation = derived(this, reader => this.catalogueState.read(reader) === 'ready'
 		&& !!this._connection.initializeResult.read(reader)?.automations?.create);
+	readonly canCreateReminder = derived(this, reader => this.canCreateAutomation.read(reader)
+		&& this._providerId === LOCAL_AGENT_HOST_PROVIDER_ID && !!this._connection.initializeResult.read(reader)?.automations?.reminders);
 
 	constructor(
 		private readonly _providerId: string,
@@ -185,7 +190,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	canRunAutomation(automationId: string): boolean {
-		return this._operationAvailable(automationId, AutomationOperation.Run);
+		return !this.getAutomation(automationId)?.reminder && this._operationAvailable(automationId, AutomationOperation.Run);
 	}
 
 	canUpdateAutomation(automationId: string): boolean {
@@ -229,6 +234,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			name: options.name,
 			prompt: options.prompt,
 			schedule: options.schedule,
+			reminder: options.reminder,
 			target: options.target,
 			sessionTemplate: options.sessionTemplate,
 			modelId: options.modelId,
@@ -315,10 +321,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (options !== undefined && !supportsHistoryChoice) {
 			throw new AutomationUnavailableError(localize('agentHostAutomation.historyUnsupported', "This Agent Host does not support choosing whether to delete Automation run history."));
 		}
-		if (!supportsHistoryChoice) {
-			const { resource } = this._requireOperation(id, AutomationOperation.Remove);
+		const current = this._requireOperation(id, AutomationOperation.Remove);
+		if (current.definition.reminder || !supportsHistoryChoice) {
+			const { resource } = current;
 			await this._dispatchAndWait(
-				{ type: ActionType.AutomationRemoved, resource },
+				{ type: ActionType.AutomationRemoved, resource, ...(current.definition.reminder ? { expectedModifiedAt: current.modifiedAt } : {}) },
 				catalog => !catalog.entries.some(automation => automation.resource === resource),
 				mutationGuard,
 			);
@@ -445,6 +452,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			throw new CancellationError();
 		}
 		const automation = this._requireOperation(automationId, AutomationOperation.Run);
+		if (automation.definition.reminder) {
+			throw new AutomationUnavailableError(localize('reminder.noManualRun', "Reminders notify you without running a session."));
+		}
 		const activeRun = this.getActiveRunFor(automationId);
 		if (activeRun) {
 			return { kind: 'alreadyRunning', run: activeRun };
@@ -557,11 +567,20 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		const schedule = projectSchedule(state.definition);
+		const reminderContext = getAgentHostAutomationReminderContext(state.definition);
+		const reminder = state.definition.reminder;
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
 			schedule,
+			reminder: reminder ? {
+				...(reminder.status === AutomationReminderStatus.Sent
+					? { status: 'sent' as const, sessionResource: this._boundaryMapper?.fromHost(URI.parse(reminder.session)) ?? URI.parse(reminder.session) }
+					: { status: reminder.status }),
+				...(reminderContext?.attachments !== undefined ? { draft: { inputText: state.definition.message.text, attachments: reminderContext.attachments } } : {}),
+				handoffId: reminderContext?.handoffId,
+			} : undefined,
 			...(schedule.interval === 'custom' ? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in VS Code.") } : {}),
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
@@ -575,6 +594,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	// Projects an Agent Host session template into an editor-facing Automation target.
 	private _projectTarget(definition: AutomationDefinition): AutomationTarget | undefined {
+		if (definition.reminder) {
+			return { kind: 'reminder', providerId: this._providerId };
+		}
 		const provider = definition.session.provider;
 		const directory = definition.session.workingDirectories?.[0];
 		if (!directory) {
@@ -662,7 +684,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	private async _createDescriptor(resource: string, descriptor: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard, customizationIds?: readonly string[]): Promise<AutomationEntry> {
 		const definition = this._definitionFromDescriptor(descriptor);
-		const scope = this._acquireCustomizationScope(descriptor.target, definition.session.provider);
+		const scope = descriptor.reminder ? undefined : this._acquireCustomizationScope(descriptor.target, definition.session.provider);
 		try {
 			if (scope) {
 				await this._captureCustomizations(definition, scope, undefined, customizationIds);
@@ -689,7 +711,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const resource = current.resource;
 		const definition = this._definitionFromDescriptor(descriptor, current.definition, resetSessionTemplate);
-		const scope = customizationIds !== undefined || !this._isCustomizationTargetUnchanged(descriptor.target, current.definition, definition.session.provider)
+		const scope = !descriptor.reminder && (customizationIds !== undefined || !this._isCustomizationTargetUnchanged(descriptor.target, current.definition, definition.session.provider))
 			? this._acquireCustomizationScope(descriptor.target, definition.session.provider)
 			: undefined;
 		try {
@@ -701,12 +723,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				{
 					type: ActionType.AutomationUpdateRequested,
 					resource,
+					...(descriptor.reminder ? { expectedModifiedAt: current.modifiedAt } : {}),
 					changes: {
 						title: definition.title,
 						message: definition.message,
 						session: definition.session,
 						enabled: definition.enabled,
 						triggers: definition.triggers,
+						reminder: definition.reminder,
 						_meta: definition._meta,
 					},
 				},
@@ -787,6 +811,27 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, resetSessionTemplate = false): AutomationDefinition {
 		if (descriptor.target.providerId !== this._providerId) {
 			throw new AutomationUnavailableError(localize('agentHostAutomation.wrongHost', "The automation target must belong to this Agent Host."));
+		}
+		if (descriptor.reminder || descriptor.target.kind === 'reminder' || descriptor.schedule.interval === 'once') {
+			if (this._providerId !== LOCAL_AGENT_HOST_PROVIDER_ID || !this._connection.initializeResult.get()?.automations?.reminders
+				|| !descriptor.reminder || descriptor.target.kind !== 'reminder' || descriptor.schedule.interval !== 'once'
+				|| !descriptor.schedule.at || !Number.isFinite(Date.parse(descriptor.schedule.at))) {
+				throw new AutomationUnavailableError(localize('agentHostAutomation.reminderUnsupported', "This Agent Host cannot save this reminder. Reconnect to a host with reminder support and choose an exact date and time."));
+			}
+			return {
+				title: descriptor.name,
+				message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: descriptor.enabled,
+				triggers: [{ id: 'reminder', kind: AutomationTriggerKind.Once, at: descriptor.schedule.at }],
+				reminder: descriptor.reminder.status === 'sent'
+					? { status: AutomationReminderStatus.Sent, session: (this._boundaryMapper?.toHost(descriptor.reminder.sessionResource) ?? descriptor.reminder.sessionResource).toString() }
+					: { status: descriptor.reminder.status === 'due' ? AutomationReminderStatus.Due : descriptor.reminder.status === 'dismissed' ? AutomationReminderStatus.Dismissed : AutomationReminderStatus.Scheduled },
+				_meta: withAgentHostAutomationReminderContext(existing?._meta, {
+					attachments: descriptor.reminder.draft?.attachments,
+					handoffId: descriptor.reminder.handoffId,
+				}),
+			};
 		}
 		const sessionTemplate = descriptor.sessionTemplate;
 		assertAutomationSessionTemplate(sessionTemplate);
@@ -900,6 +945,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			...current,
 			...(patch.name !== undefined ? { name: patch.name } : {}),
 			...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
+			...(patch.reminder !== undefined ? { reminder: patch.reminder } : {}),
 			schedule,
 			target,
 			sessionTemplate,
@@ -1208,6 +1254,13 @@ const cronWeekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 // Projects Agent Host triggers into the editor-facing schedule model.
 function projectSchedule(definition: AutomationDefinition): IAutomationSchedule {
 	const { triggers } = definition;
+	const once = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Once);
+	if (once && triggers.length === 1 && definition.reminder) {
+		return { interval: 'once', at: once.at, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	if (once) {
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
 	const trigger = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
 	if (!trigger) {
 		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -1261,7 +1314,7 @@ function parseCronValue(value: string | undefined, minimum: number, maximum: num
 }
 
 function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['triggers'] {
-	if (schedule.interval === 'custom' || schedule.timeZone === 'UTC') {
+	if (schedule.interval === 'custom' || schedule.interval === 'once' || schedule.timeZone === 'UTC') {
 		throw new Error(localize('automationUnsupportedSchedule', "Choose a local-time schedule for this Agent Host automation."));
 	}
 	if (schedule.interval === 'manual') {

@@ -370,7 +370,7 @@ suite('AgentHostAutomationStore', () => {
 	const activeClientService = new class extends mock<IAgentHostActiveClientService>() { }();
 
 
-	function reconnectable(enabled = true, activeClient: IAgentHostActiveClientService = activeClientService, boundaryMapper?: IAgentHostAutomationBoundaryMapper) {
+	function reconnectable(enabled = true, activeClient: IAgentHostActiveClientService = activeClientService, boundaryMapper?: IAgentHostAutomationBoundaryMapper, providerId = 'host') {
 		const storage = disposables.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: enabled });
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -378,7 +378,7 @@ suite('AgentHostAutomationStore', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IAgentHostActiveClientService, activeClient);
-		const store = disposables.add(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, 'host', boundaryMapper));
+		const store = disposables.add(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, providerId, boundaryMapper));
 		return { store, storage, configuration };
 	}
 
@@ -415,6 +415,62 @@ suite('AgentHostAutomationStore', () => {
 		return connection;
 	}
 
+	test('reminders round trip through the catalogue without a harness or manual run', async () => {
+		const { store } = reconnectable(true, activeClientService, undefined, 'local-agent-host');
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, reminders: {} } }, undefined);
+		store.setConnection(connection);
+		const at = '2030-01-02T03:04:00.000Z';
+		const reminder = await store.createAutomation({
+			name: 'Review', prompt: 'Review PR #42',
+			target: { kind: 'reminder', providerId: 'local-agent-host' },
+			schedule: { interval: 'once', at, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			reminder: { status: 'scheduled', draft: { inputText: 'Review PR #42', attachments: '[]' } },
+		});
+		const dismissed = await store.updateAutomationIfUnchanged(reminder.id, { reminder: { status: 'dismissed', draft: reminder.reminder?.draft } }, reminder);
+		const create = connection.dispatched[0].action;
+		const update = connection.dispatched[1].action;
+		await assert.rejects(store.runAutomation(reminder.id), /Reminders notify/);
+		await store.deleteAutomation(reminder.id);
+		const remove = connection.dispatched[2].action;
+		assert.deepStrictEqual({
+			target: reminder.target,
+			schedule: reminder.schedule,
+			reminder: reminder.reminder,
+			session: create.type === ActionType.AutomationCreateRequested ? create.definition.session : undefined,
+			expectedModifiedAt: update.type === ActionType.AutomationUpdateRequested ? update.expectedModifiedAt : undefined,
+			dismissed: dismissed.kind === 'updated' ? dismissed.automation.reminder?.status : 'conflict',
+			canRun: store.canRunAutomation(reminder.id),
+			runs: connection.runRequests,
+			deleteRevision: remove.type === ActionType.AutomationRemoved ? remove.expectedModifiedAt : undefined,
+			deleted: store.getAutomation(reminder.id) === undefined,
+		}, {
+			target: { kind: 'reminder', providerId: 'local-agent-host' },
+			schedule: { interval: 'once', at, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			reminder: { status: 'scheduled', draft: { inputText: 'Review PR #42', attachments: '[]' }, handoffId: undefined },
+			session: {},
+			expectedModifiedAt: reminder.updatedAt,
+			dismissed: 'dismissed',
+			canRun: false,
+			runs: [],
+			deleteRevision: dismissed.kind === 'updated' ? dismissed.automation.updatedAt : undefined,
+			deleted: true,
+		});
+	});
+
+	test('an older host never receives an unsupported reminder definition', async () => {
+		const { store } = reconnectable(true, activeClientService, undefined, 'local-agent-host');
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		await assert.rejects(store.createAutomation({
+			name: 'Reminder', prompt: 'Reminder',
+			target: { kind: 'reminder', providerId: 'local-agent-host' },
+			schedule: { interval: 'once', at: '2030-01-02T03:04:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			reminder: { status: 'scheduled' },
+		}), /reminder support/);
+		assert.deepStrictEqual({ available: store.canCreateReminder.get(), dispatched: connection.dispatched }, { available: false, dispatched: [] });
+	});
+
 	test('customization choices include enabled plugins in scope order, selected for creation', async () => {
 		const activeClient = new TestActiveClientService();
 		const enabled = { ...plugin('virtual://client/plugins/enabled'), version: '1.2.3' };
@@ -448,7 +504,7 @@ suite('AgentHostAutomationStore', () => {
 		const added = plugin('virtual://client/plugins/added');
 		activeClient.customizations.set([{ ...saved, nonce: 'v2' }, { ...moved, uri: 'virtual://client/plugins/new-location' }, added], undefined);
 		const choices = await store.getCustomizationChoices(automation.target, automation.id, CancellationToken.None);
-		const retargeted = await store.getCustomizationChoices({ ...automation.target, sessionTypeId: 'claude' }, automation.id, CancellationToken.None);
+		const retargeted = await store.getCustomizationChoices({ kind: 'quickChat', providerId: 'host', sessionTypeId: 'claude' }, automation.id, CancellationToken.None);
 		assert.deepStrictEqual({ choices, retargeted: retargeted?.map(({ id, selected, outdated }) => ({ id, selected, outdated })) }, {
 			choices: [
 				{ id: saved.id, label: 'Test Plugin', description: undefined, selected: true, outdated: true },

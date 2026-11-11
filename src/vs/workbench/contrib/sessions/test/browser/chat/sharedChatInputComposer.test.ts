@@ -47,7 +47,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; handoffId?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: (request: INewChatInputSendRequest) => void } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -65,7 +65,10 @@ suite('SharedChatInputComposer', () => {
 		const commands: { command: string; prompt: string }[] = [];
 		const slashCommands = new class extends mock<IChatSlashCommandService>() {
 			override getCommands(): IChatSlashData[] {
-				return [{ command: 'models', detail: '', locations: [ChatAgentLocation.Chat], silent: true, executeImmediately: true }];
+				return [
+					{ command: 'models', detail: '', locations: [ChatAgentLocation.Chat], silent: true, executeImmediately: true },
+					{ command: 'remind', detail: '', locations: [ChatAgentLocation.Chat], silent: true, executeLocally: true },
+				];
 			}
 			override async executeCommand(command: string, prompt: string) {
 				commands.push({ command, prompt });
@@ -77,6 +80,7 @@ suite('SharedChatInputComposer', () => {
 		const attachmentModel = {
 			get attachments() { return attachments; },
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			clear: () => { attachments = []; },
 		};
 		const widget: { input: object | undefined;[key: string]: unknown } = {
 			domNode: dom.$('div'),
@@ -110,6 +114,7 @@ suite('SharedChatInputComposer', () => {
 		};
 		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_widget: widget,
+			_handoffId: options.handoffId,
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: store.add(new MutableDisposable()),
@@ -122,7 +127,7 @@ suite('SharedChatInputComposer', () => {
 				inputSnapshot: options.inputSnapshot,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					attemptIds.push(request.attemptId);
-					options.onSendRequest?.();
+					options.onSendRequest?.(request);
 					requests.push({ query: request.query, attachments: request.attachments?.map(entry => entry.range ? `${entry.id}@${entry.range.start}-${entry.range.endExclusive}` : entry.id) ?? [], background: !!request.background });
 					options.onSend?.();
 					if (options.disposeDuringSend) {
@@ -141,6 +146,37 @@ suite('SharedChatInputComposer', () => {
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
 		return { composer, widget, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+	}
+
+	test('a local command clears reminder correlation without submitting a session', async () => {
+		const { composer, state } = createComposer({ text: '/remind me in one hour to Review', attachments: [], handoffId: 'original' });
+		await composer.submit(false);
+		assert.deepStrictEqual({ draft: composer.getDraft(), requests: state().requests, commands: state().commands }, {
+			draft: { inputText: '', attachments: [] },
+			requests: [],
+			commands: [{ command: 'remind', prompt: 'me in one hour to Review' }],
+		});
+	});
+
+	for (const sendResult of [true, false]) {
+		test(`reminder correlation survives a rejected send but not a successful one (${sendResult})`, async () => {
+			let submittedHandoff: string | undefined;
+			const storageService = store.add(new InMemoryStorageService());
+			const { composer } = createComposer({
+				handoffId: 'reminder-handoff', sendResult, storageService,
+				onSendRequest: request => submittedHandoff = request.handoffId,
+			});
+			await composer.submit(false);
+			assert.deepStrictEqual({
+				submittedHandoff,
+				draftHandoff: composer.getDraft().handoffId,
+				savedHandoff: readNewChatDraftState(storageService)?.handoffId,
+			}, {
+				submittedHandoff: 'reminder-handoff',
+				draftHandoff: sendResult ? undefined : 'reminder-handoff',
+				savedHandoff: sendResult ? undefined : 'reminder-handoff',
+			});
+		});
 	}
 
 	for (const preserveInputFocusOnSend of [false, true]) {
@@ -635,7 +671,7 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('keeps the input\'s inline references when another draft is bound', async () => {
+	test('keeps the input\'s inline references and reminder handoff when another draft is bound', async () => {
 		const reference: IDynamicVariable = { id: 'file', range: new Range(1, 5, 1, 17), data: 'foo.ts' };
 		let input = 'Fix #file:foo.ts';
 		const dynamicVariables = {
@@ -643,10 +679,11 @@ suite('SharedChatInputComposer', () => {
 			setInputState: (state: Readonly<Record<string, unknown>>) => { dynamicVariables.variables = state[ChatDynamicVariableModel.ID] as IDynamicVariable[]; },
 		};
 		const attachmentModel = { attachments: [], clearAndSetContext: () => { } };
-		const composer: { _bindModel(resource: URI): Promise<void> } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+		const composer: { _bindModel(resource: URI): Promise<void>; _handoffId: string | undefined } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: store.add(new DisposableStore()),
 			_modelRef: store.add(new MutableDisposable()),
 			_modelBinding: 0,
+			_handoffId: 'reminder-handoff',
 			_widget: {
 				viewModel: {},
 				supportsFileReferences: true,
@@ -655,10 +692,11 @@ suite('SharedChatInputComposer', () => {
 				attachmentModel,
 				getContrib: () => dynamicVariables,
 				getInput: () => input,
-				// Binding a model adopts its input state, which has none of the composer's text or references.
+				// Binding an empty model clears the text, inline references, and the reminder handoff.
 				setModel: () => {
 					input = '';
 					dynamicVariables.variables = [];
+					composer._handoffId = undefined;
 				},
 			},
 			setInputValue: (value: string) => { input = value; },
@@ -668,7 +706,7 @@ suite('SharedChatInputComposer', () => {
 
 		await composer._bindModel(URI.parse('draft:/replacement'));
 
-		assert.deepStrictEqual({ input, references: dynamicVariables.variables }, { input: 'Fix #file:foo.ts', references: [reference] });
+		assert.deepStrictEqual({ input, references: dynamicVariables.variables, handoffId: composer._handoffId }, { input: 'Fix #file:foo.ts', references: [reference], handoffId: 'reminder-handoff' });
 	});
 
 	test('binds the latest draft and releases an earlier draft that finishes loading later', async () => {

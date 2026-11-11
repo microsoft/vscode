@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationReminderStatus, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
@@ -1324,7 +1324,7 @@ suite('AgentHostAutomationService', () => {
 			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
 			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
 		}, {
-			capabilities: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
+			capabilities: { create: {}, schedules: {}, reminders: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
 			triggers: { items: [] },
 			definition: savedDefinition,
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
@@ -2649,6 +2649,264 @@ suite('AgentHostAutomationService', () => {
 			},
 		});
 	}));
+
+	suite('reminders', () => {
+		function reminderDefinition(at = new Date(Date.now() + 1_000).toISOString()): AutomationDefinition {
+			return {
+				...definition(),
+				session: {},
+				reminder: { status: AutomationReminderStatus.Scheduled },
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.Once, at }],
+				_meta: { 'vscode.reminderContext': { attachments: 'opaque draft', handoffId: 'draft-id' }, other: 'preserved' },
+			};
+		}
+
+		function createReminderService(): AgentHostAutomationService {
+			return createService({
+				isSessionTemplateAvailable: () => { throw new Error('Reminders must not check model availability'); },
+				allocateSession: async () => { throw new Error('Reminders must not allocate sessions'); },
+				createSession: async () => { throw new Error('Reminders must not create sessions'); },
+				startSession: async () => { throw new Error('Reminders must not start sessions'); },
+			});
+		}
+
+		test('claims once without a provider, session, run, or execution telemetry', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const service = createReminderService();
+			const saved = reminderDefinition();
+			const dueEvents: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.AutomationSet && envelope.action.automation.definition.reminder?.status === AutomationReminderStatus.Due) {
+					dueEvents.push(envelope.action.automation.resource);
+				}
+			}));
+			await service.handleCreate({ ...createAction(), definition: saved });
+			await assert.rejects(service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'manual-reminder' }), /not available/);
+			await timeout(2_000);
+			await service.handleConfigurationChanged();
+			await timeout(2_000);
+			const reminder = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				reminder: reminder.definition.reminder, nextRunAt: reminder.nextRunAt, runs: reminder.runs,
+				operations: reminder.operations, meta: reminder.definition._meta, dueEvents, telemetry: telemetry.events,
+			}, {
+				reminder: { status: AutomationReminderStatus.Due }, nextRunAt: undefined, runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove], meta: saved._meta,
+				dueEvents: [createAction().resource], telemetry: [],
+			});
+		}));
+
+		test('does not publish a due reminder until persistence succeeds and retries once', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const service = createReminderService();
+			await service.handleCreate({ ...createAction(), definition: reminderDefinition() });
+			const scheduled = stateManager.getAutomationCatalogState()!.entries[0];
+			writeFailures = 1;
+			await timeout(2_000);
+			const afterFailure = stateManager.getAutomationCatalogState()!.entries[0];
+			await timeout(60_000);
+			await service.handleConfigurationChanged();
+			const due = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				unchanged: afterFailure === scheduled,
+				reminder: due.definition.reminder, nextRunAt: due.nextRunAt, runs: due.runs,
+				stored: storageService.get<{ catalog: { automations: typeof due[] } }>('automations')!.catalog.automations[0].definition.reminder,
+			}, {
+				unchanged: true, reminder: { status: AutomationReminderStatus.Due }, nextRunAt: undefined, runs: [],
+				stored: { status: AutomationReminderStatus.Due },
+			});
+		}));
+
+		test('catches up after restart and wake without waiting for network, then preserves due state', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			systemWake.setFullyAwake(false);
+			const service = createReminderService();
+			await service.handleCreate({ ...createAction(), definition: reminderDefinition() });
+			await timeout(2_000);
+			service.dispose();
+			const restarted = createReminderService();
+			await restarted.handleConfigurationChanged();
+			const asleep = stateManager.getAutomationCatalogState()!.entries[0].definition.reminder;
+			systemWake.setNetworkOnline(false);
+			systemWake.setFullyAwake(true);
+			await timeout(1);
+			await restarted.handleConfigurationChanged();
+			const due = stateManager.getAutomationCatalogState()!.entries[0];
+			restarted.dispose();
+			stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true } });
+			const restored = createReminderService();
+			await restored.handleConfigurationChanged();
+			assert.deepStrictEqual({
+				asleep, due: due.definition.reminder, restored: stateManager.getAutomationCatalogState()!.entries[0],
+			}, {
+				asleep: { status: AutomationReminderStatus.Scheduled }, due: { status: AutomationReminderStatus.Due }, restored: due,
+			});
+		}));
+
+		test('serializes conditional edits with monotonic revisions and preserves state on failure', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const service = createReminderService();
+			await service.handleCreate({ ...createAction(), definition: reminderDefinition() });
+			const first = stateManager.getAutomationCatalogState()!.entries[0];
+			const update = { type: ActionType.AutomationUpdateRequested, resource: first.resource, expectedModifiedAt: first.modifiedAt, changes: { title: 'Edited' } } as const;
+			const results = await Promise.allSettled([service.handleUpdate(update), service.handleUpdate(update)]);
+			const second = stateManager.getAutomationCatalogState()!.entries[0];
+			writeFailures = 1;
+			await assert.rejects(service.handleUpdate({ ...update, expectedModifiedAt: second.modifiedAt, changes: { reminder: { status: AutomationReminderStatus.Dismissed } } }), /storage unavailable/);
+			assert.deepStrictEqual({
+				results: results.map(result => result.status), advanced: Date.parse(second.modifiedAt) > Date.parse(first.modifiedAt),
+				unchanged: stateManager.getAutomationCatalogState()!.entries[0] === second,
+			}, { results: ['fulfilled', 'rejected'], advanced: true, unchanged: true });
+			service.dispose();
+		}));
+
+		test('rejects a stale deletion queued behind an edit and accepts the current revision', async () => {
+			const service = createReminderService();
+			await service.handleCreate({ ...createAction(), definition: { ...reminderDefinition(), enabled: false } });
+			const initial = stateManager.getAutomationCatalogState()!.entries[0];
+			const results = await Promise.allSettled([
+				service.handleUpdate({
+					type: ActionType.AutomationUpdateRequested, resource: initial.resource,
+					expectedModifiedAt: initial.modifiedAt, changes: { title: 'Edited in another window' },
+				}),
+				service.handleRemove({
+					type: ActionType.AutomationRemoved, resource: initial.resource, expectedModifiedAt: initial.modifiedAt,
+				}),
+			]);
+			const current = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				results: results.map(result => result.status),
+				reason: results[1].status === 'rejected' ? results[1].reason.message : undefined,
+				title: current.definition.title,
+				storedTitle: storageService.get<{ catalog: { automations: typeof current[] } }>('automations')!.catalog.automations[0].definition.title,
+			}, {
+				results: ['fulfilled', 'rejected'],
+				reason: 'Automation was modified or removed since this deletion was prepared.',
+				title: 'Edited in another window', storedTitle: 'Edited in another window',
+			});
+			await service.handleRemove({ type: ActionType.AutomationRemoved, resource: current.resource, expectedModifiedAt: current.modifiedAt });
+			await assert.rejects(service.handleRemove({
+				type: ActionType.AutomationRemoved, resource: current.resource, expectedModifiedAt: current.modifiedAt,
+			}), /modified or removed/);
+			await service.handleRemove({ type: ActionType.AutomationRemoved, resource: current.resource });
+			assert.deepStrictEqual(stateManager.getAutomationCatalogState()!.entries, []);
+		});
+
+		test('postpones due reminders, rejects pre-delivery revisions, dismisses and records explicit handoffs', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const service = createReminderService();
+			await service.handleCreate({ ...createAction(), definition: reminderDefinition() });
+			const scheduled = stateManager.getAutomationCatalogState()!.entries[0];
+			await timeout(2_000);
+			await service.handleConfigurationChanged();
+			const due = stateManager.getAutomationCatalogState()!.entries[0];
+			const update = { type: ActionType.AutomationUpdateRequested, resource: due.resource } as const;
+			await assert.rejects(service.handleUpdate({ ...update, expectedModifiedAt: scheduled.modifiedAt, changes: { reminder: { status: AutomationReminderStatus.Dismissed } } }), /modified/);
+			await service.handleUpdate({ ...update, expectedModifiedAt: due.modifiedAt, changes: {
+				reminder: { status: AutomationReminderStatus.Scheduled },
+				triggers: reminderDefinition().triggers,
+			} });
+			const postponed = stateManager.getAutomationCatalogState()!.entries[0];
+			await service.handleUpdate({ ...update, expectedModifiedAt: postponed.modifiedAt, changes: { reminder: { status: AutomationReminderStatus.Dismissed } } });
+			const dismissed = stateManager.getAutomationCatalogState()!.entries[0];
+			await timeout(2_000);
+			await service.handleUpdate({ ...update, expectedModifiedAt: dismissed.modifiedAt, changes: { reminder: { status: AutomationReminderStatus.Sent, session: 'custom-session://owner/canonical' } } });
+			const sent = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				postponed: postponed.definition.reminder, hasNextRun: !!postponed.nextRunAt,
+				dismissed: dismissed.definition.reminder, dismissedNextRun: dismissed.nextRunAt,
+				sent: sent.definition.reminder, sentNextRun: sent.nextRunAt, runs: sent.runs, telemetry: telemetry.events,
+			}, {
+				postponed: { status: AutomationReminderStatus.Scheduled }, hasNextRun: true,
+				dismissed: { status: AutomationReminderStatus.Dismissed }, dismissedNextRun: undefined,
+				sent: { status: AutomationReminderStatus.Sent, session: 'custom-session://owner/canonical' }, sentNextRun: undefined, runs: [], telemetry: [],
+			});
+		}));
+
+		test('rejects malformed or unknown reminders on creation and restore', async () => {
+			const malformed = [
+				{ reminder: null },
+				{ reminder: { status: 'future' } },
+				{ reminder: { status: 'sent' } },
+				{ reminder: { status: 'scheduled', session: 'session:/unexpected' } },
+				{ triggers: [] },
+				{ triggers: [{ id: 'once', kind: 'once', at: '2026-02-30T12:00:00Z' }] },
+				{ triggers: [{ id: 'once', kind: 'once', at: '2026-01-01T12:00:00+00:00' }] },
+				{ triggers: [{ id: 'once', kind: 'future', at: '2026-01-01T12:00:00Z' }] },
+				{ triggers: [{ id: 'once', kind: 'schedule', schedule: { expression: '* * * * *', timeZone: 'UTC' } }] },
+				{ disableConditions: [{ kind: 'afterRuns', max: 1 }] },
+			];
+			const service = createReminderService();
+			for (const patch of malformed) {
+				const definition: AutomationDefinition = JSON.parse(JSON.stringify({ ...reminderDefinition(), ...patch }));
+				await assert.rejects(service.handleCreate({ ...createAction(), definition }));
+				await storageService.setAndFlush('automations', { catalog: { automations: [{
+					resource: createAction().resource, definition, runs: [], operations: [],
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}] } });
+				const restored = createReminderService();
+				assert.strictEqual(restored.isAvailable, false);
+				restored.dispose();
+			}
+		});
+
+		test('rejects once triggers without reminders and changing execution mode', async () => {
+			const service = createService();
+			await assert.rejects(service.handleCreate({ ...createAction(), definition: { ...definition(), triggers: reminderDefinition().triggers } }), /requires a reminder/);
+			await service.handleCreate(createAction());
+			await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: reminderDefinition() }), /mode cannot be changed/);
+			await service.handleCreate({ ...createAction('ahp-automation:/reminder'), definition: { ...reminderDefinition(), enabled: false } });
+			await assert.rejects(service.handleUpdate({
+				type: ActionType.AutomationUpdateRequested, resource: 'ahp-automation:/reminder',
+				changes: { reminder: undefined, triggers: [] },
+			}), /mode cannot be changed/);
+			await assert.rejects(service.handleUpdate({
+				type: ActionType.AutomationUpdateRequested, resource: 'ahp-automation:/reminder',
+				changes: { reminder: { status: AutomationReminderStatus.Due } },
+			}), /Only the host/);
+		});
+
+		test('restored once triggers without reminder state fail closed', async () => {
+			await storageService.setAndFlush('automations', {
+				catalog: { automations: [{
+					resource: createAction().resource,
+					definition: { ...definition(), triggers: reminderDefinition().triggers },
+					runs: [], operations: [AutomationOperation.Run],
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}] },
+				runs: [],
+			});
+			const service = createReminderService();
+			await assert.rejects(service.runAutomation({
+				channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'invalid-once',
+			}), /storage is unavailable/);
+			assert.deepStrictEqual({ available: service.isAvailable, capabilities: service.capabilities }, { available: false, capabilities: undefined });
+		});
+
+		test('restored due reminders discard stale scheduling and run permissions without executing', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const past = new Date(Date.now() - 60_000).toISOString();
+			await storageService.setAndFlush('automations', {
+				catalog: { automations: [{
+					resource: createAction().resource,
+					definition: { ...reminderDefinition(past), reminder: { status: AutomationReminderStatus.Due } },
+					nextRunAt: past, runs: [], operations: [AutomationOperation.Run],
+					createdAt: past, modifiedAt: past,
+				}] },
+				runs: [],
+			});
+			const service = createReminderService();
+			await service.handleConfigurationChanged();
+			await timeout(60_000);
+			await assert.rejects(service.runAutomation({
+				channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'restored-due',
+			}), /not available/);
+			const restored = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				reminder: restored.definition.reminder, nextRunAt: restored.nextRunAt, runs: restored.runs,
+				operations: restored.operations, telemetry: telemetry.events,
+				storedRuns: storageService.get<{ runs: AutomationRunState[] }>('automations')!.runs,
+			}, {
+				reminder: { status: AutomationReminderStatus.Due }, nextRunAt: undefined, runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove], telemetry: [], storedRuns: [],
+			});
+		}));
+	});
 
 	test('manual runs start while the machine is not fully awake', async () => {
 		systemWake.setFullyAwake(false);

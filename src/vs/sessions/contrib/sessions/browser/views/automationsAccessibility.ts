@@ -15,6 +15,7 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../.
 import { AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { reminderDescription } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -42,6 +43,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const builtInTemplatesVisible = templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
+			localize('automations.help.reminders', "Reminders appear in their own section before agent automations. Create Reminder asks for text and a one-time local date and time, without a workspace or model. Tab to a reminder and press Enter to view its actions. Due reminders offer Send to Session, Postpone, and Dismiss. Send to Session opens an editable draft and never submits it automatically. After you send successfully, the reminder moves to Sent to Session history and offers Open Session. Upcoming and completed reminders remain available here. Reminders do not run agents and overdue reminders reappear when you reopen the app."),
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.manageRemotes', "When a remote is disconnected and remote management is enabled, the unavailable message shows how many remotes are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
@@ -161,6 +163,10 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			}
 			for (const automation of group.automations) {
 				lines.push('');
+				if (automation.reminder) {
+					lines.push(localize('automationsAccessibleView.reminder', "Reminder: {0}. {1}", automation.prompt, reminderDescription(automation)));
+					continue;
+				}
 				const starting = startingAutomationIds.has(automation.id);
 				lines.push(starting
 					? automation.enabled
@@ -271,6 +277,8 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	const localSchedule = automationScheduleToLocal(schedule);
 	const time = formatTime(localSchedule.scheduleHour, localSchedule.scheduleMinute);
 	switch (schedule.interval) {
+		case 'once':
+			return localize('automationsAccessibleView.once', "Once: {0}", schedule.at ? new Date(schedule.at).toLocaleString() : '');
 		case 'custom':
 			return localize('automationsAccessibleView.custom', "Custom schedule");
 		case 'manual':

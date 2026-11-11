@@ -1545,6 +1545,20 @@ suite('ChatWidget', () => {
 		]);
 	});
 
+	test('local silent commands run before session creation without completion-time execution', () => {
+		const local = new ChatRequestSlashCommandPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), {
+			command: 'remind', detail: '', locations: [ChatAgentLocation.Chat], silent: true, executeLocally: true,
+		});
+		const immediate = new ChatRequestSlashCommandPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), {
+			command: 'models', detail: '', locations: [ChatAgentLocation.Chat], silent: true, executeImmediately: true,
+		});
+		assert.deepStrictEqual([
+			getImmediateSilentSlashCommandPart({ text: '/remind', parts: [local] }, true)?.slashCommand.command,
+			getImmediateSilentSlashCommandPart({ text: '/remind', parts: [local] })?.slashCommand.command,
+			getImmediateSilentSlashCommandPart({ text: '/models', parts: [immediate] }, true)?.slashCommand.command,
+		], ['remind', 'remind', undefined]);
+	});
+
 	test('input height changes update the budget without re-laying out the input', () => {
 		const calls: unknown[] = [];
 		const target = {

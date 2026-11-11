@@ -18,6 +18,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -329,6 +330,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
+	instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+		override readonly automations = constObservable([]);
+		override readonly runs = constObservable([]);
+	});
 	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation());
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {

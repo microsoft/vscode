@@ -38,6 +38,7 @@ import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, Automa
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { CREATE_REMINDER_COMMAND, OPEN_REMINDER_COMMAND, reminderDescription } from '../../../../../workbench/contrib/chat/common/automations/automationReminders.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
@@ -240,6 +241,7 @@ export class AutomationsCardsWidget extends Disposable {
 	private readonly cardsSection: AutomationCardsSection;
 	private readonly historySection: AutomationHistorySection;
 	private readonly isMarkingAllRead = observableValue(this, false);
+	private readonly reminderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
@@ -250,6 +252,7 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -262,12 +265,18 @@ export class AutomationsCardsWidget extends Disposable {
 		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
 		this._register(toDisposable(() => focusContext.reset()));
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
+		const remindersSection = DOM.append(scrollContent, $('section.automation-reminders'));
+		this._register(autorun(reader => {
+			const reminders = this.automationService.automations.read(reader).filter(item => item.reminder);
+			const canCreate = this.automationService.availableProviders.read(reader).some(provider => provider.supportsReminders);
+			this.renderReminders(remindersSection, reminders, canCreate);
+		}));
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent, this.element));
 		const historyState = DOM.append(scrollContent, $('.automations-history-state', { role: 'status' }));
 		this._register(autorun(reader => {
 			const state = this.automationService.historyState?.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
-			const hasAutomations = this.automationService.automations.read(reader).length > 0;
+			const hasAutomations = this.automationService.automations.read(reader).some(item => !item.reminder);
 			const hasRuns = this.automationService.runs.read(reader).length > 0;
 			const message = state === 'error'
 				? hasRuns
@@ -283,7 +292,7 @@ export class AutomationsCardsWidget extends Disposable {
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			this.automationService.availableProviders.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
-			const items = this.automationService.automations.read(reader);
+			const items = this.automationService.automations.read(reader).filter(item => !item.reminder);
 			const templates = readAutomationTemplates(this.agentPluginService.plugins.read(reader), reader);
 			this.cardsSection.render(items, catalogueState, unavailableProviders, templates);
 		}));
@@ -335,6 +344,51 @@ export class AutomationsCardsWidget extends Disposable {
 			}
 		}));
 		void refresh();
+	}
+
+	private renderReminders(container: HTMLElement, reminders: readonly IAutomationDescriptor[], canCreate: boolean): void {
+		const active = DOM.getActiveElement();
+		const focusedId = DOM.isHTMLElement(active) && container.contains(active) ? active.dataset.reminderId : undefined;
+		this.reminderDisposables.clear();
+		DOM.clearNode(container);
+		container.hidden = !canCreate && reminders.length === 0;
+		if (container.hidden) {
+			return;
+		}
+		const header = DOM.append(container, $('.automation-reminders-header'));
+		DOM.append(header, $('h3')).textContent = localize('reminders.heading', "Reminders");
+		let focusTarget: HTMLElement | undefined;
+		const addButton = (parent: HTMLElement, id: string, label: string, command: string, argument?: string): void => {
+			const button = this.reminderDisposables.add(new Button(parent, { ...defaultButtonStyles, secondary: true }));
+			button.label = label;
+			button.element.dataset.reminderId = id;
+			this.reminderDisposables.add(button.onDidClick(() => this.commandService.executeCommand(command, argument)));
+			if (id === focusedId || !focusTarget) {
+				focusTarget = button.element;
+			}
+		};
+		if (canCreate) {
+			addButton(header, 'create', localize('reminders.create', "Create Reminder..."), CREATE_REMINDER_COMMAND);
+		}
+		DOM.append(container, $('p')).textContent = localize('reminders.explanation', "A reminder notifies you without running an agent. When it is due, send it to a session, postpone it, or dismiss it.");
+		for (const group of [
+			{ title: localize('reminders.due', "Due"), items: reminders.filter(item => item.reminder?.status === 'due') },
+			{ title: localize('reminders.scheduled', "Scheduled"), items: reminders.filter(item => item.reminder?.status === 'scheduled') },
+			{ title: localize('reminders.history', "History"), items: reminders.filter(item => item.reminder?.status === 'dismissed' || item.reminder?.status === 'sent') },
+		]) {
+			if (!group.items.length) {
+				continue;
+			}
+			DOM.append(container, $('h4')).textContent = group.title;
+			const list = DOM.append(container, $('ul'));
+			for (const item of group.items.sort((a, b) => (a.schedule.at ?? '').localeCompare(b.schedule.at ?? ''))) {
+				const row = DOM.append(list, $('li'));
+				addButton(row, item.id, localize('reminders.item', "{0} - {1}", item.prompt, reminderDescription(item)), OPEN_REMINDER_COMMAND, item.id);
+			}
+		}
+		if (focusedId) {
+			focusTarget?.focus();
+		}
 	}
 
 	layout(width: number, height: number): void {

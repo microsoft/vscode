@@ -13,6 +13,7 @@ import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, isChatRequestVa
 import { IDynamicVariable } from './chatVariables.js';
 
 export interface IChatDraft {
+	readonly handoffId?: string;
 	readonly inputText: string;
 	readonly attachments: readonly IChatRequestVariableEntry[];
 	/**
@@ -67,7 +68,7 @@ export function serializeChatDraft(draft: IChatDraft, getTextModel?: (resource: 
 		}
 		return IChatRequestVariableEntry.toExport(attachment);
 	});
-	return { inputText: draft.inputText, attachments: stringify(attachments) };
+	return { inputText: draft.inputText, attachments: stringify(attachments), ...(draft.handoffId ? { handoffId: draft.handoffId } : {}) };
 }
 
 export function reviveChatDraft(draft: IAgentsWindowDraft): IChatDraft {
@@ -75,5 +76,5 @@ export function reviveChatDraft(draft: IAgentsWindowDraft): IChatDraft {
 	if (!Array.isArray(attachments) || !attachments.every(isChatRequestVariableEntry)) {
 		throw new Error('Invalid chat draft attachments.');
 	}
-	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport) };
+	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport), ...(typeof draft.handoffId === 'string' ? { handoffId: draft.handoffId } : {}) };
 }

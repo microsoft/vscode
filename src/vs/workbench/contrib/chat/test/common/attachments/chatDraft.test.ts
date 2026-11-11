@@ -18,6 +18,17 @@ import { SymbolKind } from '../../../../../../editor/common/languages.js';
 suite('Chat draft handoff serialization', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps handoff correlation outside prompt and attachments across serialization', () => {
+		const draft: IChatDraft = { inputText: 'Review the fix', attachments: [], handoffId: 'reminder-handoff' };
+		assert.deepStrictEqual({
+			serialized: serializeChatDraft(draft),
+			revived: reviveChatDraft(serializeChatDraft(draft)),
+		}, {
+			serialized: { inputText: 'Review the fix', attachments: '[]', handoffId: 'reminder-handoff' },
+			revived: draft,
+		});
+	});
+
 	test('round trips prompt, URI ranges, pasted context and image bytes without changing the source', () => {
 		const attachments: IChatRequestVariableEntry[] = [
 			toFileVariableEntry(URI.file('/workspace/file.ts')),

@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
 import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -14,7 +15,7 @@ import type { JsonPrimitive } from '../../../../../platform/agentHost/common/sta
  * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute;
  * `cron` uses the Agent Host's five-field cron grammar.
  */
-export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'cron' | 'custom';
+export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'cron' | 'custom' | 'once';
 
 /**
  * Describes the cadence at which an automation should fire.
@@ -24,6 +25,8 @@ export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'w
  */
 export interface IAutomationSchedule {
 	readonly interval: AutomationInterval;
+	/** Absolute ISO timestamp for a one-time reminder. */
+	readonly at?: string;
 	/** Absent for Agent Host local-time semantics. */
 	readonly timeZone?: 'UTC';
 
@@ -51,6 +54,11 @@ export type AutomationWorkspaceIsolation =
 
 /** The mutually exclusive execution targets an Automation can use. */
 export type AutomationTarget =
+	| {
+		readonly kind: 'reminder';
+		readonly providerId: string;
+		readonly sessionTypeId?: undefined;
+	}
 	| {
 		readonly kind: 'workspace';
 		readonly folderUri: URI;
@@ -106,6 +114,14 @@ export interface IAutomationCloudTrigger {
 	readonly requireActorWritePermission?: boolean;
 }
 
+export type AutomationReminder = {
+	readonly draft?: IAgentsWindowDraft;
+	readonly handoffId?: string;
+} & (
+	| { readonly status: 'scheduled' | 'due' | 'dismissed' }
+	| { readonly status: 'sent'; readonly sessionResource: URI }
+);
+
 /** A single automation with immutable identity and provider-owned execution configuration. */
 export interface IAutomationDescriptor {
 	/** Opaque identifier, unique across concrete providers as well as within one host. */
@@ -114,6 +130,7 @@ export interface IAutomationDescriptor {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationCloudTrigger;
+	readonly reminder?: AutomationReminder;
 
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;

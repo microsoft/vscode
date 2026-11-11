@@ -5380,6 +5380,59 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ before, scopePreserved: list.filters.hasInboxScope }, { before: [], scopePreserved: true });
 		});
 
+		test('inbox indents reminder rows without repeated bells and counts only due reminders', () => {
+			const reminder = (id: string, status: 'scheduled' | 'due' | 'dismissed') => upcastPartial<IAutomationDescriptor>({
+				id, name: id, prompt: id, reminder: { status }, schedule: { interval: 'once', at: '2026-11-11T12:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			});
+			const automations = observableValue<readonly IAutomationDescriptor[]>(disposables, [
+				reminder('first', 'due'), reminder('second', 'due'), reminder('future', 'scheduled'), reminder('history', 'dismissed'),
+			]);
+			const harness = createListHarness(disposables, [], instantiationService => {
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				instantiationService.stub(IContextKeyService, contextKeyService);
+				ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+				ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+					override readonly automations = automations;
+					override readonly runs = constObservable([]);
+					override readonly canCreateReminder = constObservable(true);
+				});
+			});
+			const container = harness.createContainer();
+			container.style.setProperty('--vscode-spacing-size20', '2px');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(800, 320);
+			const snapshot = () => {
+				const row = list.getItemRow({ section: 'reminders' });
+				return {
+					count: row?.querySelector('.session-section-count')?.textContent,
+					label: row?.getAttribute('aria-label'),
+				};
+			};
+			const initial = snapshot();
+			const headerLabel = list.getItemRow({ section: 'reminders' })!.querySelector('.session-section-label')!;
+			const reminderRow = list.getItemRow({ section: 'reminder:first' })!;
+			const appearance = {
+				indented: reminderRow.querySelector('.session-section-label')!.getBoundingClientRect().left > headerLabel.getBoundingClientRect().left,
+				bells: reminderRow.querySelectorAll('.codicon-bell').length,
+			};
+			automations.set([reminder('first', 'due'), reminder('second', 'scheduled')], undefined);
+			const postponed = snapshot();
+			automations.set([reminder('first', 'dismissed'), reminder('second', 'scheduled')], undefined);
+			assert.deepStrictEqual({ appearance, counts: [initial, postponed, snapshot()] }, {
+				appearance: { indented: true, bells: 0 },
+				counts: [
+					{ count: '2', label: 'Reminders, 2 reminders' },
+					{ count: '1', label: 'Reminders, 1 reminder' },
+					{ count: '0', label: 'Reminders, 0 reminders' },
+				],
+			});
+		});
+
 		test('inbox keeps primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {
 			const pinned = createTestSession('pinned').session;
 			const ready = createTestSession('ready').session;

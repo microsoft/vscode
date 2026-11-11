@@ -124,6 +124,8 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAutomationService } from '../../../chat/common/automations/automationService.js';
+import { IAutomationDescriptor } from '../../../chat/common/automations/automation.js';
+import { CREATE_REMINDER_COMMAND, OPEN_REMINDER_COMMAND, OPEN_REMINDERS_COMMAND, REMINDERS_SECTION_ID, reminderDescription, SESSIONS_SHOW_REMINDERS_SETTING } from '../../../chat/common/automations/automationReminders.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICustomViewService } from '../customView.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
@@ -262,6 +264,8 @@ export interface ISessionSection {
 	readonly environment?: ISessionEnvironment;
 	/** The pinned canvas a navigation row opens. */
 	readonly pinnedCanvas?: IPinnedCanvas;
+	readonly reminder?: IAutomationDescriptor;
+	readonly reminderCount?: number;
 }
 
 /** A GitHub repository that sessions work in, whichever environment they run in. */
@@ -485,7 +489,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || isPinnedCanvasSection(sectionId);
+	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || isPinnedCanvasSection(sectionId) || sectionId.startsWith('reminder:');
 }
 
 function isPinnedCanvasSection(sectionId: string): boolean {
@@ -2918,7 +2922,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
 		this.renderedSections.set(template, element);
-		setSessionGroupDepth(template.container, this.getGroupDepth(element));
+		const reminderChild = element.id.startsWith('reminder:');
+		setSessionGroupDepth(template.container, reminderChild ? 1 : this.getGroupDepth(element));
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('session-section-new-session');
@@ -3031,12 +3036,19 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		template.label.textContent = element.label;
+		if (element.id === REMINDERS_SECTION_ID) {
+			template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.bell)}`;
+			template.icon.style.display = '';
+		} else if (reminderChild) {
+			template.icon.className = 'session-section-icon';
+			template.icon.style.display = '';
+		}
 		template.countLabel.style.display = '';
-		if (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) || shortcut) {
+		if (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) && element.id !== REMINDERS_SECTION_ID || shortcut) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else {
-			template.countLabel.textContent = String(element.sessions.length);
+			template.countLabel.textContent = String(element.reminderCount ?? element.sessions.length);
 			template.count.style.display = '';
 		}
 		if (element.pinnedCanvas) {
@@ -3627,6 +3639,11 @@ class SessionsAccessibilityProvider {
 			}
 			if (isShortcutSection(element.id)) {
 				return element.label;
+			}
+			if (element.reminderCount !== undefined) {
+				return element.reminderCount === 1
+					? localize('reminderSectionAria', "{0}, 1 reminder", element.label)
+					: localize('remindersSectionAria', "{0}, {1} reminders", element.label, element.reminderCount);
 			}
 			return this.getSectionAriaLabel(element.label, element.sessions);
 		}
@@ -5379,6 +5396,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!element) {
 				return;
 			}
+			if (isSessionSection(element) && element.id.startsWith('reminder:')) {
+				await this.commandService.executeCommand(element.reminder ? OPEN_REMINDER_COMMAND : element.id === 'reminder:create' ? CREATE_REMINDER_COMMAND : OPEN_REMINDERS_COMMAND, element.reminder?.id);
+				return;
+			}
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
@@ -5467,6 +5488,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			this.setCompact();
+		}));
+		this._register(runOnChange(this.automationService.automations, () => this.update()));
+		if (this.automationService.canCreateReminder) {
+			this._register(runOnChange(this.automationService.canCreateReminder, () => this.update()));
+		}
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SESSIONS_SHOW_REMINDERS_SETTING)) {
+				this.update();
+			}
 		}));
 
 		this._register(Event.any(...this.trees.map(tree => tree.onContextMenu))(e => this.onContextMenu(e)));
@@ -6274,6 +6304,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Match sessions again before filtering sections: their text may have changed since the last update.
 		this.searchFilter.invalidate();
 		this.hiddenGroupingSections = [];
+		if (inbox || this.configurationService.getValue<boolean>(SESSIONS_SHOW_REMINDERS_SETTING)) {
+			this.appendRemindersSection(children);
+		}
 		if (inbox) {
 			this._topLevelOrder = [];
 			for (const id of sessionInboxSections) {
@@ -8286,6 +8319,37 @@ export class SessionsList extends Disposable implements ISessionsList {
 		} else {
 			this._sectionRenderer.setDropTarget(header.id, active);
 		}
+	}
+
+	private appendRemindersSection(children: IObjectTreeElement<SessionListItem>[]): void {
+		if (!this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)
+			|| !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
+			return;
+		}
+		const reminders = this.automationService.automations.get().filter(item => item.reminder?.status === 'due');
+		const canCreate = this.automationService.canCreateReminder?.get() === true;
+		if (!canCreate && reminders.length === 0) {
+			return;
+		}
+		const rows: IObjectTreeElement<SessionListItem>[] = reminders.map(reminder => ({
+			element: {
+				id: `reminder:${reminder.id}`,
+				label: localize('reminder.row', "{0} - {1}", reminder.prompt, reminderDescription(reminder)),
+				reminder,
+				sessions: [],
+			},
+			collapsible: false,
+		}));
+		if (canCreate) {
+			rows.push({ element: { id: 'reminder:create', label: localize('reminder.create', "Create Reminder..."), sessions: [] }, collapsible: false });
+		}
+		rows.push({ element: { id: 'reminder:view', label: localize('reminder.viewScheduled', "View Scheduled Reminders"), sessions: [] }, collapsible: false });
+		children.push({
+			element: { id: REMINDERS_SECTION_ID, label: localize('reminders.section', "Reminders"), sessions: [], reminderCount: reminders.length },
+			collapsed: false,
+			collapsible: true,
+			children: rows,
+		});
 	}
 
 	/** Lists pinned canvases after Automations while chat is enabled; the service hides them while canvases are disabled. */

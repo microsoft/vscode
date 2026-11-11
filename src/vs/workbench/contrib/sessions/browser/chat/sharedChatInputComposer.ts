@@ -179,6 +179,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _promptOptions: NewSessionPromptOptionsPresenter;
 
 	private _widget: ChatWidget | undefined;
+	private _handoffId: string | undefined;
 	private _container: HTMLElement | undefined;
 	private _repositoryControlsContainer: HTMLElement | undefined;
 	private _repositoryControlsHome: HTMLElement | undefined;
@@ -347,6 +348,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 		this._register(widget.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(widget.inputEditor.onDidChangeModelContent(() => {
+			if (!this._sending.get() && !widget.inputEditor.getValue()) {
+				this._handoffId = undefined;
+			}
 			this._syncInputGitHubContext();
 			this._onDidChangeInput.fire();
 		}));
@@ -601,7 +605,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const inputText = widget.getInput();
 		const attachments = [...widget.attachmentModel.attachments];
 		const references = [...getDynamicVariablesForWidget(widget)];
+		const handoffId = this._handoffId;
 		widget.setModel(ref.object);
+		this._handoffId = handoffId;
 		// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
 		if (widget.inputEditor.getValue() !== inputText) {
 			this.setInputValue(inputText);
@@ -707,7 +713,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const widget = this._widget;
 		// A host that keeps the input in a snapshot persists it itself.
 		if (widget && !this.options.inputSnapshot) {
-			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+			writeNewChatDraftState(this.storageService, { ...this.getDraft(), references: this._getDraftReferences(widget) });
 		}
 	}
 
@@ -770,6 +776,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (this._widget !== widget || this._sending.get()) {
 			return false;
 		}
+		this._handoffId = draft.handoffId;
 		this.setInputValue(draft.inputText);
 		widget.attachmentModel.clearAndSetContext(...draft.attachments);
 		this._restoreDraftReferences(draft);
@@ -778,7 +785,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	private _writeInputSnapshot(widget: ChatWidget): void {
 		if (this.options.inputSnapshot && this._widget === widget) {
-			this.options.inputSnapshot.set({ inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+			this.options.inputSnapshot.set({ ...this.getDraft(), references: this._getDraftReferences(widget) });
 		}
 	}
 
@@ -813,6 +820,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 		}
 		if (draft) {
+			this._handoffId = draft.handoffId;
 			this.setInputValue(draft.inputText);
 			if (draft.attachments.length) {
 				this._widget?.attachmentModel.addContext(...draft.attachments);
@@ -822,10 +830,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	getDraft(): IChatDraft {
-		return { inputText: this.getInputValue(), attachments: [...this.attachments] };
+		return { inputText: this.getInputValue(), attachments: [...this.attachments], ...(this._handoffId ? { handoffId: this._handoffId } : {}) };
 	}
 
 	setDraft(draft: IChatDraft | undefined): void {
+		this._handoffId = draft?.handoffId;
 		this.setInputValue(draft?.inputText ?? '');
 		this._widget?.attachmentModel.clearAndSetContext(...(draft?.attachments ?? []));
 	}
@@ -834,6 +843,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (!this.isInputReady || this.hasInput || this._sending.get()) {
 			return false;
 		}
+		this._handoffId = draft.handoffId;
 		this.prefillInput(draft.inputText);
 		this.addAttachments(...draft.attachments);
 		this._restoreDraftReferences(draft);
@@ -1071,9 +1081,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const isInputAlive = () => this._widget === widget && !!widget.input;
 		let ownsClearedDraft: (() => boolean) | undefined;
 		let attemptId: string | undefined;
+		const handoffId = this._handoffId;
 		let sent = false;
 		const restoreInput = () => {
 			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
+				this._handoffId = handoffId;
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.
@@ -1097,10 +1109,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 
 			// The input is about to be cleared: until the send ends, the host restores what is sent.
-			attemptId = this.options.inputSnapshot?.beginSendAttempt({ inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+			attemptId = this.options.inputSnapshot?.beginSendAttempt({ ...this.getDraft(), references: this._getDraftReferences(widget) });
 			// Clear the input as a regular chat send does. The widget is bound to
 			// the draft's chat model, which the running session adopts once the
 			// host sends, so the draft must not carry the sent prompt.
+			this._handoffId = undefined;
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
 			// The host can create another composer before the send completes. A host that keeps the input in a
@@ -1113,7 +1126,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset
 				? { ...entry, range: { start: entry.range.start - queryOffset, endExclusive: entry.range.endExclusive - queryOffset } }
 				: entry);
-			const accepted = await this.options.sendRequest({ query, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction, attemptId });
+			const accepted = await this.options.sendRequest({ query, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction, attemptId, ...(handoffId ? { handoffId } : {}) });
 			if (!accepted) {
 				userInteraction?.cancel('notDispatched');
 				restoreInput();
@@ -1158,6 +1171,13 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	/** Runs a client-side command like a chat input does, keeping the input usable for any UI the command opens. */
 	private async _runClientSlashCommand({ part, parsed, sessionResource }: IClientSlashCommand, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean> {
+		const widget = this._widget;
+		const model = widget?.inputEditor.getModel();
+		const version = model?.getVersionId();
+		const local = part.slashCommand.executeLocally === true;
+		if (local) {
+			this._sending.set(true, undefined);
+		}
 		try {
 			const result = await this.chatSlashCommandService.executeCommand(
 				part.slashCommand.command,
@@ -1168,15 +1188,24 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				sessionResource,
 				CancellationToken.None,
 				{ attachedContext: [...attachments] },
-				{ input: parsed.text },
+				{ input: parsed.text, inputUri: widget?.input.inputUri },
 			);
-			if (!result?.preserveInput) {
+			if (!result?.preserveInput && (!local || widget === this._widget && model === widget?.inputEditor.getModel() && version === model?.getVersionId()
+				&& attachments.length === this.attachments.length && attachments.every((attachment, index) => attachment === this.attachments[index]))) {
+				this._handoffId = undefined;
 				this.setInputValue('');
+				if (local) {
+					widget?.attachmentModel.clear();
+				}
 			}
 			return true;
 		} catch (error) {
 			this.logService.error(`[SharedChatInputComposer] Failed to run /${part.slashCommand.command}`, error);
 			return false;
+		} finally {
+			if (local) {
+				this._sending.set(false, undefined);
+			}
 		}
 	}
 
