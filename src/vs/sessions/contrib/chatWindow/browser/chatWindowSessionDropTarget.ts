@@ -1,0 +1,151 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import './media/chatWindowSessionDropTarget.css';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, getWindowId } from '../../../../base/browser/dom.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag, SessionsDataTransfers } from '../../../../workbench/contrib/sessions/browser/dnd.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { isChatWindowChatGone } from './chatWindowOpening.js';
+
+/**
+ * Makes the chat of a chat window take the chats and sessions dragged onto it, such as a session of the sessions list or
+ * the tab of a chat of the main window: it opens each in the chat window, as a tab beside the chat. While the drag is
+ * over it, an overlay shows where it opens, and keeps the drag from scrolling what is under it. A chat that is archived or
+ * gone is not taken. What is dropped on an input, such as to attach it as context, stays the input's.
+ */
+export class ChatWindowSessionDropTarget extends Themable {
+
+	private readonly _overlayStore = this._register(new MutableDisposable<DisposableStore>());
+
+	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+
+	/**
+	 * @param _element The chat's element, which positions the overlay.
+	 * @param _getChat The chat the element shows, which the dropped chats open beside.
+	 */
+	constructor(
+		private readonly _element: HTMLElement,
+		private readonly _getChat: () => URI | undefined,
+		@IThemeService themeService: IThemeService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+	) {
+		super(themeService);
+
+		this._register(addDisposableListener(this._element, EventType.DRAG_ENTER, e => this._onDragEnter(e)));
+		const window = getWindow(this._element);
+		this._register(addDisposableListener(window, EventType.DRAG_END, () => this._hideOverlay()));
+	}
+
+	private _isSessionDrag(e: DragEvent): boolean {
+		return this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype) || !!e.dataTransfer?.types.includes(SessionsDataTransfers.SESSION);
+	}
+
+	/** Whether the drag, as far as it is known before it drops, carries a chat the window takes. */
+	private _accepts(e: DragEvent): boolean {
+		if (isSessionChatDrag(e)) {
+			return true;
+		}
+		if (!this._isSessionDrag(e)) {
+			return false;
+		}
+		const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype);
+		// Not known before it drops, when the drag is of another window's
+		return !dragged || dragged.some(item => !!item.resource && !!this._resolveSessionChat(item.resource));
+	}
+
+	private _resolveSessionChat(resource: URI): URI | undefined {
+		const session = this._sessionsManagementService.getSession(resource);
+		if (!session) {
+			return undefined;
+		}
+		const chat = session.mainChat.get().resource;
+		return isChatWindowChatGone(session, chat, undefined) ? undefined : chat;
+	}
+
+	private _onDragEnter(e: DragEvent): void {
+		if (isChatReferenceInputDrop(e)) {
+			this._hideOverlay();
+			return;
+		}
+		if (!this._accepts(e)) {
+			return;
+		}
+		if (!this._overlayStore.value) {
+			this._showOverlay(e);
+		}
+	}
+
+	private _showOverlay(e: DragEvent): void {
+		const store = new DisposableStore();
+		this._overlayStore.value = store;
+		const overlay = $('.chat-window-session-drop-overlay');
+		overlay.style.clipPath = getChatReferenceDropClipPath(this._element, e);
+		const indicator = $('.chat-window-session-drop-overlay-indicator');
+		indicator.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
+		const border = this.getColor(activeContrastBorder);
+		if (border) {
+			indicator.style.outline = `2px dashed ${border}`;
+			indicator.style.outlineOffset = '-2px';
+		}
+		overlay.appendChild(indicator);
+		this._element.appendChild(overlay);
+		store.add(toDisposable(() => overlay.remove()));
+		store.add(new DragAndDropObserver(overlay, {
+			onDragOver: ev => {
+				if (ev.dataTransfer) {
+					ev.dataTransfer.dropEffect = 'move';
+				}
+			},
+			onDragLeave: () => this._hideOverlay(),
+			onDragEnd: () => this._hideOverlay(),
+			onDrop: ev => {
+				EventHelper.stop(ev, true);
+				this._hideOverlay();
+				this._handleDrop(ev);
+			},
+		}));
+	}
+
+	private _hideOverlay(): void {
+		this._overlayStore.clear();
+	}
+
+	private _handleDrop(e: DragEvent): void {
+		const chats: URI[] = [];
+		const chat = getSessionChatDragData(e);
+		if (chat) {
+			chats.push(URI.parse(chat.resource));
+		} else {
+			const dragged = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype) ?? [];
+			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+			for (const item of dragged) {
+				const resolved = item.resource && this._resolveSessionChat(item.resource);
+				if (resolved) {
+					chats.push(resolved);
+				}
+			}
+		}
+		const window = this._chatWindowService.getWindow(getWindowId(getWindow(this._element)));
+		if (!window || !chats.length) {
+			return;
+		}
+		void (async () => {
+			let tabOf = this._getChat();
+			for (const resource of chats) {
+				await this._chatWindowService.open(resource, { window, exactChat: true, tabOf });
+				tabOf = resource;
+			}
+		})().catch(onUnexpectedError);
+	}
+}
