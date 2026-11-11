@@ -64,6 +64,8 @@ export const IMissionControlEnvironmentService = createDecorator<IMissionControl
 export interface IMissionControlEnvironmentService {
 	readonly _serviceBrand: undefined;
 	readonly hosts: IObservable<readonly IMissionControlHost[]>;
+	/** Hosts confirmed online by this window's discovery in the current account and inventory lifetime; peer-window storage updates do not count. */
+	readonly discoveredOnlineHostIds: IObservable<ReadonlySet<string>>;
 	/** The registration of the computer running this window, if known; it is included in {@link hosts}. */
 	readonly ownEnvironmentId: IObservable<string | undefined>;
 	readonly accountKey: string | undefined;
