@@ -194,6 +194,16 @@ export function pathRule(tool: 'Read' | 'Edit', absolutePath: string, recursive:
 	return `${tool}(${normalized.startsWith('/') ? '/' : '//'}${specifier})`;
 }
 
+/** Whether a Read/Edit rule names an absolute path without glob characters. */
+export function isExactAbsolutePathRule(rule: string): boolean {
+	const parsed = parsePermissionRule(rule);
+	if ((parsed?.tool !== 'Read' && parsed?.tool !== 'Edit') || parsed.specifier === undefined) {
+		return false;
+	}
+	const specifier = parsed.specifier.replace(/\\/g, '/');
+	return (specifier.startsWith('//') || /^[a-z]:\//i.test(specifier)) && !/[*?\[\]{}]/.test(specifier);
+}
+
 /** The first opening and final closing parentheses delimit a specifier; nested parentheses remain literal. */
 function parsePermissionRule(rule: string): IParsedPermissionRule | undefined {
 	const value = rule.trim();

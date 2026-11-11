@@ -6,6 +6,12 @@
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 
 /**
+ * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
+ * The mirrored host value is requested configuration; AgentConfigurationService captures its effective value at host construction.
+ */
+export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
+
+/**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
  * Microsoft Entra sign-in for a GitHub token that is published as a process-lifetime GitHub
  * authentication session. See {@link ChatMicrosoftAuthenticationMode} for its values.
@@ -113,8 +119,14 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.mcp.json': false,
 	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	// Dev Container configurations can run commands on the host whenever the container starts.
+	'**/.devcontainer.json': false,
+	'**/.devcontainer/devcontainer.json': false,
+	'**/.devcontainer/*/devcontainer.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,
+	'**/.github/copilot/settings.json': false,
+	'**/.github/copilot/settings.local.json': false,
 	'**/.claude/agents/**': false,
 	'**/.claude/settings.json': false,
 	'**/.claude/settings.local.json': false,

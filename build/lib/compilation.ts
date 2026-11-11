@@ -378,7 +378,7 @@ function copyCodiconsImpl() {
 			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
 			fs.copyFileSync(codiconSource, codiconDest);
 		} else {
-			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'npm install' to install dependencies.`);
+			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'pnpm install' to install dependencies.`);
 		}
 	} catch (e) {
 		fancyLog(ansiColors.red('[codicons]'), `Error copying codicon.ttf: ${e}`);

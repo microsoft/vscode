@@ -8,6 +8,8 @@ import type { IAgentTelemetryContext } from '../../common/agent.js';
 
 interface ISubagentState {
 	rootTurnId: string | undefined;
+	/** The root turn the child was invoked in, inherited from a spawning subagent; unlike `rootTurnId`, never re-pointed. */
+	invocationTurnId: string | undefined;
 	accountContext: IAgentTelemetryContext | undefined;
 	accountContextCaptured: boolean;
 	initialPrompt?: string;
@@ -43,6 +45,7 @@ export class CopilotSubagentTracking extends Disposable {
 		if (!child.accountContextCaptured) {
 			// An unavailable initial context must not be replaced by a later root's account.
 			child.accountContext = parentToolCallId ? this.getAccountContext(parentToolCallId) : rootTurn?.telemetryContext;
+			child.invocationTurnId = parentToolCallId ? this.getInvocationTurnId(parentToolCallId) : rootTurn?.id;
 			child.accountContextCaptured = true;
 			child.initialPrompt = taskPrompt;
 		}
@@ -121,6 +124,10 @@ export class CopilotSubagentTracking extends Disposable {
 		return this._children.get(toolCallId)?.accountContext;
 	}
 
+	getInvocationTurnId(toolCallId: string): string | undefined {
+		return this._children.get(toolCallId)?.invocationTurnId;
+	}
+
 	getToolCallId(agentId: string): string | undefined {
 		return this._toolCallsByAgent.get(agentId);
 	}
@@ -148,7 +155,7 @@ export class CopilotSubagentTracking extends Disposable {
 	private _getOrCreateChild(toolCallId: string): ISubagentState {
 		let child = this._children.get(toolCallId);
 		if (!child) {
-			child = { rootTurnId: undefined, accountContext: undefined, accountContextCaptured: false };
+			child = { rootTurnId: undefined, invocationTurnId: undefined, accountContext: undefined, accountContextCaptured: false };
 			this._children.set(toolCallId, child);
 		}
 		return child;

@@ -479,7 +479,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 			localRequests: llamaRequests.map(request => ({ path: request.path, model: parseModel(request.body), stream: isStreaming(request.body), includeUsage: (JSON.parse(request.body) as { stream_options?: { include_usage?: unknown } }).stream_options?.include_usage, returnProgress: parseJson(request.body)?.return_progress })),
 			// The runtime asked for JSON; the handler streamed from the device and assembled one completion.
 			runtimeResponses: localResponses,
-			autoContexts: observed.filter(entry => entry.path === '/auto').map(entry => ({ transport: entry.transport, sessionId: entry.sessionId, agentId: entry.agentId, interactionType: entry.interactionType })),
+			autoContexts: observed.filter(entry => entry.path === '/auto').map(entry => ({ transport: entry.transport, sessionId: entry.sessionId === session.sessionId, agentId: entry.agentId, interactionType: entry.interactionType })),
 			chatContexts: observed.filter(entry => entry.target === 'capi' && entry.model === LOCAL_CAPI_ID).map(entry => ({ transport: entry.transport, sessionId: entry.sessionId === session.sessionId, agentId: entry.agentId === session.sessionId, interactionType: entry.interactionType })),
 			routes: routes.map(route => route.selection),
 			knownLocalId: KNOWN_AUTO_LOCAL_IDS.includes(LOCAL_CAPI_ID),
@@ -496,8 +496,8 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 				{ status: 200, contentType: 'application/json', body: { id: 'chatcmpl-test', object: 'chat.completion', created: 0, model: LOCAL_CAPI_ID, usage: USAGE, choices: [{ index: 0, finish_reason: 'tool_calls', message: { role: 'assistant', content: null, tool_calls: [{ id: TOOL_CALL_ID, type: 'function', function: { name: 'report_value', arguments: '{"value":42}' } }] } }] } },
 				{ status: 200, contentType: 'application/json', body: { id: 'chatcmpl-test', object: 'chat.completion', created: 0, model: LOCAL_CAPI_ID, usage: USAGE, choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: 'LOCAL DONE' } }] } },
 			],
-			// /auto carries no session, agent or interaction type; chat requests carry all three.
-			autoContexts: [{ transport: 'http', sessionId: undefined, agentId: undefined, interactionType: undefined }],
+			// /auto is attributed to the session but carries no agent or interaction type; chat requests carry all three.
+			autoContexts: [{ transport: 'http', sessionId: true, agentId: undefined, interactionType: undefined }],
 			chatContexts: [
 				{ transport: 'http', sessionId: true, agentId: true, interactionType: 'conversation-agent' },
 				{ transport: 'http', sessionId: true, agentId: true, interactionType: 'conversation-agent' },

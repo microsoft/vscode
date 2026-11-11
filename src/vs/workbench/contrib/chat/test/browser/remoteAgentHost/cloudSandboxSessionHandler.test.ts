@@ -132,6 +132,57 @@ suite('CloudSandboxSessionHandler', () => {
 		}
 	}
 
+	test('retains the conversation through live-provider replacement and waits for the replacement snapshot', async () => {
+		let historyReads = 0;
+		const handler = createHandler(async () => { historyReads++; return recordedHistory(); });
+		const reference = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const first = store.add(new LiveSession(undefined, 'First host'));
+		handler.setLiveProvider({ provideChatSessionContent: async () => first });
+		await waitForState(reference.isInputBlocked!, blocked => !blocked);
+		handler.clearLiveProvider();
+		const disconnected = { title: reference.title, blocked: reference.isInputBlocked?.get(), firstDisposed: first.disposed };
+		const snapshot = new DeferredPromise<IChatSession>();
+		handler.setLiveProvider({ provideChatSessionContent: () => snapshot.p });
+		let ready = false;
+		const acquisition = handler.acquireLiveChat(resource, CancellationToken.None).then(session => { ready = true; return session; });
+		await timeout(0);
+		const beforeSnapshot = ready;
+		const second = store.add(new LiveSession(undefined, 'Second host'));
+		await snapshot.complete(second);
+		const acquired = store.add(await acquisition);
+		assert.deepStrictEqual({
+			disconnected, beforeSnapshot, historyReads,
+			resource: reference.sessionResource.toString(),
+			title: reference.title, blocked: reference.isInputBlocked?.get(),
+			shared: acquired.history === reference.history,
+		}, {
+			disconnected: { title: 'First host', blocked: true, firstDisposed: true },
+			beforeSnapshot: false, historyReads: 1, resource: resource.toString(),
+			title: 'Second host', blocked: false, shared: true,
+		});
+	});
+
+	test('cancels a replaced provider load before its pending snapshot can unblock input', async () => {
+		const handler = createHandler();
+		const reference = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const first = new DeferredPromise<IChatSession>();
+		let firstToken: CancellationToken | undefined;
+		handler.setLiveProvider({ provideChatSessionContent: (_resource, token) => { firstToken = token; return first.p; } });
+		handler.clearLiveProvider();
+		const replacement = new DeferredPromise<IChatSession>();
+		handler.setLiveProvider({ provideChatSessionContent: () => replacement.p });
+		const obsolete = store.add(new LiveSession(undefined, 'Obsolete'));
+		await first.complete(obsolete);
+		await timeout(0);
+		const beforeReplacement = { cancelled: firstToken?.isCancellationRequested, blocked: reference.isInputBlocked?.get(), obsoleteDisposed: obsolete.disposed };
+		const current = store.add(new LiveSession(undefined, 'Current'));
+		await replacement.complete(current);
+		await waitForState(reference.isInputBlocked!, blocked => !blocked);
+		assert.deepStrictEqual({ beforeReplacement, title: reference.title, currentDisposed: current.disposed }, {
+			beforeReplacement: { cancelled: true, blocked: true, obsoleteDisposed: true }, title: 'Current', currentDisposed: false,
+		});
+	});
+
 	test('serves live-only content without reading or invalidating an unrelated task', async () => {
 		const owners = new Map([['/first', 'task-1'], ['/second', 'task-2']]);
 		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
@@ -1031,16 +1082,27 @@ suite('CloudSandboxSessionHandler', () => {
 	test('defers completion triggers until live capabilities exist and forwards URI resolution', async () => {
 		const handler = createHandler();
 		const triggers = handler.provideChatInputCompletionTriggerCharacters();
+		const capabilitiesChanged = store.add(new Emitter<void>());
+		let changes = 0;
+		let characters = ['@', '/'];
+		store.add(handler.onDidChangeChatInputCompletionTriggerCharacters(() => changes++));
 		const provider: IChatSessionContentProvider = {
 			provideChatSessionContent: async () => store.add(new LiveSession()),
-			provideChatInputCompletionTriggerCharacters: async () => ['@', '/'],
+			provideChatInputCompletionTriggerCharacters: async () => characters,
+			onDidChangeChatInputCompletionTriggerCharacters: capabilitiesChanged.event,
 			resolveChatResponseUri: (_resource, href) => `resolved:${href}`,
 		};
 		handler.setLiveProvider(provider);
+		const initial = await triggers;
+		characters = ['#'];
+		capabilitiesChanged.fire();
+		const updated = await handler.provideChatInputCompletionTriggerCharacters();
+		const uri = handler.resolveChatResponseUri(resource, 'file.txt', 'link');
+		handler.clearLiveProvider();
+		capabilitiesChanged.fire();
 		assert.deepStrictEqual({
-			triggers: await triggers,
-			uri: handler.resolveChatResponseUri(resource, 'file.txt', 'link'),
-		}, { triggers: ['@', '/'], uri: 'resolved:file.txt' });
+			initial, updated, uri, changes,
+		}, { initial: ['@', '/'], updated: ['#'], uri: 'resolved:file.txt', changes: 3 });
 	});
 
 	for (const [kind, resolved] of [['link', 'resolved:file.txt'], ['image', 'data:image/png;base64,aW1hZ2U=']] as const) {

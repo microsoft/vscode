@@ -156,6 +156,53 @@ suite('MarkersView', () => {
 					stats: view.getFilterStats()
 				}, { previous: [false, false], messages: ['replacement'], stats: { total: 1, filtered: 1 } });
 			});
+
+			test('keeps the selected diagnostic when switching view mode', async () => {
+				const { view, markerService } = createView(viewMode);
+				await update(view, markerService, resources[0], 'first');
+				const [selected] = currentMarkers(view);
+				view['widget'].setMarkerSelection([selected], [selected]);
+				const otherMode = viewMode === MarkersViewMode.Tree ? MarkersViewMode.Table : MarkersViewMode.Tree;
+
+				view.setViewMode(otherMode);
+				view.setViewMode(viewMode);
+
+				assert.deepStrictEqual({
+					viewMode: view['markersViewModel'].viewMode,
+					selection: view['widget'].getSelection().map(element => element instanceof Marker ? element.marker.message : undefined),
+					focus: view['widget'].getFocus().map(element => element instanceof Marker ? element.marker.message : undefined),
+					rendered: view.element.textContent?.includes('first')
+				}, { viewMode, selection: ['first'], focus: ['first'], rendered: true });
+			});
+
+			test('keeps several selected diagnostics when switching view mode', async () => {
+				const { view, markerService } = createView(viewMode);
+				await update(view, markerService, resources[0], 'first');
+				await update(view, markerService, resources[1], 'second');
+				const markers = currentMarkers(view);
+				view['widget'].setMarkerSelection(markers, markers);
+				const otherMode = viewMode === MarkersViewMode.Tree ? MarkersViewMode.Table : MarkersViewMode.Tree;
+
+				view.setViewMode(otherMode);
+				view.setViewMode(viewMode);
+
+				assert.deepStrictEqual(view['widget'].getSelection().map(element => element instanceof Marker ? element.marker.message : undefined).sort(), ['first', 'second']);
+			});
+
+			test('switches view mode without a selection', async () => {
+				const { view, markerService } = createView(viewMode);
+				await update(view, markerService, resources[0], 'first');
+				const otherMode = viewMode === MarkersViewMode.Tree ? MarkersViewMode.Table : MarkersViewMode.Tree;
+
+				view.setViewMode(otherMode);
+				view.setViewMode(viewMode);
+
+				assert.deepStrictEqual({
+					viewMode: view['markersViewModel'].viewMode,
+					selection: view['widget'].getSelection().length,
+					rendered: view.element.textContent?.includes('first')
+				}, { viewMode, selection: 0, rendered: true });
+			});
 		});
 	}
 	/* eslint-enable local/code-no-bracket-notation-for-identifiers */

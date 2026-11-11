@@ -193,7 +193,16 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 	private _render(): void {
 		const bodies = new Map<string, IChatInputNotificationBody>();
-		const notification = this._notificationService.getActiveNotification(candidate => {
+		const policyError = this._modelState.agentModelPolicyError;
+		const notification: IChatInputNotification | undefined = policyError ? {
+			id: 'agentRequiredModel',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: policyError,
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		} : this._notificationService.getActiveNotification(candidate => {
 			const body = this._resolveBody(candidate);
 			if (body) {
 				bodies.set(candidate.id, body);
@@ -201,7 +210,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			}
 			return false;
 		});
-		const body = notification ? bodies.get(notification.id) : undefined;
+		const body = policyError ? notification : notification ? bodies.get(notification.id) : undefined;
 		if (notification && body && this._updateInPlace(notification, body)) {
 			this._currentNotification = notification;
 			this._announce(notification, body);

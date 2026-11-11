@@ -17,7 +17,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, renderChatPetAchievementPreview } from '../../../../workbench/contrib/chat/browser/chatPetAchievementPreview.js';
 import { chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, getChatPetAchievementRewardLabels, IChatPetAchievement } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
-import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { chatPetWindowKinds, IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPetColor } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
 import { ChatPetCustomizationTab } from '../../../../workbench/contrib/chat/browser/chatPetAchievementsEditorInput.js';
 
@@ -152,7 +152,7 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 				this.onOpenCustomization('color');
 				return;
 			}
-			if (this.chatPetService.selectedAccessory.get() === accessoryId) {
+			if (chatPetWindowKinds.every(windowKind => this.chatPetService.getWindowAccessory(windowKind).get() === accessoryId)) {
 				return;
 			}
 			this.chatPetService.setAccessory(accessoryId);

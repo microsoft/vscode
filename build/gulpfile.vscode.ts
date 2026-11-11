@@ -20,13 +20,14 @@ import product from '../product.json' with { type: 'json' };
 import * as crypto from 'crypto';
 import * as cp from 'child_process';
 import * as i18n from './lib/i18n.ts';
-import { getProductionDependencies } from './lib/dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from './lib/copilot.ts';
+import { getLockedVersion } from './lib/pnpmLock.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
@@ -42,18 +43,15 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
-	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
-};
 const copilotRuntimeVersion = getCopilotRuntimeVersion(path.join(root, 'node_modules'));
 if (packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
 	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @github/copilot-sdk bundles ${copilotRuntimeVersion}.`);
 }
 
 function getLockedPackageVersion(packageName: string): string {
-	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
+	const version = getLockedVersion('', packageName, root);
 	if (!version) {
-		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
+		throw new Error(`Package ${packageName} is missing a version in pnpm-lock.yaml.`);
 	}
 
 	return version;
@@ -241,7 +239,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(import.meta.dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const depFilterPattern = ['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock'];
 		if (stripSourceMapsInPackagingTasks) {
@@ -249,6 +247,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: '.', dot: true })
+			.pipe(toPackagedLayout(productionDependencies))
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));

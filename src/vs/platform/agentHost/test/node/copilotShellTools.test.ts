@@ -136,6 +136,7 @@ suite('CopilotShellTools', () => {
 		const policies = new Map<string, ISessionSandboxPolicy>();
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
+			copilotM365EnabledAtStartup: false,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: sessionEmitter.event,
 			onDidChatConfigChange: Event.None,
@@ -153,6 +154,8 @@ suite('CopilotShellTools', () => {
 			getSessionConfigValues: session => sessionValues.get(session),
 			resolveConfigurationOwner: session => session,
 			getSessionSandboxPolicy: session => policies.get(session),
+			getSessionSandboxPaths: () => undefined,
+			setSessionSandboxPaths: () => { },
 			getSessionSandboxEnabled: () => undefined,
 			getChatSandboxEnabled: () => undefined,
 			getChatAttachmentScopes: target => [target.session],

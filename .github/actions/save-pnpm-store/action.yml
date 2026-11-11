@@ -1,0 +1,55 @@
+name: Save pnpm store cache
+description: Removes the packages that the installed projects don't use from the store that restore-pnpm-store restored, and saves it to the cache. Use it after the last installation of the job, when the cache doesn't have the store of its lockfiles.
+
+# Also removes the store's links to the projects that use it (in `projects`): the cache follows links
+# when it archives the store on Windows, and the next installation adds its own. The cache saves the
+# store from `.build/pnpm-store`, where it moves for the save and then back beside the workspace (see
+# restore-pnpm-store). A failure doesn't fail the job, and the cache then doesn't save the store.
+runs:
+  using: composite
+  steps:
+    - name: Prune pnpm store
+      id: prune
+      if: runner.os != 'Windows'
+      continue-on-error: true
+      shell: bash
+      run: |
+        set -e
+        pnpm store prune
+        rm -rf "$(pnpm store path)/projects"
+
+    - name: Prune pnpm store
+      id: prune-windows
+      if: runner.os == 'Windows'
+      continue-on-error: true
+      shell: pwsh
+      run: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { pnpm store prune }
+        $StorePath = (pnpm store path)
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $StorePath "projects")
+
+    - name: Move pnpm store into the workspace
+      id: move
+      if: steps.prune.outcome == 'success' || steps.prune-windows.outcome == 'success'
+      continue-on-error: true
+      shell: node {0}
+      run: |
+        const fs = require('fs');
+        fs.rmSync('.build/pnpm-store', { recursive: true, force: true });
+        fs.renameSync(process.env.pnpm_config_store_dir, '.build/pnpm-store');
+
+    - name: Save pnpm store cache
+      if: steps.move.outcome == 'success'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .build/pnpm-store
+        key: ${{ env.PNPM_STORE_CACHE_KEY }}
+
+    - name: Move pnpm store beside the workspace
+      if: steps.move.outcome == 'success'
+      continue-on-error: true
+      shell: node {0}
+      run: require('fs').renameSync('.build/pnpm-store', process.env.pnpm_config_store_dir);

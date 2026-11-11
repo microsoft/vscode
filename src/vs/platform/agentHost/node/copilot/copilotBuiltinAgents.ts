@@ -13,6 +13,7 @@ import type { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -72,6 +73,15 @@ export const COPILOT_BUILTIN_AGENTS: readonly ICopilotBuiltinAgent[] = [{
 }];
 
 export const COPILOT_BUILTIN_AGENT_NAMES: ReadonlySet<string> = new Set(COPILOT_BUILTIN_AGENTS.map(agent => agent.name));
+/**
+ * Names of agents every session already has: the host's own, and the ones the Copilot runtime
+ * brings. A custom agent with a runtime agent's name replaces it, so an agent the host adds on
+ * its own, such as a model router role, never takes one of these names.
+ */
+export const COPILOT_RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
+	...COPILOT_BUILTIN_AGENT_NAMES,
+	'explore', 'task', 'general-purpose', 'rubber-duck', 'code-review', 'research', 'security-review', 'rem-agent',
+]);
 export const COPILOT_BUILTIN_AGENT_NAMES_BY_URI: ReadonlyMap<string, string> = new Map(
 	COPILOT_BUILTIN_AGENTS.map(agent => [getComparisonKey(getCopilotBuiltinAgentUri(agent)), agent.name]),
 );
@@ -94,7 +104,7 @@ export function buildCopilotBuiltinAgentMarkdown(agent: ICopilotBuiltinAgent): s
 	].join('\n');
 }
 
-/** Owns read-only built-in agent files served through the host's normal resource-read path. */
+/** Owns read-only built-in customization files served through the host's normal resource-read path. */
 export class CopilotBuiltinAgentsStore extends Disposable {
 	constructor(fileService: IFileService) {
 		super();
@@ -123,6 +133,7 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 		contents: CustomizationType.Agent,
 		writable: false,
 		load: { kind: CustomizationLoadStatus.Loaded },
+		_meta: withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }),
 		children: COPILOT_BUILTIN_AGENTS.map(agent => {
 			const agentUri = getCopilotBuiltinAgentUri(agent).toString();
 			return {

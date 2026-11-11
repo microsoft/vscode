@@ -12,12 +12,12 @@ parameters:
 
 steps:
   - ${{ if eq(parameters.VSCODE_WAIT_FOR_CLI, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=$(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
+    - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=$(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI and Copilot shim artifacts (background)
 
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=$(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
+    - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI" "--producer=$(ARTIFACT_PREFIX)unsigned_copilot_shim_linux_$(VSCODE_ARCH)=Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI"
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI and Copilot shim artifacts
@@ -84,14 +84,14 @@ steps:
 
   - script: |
       set -e
-      npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+      pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Prepare deb package
 
   - script: |
       set -e
-      npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+      pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
       mkdir -p .build/linux/deb
       cp .build/linux/deb/*/deb/*.deb .build/linux/deb/
       file_output=$(file $(ls .build/linux/deb/*.deb))
@@ -115,14 +115,14 @@ steps:
       fi
       export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-10.5.0
       export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
-      npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+      pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
     displayName: Prepare rpm package
 
   - script: |
       set -e
-      npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+      pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
       mkdir -p .build/linux/rpm
       cp .build/linux/rpm/*/*.rpm .build/linux/rpm/
       echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*.rpm)"
@@ -140,7 +140,7 @@ steps:
     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
       - script: |
           set -e
-          npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+          pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
           sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:ab4a88c4d85e0d7a85acabba59543f7143f575bab2c0b2b07f5b77d4a7e491ff /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
           SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
@@ -183,7 +183,7 @@ steps:
       echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
     displayName: Find ESRP CLI
 
-  - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.ts
+  - script: pnpm exec deemon --detach --wait node build/azure-pipelines/linux/codesign.ts
     env:
       EsrpCliDllPath: $(EsrpCliDllPath)
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)

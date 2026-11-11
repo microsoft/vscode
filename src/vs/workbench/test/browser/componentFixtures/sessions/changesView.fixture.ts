@@ -20,7 +20,6 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewPaneOptions } from '../../../../browser/parts/views/viewPane.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
-import { isIChatSessionFileChange2 } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -32,26 +31,19 @@ import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/co
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-// eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
-// eslint-disable-next-line local/code-import-patterns
-import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestCIModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestCIModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
+import { DesktopChangesViewPane } from '../../../../contrib/sessionChanges/browser/changesView.js';
+import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
+import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -86,10 +78,31 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	getSessionChanges(): IChangesSessionObservables {
+		return {
+			resourceObs: this.activeSessionResourceObs,
+			typeObs: this.activeSessionTypeObs,
+			isVirtualWorkspaceObs: this.activeSessionIsVirtualWorkspaceObs,
+			hasGitRepositoryObs: this.activeSessionHasGitRepositoryObs,
+			reviewCommentCountByFileObs: this.activeSessionReviewCommentCountByFileObs,
+			agentFeedbackCountByFileObs: this.activeSessionAgentFeedbackCountByFileObs,
+			changesetsLoadingObs: this.activeSessionChangesetsLoadingObs,
+			changesetsObs: this.activeSessionChangesetsObs,
+			changesetObs: this.activeSessionChangesetObs,
+			changesetLoadingObs: this.activeSessionChangesetLoadingObs,
+			changesetOperationsObs: this.activeSessionChangesetOperationsObs,
+			changesObs: this.activeSessionChangesObs,
+			loadingObs: this.activeSessionLoadingObs,
+			changesSummaryObs: this.activeSessionChangesSummaryObs,
+			sectionCollapseStateObs: this.activeSessionSectionCollapseStateObs,
+			stateObs: this.activeSessionStateObs,
+		};
+	}
+
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
-	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
+	constructor(session: ITestSessionWithChat, options: IChangesViewFixtureOptions) {
 		super();
 
 		const changeset = createChangeset(options.changes);
@@ -268,7 +281,7 @@ function createWorkspace(): ISessionWorkspace {
 	};
 }
 
-function createSession(options: IChangesViewFixtureOptions): IActiveSession {
+function createSession(options: IChangesViewFixtureOptions): ITestSessionWithChat {
 	const capabilities: ISessionCapabilities = {
 		supportsMultipleChats: false,
 		supportsRename: true,
@@ -282,7 +295,7 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		override readonly workspace = workspace;
 	}();
 
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = 'fixture:changes-view';
 		override readonly resource = URI.parse('fixture-session://changes-view');
 		override readonly providerId = 'fixture';
@@ -406,8 +419,9 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IGitHubService, createGitHubService(options.checks));
 			reg.defineInstance(IViewDescriptorService, new FixtureViewDescriptorService());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
-				override readonly visibleSessions = constObservable([session]);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
+				readonly gridShown = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
@@ -449,6 +463,8 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable<ITestSessionWithChat | undefined>(session) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable<ITestSessionWithChat | undefined>(session)));
 
 	const view = disposableStore.add(instantiationService.createInstance(DesktopChangesViewPane, {
 		id: CHANGES_VIEW_ID,
@@ -465,9 +481,9 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 }
 
 const SAMPLE_CHANGES = [
-	createFileChange('src/vs/sessions/contrib/changes/browser/changesView.ts', 'modified', 42, 18),
-	createFileChange('src/vs/sessions/contrib/changes/browser/checksWidget.ts', 'modified', 24, 9),
-	createFileChange('src/vs/sessions/contrib/changes/browser/media/checksWidget.css', 'modified', 6, 2),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/changesView.ts', 'modified', 42, 18),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/checksWidget.ts', 'modified', 24, 9),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/media/checksWidget.css', 'modified', 6, 2),
 	createFileChange('src/vs/sessions/contrib/changes/test/browser/changesView.fixture.ts', 'added', 132, 0),
 	createFileChange('src/vs/sessions/contrib/changes/browser/oldChangesLayout.ts', 'deleted', 0, 47),
 ];
