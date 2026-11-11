@@ -11,6 +11,20 @@ import { createImportRuleListener } from './utils.ts';
 
 const REPO_ROOT = path.normalize(path.join(import.meta.dirname, '../'));
 
+const matchers = new Map<string, minimatch.IMinimatch>();
+
+/**
+ * Same as `minimatch(path, pattern)`, but compiles each pattern only once.
+ */
+function match(path: string, pattern: string): boolean {
+	let matcher = matchers.get(pattern);
+	if (!matcher) {
+		matcher = new minimatch.Minimatch(pattern);
+		matchers.set(pattern, matcher);
+	}
+	return matcher.match(path);
+}
+
 interface ConditionalPattern {
 	when?: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test';
 	pattern: string;
@@ -60,7 +74,7 @@ export default new class implements eslint.Rule.RuleModule {
 		const relativeFilename = getRelativeFilename(context);
 
 		for (const config of configs) {
-			if (minimatch(relativeFilename, config.target)) {
+			if (match(relativeFilename, config.target)) {
 				return createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
 			}
 		}
@@ -73,11 +87,14 @@ export default new class implements eslint.Rule.RuleModule {
 		return {};
 	}
 
-	private _optionsCache = new WeakMap<RawOption[], ImportPatternsConfig[]>();
+	// ESLint passes a new `context.options` array for every file, but the option objects in it are reused.
+	private _optionsCache = new WeakMap<RawOption, ImportPatternsConfig[]>();
 
 	private _processOptions(options: RawOption[]): ImportPatternsConfig[] {
-		if (this._optionsCache.has(options)) {
-			return this._optionsCache.get(options)!;
+		const cacheKey = options[0];
+		const cached = cacheKey && this._optionsCache.get(cacheKey);
+		if (cached) {
+			return cached;
 		}
 
 		type Layer = 'common' | 'worker' | 'browser' | 'electron-browser' | 'node' | 'electron-utility' | 'electron-main';
@@ -220,7 +237,9 @@ export default new class implements eslint.Rule.RuleModule {
 				configs.push({ target, restrictions: restrictions.filter(r => typeof r === 'string') as string[] });
 			}
 		}
-		this._optionsCache.set(options, configs);
+		if (cacheKey) {
+			this._optionsCache.set(cacheKey, configs);
+		}
 		return configs;
 	}
 
@@ -259,7 +278,7 @@ export default new class implements eslint.Rule.RuleModule {
 
 		let matched = false;
 		for (const pattern of restrictions) {
-			if (minimatch(importPath, pattern)) {
+			if (match(importPath, pattern)) {
 				matched = true;
 				break;
 			}

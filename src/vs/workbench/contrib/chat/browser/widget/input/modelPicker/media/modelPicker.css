@@ -1374,6 +1374,13 @@
 	outline-offset: var(--vscode-strokeThickness);
 }
 
+.chat-model-picker-widget .chat-model-picker-agent-notice {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
 .model-picker-comparison .model-picker-comparison-footer {
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);

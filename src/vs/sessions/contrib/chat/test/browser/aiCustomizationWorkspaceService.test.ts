@@ -17,17 +17,16 @@ import { INotification, INotificationService, Severity } from '../../../../../pl
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { GitCommitOptions, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { SessionsAICustomizationWorkspaceService } from '../../browser/aiCustomizationWorkspaceService.js';
-import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IChat, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsAICustomizationWorkspaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses the repository label for virtual workspaces', () => {
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const service = new SessionsAICustomizationWorkspaceService(
-			upcastPartial<ISessionsService>({ activeSession }),
+			focusedSessionHostServiceOf(activeSession),
 			upcastPartial<IInstantiationService>({}),
 			upcastPartial<IPromptsService>({}),
 			upcastPartial<IGitService>({}),
@@ -78,7 +77,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 		const worktreeFile = URI.file('/worktree/.github/skills/foo.md');
 
 		function createService(options: { openRepository?: (root: URI) => Promise<IGitRepository | undefined>; notifications?: INotification[] }) {
-			const activeSession = observableValue<IActiveSession | undefined>('activeSession', createActiveSession({
+			const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', createActiveSession({
 				uri: repositoryRoot,
 				label: 'repo',
 				folders: [{ root: repositoryRoot, workingDirectory: worktreeRoot, name: 'repo', description: undefined }],
@@ -87,7 +86,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 				isVirtualWorkspace: false,
 			}));
 			return new SessionsAICustomizationWorkspaceService(
-				upcastPartial<ISessionsService>({ activeSession }),
+				focusedSessionHostServiceOf(activeSession),
 				upcastPartial<IInstantiationService>({}),
 				upcastPartial<IPromptsService>({}),
 				upcastPartial<IGitService>({ openRepository: options.openRepository ?? (async () => undefined) }),
@@ -188,7 +187,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 	});
 });
 
-function createActiveSession(workspace: ISessionWorkspace): IActiveSession {
+function createActiveSession(workspace: ISessionWorkspace): ITestSessionWithChat {
 	const chat = upcastPartial<IChat>({ workspace: constObservable(workspace) });
-	return upcastPartial<IActiveSession>({ activeChat: constObservable(chat) });
+	return upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(chat) });
 }

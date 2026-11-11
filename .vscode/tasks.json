@@ -35,9 +35,9 @@
 		{
 			"label": "Install Dependencies",
 			"type": "shell",
-			"command": "npm install",
+			"command": "pnpm install",
 			"windows": {
-				"command": "cmd /c \"npm install\""
+				"command": "cmd /c \"pnpm install\""
 			},
 			"presentation": {
 				"reveal": "always",
@@ -48,8 +48,8 @@
 		},
 		{
 			"label": "Compile",
-			"type": "npm",
-			"script": "compile",
+			"type": "shell",
+			"command": "pnpm run compile",
 			"presentation": {
 				"reveal": "always",
 				"group": "session",
@@ -60,9 +60,9 @@
 		{
 			"label": "Build Fast",
 			"type": "shell",
-			"command": "npm run build-fast",
+			"command": "pnpm run build-fast",
 			"windows": {
-				"command": "cmd /c \"npm run build-fast\""
+				"command": "cmd /c \"pnpm run build-fast\""
 			},
 			"presentation": {
 				"reveal": "always",
@@ -73,8 +73,8 @@
 		},
 		{
 			"label": "Watch",
-			"type": "npm",
-			"script": "watch",
+			"type": "shell",
+			"command": "pnpm run watch",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "always",
@@ -85,8 +85,8 @@
 		},
 		{
 			"label": "Watch Client Transpile",
-			"type": "npm",
-			"script": "watch-client-transpile",
+			"type": "shell",
+			"command": "pnpm run watch-client-transpile",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "always",
@@ -114,8 +114,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-client-transpiled",
+			"type": "shell",
+			"command": "pnpm run watch-client-transpiled",
 			"label": "Core - Transpile",
 			"isBackground": true,
 			"presentation": {
@@ -144,8 +144,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-clientd",
+			"type": "shell",
+			"command": "pnpm run watch-clientd",
 			"label": "Core - Typecheck",
 			"isBackground": true,
 			"presentation": {
@@ -175,8 +175,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-extensionsd",
+			"type": "shell",
+			"command": "pnpm run watch-extensionsd",
 			"label": "Ext - Build",
 			"isBackground": true,
 			"presentation": {
@@ -204,8 +204,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-copilotd",
+			"type": "shell",
+			"command": "pnpm run watch-copilotd",
 			"label": "Copilot - Build",
 			"isBackground": true,
 			"presentation": {
@@ -250,8 +250,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-client-transpiled",
+			"type": "shell",
+			"command": "pnpm run kill-watch-client-transpiled",
 			"label": "Kill Core - Transpile",
 			"group": "build",
 			"presentation": {
@@ -262,8 +262,8 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-clientd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-clientd",
 			"label": "Kill Core - Typecheck",
 			"group": "build",
 			"presentation": {
@@ -274,8 +274,8 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-extensionsd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-extensionsd",
 			"label": "Kill Ext - Build",
 			"group": "build",
 			"presentation": {
@@ -286,8 +286,8 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-copilotd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-copilotd",
 			"label": "Kill Copilot - Build",
 			"group": "build",
 			"presentation": {
@@ -319,10 +319,10 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Kill VS Code - Build, Npm, VS Code - Build",
+			"label": "Kill VS Code - Build, Install, VS Code - Build",
 			"dependsOn": [
 				"Kill VS Code - Build",
-				"npm: install",
+				"Install Dependencies",
 				"VS Code - Build"
 			],
 			"group": "build",
@@ -330,8 +330,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "npm",
-			"script": "watch-webd",
+			"type": "shell",
+			"command": "pnpm run watch-webd",
 			"label": "Web Ext - Build",
 			"group": "build",
 			"isBackground": true,
@@ -357,8 +357,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-webd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-webd",
 			"label": "Kill Web Ext - Build",
 			"group": "build",
 			"presentation": {
@@ -381,13 +381,13 @@
 		},
 		{
 			"label": "Transpile Client",
-			"type": "npm",
-			"script": "transpile-client",
+			"type": "shell",
+			"command": "pnpm run transpile-client",
 			"problemMatcher": []
 		},
 		{
-			"type": "npm",
-			"script": "electron",
+			"type": "shell",
+			"command": "pnpm run electron",
 			"label": "Download electron"
 		},
 		{
@@ -479,8 +479,9 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "eslint",
+			"label": "eslint",
+			"type": "shell",
+			"command": "pnpm run eslint",
 			"problemMatcher": {
 				"source": "eslint",
 				"base": "$eslint-stylish"
@@ -496,8 +497,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "tsec-compile-check",
+			"type": "shell",
+			"command": "pnpm run tsec-compile-check",
 			"problemMatcher": [
 				{
 					"base": "$tsc",
@@ -506,13 +507,13 @@
 				}
 			],
 			"group": "build",
-			"label": "npm: tsec-compile-check",
+			"label": "tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		},
 		{
 			"label": "Launch Monaco Editor Vite",
 			"type": "shell",
-			"command": "npm run dev",
+			"command": "pnpm run dev",
 			"options": {
 				"cwd": "./build/vite/"
 			},
@@ -604,8 +605,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "npm",
-			"script": "watch-client",
+			"type": "shell",
+			"command": "pnpm run watch-client",
 			"label": "Watch Client",
 			"isBackground": true,
 			"presentation": {
@@ -637,7 +638,7 @@
 		{
 			"label": "Component Explorer Server",
 			"type": "shell",
-			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"command": "pnpm exec component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"inAgents": true,
 			"problemMatcher": {
@@ -659,9 +660,9 @@
 		{
 			"label": "Install & Watch",
 			"type": "shell",
-			"command": "npm install && npm run watch-transpile",
+			"command": "pnpm install && pnpm run watch-transpile",
 			"windows": {
-				"command": "cmd /c \"npm install && npm run watch-transpile\""
+				"command": "cmd /c \"pnpm install && pnpm run watch-transpile\""
 			},
 			"presentation": {
 				"focus": false,
@@ -670,8 +671,8 @@
 		},
 		{
 			"label": "Serve Out (rspack)",
-			"type": "npm",
-			"script": "serve-out-rspack",
+			"type": "shell",
+			"command": "pnpm run serve-out-rspack",
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "rspack",

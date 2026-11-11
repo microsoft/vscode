@@ -14,11 +14,34 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
-import { aggregateAnthropicSse, anthropicMessageToSse } from './e2e/harness/capiWireCodec.js';
+import { aggregateAnthropicSse, aggregateResponsesJson, aggregateResponsesSse, anthropicMessageToSse, responsesMessageToSse } from './e2e/harness/capiWireCodec.js';
 
 suite('CapiReplayProxy', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('serves the same model catalog through models and meta without replay traffic', async () => {
+		const proxy = new CapiReplayProxy({ fixturePath: fileURLToPath(new URL('./e2e/captures/empty.yaml', import.meta.url)), mode: 'replay' });
+		try {
+			const url = await proxy.start();
+			const models = await (await fetch(`${url}/models`)).json();
+			const meta = await (await fetch(`${url}/meta`)).json();
+			assert.deepStrictEqual(meta, {
+				models,
+				auto: {
+					default_tier: 'balance',
+					tiers: [
+						{ id: 'balance', tier_level: 'standard', display_name: 'Standard', description: '', type: 'auto', status: { enabled: true } },
+						{ id: 'intelligence', tier_level: 'high', display_name: 'High', description: '', type: 'auto', status: { enabled: true } },
+						{ id: 'efficiency', display_name: 'Efficiency', description: '', type: 'auto', status: { enabled: true } },
+					],
+				},
+			});
+			proxy.assertNoReplayMismatches();
+		} finally {
+			await proxy.stop();
+		}
+	});
 
 	test('rejects debugger discovery probes without recording them or counting them as replay traffic', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-debugger-'));
@@ -46,6 +69,7 @@ suite('CapiReplayProxy', () => {
 	for (const request of [
 		{ method: 'GET', path: '/unexpected-api' },
 		{ method: 'POST', path: '/json/version' },
+		{ method: 'POST', path: '/meta' },
 		{ method: 'POST', path: '/v1/messages' },
 		{ method: 'POST', path: '/responses' },
 	]) {
@@ -189,6 +213,63 @@ suite('CapiReplayProxy', () => {
 		} finally {
 			await recorder.stop();
 			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('records mixed streaming and JSON model turns readably and asserts the judge request', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-mixed-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		const request = JSON.stringify({ model: 'claude-sonnet-5', system: 'system', messages: [{ role: 'user', content: 'Read input.txt' }] });
+		const judgeRequest = (text: string) => JSON.stringify({ model: 'gpt-5.6-luna', instructions: 'Judge policy', input: text, stream: false });
+		const judgeText = 'Approve only reading input.txt; do not write output.txt.';
+		const reply = { content: [{ type: 'text' as const, text: 'ALLOW: Read only.' }], stopReason: 'end_turn' };
+		const recorder = new CapiReplayProxy({ fixturePath, mode: 'record' });
+		try {
+			const url = await recorder.start();
+			recorder.setRecordingModelResponse({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: anthropicMessageToSse(reply) });
+			await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request })).text();
+			recorder.setRecordingModelResponse({
+				status: 200, headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					object: 'response', status: 'completed', id: 'opaque-response-id',
+					output: [
+						{ type: 'reasoning', encrypted_content: 'opaque-reasoning' },
+						{ type: 'message', content: [{ type: 'output_text', text: 'ALLOW: Read only.' }] },
+					],
+				}),
+			});
+			await (await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest(judgeText) })).text();
+			recorder.setRecordingModelResponse({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: responsesMessageToSse(reply) });
+			await (await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest('Finish') })).text();
+			await recorder.stop();
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(!fixture.includes('opaque-reasoning') && !fixture.includes('opaque-response-id') && fixture.includes(judgeText));
+			for (const changed of [false, true]) {
+				const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+				try {
+					const url = await replay.start();
+					const first = await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request })).text();
+					const second = await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest(changed ? judgeText.replace('do not write', 'write') : judgeText) });
+					const secondBody = await second.text();
+					const third = await (await fetch(`${url}/responses`, { method: 'POST', body: judgeRequest('Finish') })).text();
+					assert.deepStrictEqual({
+						anthropic: aggregateAnthropicSse(first)?.content,
+						json: aggregateResponsesJson(secondBody)?.content,
+						jsonType: second.headers.get('content-type'),
+						stream: aggregateResponsesSse(third)?.content,
+					}, { anthropic: reply.content, json: reply.content, jsonType: 'application/json', stream: reply.content });
+					if (changed) {
+						assert.throws(() => replay.assertNoReplayMismatches(), /model request mismatch/);
+					} else {
+						replay.assertNoReplayMismatches();
+					}
+				} finally {
+					await replay.close();
+				}
+			}
+		} finally {
+			await recorder.stop();
 		}
 	});
 

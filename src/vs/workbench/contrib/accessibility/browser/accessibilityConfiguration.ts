@@ -85,7 +85,6 @@ export const enum AccessibilityVerbositySettingId {
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
-	InboxNotifications = 'accessibility.verbosity.inboxNotifications',
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
@@ -294,10 +293,6 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Automations]: {
 			description: localize('verbosity.automations', 'Provide information about how to use Automations management views, including keyboard navigation and how to inspect scheduled runs.'),
-			...baseVerbosityProperty
-		},
-		[AccessibilityVerbositySettingId.InboxNotifications]: {
-			description: localize('verbosity.inboxNotifications', "Provide information about how to navigate and act on prioritized notifications in the Inbox view."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.AgentsWindowExtensions]: {

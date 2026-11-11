@@ -6,7 +6,7 @@
 // Copies type definitions from the sibling `agent-host-protocol` repo into
 // `src/vs/platform/agentHost/common/state/protocol/`. Run via:
 //
-//   npx tsx scripts/sync-agent-host-protocol.ts
+//   pnpm dlx tsx scripts/sync-agent-host-protocol.ts
 // Set AHP_PROTOCOL_REF to sync a fetched revision without changing its checkout.
 //
 // Source layout is preserved verbatim: every `.ts` file under

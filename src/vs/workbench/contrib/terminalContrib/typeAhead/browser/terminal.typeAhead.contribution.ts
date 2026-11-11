@@ -5,8 +5,10 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
@@ -25,7 +27,8 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 		this.add(toDisposable(() => this._addon?.dispose()));
@@ -46,8 +49,11 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	}
 
 	private _loadTypeAheadAddon(xterm: RawXtermTerminal): void {
+		const isRemote = !!this._ctx.processManager.remoteAuthority || !!this._ctx.instance.shellLaunchConfig.isRemotePty;
+		if (isRemote && !isConfigured(this._configurationService.inspect(TerminalTypeAheadSettingId.LocalEchoEnabled))) {
+			logSettingExperimentTrigger(this._telemetryService, TerminalTypeAheadSettingId.LocalEchoEnabled);
+		}
 		const enabled = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoEnabled;
-		const isRemote = !!this._ctx.processManager.remoteAuthority;
 		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
 			this._addon?.dispose();
 			this._addon = undefined;

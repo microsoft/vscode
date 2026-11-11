@@ -14,6 +14,8 @@ import { copilotDiscoveryRetryDelays, CopilotDiscoveryReason, CopilotSessionDire
 export interface ICopilotChatDiscoveryScan {
 	readonly id: number;
 	readonly sessionIds: ReadonlySet<string> | undefined;
+	/** A client named these sessions explicitly; the scan is not part of startup discovery. */
+	readonly explicit?: boolean;
 	isCurrent(sessionId: string): boolean;
 	/** Capture metadata fingerprints for candidates without a watcher. */
 	prepare(sessionId: string): Promise<boolean>;
@@ -208,17 +210,32 @@ export class CopilotChatDiscovery extends Disposable {
 	private async _scanCandidates(candidates: ReadonlyMap<string, ICandidateSnapshot>): Promise<void> {
 		const generation = this._directories.generation;
 		const creationGeneration = this._creationGeneration;
-		const isCurrent = (id: string) => !this._store.isDisposed && generation === this._directories.generation
-			&& creationGeneration === this._creationGeneration && this._directories.isCurrent(id)
-			&& candidates.get(id)?.revision === this._candidates.get(id)?.revision;
+		const isUnchangedDirectory = (id: string) => !this._store.isDisposed && generation === this._directories.generation
+			&& creationGeneration === this._creationGeneration && this._directories.isCurrent(id);
+		const isCurrent = (id: string) => isUnchangedDirectory(id) && candidates.get(id)?.revision === this._candidates.get(id)?.revision;
 		const unwatchedReads = new Set<string>();
 		const waitingForChange = new Set<string>();
+		// Windows reports last-access updates as changes, so a scan reading a watched session's files
+		// would otherwise invalidate itself. Accept a newer revision whose readiness fingerprint still
+		// matches the one this scan started from: none of the files the scan reads has changed.
+		const reconfirm = async (id: string): Promise<boolean> => {
+			const snapshot = candidates.get(id);
+			if (isCurrent(id) || !snapshot || snapshot.fingerprint === undefined || unwatchedReads.has(id)
+				|| this._candidates.get(id) !== snapshot.candidate || !isUnchangedDirectory(id)) {
+				return isCurrent(id);
+			}
+			const revision = snapshot.candidate.revision;
+			if (await snapshot.candidate.probe(this._probes) && snapshot.candidate.revision === revision && snapshot.candidate.fingerprint === snapshot.fingerprint) {
+				snapshot.revision = revision;
+			}
+			return isCurrent(id);
+		};
 		const scan: ICopilotChatDiscoveryScan = {
 			id: ++this._scanId,
 			sessionIds: this._initialScan ? undefined : new Set(candidates.keys()),
 			isCurrent,
 			prepare: async id => {
-				if (!isCurrent(id)) {
+				if (!await reconfirm(id)) {
 					return false;
 				}
 				const snapshot = candidates.get(id);
@@ -229,14 +246,14 @@ export class CopilotChatDiscovery extends Disposable {
 					snapshot.revision = snapshot.candidate.revision;
 					unwatchedReads.add(id);
 				}
-				return isCurrent(id);
+				return reconfirm(id);
 			},
 			validate: async id => {
 				const snapshot = candidates.get(id);
 				if (snapshot && unwatchedReads.has(id) && !await snapshot.candidate.probe(this._probes)) {
 					return false;
 				}
-				return isCurrent(id);
+				return reconfirm(id);
 			},
 			waitForChange: id => waitingForChange.add(id),
 			describe: id => {
@@ -255,6 +272,10 @@ export class CopilotChatDiscovery extends Disposable {
 			completed = await this._scan(scan);
 		} catch (error) {
 			this._logService.warn(`[CopilotDiscovery] Scan ${scan.id} failed`, error);
+		}
+		if (completed) {
+			// Reading a resolved session's files can report a change after it was published.
+			await Promise.all([...completed].map(reconfirm));
 		}
 		const elapsedMs = Math.round(timer.elapsed());
 		if (this._store.isDisposed) {

@@ -29,7 +29,6 @@ const modeAndPermissionsWhen = ContextKeyExpr.and(
  * Order layout in the secondary toolbar (existing items annotated):
  *   0    OpenSessionTargetPickerAction        (Copilot CLI - Agent Host)
  *   0.5  OpenDelegationPickerAction
- *   0.6  OpenWorkspacePickerAction
  *   0.7  OpenAgentHostModePickerAction        (NEW — Mode)
  *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
  *   0.9  OpenAgentHostPermissionModePickerAction (NEW — Claude Approvals)

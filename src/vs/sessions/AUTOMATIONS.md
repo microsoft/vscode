@@ -28,13 +28,13 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Concern | Owner |
 |---|---|
 | Shared catalogue and command contract | [`IAutomationStore`](../workbench/contrib/chat/common/automations/automationService.ts) |
-| One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](services/sessions/common/sessionsProvider.ts) |
+| One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](../workbench/contrib/sessions/common/sessionsProvider.ts) |
 | Injected, multi-provider Automation API | [`IAutomationService`](../workbench/contrib/chat/common/automations/automationService.ts) |
 | Unified catalogue and concrete-provider routing | [`ProviderAutomationService`](contrib/automations/browser/providerAutomationService.ts) |
-| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
-| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](contrib/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
-| Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](contrib/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
-| Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](contrib/providers/agentHost/browser/agentHostAutomationStore.ts) |
+| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
+| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](../workbench/contrib/sessions/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
+| Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](../workbench/contrib/sessions/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
+| Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](../workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.ts) |
 | Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
 | Definitions, schedules, run claims, sessions, lifecycle, history, and recovery | [`IAgentHostAutomationService` / `AgentHostAutomationService`](../platform/agentHost/node/agentHostAutomationService.ts) |
 | Portable blueprint format and validation | Workbench Automation common code |
@@ -200,5 +200,5 @@ Existing AHP definitions and history are not deleted because an obsolete migrati
 
 - [Sessions architecture](SESSIONS.md)
 - [Sessions list](SESSIONS_LIST.md)
-- [Agent Host sessions provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
-- [Remote Agent Host sessions provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Agent Host sessions provider](../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Remote Agent Host sessions provider](../workbench/contrib/sessions/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)

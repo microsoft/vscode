@@ -71,8 +71,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ./common/install-pnpm.yml@self
+
       - pwsh: |
-          npm ci
+          pnpm install --frozen-lockfile
         workingDirectory: build
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"

@@ -38,12 +38,13 @@ import { CopilotCloudSessionsProvider, ExternalSessionsMode, filterCloudSessions
 import { CloudTaskOwnership } from '../cloudTaskOwnership';
 import { TaskApiBackend, TaskApiError, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { CloudSessionData } from '../../vscode/cloudAgentBackend';
-import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
 import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 import { MockChatResponseStream } from '../../../test/node/testHelpers';
+import { TaskTurnStreamer } from '../taskTurnStreamer';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
@@ -1014,7 +1015,7 @@ describe('cloud session visibility', () => {
 			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
 			const { resource } = getCloudSessionResources('external', undefined);
 			const stream = new MockChatResponseStream();
-			await handler(
+			const result = await handler(
 				{ prompt: 'Continue', sessionResource: resource } as vscode.ChatRequest,
 				{ history: [], chatSessionContext: { chatSessionItem: { resource, label: 'external' }, isUntitled: false } } as unknown as vscode.ChatContext,
 				stream,
@@ -1022,11 +1023,52 @@ describe('cloud session visibility', () => {
 			);
 			const after = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
 
-			expect({ before, after, changeEvents: changes.mock.calls.length, output: stream.output }).toEqual({
+			expect({ before, after, changeEvents: changes.mock.calls.length, output: stream.output, result }).toEqual({
 				before: [['started-here', undefined, 'vscode'], ['external', true, 'github/autopilot']],
 				after: [['started-here', undefined, 'vscode'], ['external', undefined, 'github/autopilot']],
 				changeEvents: 1,
-				output: ['Could not find the task for this chat session.'],
+				output: [],
+				result: { errorDetails: { message: 'Could not find the task for this chat session.' } },
+			});
+		});
+
+		it.each([false, true])('returns failed steering as a chat error with an active stream: %s', async active => {
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue({ task: makeTask(), turns: [], pullArtifact: undefined });
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskEvents').mockResolvedValue([]);
+			const send = vi.spyOn(TaskApiBackend.prototype, 'sendFollowUpToTask').mockResolvedValue(false);
+			createProvider();
+			const started = new DeferredPromise<void>();
+			const finished = new DeferredPromise<void>();
+			vi.spyOn(TaskTurnStreamer.prototype, 'stream').mockImplementation(async () => {
+				started.complete();
+				await finished.p;
+			});
+			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
+			const { resource } = getCloudSessionResources('task-1', undefined);
+			const context = new class extends mock<vscode.ChatContext>() {
+				override readonly history = [];
+				override readonly chatSessionContext = {
+					chatSessionItem: { resource, label: 'Task' }, isUntitled: false,
+					inputState: new class extends mock<vscode.ChatSessionInputState>() { }(),
+				};
+			}();
+			const request = new class extends mock<vscode.ChatRequest>() {
+				override readonly prompt = 'Continue the existing task';
+				override readonly sessionResource = resource;
+			}();
+			const stream = new MockChatResponseStream();
+			let background: ReturnType<vscode.ChatRequestHandler> | undefined;
+			if (active) {
+				send.mockResolvedValueOnce(true);
+				background = handler(request, context, new MockChatResponseStream(), CancellationToken.None);
+				await started.p;
+			}
+			const result = await handler(request, context, stream, CancellationToken.None);
+			finished.complete();
+			await background;
+			expect({ result, sent: send.mock.calls }).toEqual({
+				result: { errorDetails: { message: 'Failed to send follow-up to the task.' } },
+				sent: Array.from({ length: active ? 2 : 1 }, () => ['task-1', 'Continue the existing task']),
 			});
 		});
 

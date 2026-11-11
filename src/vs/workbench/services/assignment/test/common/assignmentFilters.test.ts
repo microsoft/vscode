@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ICopilotTokenInfo } from '../../../../../base/common/defaultAccount.js';
+import { ICopilotTokenInfo, IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isInternalAccount } from '../../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -55,7 +54,7 @@ suite('CopilotAssignmentFilterProvider', () => {
 		assert.strictEqual(provider.getFilterValue(ExtensionsFilter.CopilotTrackingId), 'tracking-id');
 	});
 
-	test('maps available Copilot filters to new TAS names and refreshes their values', async () => {
+	test('maps extension versions without forwarding cached account filters to new TAS', async () => {
 		const onDidChangeEntitlement = disposables.add(new Emitter<void>());
 		const onDidChangeCopilotTokenInfo = disposables.add(new Emitter<ICopilotTokenInfo | null>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -116,27 +115,15 @@ suite('CopilotAssignmentFilterProvider', () => {
 			],
 		}, {
 			initial: {
-				github_core_copilotsku: 'pro',
-				github_core_issn: '1',
-				github_core_isfcv1: '1',
 				vscode_core_copilotchatextensionversion: '0.68.0',
 			},
 			fcv1Changed: {
-				github_core_copilotsku: 'pro',
-				github_core_issn: '1',
-				github_core_isfcv1: '0',
 				vscode_core_copilotchatextensionversion: '0.68.0',
 			},
 			refreshed: {
-				github_core_copilotsku: 'enterprise',
-				github_core_issn: '0',
-				github_core_isfcv1: '0',
 				vscode_core_copilotchatextensionversion: '0.68.0',
 			},
 			signedOut: {
-				github_core_copilotsku: null,
-				github_core_issn: '0',
-				github_core_isfcv1: '0',
 				vscode_core_copilotchatextensionversion: '0.68.0',
 			},
 			changes: 4,
@@ -149,65 +136,78 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	class TestChatEntitlementService extends mock<IChatEntitlementService>() {
-		private readonly _onDidChangeEntitlement = disposables.add(new Emitter<void>());
-		override readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+	class TestDefaultAccountService extends mock<IDefaultAccountService>() {
+		private readonly accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
+		override readonly onDidChangeDefaultAccount = this.accountChanged.event;
+		override readonly onDidChangeCopilotTokenInfo = Event.None;
+		override copilotTokenInfo: ICopilotTokenInfo | null = null;
+		override currentDefaultAccount: IDefaultAccount | null = null;
 
-		override copilotTrackingId: string | undefined;
-		override organisations: string[] | undefined;
-		isStaff: boolean | undefined;
-
-		override get isInternal(): boolean {
-			return isInternalAccount(this.isStaff, this.organisations);
-		}
-
-		fireChange(): void {
-			this._onDidChangeEntitlement.fire();
+		setEntitlements(entitlements?: Partial<IEntitlementsData>): void {
+			this.currentDefaultAccount = entitlements ? new class extends mock<IDefaultAccount>() {
+				override readonly entitlementsData = Object.assign(new class extends mock<IEntitlementsData>() { }(), entitlements);
+			}() : null;
+			this.accountChanged.fire(this.currentDefaultAccount);
 		}
 	}
 
-	function createProvider(entitlement: TestChatEntitlementService): GitHubCoreAssignmentsFilterProvider {
+	function createProvider(account: TestDefaultAccountService): GitHubCoreAssignmentsFilterProvider {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IChatEntitlementService, entitlement);
+		instantiationService.stub(IDefaultAccountService, account);
 		return disposables.add(instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider));
 	}
 
 	test('emits the core GitHub assignment filters map', () => {
-		const entitlement = new TestChatEntitlementService();
-		entitlement.copilotTrackingId = 'tid-1';
-		entitlement.organisations = ['github'];
-
-		const provider = createProvider(entitlement);
+		const account = new TestDefaultAccountService();
+		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'], access_type_sku: 'pro' });
+		account.copilotTokenInfo = { sn: '1', fcv1: '0' };
+		const provider = createProvider(account);
 
 		const filters = provider.getFilters();
 		assert.deepStrictEqual([...filters.entries()], [
 			[GitHubAssignmentsFilter.CopilotTrackingId, 'tid-1'],
 			[GitHubAssignmentsFilter.IsGhOrMsftStaff, '1'],
 			[GitHubAssignmentsFilter.GhMsftOrExternal, 'github'],
+			[GitHubAssignmentsFilter.CopilotSku, 'pro'],
+			[GitHubAssignmentsFilter.CopilotIsSn, '1'],
+			[GitHubAssignmentsFilter.CopilotIsFcv1, '0'],
 		]);
 	});
 
-	test('latches a late tracking id and keeps it after it becomes unavailable', () => {
-		const entitlement = new TestChatEntitlementService();
-		entitlement.organisations = undefined;
+	test('clears account filters on sign-out even before token info is cleared', () => {
+		const account = new TestDefaultAccountService();
+		account.setEntitlements({ analytics_tracking_id: 'old-user', access_type_sku: 'enterprise', organization_login_list: ['github'] });
+		account.copilotTokenInfo = { sn: '1', fcv1: '1' };
+		const provider = createProvider(account);
+		let changes = 0;
+		disposables.add(provider.onDidChangeFilters(() => changes++));
+		account.setEntitlements();
+		assert.deepStrictEqual({ filters: Object.fromEntries(provider.getFilters()), changes }, {
+			filters: {
+				copilottrackingid: null,
+				github_core_isghormsftstaff: '0',
+				github_core_ghmsftorexternal: 'external',
+				github_core_copilotsku: null,
+				github_core_issn: '0',
+				github_core_isfcv1: '0',
+			},
+			changes: 1,
+		});
+	});
 
-		const provider = createProvider(entitlement);
-
-		// Not yet available during sign-in delay.
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.CopilotTrackingId), null);
-
-		// Becomes available later.
-		entitlement.copilotTrackingId = 'tid-late';
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.CopilotTrackingId), 'tid-late');
-
-		// Latched: survives the live value going away again.
-		entitlement.copilotTrackingId = undefined;
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.CopilotTrackingId), 'tid-late');
+	test('does not retain another account tracking id while the next account has no entitlements', () => {
+		const account = new TestDefaultAccountService();
+		const provider = createProvider(account);
+		const values = [{ analytics_tracking_id: 'first' }, {}, { analytics_tracking_id: 'second' }, undefined];
+		assert.deepStrictEqual(values.map(value => {
+			account.setEntitlements(value);
+			return provider.getFilterValue(GitHubAssignmentsFilter.CopilotTrackingId);
+		}), ['first', null, 'second', null]);
 	});
 
 	test('reflects organization classification changes', () => {
-		const entitlement = new TestChatEntitlementService();
-		const provider = createProvider(entitlement);
+		const account = new TestDefaultAccountService();
+		const provider = createProvider(account);
 		const organizations = [
 			undefined,
 			['microsoft'],
@@ -220,8 +220,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 		];
 
 		assert.deepStrictEqual(organizations.map(organisations => {
-			entitlement.organisations = organisations;
-			entitlement.fireChange();
+			account.setEntitlements({ organization_login_list: organisations });
 			const filters = provider.getFilters();
 			return [
 				filters.get(GitHubAssignmentsFilter.GhMsftOrExternal),
@@ -240,16 +239,14 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 	});
 
 	test('includes staff without internal organizations and notifies on staff-only changes', () => {
-		const entitlement = new TestChatEntitlementService();
-		entitlement.organisations = ['contoso'];
-		entitlement.isStaff = true;
-		const provider = createProvider(entitlement);
+		const account = new TestDefaultAccountService();
+		account.setEntitlements({ organization_login_list: ['contoso'], is_staff: true });
+		const provider = createProvider(account);
 		let changes = 0;
 		disposables.add(provider.onDidChangeFilters(() => changes++));
 
 		assert.deepStrictEqual([true, false, false, true, undefined].map(isStaff => {
-			entitlement.isStaff = isStaff;
-			entitlement.fireChange();
+			account.setEntitlements({ organization_login_list: ['contoso'], is_staff: isStaff });
 			const filters = provider.getFilters();
 			return [
 				filters.get(GitHubAssignmentsFilter.IsGhOrMsftStaff),
@@ -266,27 +263,23 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 	});
 
 	test('fires onDidChangeFilters only when relevant inputs change', () => {
-		const entitlement = new TestChatEntitlementService();
-		entitlement.copilotTrackingId = 'tid-1';
-		entitlement.organisations = ['github'];
-
-		const provider = createProvider(entitlement);
+		const account = new TestDefaultAccountService();
+		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'] });
+		const provider = createProvider(account);
 
 		let changes = 0;
 		disposables.add(provider.onDidChangeFilters(() => changes++));
 
 		// No relevant change -> no event.
-		entitlement.fireChange();
+		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'] });
 		assert.strictEqual(changes, 0);
 
 		// Org change -> event.
-		entitlement.organisations = ['microsoft'];
-		entitlement.fireChange();
+		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['microsoft'] });
 		assert.strictEqual(changes, 1);
 
 		// Tracking id change -> event.
-		entitlement.copilotTrackingId = 'tid-2';
-		entitlement.fireChange();
+		account.setEntitlements({ analytics_tracking_id: 'tid-2', organization_login_list: ['microsoft'] });
 		assert.strictEqual(changes, 2);
 	});
 });

@@ -8,8 +8,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../workbench/contrib/chat/browser/widget/input/media/chatInputStack.css';
-import '../../browser/media/chatInput.css';
-import '../../browser/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
 
 suite('Sessions - Mobile Chat Shell', () => {

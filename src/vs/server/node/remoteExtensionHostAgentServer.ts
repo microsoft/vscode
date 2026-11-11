@@ -54,12 +54,12 @@ function parseRequestUrl(requestUrl: string): URL | undefined {
 
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class signer {
 		sign(arg: string): string;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class validator {
 		createNewMessage(arg: string): string;
 		validate(arg: string): 'ok' | 'error';

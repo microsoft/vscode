@@ -1,0 +1,30 @@
+diff --git a/dist/detail/native.js b/dist/detail/native.js
+index a9f1ef5b27744854f2108c0084db54a9d997f181..951f22144f15725fd6f0b43af4013fc18fe1b1ab 100644
+--- a/dist/detail/native.js
++++ b/dist/detail/native.js
+@@ -10,8 +10,9 @@ const here = fileURLToPath(new URL(".", import.meta.url));
+ // dist/detail/native.js -> dist/ -> package root
+ const pkgRoot = resolve(here, "..", "..");
+ const prebuildDir = resolve(pkgRoot, "prebuilds", `${process.platform}-${process.arch}`);
+-const addonPath = resolve(prebuildDir, "foundry_local_node.node");
+-const preloadAddonPath = resolve(prebuildDir, "foundry_local_preload.node");
++// VSCODE_PATCH:foundry-addons-from-library-path
++let addonPath = resolve(prebuildDir, "foundry_local_node.node");
++let preloadAddonPath = resolve(prebuildDir, "foundry_local_preload.node");
+ let preloadAddon;
+ /**
+  * Lazily load the tiny `foundry_local_preload` Node-API addon. It exists solely to expose a native
+@@ -161,6 +162,13 @@ export function configureNativeLoader(opts) {
+     if (!existsSync(fullPath)) {
+         throw new Error(`libraryPath does not contain ${expected}: ${libraryPath}`);
+     }
++    const configuredAddonPath = resolve(libraryPath, "foundry_local_node.node");
++    const configuredPreloadAddonPath = resolve(libraryPath, "foundry_local_preload.node");
++    if (!existsSync(configuredAddonPath) || !existsSync(configuredPreloadAddonPath)) {
++        throw new Error(`libraryPath does not contain both Foundry Local addons: ${libraryPath}`);
++    }
++    addonPath = configuredAddonPath;
++    preloadAddonPath = configuredPreloadAddonPath;
+     // On Windows, prepending to PATH biases LoadLibraryEx's default search so transitive DLL dependencies in
+     // `libraryPath` resolve as well (belt-and-suspenders for deps we didn't explicitly preload). On POSIX,
+     // the preload addon uses RTLD_GLOBAL so the library's symbols go in the global namespace and the addon's

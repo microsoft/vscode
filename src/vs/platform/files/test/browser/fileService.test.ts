@@ -13,7 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
+import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../common/inMemoryFilesystemProvider.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
@@ -25,9 +25,159 @@ class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class AtomicRenameFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities | FileSystemProviderCapabilities.FileAtomicRename;
+	}
+
+	async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+		return super.rename(from, to, options);
+	}
+}
+
 suite('File Service', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('atomic move', () => {
+		test('rejects providers without atomic rename support before changing either file', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /atomic rename/);
+			assert.deepStrictEqual([
+				(await service.readFile(source)).value.toString(),
+				(await service.readFile(target)).value.toString(),
+			], ['new', 'old']);
+		});
+
+		test('preserves the target on rename failure and supports retry', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new class extends AtomicRenameFileSystemProvider {
+				failRename = true;
+				override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+					if (this.failRename) {
+						throw new Error('rename failed');
+					}
+					return super.renameFileAtomic(from, to, options);
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /rename failed/);
+			const afterFailure = (await service.readFile(target)).value.toString();
+			provider.failRename = false;
+			await service.move(source, target, true, { atomic: true });
+
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: (await service.readFile(target)).value.toString(),
+				sourceExists: await service.exists(source),
+			}, { afterFailure: 'old', afterRetry: 'new', sourceExists: false });
+		});
+
+		test('rejects cross-provider moves without changing either file', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			disposables.add(service.registerProvider('other', disposables.add(new AtomicRenameFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('other:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /same file system provider/);
+			assert.deepStrictEqual([
+				(await service.readFile(source)).value.toString(),
+				(await service.readFile(target)).value.toString(),
+			], ['new', 'old']);
+		});
+
+		for (const sourceDirectory of [true, false]) {
+			test(`rejects a ${sourceDirectory ? 'source' : 'target'} directory`, async () => {
+				const service = disposables.add(new FileService(new NullLogService()));
+				disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+				const source = URI.parse('test:/source');
+				const target = URI.parse('test:/target');
+				await service.createFolder(sourceDirectory ? source : target);
+				await service.writeFile(sourceDirectory ? target : source, VSBuffer.fromString('preserved'));
+				await assert.rejects(service.move(source, target, true, { atomic: true }), /only support/);
+				assert.deepStrictEqual({
+					sourceDirectory: (await service.stat(source)).isDirectory,
+					targetDirectory: (await service.stat(target)).isDirectory,
+					content: (await service.readFile(sourceDirectory ? target : source)).value.toString(),
+				}, { sourceDirectory, targetDirectory: !sourceDirectory, content: 'preserved' });
+			});
+		}
+
+		test('still requires overwrite permission', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, false, { atomic: true }), error =>
+				error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT);
+			assert.strictEqual((await service.readFile(target)).value.toString(), 'old');
+		});
+
+		test('creates missing target parents for non-sibling moves', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/new/parent/target');
+			await service.writeFile(source, VSBuffer.fromString('content'));
+			await service.move(source, target, true, { atomic: true });
+			assert.deepStrictEqual({
+				sourceExists: await service.exists(source),
+				content: (await service.readFile(target)).value.toString(),
+			}, { sourceExists: false, content: 'content' });
+		});
+
+		test('does not replace the target when the source is missing', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			const target = URI.parse('test:/target');
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(URI.parse('test:/missing'), target, true, { atomic: true }));
+			assert.strictEqual((await service.readFile(target)).value.toString(), 'old');
+		});
+
+		test('does not rename after a target stat permission error', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new class extends AtomicRenameFileSystemProvider {
+				denyTarget = false;
+				renamed = false;
+				override async stat(resource: URI) {
+					if (this.denyTarget && resource.path === '/target') {
+						throw createFileSystemProviderError('denied', FileSystemProviderErrorCode.NoPermissions);
+					}
+					return super.stat(resource);
+				}
+				override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+					this.renamed = true;
+					return super.renameFileAtomic(from, to, options);
+				}
+			}());
+			disposables.add(service.registerProvider('test', provider));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			provider.denyTarget = true;
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /denied/);
+			provider.denyTarget = false;
+			assert.deepStrictEqual({
+				renamed: provider.renamed,
+				content: (await service.readFile(target)).value.toString(),
+			}, { renamed: false, content: 'old' });
+		});
+	});
 
 	test('resolveAll does not trace missing resources', async () => {
 		const traces: (string | Error)[] = [];

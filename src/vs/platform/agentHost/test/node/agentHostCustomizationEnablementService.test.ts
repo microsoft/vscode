@@ -19,6 +19,7 @@ import { AgentHostCustomizationEnablementService, getCustomizationEnablementKey,
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { targetForMcpSkill } from '../../node/shared/customizationEnablementGate.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -171,6 +172,78 @@ suite('AgentHostCustomizationEnablementService', () => {
 		await service.initializeSession(session);
 	});
 
+	for (const enabled of [false, true]) {
+		test(`keeps MCP skill ${enabled ? 'enablement' : 'disablement'} in memory for only its session`, async () => {
+			const target = targetForMcpSkill({
+				type: CustomizationType.Skill, id: 'server#skill=skill%3A%2F%2Freview%2FSKILL.md',
+				uri: 'skill://review/SKILL.md', name: 'fs:Review', enabled: !enabled,
+			});
+			const changes: (readonly string[])[] = [];
+			disposables.add(service.onDidChange(event => changes.push(event.sessions)));
+			worktree.pending.add(AgentSession.id(session));
+			const resolution = service.replaceEnablement(session, target, [{ kind: CustomizationEnablementKind.Session, enabled }]);
+			service.replaceEnablement(session, target, [{ kind: CustomizationEnablementKind.Session, enabled }]);
+			const skillChanges = [...changes];
+			const metadataBeforeOtherWrite = await sessionData.getMetadata(session, 'customizationEnablement');
+			worktree.pending.clear();
+			service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+			await service.whenIdle();
+			const reopened = disposables.add(new AgentHostCustomizationEnablementService(
+				storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state),
+				disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionData)),
+			));
+			await reopened.initializeSession(session);
+			assert.deepStrictEqual({
+				resolution,
+				skillChanges,
+				otherSession: service.resolve('ahp://copilot/session-2', target),
+				reopened: reopened.resolve(session, target),
+				metadataBeforeOtherWrite,
+				metadataAfterOtherWrite: await sessionData.getMetadata(session, 'customizationEnablement'),
+				persistent: storage.get('customizationEnablement'),
+			}, {
+				resolution: {
+					kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled,
+					workingDirectory: { kind: 'workspaceless' },
+				},
+				skillChanges: [[session]],
+				otherSession: { kind: 'resolved', enablement: [], enabled: !enabled, workingDirectory: { kind: 'workspaceless' } },
+				reopened: { kind: 'resolved', enablement: [], enabled: !enabled, workingDirectory: { kind: 'workspaceless' } },
+				metadataBeforeOtherWrite: undefined,
+				metadataAfterOtherWrite: JSON.stringify({ [plugin.id]: false }),
+				persistent: undefined,
+			});
+		});
+	}
+
+	for (const kind of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace]) {
+		test(`rejects ${kind} decisions for MCP skills`, () => {
+			const target = targetForMcpSkill({ type: CustomizationType.Skill, id: 'skill', uri: 'skill://review/SKILL.md', name: 'Review' });
+			assert.throws(() => service.setEnablement(session, target, kind, false), /MCP skills only support session enablement/);
+		});
+
+		test(`rejects full MCP skill replacements containing ${kind} decisions`, () => {
+			const target = targetForMcpSkill({ type: CustomizationType.Skill, id: 'skill', uri: 'skill://review/SKILL.md', name: 'Review' });
+			assert.throws(() => service.replaceEnablement(session, target, [
+				{ kind: CustomizationEnablementKind.Session, enabled: false },
+				kind === CustomizationEnablementKind.Global
+					? { kind: CustomizationEnablementKind.Global, enabled: false }
+					: { kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false },
+			]), /MCP skills only support session enablement/);
+		});
+	}
+
+	test('clears MCP skill decisions on replacement and session removal', () => {
+		const target = targetForMcpSkill({ type: CustomizationType.Skill, id: 'skill', uri: 'skill://review/SKILL.md', name: 'Review' });
+		service.replaceEnablement(session, target, [{ kind: CustomizationEnablementKind.Session, enabled: false }]);
+		const cleared = service.replaceEnablement(session, target, []);
+		service.replaceEnablement(session, target, [{ kind: CustomizationEnablementKind.Session, enabled: false }]);
+		state.removeSession(session);
+		assert.deepStrictEqual([cleared, service.resolve(session, target)], [
+			{ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } },
+			{ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } },
+		]);
+	});
 
 	for (const scope of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace, CustomizationEnablementKind.Session]) {
 		test(`late MCP ownership preserves ${scope} decisions`, async () => {
