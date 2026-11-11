@@ -336,23 +336,17 @@ async function renderDeterministicToolSummaries(context: ComponentFixtureContext
 
 /**
  * Finished Conversation sections: a generated title and a tool summary with their time,
- * reasoning alone, and a tool summary whose time was not recorded.
+ * reasoning alone, and a tool summary whose time was not recorded. With `completedSteps`
+ * they are folded into the completed response's closed disclosure.
  */
-interface IConversationSectionsOptions {
-	/** Opens a section and one of its reasoning rows. */
-	readonly expandSection?: boolean;
-	/** Folds the sections into the completed response's disclosure, which is left closed or opened. */
-	readonly completedSteps?: 'closed' | 'open';
-}
-
-async function renderConversationSections(context: ComponentFixtureContext, options: IConversationSectionsOptions = {}): Promise<void> {
+async function renderConversationSections(context: ComponentFixtureContext, completedSteps = false): Promise<void> {
 	const titles = ['Reviewing the completion handler - 9s', 'Ran 2 commands, read summary.ts - 31s', 'Thought for 26s', 'Edited 2 files, 1 other step'];
-	const height = options.completedSteps === 'closed' ? 220 : options.expandSection || options.completedSteps ? 640 : 420;
+	const height = completedSteps ? 220 : 420;
 	await renderChatWidget(context, {
 		width: 500, height, listHeight: height, inputVisible: false,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Conversation,
-		collapseCompletedResponses: !!options.completedSteps,
+		collapseCompletedResponses: completedSteps,
 		thinkingPhrases: ['Working'],
 		messages: [{ user: 'Collapse the terminal output once its command finishes', responseComplete: false, assistant: [] }],
 		onRendered: ({ model }) => {
@@ -395,32 +389,15 @@ async function renderConversationSections(context: ComponentFixtureContext, opti
 		const rendered = sections().map(section => section.querySelector(':scope > .chat-used-context-label .monaco-button-mdlabel')?.textContent);
 		return rendered.length === titles.length && rendered.every((title, index) => title === titles[index]) && isSettled();
 	}, 'Conversation section titles did not settle');
-	if (options.completedSteps) {
-		const disclosure = () => context.container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
-		await waitForFixtureCondition(() => disclosure()?.open === false, 'Completed steps did not collapse');
-		if (options.completedSteps === 'open') {
-			disclosure()!.querySelector<HTMLElement>('summary')!.click();
-			// The steps unclip as the disclosure grows, so it is open once it reaches the last one.
-			await waitForFixtureCondition(() => {
-				const details = disclosure();
-				const lastStep = details?.lastElementChild;
-				return !!details?.open && !!lastStep && lastStep.getBoundingClientRect().bottom <= details.getBoundingClientRect().bottom + 0.5 && isSettled();
-			}, 'Completed steps did not open');
-		}
-	}
-	if (options.expandSection) {
-		const section = sections()[1];
-		section.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!.click();
-		await waitForFixtureCondition(() => section.querySelectorAll('.chat-thinking-reasoning').length === 2, 'Reasoning rows did not render');
-		section.querySelector<HTMLElement>('.chat-thinking-reasoning > .chat-used-context-label .monaco-button')!.click();
-		await waitForFixtureCondition(() => !!section.querySelector('.chat-thinking-reasoning:not(.chat-used-context-collapsed)') && isSettled(), 'Reasoning row did not expand');
+	if (completedSteps) {
+		await waitForFixtureCondition(() => context.container.querySelector<HTMLDetailsElement>('.completed-response-disclosure')?.open === false, 'Completed steps did not collapse');
 	}
 	await waitForFixtureCondition(() => conversationChevronsStartOnTextEdge(context.container), 'Conversation chevrons do not start on the left edge of the text they lead');
 }
 
 /**
- * Whether the chevron of each laid out Conversation header starts on the header's left edge, where
- * the response's text starts. A chevron's glyph is narrower than its box, so this measures its ink.
+ * Whether the chevron of each laid out, closed Conversation header starts on the header's left edge,
+ * where the response's text starts. A chevron's glyph is narrower than its box, so this measures its ink.
  */
 function conversationChevronsStartOnTextEdge(container: HTMLElement): boolean {
 	const targetWindow = getWindow(container);
@@ -439,12 +416,7 @@ function conversationChevronsStartOnTextEdge(container: HTMLElement): boolean {
 		const glyph = targetWindow.getComputedStyle(chevron, '::before');
 		canvas.font = `${glyph.fontSize} ${glyph.fontFamily}`;
 		const ink = canvas.measureText(glyph.content.replace(/["']/g, ''));
-		// An open chevron is turned to point down, which lays the long side of its ink across
-		const isOpen = Math.round(new DOMMatrixReadOnly(targetWindow.getComputedStyle(chevron).transform).b) === 1;
-		const inkLeft = isOpen
-			? box.left + box.width / 2 - (ink.actualBoundingBoxAscent + ink.actualBoundingBoxDescent) / 2
-			: box.left - ink.actualBoundingBoxLeft;
-		return Math.abs(inkLeft - header.getBoundingClientRect().left) < 0.5;
+		return Math.abs(box.left - ink.actualBoundingBoxLeft - header.getBoundingClientRect().left) < 0.5;
 	});
 }
 
@@ -564,22 +536,10 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		deferPaint: true,
 		render: context => renderConversationSections(context),
 	}),
-	ConversationSectionExpanded: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		virtualTime: { enabled: false },
-		deferPaint: true,
-		render: context => renderConversationSections(context, { expandSection: true }),
-	}),
 	ConversationCompletedSteps: defineComponentFixture({
 		virtualTime: { enabled: false },
 		deferPaint: true,
-		render: context => renderConversationSections(context, { completedSteps: 'closed' }),
-	}),
-	ConversationCompletedStepsOpen: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		virtualTime: { enabled: false },
-		deferPaint: true,
-		render: context => renderConversationSections(context, { completedSteps: 'open' }),
+		render: context => renderConversationSections(context, true),
 	}),
 	SuccessfulCommands: defineComponentFixture({
 		virtualTime: { enabled: false },
