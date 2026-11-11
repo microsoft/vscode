@@ -41,7 +41,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, CLEAR_INBOX_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../common/sessionConfig.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -3849,7 +3849,7 @@ interface ISessionDropDestination {
 }
 
 /** What a valid session drop changes: the placement of at least one session, or only the manual order. */
-type SessionDropEffect = 'move' | 'reorder';
+type SessionDropEffect = 'move' | 'reorder' | 'triage';
 
 /**
  * Callbacks the sessions list provides to its drag-and-drop controller. The
@@ -4210,8 +4210,8 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		// A reorder shown as an insertion line needs no header; anything else marks where the sessions land.
 		const showsInsertionLine = destination.feedback !== undefined && destination.feedback.position !== ListDragOverEffectPosition.Over;
 		return {
-			reaction: toDropReaction(destination.feedback),
-			header: effect === 'move' || !showsInsertionLine ? getPlacementHeader(destination.placement) : undefined,
+			reaction: toDropReaction(effect === 'triage' ? { position: ListDragOverEffectPosition.Over } : destination.feedback),
+			header: effect !== 'reorder' || !showsInsertionLine ? getPlacementHeader(destination.placement) : undefined,
 			run: () => this.delegate.moveSessions(sessions, destination),
 		};
 	}
@@ -7065,7 +7065,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Whether the session may move into the destination, regardless of its position. */
 	private canMoveSession(session: ISession, destination: ISessionDropDestination): boolean {
 		if (this.options.grouping() === SessionsGrouping.Inbox) {
-			return false;
+			const { placement } = destination;
+			if (this.isActiveComparisonSession(session) || placement.kind === 'group') {
+				return false;
+			}
+			return placement.kind === 'archived' || placement.kind === 'pinned'
+				|| placement.sectionId === SessionInboxSection.OnHold || placement.sectionId === SessionInboxSection.Done
+				|| placement.sectionId === getSessionInboxSection(session, undefined, undefined, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
 		}
 		const { placement } = destination;
 		const state = getPlacementState(placement);
@@ -7087,6 +7093,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether moving the session into the placement changes any of its list state. */
 	private changesPlacement(session: ISession, placement: SessionListPlacement): boolean {
+		if (this.options.grouping() === SessionsGrouping.Inbox) {
+			return !isSamePlacement(this.getSessionPlacement(session), placement);
+		}
 		const state = getPlacementState(placement);
 		return session.isArchived.get() !== state.archived
 			|| (state.pinned !== undefined && this.isSessionPinned(session) !== state.pinned)
@@ -7243,6 +7252,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return undefined;
 		}
 		const moves = sessions.some(session => this.changesPlacement(session, destination.placement));
+		if (this.options.grouping() === SessionsGrouping.Inbox) {
+			return moves ? 'triage' : undefined;
+		}
 		if (!moves && (!destination.anchor || this.getReorderScope(destination.anchor.session) === undefined)) {
 			return undefined;
 		}
@@ -7326,6 +7338,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		} else if (state.pinned === false) {
 			this._sessionsListModelService.unpinSessions(ordered.filter(session => this.isSessionPinned(session)));
+		}
+		if (this.options.grouping() === SessionsGrouping.Inbox) {
+			if (destination.placement.kind === 'section') {
+				const command = destination.placement.sectionId === SessionInboxSection.OnHold ? HOLD_INBOX_SESSION_COMMAND_ID
+					: destination.placement.sectionId === SessionInboxSection.Done ? CLEAR_INBOX_SESSION_COMMAND_ID
+						: RESUME_INBOX_SESSION_COMMAND_ID;
+				await this.commandService.executeCommand(command, ordered);
+			}
+			return;
 		}
 		if (state.groupId === null) {
 			for (const session of ordered) {
