@@ -51,6 +51,7 @@ import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCapture, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
 
 // Register tools
@@ -152,11 +153,11 @@ class BrowserElementCommentingAccessibilityHelp implements IAccessibleViewImplem
 AccessibleViewRegistry.register(new BrowserElementCommentingAccessibilityHelp());
 
 type IntegratedBrowserAddScreenshotToChatAddedEvent = {
-	screenshotType: 'viewport' | 'area' | 'fullPage' | 'window';
+	screenshotType: 'viewport' | 'area' | 'fullPage';
 };
 
 type IntegratedBrowserAddScreenshotToChatAddedClassification = {
-	screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, fullPage, or window when the screenshot tool captured the whole window).' };
+	screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, or fullPage).' };
 	owner: 'jruales';
 	comment: 'A screenshot was successfully added to chat from Integrated Browser.';
 };
@@ -369,18 +370,28 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	/**
 	 * Confirm with the user that they understand the risks of sharing content on untrusted pages.
 	 *
-	 * @param urls The URLs of the pages whose content is shared; `undefined` stands for a page of unknown origin.
-	 * @returns true if the user confirms (or every page is local / trusted), false if they cancel.
+	 * @returns true if the user confirms (or the page is local / trusted), false if they cancel.
 	 */
-	private async _confirmContentAttachmentRisk(...urls: (string | undefined)[]): Promise<boolean> {
+	private async _confirmContentAttachmentRisk(url: string): Promise<boolean> {
 		// If the user previously chose "Don't show again", skip the dialog
 		if (this.storageService.getBoolean(BrowserEditorChatIntegration.SHARING_CONTENT_WARNING_DONT_ASK_KEY, StorageScope.PROFILE)) {
 			return true;
 		}
 
-		const trusted = await Promise.all(urls.map(url => this._isTrustedContentUrl(url)));
-		if (trusted.every(Boolean)) {
-			return true;
+		try {
+			const parsedUrl = new URL(url);
+			if (parsedUrl.protocol === 'file:') {
+				// Query the workspace trust service for file URLs
+				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(URI.file(parsedUrl.pathname));
+				if (trustInfo.trusted) {
+					return true;
+				}
+			} else if (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1') {
+				// Consider localhost URLs trusted
+				return true;
+			}
+		} catch {
+			// Invalid URL - fall through to the warning
 		}
 
 		const result = await this.dialogService.confirm({
@@ -396,25 +407,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		return result.confirmed;
-	}
-
-	private async _isTrustedContentUrl(url: string | undefined): Promise<boolean> {
-		if (!url) {
-			return false;
-		}
-		try {
-			const parsedUrl = new URL(url);
-			if (parsedUrl.protocol === 'file:') {
-				// Query the workspace trust service for file URLs
-				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(URI.file(parsedUrl.pathname));
-				return trustInfo.trusted;
-			}
-			// Consider localhost URLs trusted
-			return parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1';
-		} catch {
-			// Invalid URL - show the warning
-			return false;
-		}
 	}
 
 	// -- Chat widget helpers --------------------------------------------
@@ -755,15 +747,32 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	/**
 	 * Lets the user capture this page, or drag to capture an area of it, with the screenshot tool, and attaches the
-	 * capture to chat.
+	 * capture to chat. The page captures itself, as window captures only show its placeholder.
 	 */
 	async addScreenshotToChat(): Promise<void> {
-		if (!this.editor.model) {
+		const model = this.editor.model;
+		if (!model) {
 			return;
 		}
 		const stopWatch = StopWatch.create(false);
-		const result = await this.screenshotToolService.capture(this.editor.window, undefined, { scope: this.editor.browserContainer });
-		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, stopWatch);
+		const url = model.url;
+		const result = await this.screenshotToolService.capture(this.editor.window, undefined, {
+			scope: {
+				element: this.editor.browserContainer,
+				capture: async area => {
+					// The page's view has the bounds of its container, times the window's zoom factor.
+					const zoomFactor = getZoomFactor(this.editor.window);
+					const x = Math.round((area?.x ?? 0) * zoomFactor);
+					const y = Math.round((area?.y ?? 0) * zoomFactor);
+					const data = await model.captureScreenshot(area ? {
+						quality: 80,
+						screenRect: { x, y, width: Math.round((area.x + area.width) * zoomFactor) - x, height: Math.round((area.y + area.height) * zoomFactor) - y },
+					} : { quality: 80 });
+					return { data, mimeType: 'image/jpeg' };
+				},
+			},
+		});
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, url, stopWatch);
 	}
 
 	/**
@@ -776,28 +785,28 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const stopWatch = StopWatch.create(false);
+		const url = model.url;
 		let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
 		try {
-			const url = model.url;
 			const image = await createScreenshotToolImage(await model.captureScreenshot({ fullPage: true, format: 'png' }), 'image/png');
-			result = { kind: 'captured', mode: 'fullPage', image, layerUrls: [url] };
+			result = { kind: 'captured', mode: 'fullPage', image };
 		} catch (error) {
 			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		}
-		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, stopWatch);
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, url, stopWatch);
 	}
 
 	/**
-	 * Attaches what the user captured with the screenshot tool, after confirming the risk of the content of every page
-	 * that the capture shows. The attached screenshot can be edited from chat.
+	 * Attaches a capture of the page at `url`, after confirming the risk of its content. The attached screenshot can be
+	 * edited from chat.
 	 */
-	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, stopWatch: StopWatch): Promise<void> {
+	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, url: string, stopWatch: StopWatch): Promise<void> {
 		let outcome: ScreenshotToolOutcome = result.kind === 'captured' ? 'failed' : result.kind;
 		try {
 			if (result.kind !== 'captured') {
 				return;
 			}
-			if (result.layerUrls.length && !await this._confirmContentAttachmentRisk(...result.layerUrls)) {
+			if (!await this._confirmContentAttachmentRisk(url)) {
 				outcome = 'cancelled';
 				return;
 			}
@@ -811,7 +820,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			outcome = 'attached';
 
 			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
-				screenshotType: result.mode === 'page' ? 'viewport' : result.mode === 'area' || result.mode === 'fullPage' ? result.mode : 'window'
+				screenshotType: result.mode === 'page' ? 'viewport' : result.mode === 'fullPage' ? 'fullPage' : 'area'
 			});
 		} catch (error) {
 			this.logService.error('BrowserEditor: Failed to attach a screenshot from the screenshot tool', error);
@@ -826,7 +835,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 }
 
 /**
- * Names a screenshot tool capture after what it shows.
+ * Names a capture of a page after what it shows.
  */
 function getScreenshotToolAttachmentName(capture: IScreenshotToolCapture): string {
 	if (capture.mode === 'page') {
@@ -835,10 +844,7 @@ function getScreenshotToolAttachmentName(capture: IScreenshotToolCapture): strin
 	if (capture.mode === 'fullPage') {
 		return localize('browserFullPageScreenshot', 'Browser Full Page Screenshot');
 	}
-	if (capture.mode === 'area' && capture.layerUrls.length) {
-		return localize('browserAreaScreenshot', 'Browser Area Screenshot');
-	}
-	return localize('screenshotToolScreenshot', "Screenshot");
+	return localize('browserAreaScreenshot', 'Browser Area Screenshot');
 }
 
 // Register the contribution

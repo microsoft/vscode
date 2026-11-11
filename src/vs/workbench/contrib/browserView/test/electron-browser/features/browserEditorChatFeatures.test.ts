@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setZoomFactor } from '../../../../../../base/browser/browser.js';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -33,7 +34,7 @@ suite('Browser screenshot actions', () => {
 		return decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
 	}
 
-	function create() {
+	function create(url = 'http://localhost:3000/') {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const { service, telemetry } = createTestScreenshotToolService(store);
 		instantiationService.stub(IScreenshotToolService, service);
@@ -51,7 +52,7 @@ suite('Browser screenshot actions', () => {
 			},
 		}));
 		const model = upcastPartial<IBrowserViewModel>({
-			url: 'http://localhost:3000/',
+			url,
 			captureScreenshot: async options => {
 				pageCaptures.push({ ...options });
 				return createPng(4, 2);
@@ -66,7 +67,7 @@ suite('Browser screenshot actions', () => {
 	test('each action attaches its capture right away, where it can be edited, and the tool is limited to the page', async () => {
 		const { feature, service, telemetry, attached, pageCaptures, browserContainer } = create();
 		const page = { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 };
-		service.result = { kind: 'captured', mode: 'page', image: page, layerUrls: ['http://localhost:3000/'] };
+		service.result = { kind: 'captured', mode: 'page', image: page };
 		await feature.addScreenshotToChat();
 		service.result = { kind: 'cancelled', mode: 'none' };
 		await feature.addScreenshotToChat();
@@ -75,7 +76,7 @@ suite('Browser screenshot actions', () => {
 			pageCaptures,
 			attached: attached.map(entry => ({ name: entry.name, mimeType: entry.kind === 'image' ? entry.mimeType : undefined, editable: service.getEditableAttachment(entry)?.original.width })),
 			tool: service.requests,
-			limitedToPage: service.scopes.map(scope => scope === browserContainer),
+			limitedToPage: service.scopes.map(scope => scope?.element === browserContainer),
 			captures: telemetry.captures,
 		}, {
 			pageCaptures: [{ fullPage: true, format: 'png' }],
@@ -90,24 +91,38 @@ suite('Browser screenshot actions', () => {
 		});
 	});
 
-	test('warns about every page that a capture shows, not only the page that started it', async () => {
-		const { feature, service, attached, warnings } = create();
-		const capture = async (layerUrls: (string | undefined)[]) => {
-			service.result = { kind: 'captured', mode: 'area', image: { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 }, layerUrls };
+	test('the page captures itself, all of it or the area that the user dragged, in the pixels of its view', async () => {
+		const { feature, service, pageCaptures } = create();
+		await feature.addScreenshotToChat();
+		const [scope] = service.scopes;
+		// The page's view has the bounds of its container, times the window's zoom factor.
+		setZoomFactor(1.25, mainWindow);
+		try {
+			await scope!.capture(undefined);
+			await scope!.capture({ x: 10, y: 20, width: 30, height: 40 });
+		} finally {
+			setZoomFactor(1, mainWindow);
+		}
+		assert.deepStrictEqual(pageCaptures, [
+			{ quality: 80 },
+			{ quality: 80, screenRect: { x: 13, y: 25, width: 37, height: 50 } },
+		]);
+	});
+
+	test('warns before attaching a capture of an untrusted page', async () => {
+		const attach = async (url: string) => {
+			const { feature, service, attached, warnings } = create(url);
+			service.result = { kind: 'captured', mode: 'area', image: { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 } };
 			await feature.addScreenshotToChat();
 			// The warning is cancelled, which attaches nothing.
-			return { warnings: warnings.splice(0).length, attached: attached.splice(0).length };
+			return { warnings: warnings.length, attached: attached.length };
 		};
 		assert.deepStrictEqual({
-			localPages: await capture(['http://localhost:3000/', 'http://127.0.0.1:8080/']),
-			anotherPage: await capture(['http://localhost:3000/', 'https://example.com/']),
-			pageWithoutUrl: await capture([undefined]),
-			noPage: await capture([]),
+			localPage: await attach('http://localhost:3000/'),
+			untrustedPage: await attach('https://example.com/'),
 		}, {
-			localPages: { warnings: 0, attached: 1 },
-			anotherPage: { warnings: 1, attached: 0 },
-			pageWithoutUrl: { warnings: 1, attached: 0 },
-			noPage: { warnings: 0, attached: 1 },
+			localPage: { warnings: 0, attached: 1 },
+			untrustedPage: { warnings: 1, attached: 0 },
 		});
 	});
 });

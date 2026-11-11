@@ -365,7 +365,7 @@ export class IssueReporterController extends Disposable {
 				}
 				const image = await this.screenshotToolService.captureWindow(mainWindow);
 				if (image) {
-					result = { kind: 'captured', mode: 'window', image, layerUrls: [] };
+					result = { kind: 'captured', mode: 'window', image };
 				}
 			} else {
 				result = await this.screenshotToolService.capture(mainWindow, token);

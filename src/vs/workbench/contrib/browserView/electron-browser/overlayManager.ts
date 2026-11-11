@@ -33,7 +33,7 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
 	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
 	{ className: 'screenshot-tool-overlay', type: BrowserOverlayType.ScreenshotTool },
-	// The markup of a screenshot covers pages like a dialog, so window captures keep it over them.
+	// The markup of a screenshot covers pages like a dialog.
 	{ className: 'screenshot-annotation-editor', type: BrowserOverlayType.Dialog },
 	{ className: 'part-grid-motion', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown

@@ -14,6 +14,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IImageCarouselMarkUp } from '../../imageCarousel/browser/imageCarouselTypes.js';
 import { IAnnotationEditorState } from './screenshotAnnotation.js';
+import type { IScreenshotRect } from './screenshotSelection.js';
 
 /** True while the screenshot tool lets the user select a capture or mark up a screenshot. */
 export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or marking up a screenshot"));
@@ -51,12 +52,6 @@ export interface IScreenshotToolCapture {
 	readonly kind: 'captured';
 	readonly mode: ScreenshotToolMode;
 	readonly image: IScreenshotToolImage;
-	/**
-	 * The URLs of the layers, such as browser pages, whose content the capture shows, live or as the placeholder under UI
-	 * that covers them, so that entry points can check where the content comes from. `undefined` stands for a layer
-	 * without a URL.
-	 */
-	readonly layerUrls: readonly (string | undefined)[];
 }
 
 export type ScreenshotToolResult = IScreenshotToolCapture | { readonly kind: 'cancelled' | 'failed'; readonly mode: ScreenshotToolMode };
@@ -85,28 +80,22 @@ export interface IScreenshotToolMarkUp extends IDisposable {
 	finish(): void;
 }
 
-/** Native content, such as a browser page, that window captures do not include. */
-export interface IScreenshotToolLayer {
-	/** The element whose bounds the native content covers, or `undefined` while it shows no native content. */
-	readonly element: HTMLElement | undefined;
+/** An element that a capture is limited to, which captures itself, such as the browser page that started it. */
+export interface IScreenshotToolScope {
+	readonly element: HTMLElement;
 	/**
-	 * Whether UI other than the screenshot tool's selection overlay, such as a dialog or the markup of a screenshot, covers
-	 * the native content. Window captures then show that UI over the content's placeholder, as the user sees them, rather
-	 * than the content.
+	 * Captures what the element shows, or the area of it that the user dragged, in CSS pixels from its top left corner.
+	 * A browser page, for example, captures itself, as window captures only show its placeholder.
 	 */
-	readonly covered: boolean;
-	/** The URL of the native content, such as a browser page's. */
-	readonly url: string | undefined;
-	/** Captures what the layer shows, or resolves `undefined` when it shows nothing. */
-	capture(): Promise<{ readonly data: VSBuffer; readonly mimeType: string } | undefined>;
+	capture(area: IScreenshotRect | undefined): Promise<{ readonly data: VSBuffer; readonly mimeType: string }>;
 }
 
 export interface IScreenshotToolCaptureOptions {
 	/**
-	 * Limits the capture to an element, such as the browser page that started it: a click on the element or Enter
-	 * captures what it shows, a drag captures an area of it, and a click elsewhere cancels.
+	 * Limits the capture to an element: a click on the element or Enter captures what it shows, a drag captures an area
+	 * of it, and a click elsewhere cancels.
 	 */
-	readonly scope?: HTMLElement;
+	readonly scope?: IScreenshotToolScope;
 }
 
 export interface IScreenshotToolService {
@@ -124,7 +113,7 @@ export interface IScreenshotToolService {
 	/** Lets the user click or press Enter to capture the window, or drag to capture an area, unless `options` limit it. */
 	capture(targetWindow: CodeWindow, token?: CancellationToken, options?: IScreenshotToolCaptureOptions): Promise<ScreenshotToolResult>;
 
-	/** Captures the whole window, including its layers, without letting the user select. */
+	/** Captures the whole window, as the user sees it, without letting the user select. */
 	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
 
 	/**
@@ -150,8 +139,6 @@ export interface IScreenshotToolService {
 
 	/** Moves focus back to the screenshot tool while it is active, or to the latest markup. */
 	focus(): void;
-
-	registerLayer(layer: IScreenshotToolLayer): IDisposable;
 
 	/** Reports how an entry point ended, where the tool is supported. */
 	logCapture(event: IScreenshotToolCaptureEvent): void;

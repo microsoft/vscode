@@ -21,7 +21,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ImageCarouselEditorInput } from '../../../imageCarousel/browser/imageCarouselEditorInput.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, ScreenshotToolEntryPoint, ScreenshotToolResult, ScreenshotToolSurface } from '../../browser/screenshotTool.js';
-import { resolveScreenshotSelection } from '../../browser/screenshotSelection.js';
+import { IScreenshotRect, resolveScreenshotSelection } from '../../browser/screenshotSelection.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 import { TestScreenshotToolTelemetryService } from './screenshotToolTestUtils.js';
 
@@ -113,7 +113,7 @@ suite('ScreenshotTool', () => {
 
 		function summarize(result: ScreenshotToolResult) {
 			return result.kind === 'captured'
-				? { kind: result.kind, mode: result.mode, size: `${result.image.width}x${result.image.height}`, layerUrls: result.layerUrls }
+				? { kind: result.kind, mode: result.mode, size: `${result.image.width}x${result.image.height}` }
 				: result;
 		}
 
@@ -155,7 +155,7 @@ suite('ScreenshotTool', () => {
 			pointer(overlay, 'pointerdown', 20, 20);
 			pointer(overlay, 'pointerup', 22, 21);
 			assert.deepStrictEqual({ result: summarize(await result), captures, overlay: overlay.isConnected, editors: container.querySelectorAll('.screenshot-annotation-editor').length, announced: accessibility.messages.at(-1) }, {
-				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, layerUrls: [] },
+				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}` },
 				captures: [mainWindow],
 				overlay: false,
 				editors: 0,
@@ -163,52 +163,32 @@ suite('ScreenshotTool', () => {
 			});
 		});
 
-		test('a drag captures an area with the part of a page layer that it covers', async () => {
-			const { service, container } = createService();
-			const page = $('div');
-			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 200px; height: 100px;';
-			container.appendChild(page);
-			store.add(service.registerLayer({ element: page, covered: false, url: 'https://example.com/', capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
+		test('a drag captures that area of the window', async () => {
+			const { service, container, captures } = createService();
 			const result = service.capture(mainWindow);
 			const overlay = getOverlay(container);
 			pointer(overlay, 'pointerdown', 50, 50);
 			pointer(overlay, 'pointermove', 150, 120);
 			pointer(overlay, 'pointerup', 150, 120);
-			assert.deepStrictEqual(summarize(await result), { kind: 'captured', mode: 'area', size: '100x70', layerUrls: ['https://example.com/'] });
-		});
-
-		test('a page is not singled out: hovering it shows nothing, and a click on it captures the window', async () => {
-			const { service, container, captures } = createService();
-			const page = $('div');
-			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 200px; height: 100px;';
-			container.appendChild(page);
-			store.add(service.registerLayer({ element: page, covered: false, url: 'https://example.com/', capture: async () => ({ data: createImage(200, 100, '#ff0000'), mimeType: 'image/png' }) }));
-			const result = service.capture(mainWindow);
-			const overlay = getOverlay(container);
-			pointer(overlay, 'pointermove', 150, 150);
-			const shown = overlay.querySelectorAll('.visible').length;
-			pointer(overlay, 'pointerdown', 150, 150);
-			pointer(overlay, 'pointerup', 150, 150);
-			assert.deepStrictEqual({ shown, result: summarize(await result), captures }, {
-				shown: 0,
-				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, layerUrls: ['https://example.com/'] },
+			assert.deepStrictEqual({ result: summarize(await result), captures }, {
+				result: { kind: 'captured', mode: 'area', size: '100x70' },
 				captures: [mainWindow],
 			});
 		});
 
-		test('limited to a page, the tool shows its camera and instructions only there, captures the page on a click or Enter and an area of it on a drag, and cancels on a click elsewhere', async () => {
+		test('limited to a page, the tool shows its camera and instructions only there, the page captures itself on a click or Enter and an area of itself on a drag, and a click elsewhere cancels', async () => {
 			const { service, container, captures, accessibility } = createService();
 			const page = $('div');
 			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 400px; height: 300px;';
 			container.appendChild(page);
-			let pageCaptures = 0;
-			store.add(service.registerLayer({
-				element: page, covered: false, url: 'https://example.com/',
-				capture: async () => {
-					pageCaptures++;
-					return { data: createImage(400, 300, '#ff0000'), mimeType: 'image/png' };
+			const pageCaptures: (IScreenshotRect | undefined)[] = [];
+			const scope = {
+				element: page,
+				capture: async (area: IScreenshotRect | undefined) => {
+					pageCaptures.push(area);
+					return { data: createImage(area?.width ?? 400, area?.height ?? 300, '#ff0000'), mimeType: 'image/png' };
 				},
-			}));
+			};
 			const getCursor = (element: HTMLElement) => {
 				const cursor = mainWindow.getComputedStyle(element).cursor;
 				return cursor.startsWith('url(') ? 'camera' : cursor;
@@ -226,7 +206,7 @@ suite('ScreenshotTool', () => {
 				};
 			};
 			const capture = async (act: (overlay: HTMLElement) => void) => {
-				const result = service.capture(mainWindow, undefined, { scope: page });
+				const result = service.capture(mainWindow, undefined, { scope });
 				act(getOverlay(container));
 				return summarize(await result);
 			};
@@ -254,44 +234,25 @@ suite('ScreenshotTool', () => {
 					announced: 'Screenshot mode. Click to capture the page, or drag to capture an area of it. Press Enter to capture the page or Escape to cancel.',
 				},
 				elsewhere: { kind: 'cancelled', mode: 'none' },
-				click: { kind: 'captured', mode: 'page', size: '400x300', layerUrls: ['https://example.com/'] },
-				enter: { kind: 'captured', mode: 'page', size: '400x300', layerUrls: ['https://example.com/'] },
-				drag: { kind: 'captured', mode: 'area', size: '50x50', layerUrls: ['https://example.com/'] },
-				pageCaptures: 3,
-				windowCaptures: 1,
+				click: { kind: 'captured', mode: 'page', size: '400x300' },
+				enter: { kind: 'captured', mode: 'page', size: '400x300' },
+				drag: { kind: 'captured', mode: 'area', size: '50x50' },
+				pageCaptures: [undefined, undefined, { x: 350, y: 250, width: 50, height: 50 }],
+				windowCaptures: 0,
 			});
 		});
 
-		test('pages that other UI covers keep that UI in captures, which still list their URLs', async () => {
-			const { service, container, captures } = createService();
-			const pageCaptures: string[] = [];
-			const pages: HTMLElement[] = [];
-			for (const [left, url, covered] of [[100, 'https://exposed.example/', false], [200, 'https://covered.example/', true]] as const) {
-				const page = $('div');
-				page.style.cssText = `position: fixed; left: ${left}px; top: 100px; width: 100px; height: 100px;`;
-				container.appendChild(page);
-				pages.push(page);
-				store.add(service.registerLayer({
-					element: page, covered, url,
-					capture: async () => {
-						pageCaptures.push(url);
-						return { data: createImage(100, 100, '#ff0000'), mimeType: 'image/png' };
-					},
-				}));
-			}
-			const area = service.capture(mainWindow);
-			pointer(getOverlay(container), 'pointerdown', 50, 50);
-			pointer(getOverlay(container), 'pointermove', 350, 250);
-			pointer(getOverlay(container), 'pointerup', 350, 250);
-			const drag = summarize(await area);
-			// Limited to the covered page, the tool captures the page's area of the window, as the user sees it, rather than the page alone.
-			const scoped = service.capture(mainWindow, undefined, { scope: pages[1] });
+		test('limited to a page that fails to capture itself, the capture fails rather than showing the window', async () => {
+			const { service, container, captures, accessibility } = createService();
+			const page = $('div');
+			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 400px; height: 300px;';
+			container.appendChild(page);
+			const result = service.capture(mainWindow, undefined, { scope: { element: page, capture: () => Promise.reject(new Error('The page is gone')) } });
 			key(getOverlay(container), 'Enter', 13);
-			assert.deepStrictEqual({ drag, scoped: summarize(await scoped), pageCaptures, windowCaptures: captures.length }, {
-				drag: { kind: 'captured', mode: 'area', size: '300x200', layerUrls: ['https://exposed.example/', 'https://covered.example/'] },
-				scoped: { kind: 'captured', mode: 'page', size: '100x100', layerUrls: ['https://covered.example/'] },
-				pageCaptures: ['https://exposed.example/'],
-				windowCaptures: 2,
+			assert.deepStrictEqual({ result: await result, captures, announced: accessibility.messages.at(-1) }, {
+				result: { kind: 'failed', mode: 'page' },
+				captures: [],
+				announced: 'The screenshot could not be captured.',
 			});
 		});
 
@@ -303,7 +264,7 @@ suite('ScreenshotTool', () => {
 			const result = service.capture(mainWindow);
 			key(getOverlay(container), 'Enter', 13);
 			assert.deepStrictEqual({ result: summarize(await result), focused: mainWindow.document.activeElement === button }, {
-				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}`, layerUrls: [] },
+				result: { kind: 'captured', mode: 'window', size: `${mainWindow.innerWidth}x${mainWindow.innerHeight}` },
 				focused: true,
 			});
 		});

@@ -680,7 +680,7 @@ suite('Issue reporter media import lifecycle', () => {
 
 		test('attaches the capture of the source window without another step, and edits it from its thumbnail', async () => {
 			const { service, telemetry } = createTestScreenshotToolService(store);
-			service.result = { kind: 'captured', mode: 'area', image: original, layerUrls: [] };
+			service.result = { kind: 'captured', mode: 'area', image: original };
 			const { summary, container, input } = await capture(service, telemetry, false);
 			const captured = { ...summary, tool: [...summary.tool] };
 			service.editResult = { original, annotationState, image: annotated, annotated: true };
@@ -908,7 +908,7 @@ suite('Issue reporter media import lifecycle', () => {
 			}
 		}));
 		const original = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
-		first.screenshotTool.result = { kind: 'captured', mode: 'area', image: original, layerUrls: [] };
+		first.screenshotTool.result = { kind: 'captured', mode: 'area', image: original };
 		wizard.triggerCaptureScreenshot();
 		wizard['requestAddAttachments']([image('B.png')]);
 		await first.pane.imports[1];
@@ -1149,7 +1149,7 @@ suite('Issue reporter media import lifecycle', () => {
 			store.add(wizard.onDidChangeAttachments(() => { void captured.complete(); }));
 			wizard.triggerCaptureScreenshot();
 			pending.push(observe('capture'));
-			await capture.complete({ kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 }, layerUrls: [] });
+			await capture.complete({ kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 } });
 			await captured.p;
 			await timeout(0);
 			wizard.markPreviewOpened();

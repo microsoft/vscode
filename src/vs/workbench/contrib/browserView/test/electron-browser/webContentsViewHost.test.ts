@@ -18,24 +18,17 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IBrowserViewCaptureScreenshotOptions } from '../../../../../platform/browserView/common/browserView.js';
-import { IScreenshotToolLayer, IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { WebContentsViewHost } from '../../electron-browser/webContentsViewHost.js';
 
 suite('WebContentsViewHost', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHost(layers: IScreenshotToolLayer[] = [], configurationService: IConfigurationService = new TestConfigurationService()): WebContentsViewHost {
+	function createHost(configurationService: IConfigurationService = new TestConfigurationService()): WebContentsViewHost {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IScreenshotToolService, upcastPartial<IScreenshotToolService>({
-			registerLayer: layer => {
-				layers.push(layer);
-				return toDisposable(() => layers.splice(layers.indexOf(layer), 1));
-			},
-		}));
 		return store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
 	}
 
@@ -130,7 +123,7 @@ suite('WebContentsViewHost', () => {
 			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 		});
 		const configurationService = new TestConfigurationService({ workbench: { browser: { dimOnOverlay: false } } });
-		const host = createHost([], configurationService);
+		const host = createHost(configurationService);
 
 		const place = (className: string) => {
 			const element = mainWindow.document.createElement('div');
@@ -165,8 +158,12 @@ suite('WebContentsViewHost', () => {
 		assert.deepStrictEqual({ disabled, enabled, cleared, notification }, { disabled: false, enabled: true, cleared: false, notification: true });
 	});
 
-	for (const [overlayClass, paused] of [['screenshot-tool-overlay', false], ['monaco-dialog-modal-block', true], ['screenshot-annotation-editor', true]] as const) {
-		test(`hides the page under ${overlayClass} ${paused ? 'and shows' : 'without showing'} that it is paused, and ${paused ? 'tells' : 'does not tell'} the screenshot tool that UI covers it`, async () => {
+	for (const [overlayClasses, paused] of [
+		[['screenshot-tool-overlay'], false],
+		[['monaco-dialog-modal-block'], true],
+		[['screenshot-annotation-editor'], true],
+	] as const) {
+		test(`hides the page under ${overlayClasses.join(' and ')} ${paused ? 'and shows' : 'without showing'} that it is paused`, async () => {
 			const calls: boolean[] = [];
 			let visible = false;
 			const model = upcastPartial<IBrowserViewModel>({
@@ -186,65 +183,28 @@ suite('WebContentsViewHost', () => {
 				},
 				captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 			});
-			const layers: IScreenshotToolLayer[] = [];
-			const host = createHost(layers);
+			const host = createHost();
 			const container = $('div');
 			container.style.cssText = 'position: fixed; left: 0; top: 0; width: 100px; height: 100px;';
-			const overlay = $(`div.${overlayClass}`);
-			overlay.style.cssText = 'position: fixed; inset: 0; z-index: 10000;';
+			const overlays = overlayClasses.map(overlayClass => {
+				const overlay = $(`div.${overlayClass}`);
+				overlay.style.cssText = 'position: fixed; inset: 0; z-index: 10000;';
+				return overlay;
+			});
 			mainWindow.document.body.appendChild(container);
-			store.add(toDisposable(() => { container.remove(); overlay.remove(); }));
+			store.add(toDisposable(() => { container.remove(); overlays.forEach(overlay => overlay.remove()); }));
 			host.onContainerCreated(container);
 			host.setModel(model);
 			host.setVisible(true);
 
-			mainWindow.document.body.appendChild(overlay);
+			mainWindow.document.body.append(...overlays);
 			for (let frame = 0; frame < 2; frame++) {
 				await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
 			}
 
-			assert.deepStrictEqual({ calls, paused: host.pauseElement.classList.contains('visible'), covered: layers.map(layer => layer.covered) }, { calls: [true, false], paused, covered: [paused] });
+			assert.deepStrictEqual({ calls, paused: host.pauseElement.classList.contains('visible') }, { calls: [true, false], paused });
 		});
 	}
-
-	test('offers its page to the screenshot tool while its container presents the page', async () => {
-		const layers: IScreenshotToolLayer[] = [];
-		const page = VSBuffer.fromString('page');
-		const model = upcastPartial<IBrowserViewModel>({
-			url: 'https://example.test',
-			error: undefined,
-			screenshot: undefined,
-			focused: false,
-			// The page never reports itself visible, so the host keeps no placeholder screenshot loop running.
-			visible: false,
-			onDidChangeVisibility: Event.None,
-			onDidKeyCommand: Event.None,
-			onDidNavigate: Event.None,
-			onDidChangeLoadingState: Event.None,
-			onWillDispose: Event.None,
-			setVisible: async () => { },
-			captureScreenshot: async () => page,
-		});
-		const host = createHost(layers);
-		const container = $('div');
-		host.onContainerCreated(container);
-		host.setModel(model);
-		const beforeShown = layers.map(layer => layer.element);
-		host.setVisible(true);
-		const shown = layers.map(layer => layer.element === container);
-		const captured = await layers[0].capture();
-		host.setVisible(false, true);
-
-		assert.deepStrictEqual({
-			beforeShown, shown, covered: layers[0].covered, url: layers[0].url,
-			captured: captured && { data: captured.data.toString(), mimeType: captured.mimeType },
-			afterHidden: layers.map(layer => layer.element),
-		}, {
-			beforeShown: [undefined], shown: [true], covered: false, url: 'https://example.test',
-			captured: { data: 'page', mimeType: 'image/jpeg' },
-			afterHidden: [undefined],
-		});
-	});
 
 	test('requests DevTools in the placeholder screenshot', () => {
 		const requests: (IBrowserViewCaptureScreenshotOptions | undefined)[] = [];

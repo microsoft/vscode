@@ -180,7 +180,7 @@ function editDraft(input: IssueReporterEditorInput): void {
 
 suite('NativeIssueFormService reporter windows', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const capturedWindow: ScreenshotToolResult = { kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 }, layerUrls: [] };
+	const capturedWindow: ScreenshotToolResult = { kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 } };
 
 	function data(overrides: Partial<IssueReporterData> = {}): IssueReporterData {
 		return {

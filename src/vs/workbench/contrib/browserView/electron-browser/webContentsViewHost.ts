@@ -15,7 +15,6 @@ import { IBrowserViewKeyDownEvent } from '../../../../platform/browserView/commo
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IScreenshotToolService } from '../../screenshotTool/browser/screenshotTool.js';
 import { BrowserDimOverlaySettingId, IBrowserViewModel } from '../common/browserView.js';
 import { BrowserOverlayManager, BrowserOverlayType } from './overlayManager.js';
 
@@ -34,7 +33,7 @@ export class WebContentsViewHost extends Disposable {
 	private _editorVisible = false;
 	private _overlayObscured = false;
 	private _notificationObscured = false;
-	/** Whether an overlay pauses the page, which the overlay of the screenshot tool does not. */
+	/** Whether an overlay pauses the page, which the screenshot tool's overlay does not. */
 	private _overlayPaused = false;
 	private _hiddenAsAnchor = false;
 
@@ -55,7 +54,6 @@ export class WebContentsViewHost extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IScreenshotToolService screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 
@@ -74,17 +72,6 @@ export class WebContentsViewHost extends Disposable {
 		message.appendChild(heading);
 		message.appendChild(detail);
 		this._overlayPauseElement.appendChild(message);
-
-		// The page is a native view above the window, so window captures only contain its placeholder.
-		const getPresentedContainer = () => this._presentsPage() ? this._container : undefined;
-		const isCovered = () => this._overlayPaused;
-		const getUrl = () => this._model?.url;
-		this._register(screenshotToolService.registerLayer({
-			get element() { return getPresentedContainer(); },
-			get covered() { return isCovered(); },
-			get url() { return getUrl(); },
-			capture: () => this._capturePage(),
-		}));
 
 		this._register(this._overlayManager.onDidChangeOverlayState(() => this._refreshOverlayObscured()));
 		this._refresh();
@@ -189,23 +176,11 @@ export class WebContentsViewHost extends Disposable {
 	}
 
 	private _shouldShowPage(): boolean {
-		return this._presentsPage() && !this._overlayObscured;
-	}
-
-	/** Whether the container presents the page, even while an overlay hides the native view behind its placeholder. */
-	private _presentsPage(): boolean {
 		return this._editorVisible
+			&& !this._overlayObscured
 			&& !this._hiddenAsAnchor
 			&& !!this._model?.url
 			&& !this._model.error;
-	}
-
-	private async _capturePage(): Promise<{ readonly data: VSBuffer; readonly mimeType: string } | undefined> {
-		const model = this._model;
-		if (!model?.url || model.error) {
-			return undefined;
-		}
-		return { data: await model.captureScreenshot({ quality: 80 }), mimeType: 'image/jpeg' };
 	}
 
 	private _refresh(restartScreenshot = false, hideImmediately = false): void {

@@ -196,7 +196,7 @@ suite('ChatContext', () => {
 
 		test('attaches each capture of the screenshot tool to the chat input, where it can be edited', async () => {
 			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick();
-			service.result = { kind: 'captured', mode: 'area', image: capturedImage, layerUrls: [] };
+			service.result = { kind: 'captured', mode: 'area', image: capturedImage };
 			const attachment = await pick.asAttachment(widget);
 			const next = await pick.asAttachment(widget);
 			const capture = { entryPoint: 'chatAddContext', outcome: 'attached', mode: 'area' };
