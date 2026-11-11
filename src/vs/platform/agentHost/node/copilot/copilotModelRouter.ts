@@ -9,6 +9,7 @@ import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/ag
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { describeModelRouterModel, describeModelRouterSituation, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -20,6 +21,8 @@ export interface IModelRouterCandidate {
 	readonly name: string;
 	readonly when: string;
 	readonly examples: readonly string[];
+	/** What the model costs and how much it can read, when known. */
+	readonly facts?: string;
 }
 
 export interface IModelRouterFollowUp {
@@ -41,6 +44,8 @@ export interface IModelRouterPickRequest {
 	/** Whether to also ask how much reasoning effort the request needs. */
 	readonly askEffort: boolean;
 	readonly followUp?: IModelRouterFollowUp;
+	/** Facts about the turn besides its message, as lines of text. */
+	readonly situation?: readonly string[];
 	readonly chat: string;
 }
 
@@ -158,6 +163,8 @@ export interface IModelRouterRouteRequest {
 	readonly text: string;
 	readonly models: readonly IAgentModelInfo[];
 	readonly previousTurns: readonly Turn[];
+	/** Facts about the turn besides its message, for the decision. */
+	readonly situation?: IModelRouterSituation;
 	/** Asks the decision model; without one, a first turn uses the router's first route. */
 	readonly picker: IModelRouterPicker | undefined;
 }
@@ -169,6 +176,8 @@ interface IRouteContext {
 	readonly router: IModelRouter;
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly candidates: readonly IModelRouterCandidate[];
+	/** Facts about the turn for the decision, when there are any. */
+	readonly situation: Pick<IModelRouterPickRequest, 'situation'>;
 	/** The chat already runs on a long context window, which a later turn must not take away. */
 	readonly keepLongContext: boolean;
 }
@@ -200,9 +209,14 @@ export class CopilotModelRouter {
 			return { ...keepCurrent, notices: [localize('modelRouter.noModels', "None of the models in the model router {0} are available, so this chat kept its current model.", modelRouterLabel(router))] };
 		}
 		const last = lastSelectionOf(request.previousTurns);
+		const situation = describeModelRouterSituation(request.situation);
 		const context: IRouteContext = {
 			request, router, routes,
-			candidates: routes.map(route => ({ id: routeKey(route), name: route.model.name, when: route.route.when, examples: route.route.examples })),
+			candidates: routes.map(route => {
+				const facts = describeModelRouterModel(route.model);
+				return { id: routeKey(route), name: route.model.name, when: route.route.when, examples: route.route.examples, ...(facts ? { facts } : {}) };
+			}),
+			situation: situation.length ? { situation } : {},
 			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
@@ -241,7 +255,7 @@ export class CopilotModelRouter {
 			if (!request.picker) {
 				throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'No decision model');
 			}
-			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat });
+			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat, ...context.situation });
 		} catch (error) {
 			this._logService.warn(`[ModelRouter] ${request.chat}: pick failed; using ${fallback.model.id}`, error);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
@@ -274,6 +288,7 @@ export class CopilotModelRouter {
 				guidance: router.guidance,
 				askEffort: this._asksEffort(context),
 				chat: request.chat,
+				...context.situation,
 				followUp: {
 					currentModel: routeKey(current),
 					currentEffort,

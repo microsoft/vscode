@@ -30,6 +30,12 @@ const followUpEffortNote = 'This is a follow-up in an ongoing chat; recentTurns 
 /** A first turn's message goes as plain text, as the Decisions API expects its input; this routes better than a JSON field. */
 const firstTurnLead = 'A user sent this message to an AI coding agent:\n\n';
 
+/** Facts about the turn follow the message under their own heading, so they are not read as the user's words. */
+const situationLead = 'Facts about this request, which are not part of the message:\n';
+
+/** Tells the decision what the facts are for. Sent only when there are facts, so a request without them is unchanged. */
+const situationNote = ' The request comes with facts about it, such as what is attached, the mode the user chose and the workspace. Use them together with the message to judge the work.';
+
 const effortCriteria: readonly string[] = [
 	'Low: a trivial lookup, mechanical edit, or simple explanation.',
 	'Medium: a well-specified, multi-step task in a familiar area.',
@@ -93,19 +99,20 @@ export function truncateToEscapedBytes(text: string, maxBytes: number): string {
 
 export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest): IAgentDecisionsRequest {
 	const { followUp } = request;
+	const situation = request.situation?.length ? request.situation : undefined;
 	const routes = request.candidates.map(candidate => `${candidate.name}: ${describeRoute(candidate)}`).join('\n');
 	const guidance = request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : '';
 	const questions: IAgentDecisionQuestion[] = [{
 		kind: 'choice',
 		name: 'model',
-		instructions: `${agentFraming}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}`,
-		options: rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}. Use for: ${describeRoute(candidate)}` })),
+		instructions: `${agentFraming}${situation ? situationNote : ''}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}`,
+		options: rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}${candidate.facts ? ` (${candidate.facts})` : ''}. Use for: ${describeRoute(candidate)}` })),
 	}];
 	if (request.askEffort) {
 		questions.push({
 			kind: 'score',
 			name: 'effort',
-			instructions: `${agentFraming}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}${followUp ? `\n\n${followUpEffortNote}` : ''}`,
+			instructions: `${agentFraming}${situation ? situationNote : ''}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}${followUp ? `\n\n${followUpEffortNote}` : ''}`,
 			levels: effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion })),
 		});
 	}
@@ -117,8 +124,8 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 	const build = (): IAgentDecisionsRequest => ({
 		model: MODEL_ROUTER_DECISION_MODEL,
 		context: followUp
-			? { kind: 'json', value: { request: prompt, ...followUp, recentTurns } }
-			: { kind: 'text', text: `${firstTurnLead}${prompt}` },
+			? { kind: 'json', value: { request: prompt, ...(situation ? { situation } : {}), ...followUp, recentTurns } }
+			: { kind: 'text', text: `${firstTurnLead}${prompt}${situation ? `\n\n${situationLead}${situation.map(line => `- ${line}`).join('\n')}` : ''}` },
 		questions,
 		timeoutMs: DECISION_TIMEOUT_MS,
 		purpose: 'vscode.modelRouter.route',

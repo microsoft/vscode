@@ -4227,9 +4227,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!catalog || !this._modelRouter) {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
 		}
-		const agentName = request.agent && await this._customAgentWithModel(request.agent.uri);
-		if (agentName) {
-			return { selection: undefined, notices: [localize('modelRouter.agentModel', "The {0} agent uses its own model, so the model router didn't pick one.", agentName)] };
+		const customAgent = request.agent && await this._readCustomAgent(request.agent.uri);
+		if (customAgent?.namesModel) {
+			return { selection: undefined, notices: [localize('modelRouter.agentModel', "The {0} agent uses its own model, so the model router didn't pick one.", customAgent.name)] };
 		}
 		const snapshot = await catalog.whenSettled(token);
 		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
@@ -4241,6 +4241,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			text: request.text,
 			models,
 			previousTurns: request.previousTurns,
+			situation: { ...request.situation, ...(customAgent ? { agent: customAgent.name } : {}) },
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
 		return this._withModelRouterAgents(chatKey, request, file?.router, models, resolution);
@@ -4299,15 +4300,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return shown ? resolution : { ...resolution, notices: [...resolution.notices, notice] };
 	}
 
-	/** A custom agent's name when its file names a model, which the runtime runs it on instead of a router's pick. */
-	private async _customAgentWithModel(uri: string): Promise<string | undefined> {
+	/** A custom agent's name, and whether its file names a model, which the runtime runs it on instead of a router's pick. */
+	private async _readCustomAgent(uri: string): Promise<{ readonly name: string; readonly namesModel: boolean } | undefined> {
 		try {
 			const resource = URI.parse(uri);
 			const frontMatter = parseFrontMatter((await this._fileService.readFile(resource)).value.toString());
-			if (!frontMatter?.getStringValue('model') && !frontMatter?.getStringArrayValue('model')?.length) {
-				return undefined;
-			}
-			return frontMatter.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, '');
+			return {
+				name: frontMatter?.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, ''),
+				namesModel: !!frontMatter?.getStringValue('model') || !!frontMatter?.getStringArrayValue('model')?.length,
+			};
 		} catch {
 			return undefined;
 		}

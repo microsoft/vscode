@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
 import { ModelRouterDiagnosticSeverity, parseModelRouter } from '../../common/modelRouter.js';
+import type { IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { MessageKind, TurnState, type IModelRoutedInfo, type Turn } from '../../common/state/sessionState.js';
 import { applyPersistedTurnUsage } from '../../node/chatContributions/persistedTurnUsage/persistedTurnUsageContribution.js';
@@ -205,6 +206,18 @@ suite('CopilotModelRouter', () => {
 			// A model the user picked by hand is theirs, window included.
 			handPicked: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } }, kept: undefined },
 		});
+	});
+
+	test('tells the decision about the turn and about each model, when there is something to tell', async () => {
+		const priced = models.map((candidate, index): IAgentModelInfo => ({ ...candidate, _meta: { priceCategory: index === 0 ? 'low' : 'high' } }));
+		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
+		const route = (available: readonly IAgentModelInfo[], situation?: IModelRouterSituation) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile(), text: 'fix this', models: available, previousTurns: [], picker, situation });
+		await route(priced, { attachments: [{ kind: 'image', count: 1 }], mode: 'plan' });
+		await route(models, {});
+		assert.deepStrictEqual(picker.requests.map(request => ({ situation: request.situation, facts: request.candidates.map(candidate => candidate.facts) })), [
+			{ situation: ['Attached: 1 image', 'Plan mode: the agent plans first and carries the plan out when the user is ready'], facts: ['low cost', 'high cost'] },
+			{ situation: undefined, facts: [undefined, undefined] },
+		]);
 	});
 
 	test('picks a playbook by name, even when two run on the same model, and keeps it for the chat', async () => {
