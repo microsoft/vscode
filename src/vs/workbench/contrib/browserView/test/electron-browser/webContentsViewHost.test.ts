@@ -162,6 +162,8 @@ suite('WebContentsViewHost', () => {
 		[['screenshot-tool-overlay'], false],
 		[['monaco-dialog-modal-block'], true],
 		[['screenshot-annotation-editor'], true],
+		// Other overlays still pause the page while the screenshot tool's overlay covers it too.
+		[['screenshot-tool-overlay', 'notification-toast-container'], true],
 	] as const) {
 		test(`hides the page under ${overlayClasses.join(' and ')} ${paused ? 'and shows' : 'without showing'} that it is paused`, async () => {
 			const calls: boolean[] = [];
@@ -186,9 +188,12 @@ suite('WebContentsViewHost', () => {
 			const host = createHost();
 			const container = $('div');
 			container.style.cssText = 'position: fixed; left: 0; top: 0; width: 100px; height: 100px;';
-			const overlays = overlayClasses.map(overlayClass => {
+			// Each overlay is on top at the center of where it covers the page, which is where overlays are hit-tested.
+			const overlays = overlayClasses.map((overlayClass, index) => {
 				const overlay = $(`div.${overlayClass}`);
-				overlay.style.cssText = 'position: fixed; inset: 0; z-index: 10000;';
+				overlay.style.cssText = index === 0
+					? 'position: fixed; inset: 0; z-index: 10000;'
+					: 'position: fixed; left: 60px; top: 60px; width: 40px; height: 40px; z-index: 10001;';
 				return overlay;
 			});
 			mainWindow.document.body.appendChild(container);
