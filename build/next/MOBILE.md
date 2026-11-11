@@ -104,7 +104,9 @@ omits both. CI builds skip both product targets.
 
 Web and Mobile have separate stages that reuse the same build-job template.
 The existing shared Quality, APIScan, and source-security checks still run;
-they are not additional product targets.
+they are not additional product targets. The native Sanity Tests stage is
+included only when a selected platform contributes tests to it. Mobile-only
+and Web-only runs do not need to enable "Skip tests" to avoid an empty stage.
 
 Mobile runs in its own optional job, with a separate timeout and workspace,
 so its work cannot consume the ordinary Web job's time or prevent its archive

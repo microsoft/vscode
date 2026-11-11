@@ -99,6 +99,27 @@ test('both product pipeline entry points select and publish Mobile independently
 	assert.equal(publish.jobs[0].steps.find(step => step.pwsh === 'node build/azure-pipelines/common/publish.ts')?.env?.VSCODE_BUILD_STAGE_MOBILE, '${{ parameters.VSCODE_BUILD_WEB_MOBILE }}');
 });
 
+test('native sanity stages are selected only when at least one of their jobs can run', async () => {
+	type Stage = { stage: string; jobs: Record<string, { template: string }[]>[] };
+	type StageEntry = Record<string, Stage[] | string | undefined>;
+	for (const file of ['../../azure-pipelines/product-build.yml', '../../azure-pipelines/product-build-template.yml']) {
+		const pipeline = load(await readFile(new URL(file, import.meta.url), 'utf8')) as {
+			stages?: StageEntry[];
+			extends?: { parameters: { stages: StageEntry[] } };
+		};
+		const stages = pipeline.stages ?? pipeline.extends!.parameters.stages;
+		const [condition, selectedStages] = stages.flatMap(entry => Object.entries(entry)).find(([, value]) => Array.isArray(value) && value.some(stage => stage.stage === 'SanityTests'))!;
+		assert.ok(Array.isArray(selectedStages));
+		const stage = selectedStages.find(stage => stage.stage === 'SanityTests')!;
+		const jobParameters = [...new Set(stage.jobs.flatMap(job => Object.keys(job)).map(condition => {
+			const parameter = /^\$\{\{ if eq\((?<parameter>parameters\.\w+), true\) \}\}$/.exec(condition)?.groups?.parameter;
+			assert.ok(parameter, condition);
+			return parameter;
+		}))];
+		assert.equal(condition, `\${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(${jobParameters.join(', ')})) }}`, file);
+	}
+});
+
 test('mobile has a separate nonblocking job and timeout without weakening the ordinary Web job', async () => {
 	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
 	const pipeline = load(source) as { parameters: { name: string; default: boolean }[]; jobs: { job: string; continueOnError?: boolean; timeoutInMinutes: number; '${{ if parameters.mobile }}': { continueOnError: boolean } }[] };
