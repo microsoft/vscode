@@ -1117,7 +1117,7 @@ suite('Sessions chat window provider', () => {
 		const store = disposables.add(new DisposableStore());
 		const main = Object.assign(createChat('main'), { modelId: constObservable('model'), mode: constObservable({ id: 'agent', kind: 'agent' }) });
 		const session = Object.assign(createSession('session', [main]), { providerId: 'provider', sessionType: 'type', workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file('/repo'), folders: [] })), isQuickChat: constObservable(false) });
-		const { provider, events, opened, slots, editorGroups, onDidAcceptNewSessionRequest } = await openWindowWithComposers(store, [session]);
+		const { provider, events, opened, slots, editorGroups, onDidAcceptNewSessionRequest, opening } = await openWindowWithComposers(store, [session]);
 		// The editors of the chats it opened show in a group, which closes them as the user would
 		editorGroups.push(upcastPartial<IEditorGroup>({
 			contains: (editor: unknown) => opened.some(chat => chat.input === editor),
@@ -1145,24 +1145,54 @@ suite('Sessions chat window provider', () => {
 		slots[2].newSession.set(sending, undefined);
 		onDidAcceptNewSessionRequest.fire({ session: sending, owner: slots[2], background: false });
 		const fromSendingComposer = await openFrom(2, '/fourth');
+		// The pristine composer it replaces gets input while the new one opens: it stays
+		const resolveOpened = opening.onOpen!;
+		opening.onOpen = async chat => {
+			composerAt(3).composer.get()!.draftHost.input!.set({ inputText: 'typed meanwhile', attachments: [] });
+			await resolveOpened(chat);
+		};
+		const fromComposerTypedInWhileOpening = await openFrom(3, '/fifth');
+		opening.onOpen = resolveOpened;
 		const targets = opened.slice(1).map(chat => asComposerChat(chat).composer.get()?.draftHost.requestedTarget?.get());
 		for (const chat of opened.slice(1)) {
 			chat.dispose();
 		}
 		activeChat.set(URI.parse('test:/main'), undefined);
 
-		assert.deepStrictEqual({ fromSentChat, pickedTarget, fromPristineComposer, fromComposerWithInput, fromSendingComposer, targets }, {
+		assert.deepStrictEqual({ fromSentChat, pickedTarget, fromPristineComposer, fromComposerWithInput, fromSendingComposer, fromComposerTypedInWhileOpening, targets }, {
 			fromSentChat: ['group slot1 undefined', 'window open vscode-agents-composer in 42 tab of /main'],
 			pickedTarget: { folderUri: URI.file('/picked'), providerId: 'picked-provider', sessionTypeId: 'picked-type' },
 			fromPristineComposer: ['group slot2 undefined', 'window open vscode-agents-composer in 42 tab of vscode-agents-composer', 'close composer 1', 'dispose slot1', 'ungroup slot1'],
 			fromComposerWithInput: ['group slot3 undefined', 'window open vscode-agents-composer in 42 tab of vscode-agents-composer'],
 			fromSendingComposer: ['group slot4 undefined', 'window open vscode-agents-composer in 42 tab of vscode-agents-composer'],
+			fromComposerTypedInWhileOpening: ['group slot5 undefined', 'window open vscode-agents-composer in 42 tab of vscode-agents-composer'],
 			targets: [
 				{ folderUri: URI.file('/other') },
 				{ folderUri: URI.file('/third') },
 				{ folderUri: URI.file('/fourth') },
+				{ folderUri: URI.file('/fifth') },
 			],
 		});
+	});
+
+	test('a composer opened for a folder from a composer that has not sent its session joins the custom group that composer\'s sessions join, which its draft does not tell', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = Object.assign(createSession('grouped', [createChat('main')]), { providerId: 'provider', sessionType: 'type', workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file('/repo'), folders: [] })), isQuickChat: constObservable(false) });
+		const { provider, events, opened } = await openWindowWithComposers(store, [session]);
+
+		await provider.openNewChat(window);
+		const composer = asComposerChat(opened[0]);
+		composer.composer.get()!.draftHost.input!.set({ inputText: 'kept', attachments: [] });
+		activeChat.set(composer.chat.get(), undefined);
+		events.length = 0;
+		await provider.openNewChat(window, { folder: { uri: URI.file('/picked') } });
+		const groups = events.filter(event => event.startsWith('group '));
+		for (const chat of opened) {
+			chat.dispose();
+		}
+		activeChat.set(URI.parse('test:/main'), undefined);
+
+		assert.deepStrictEqual(groups, ['group slot2 group']);
 	});
 
 	test('New Session in a chat window opens its composer beside the active chat rather than as its tab when asked to, and without focus when asked to; while the active chat is that composer, it shows it, without focus too', async () => {
