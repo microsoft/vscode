@@ -137,6 +137,18 @@ suite('Animation frame window lifetime', () => {
 		assert.deepStrictEqual(calls, ['before fake', 'during fake']);
 	});
 
+	test('a removed unregistered iframe with a frame pending does not block frames of a later one', async () => {
+		// Unregistered windows have no window ID, so they share one queue, like iframes that tests create and remove.
+		const removed = document.body.appendChild(document.createElement('iframe'));
+		store.add(toDisposable(() => removed.remove()));
+		scheduleAtNextAnimationFrame(removed.contentWindow!, () => { });
+		removed.remove();
+		const later = document.body.appendChild(document.createElement('iframe'));
+		store.add(toDisposable(() => later.remove()));
+
+		await new Promise<void>(resolve => scheduleAtNextAnimationFrame(later.contentWindow!, resolve));
+	});
+
 	test('a superseded frame request does not run the queue', () => {
 		const { targetWindow } = createWindow();
 		const firstFrames: FrameRequestCallback[] = [];
