@@ -10,6 +10,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -41,14 +42,17 @@ import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { getFlatContextMenuActions, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { agentsBackground } from '../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../common/theme.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../sessionsService.js';
+import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
@@ -93,6 +97,18 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
+/** Whether the Sessions view offers {@link SessionsGrouping.Worktree}, as the Agents view of an editor window does. */
+export const SessionsViewWorktreeGroupingContext = new RawContextKey<boolean>('sessionsViewPane.worktreeGrouping', false);
+
+/**
+ * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
+ * {@link SessionsGrouping.Worktree} is offered only by views that allow it, so a view that does not, such as the Agents
+ * window's, which shares the stored grouping, keeps its default.
+ */
+export function getStoredSessionsGrouping(stored: string | undefined, allowWorktreeGrouping: boolean): SessionsGrouping | undefined {
+	const grouping = Object.values(SessionsGrouping).find(value => value === stored);
+	return grouping === SessionsGrouping.Worktree && !allowWorktreeGrouping ? undefined : grouping;
+}
 
 export interface ISessionsHeaderElements {
 	readonly row: HTMLElement;
@@ -155,6 +171,27 @@ class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
 	}
 }
 
+/** The options of the Sessions view. */
+export interface ISessionsViewOptions extends IViewPaneOptions {
+	/**
+	 * Whether the actions of the sessions header, such as New Session and Filter, show in the title of the view, as in an
+	 * editor window, rather than in a header row of its own.
+	 */
+	readonly headerInTitle?: boolean;
+
+	/** Whether it offers the customizations, such as a Customizations section; it does by default. */
+	readonly showCustomizations?: boolean;
+
+	/** Folders the list is scoped to, such as the folders of an editor window's workspace. See the `scopeFolders` option of the sessions list. */
+	readonly scopeFolders?: IObservable<readonly URI[]>;
+
+	/** The repositories the {@link scopeFolders} are checkouts of. See the `scopeRepositories` option of the sessions list. */
+	readonly scopeRepositories?: IObservable<readonly URI[]>;
+
+	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
+	readonly allowWorktreeGrouping?: boolean;
+}
+
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
@@ -191,8 +228,14 @@ export class SessionsView extends ViewPane {
 	/** The host of the main window, whose session the list reveals. */
 	private readonly _mainWindowHost: ISessionHost;
 
+	private readonly headerInTitle: boolean;
+	private readonly hideCustomizations: boolean;
+	private readonly allowWorktreeGrouping: boolean;
+	private readonly scopeFolders: IObservable<readonly URI[]> | undefined;
+	private readonly scopeRepositories: IObservable<readonly URI[]> | undefined;
+
 	constructor(
-		options: IViewPaneOptions,
+		options: ISessionsViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -205,19 +248,23 @@ export class SessionsView extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionHostService sessionHostService: ISessionHostService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsNavigationHost private readonly sessionsService: ISessionsNavigationHost,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsHostLayoutService private readonly hostLayoutService: ISessionsHostLayoutService,
-		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.headerInTitle = !!options.headerInTitle;
+		this.hideCustomizations = options.showCustomizations === false;
+		this.scopeFolders = options.scopeFolders;
+		this.scopeRepositories = options.scopeRepositories;
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
@@ -225,10 +272,8 @@ export class SessionsView extends ViewPane {
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedGrouping && Object.values(SessionsGrouping).includes(storedGrouping as SessionsGrouping)) {
-			this.currentGrouping = storedGrouping as SessionsGrouping;
-		}
+		this.allowWorktreeGrouping = !!options.allowWorktreeGrouping;
+		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.allowWorktreeGrouping);
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -239,6 +284,7 @@ export class SessionsView extends ViewPane {
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
+		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(this.allowWorktreeGrouping);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -346,6 +392,8 @@ export class SessionsView extends ViewPane {
 			pinnedCanvases: this.pinnedCanvasService,
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
+			scopeFolders: this.scopeFolders,
+			scopeRepositories: this.scopeRepositories,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
@@ -455,9 +503,21 @@ export class SessionsView extends ViewPane {
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
 
-		// Refresh sessions when window gets focus to compensate for missing events
+		// Refresh sessions when window gets focus to compensate for missing events: while the list shows, else as it shows
+		let refreshWhenVisible = false;
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
-			if (hasFocus) {
+			if (!hasFocus) {
+				return;
+			}
+			if (this.isBodyVisible()) {
+				sessionsControl.refresh();
+			} else {
+				refreshWhenVisible = true;
+			}
+		}));
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible && refreshWhenVisible) {
+				refreshWhenVisible = false;
 				sessionsControl.refresh();
 			}
 		}));
@@ -543,8 +603,15 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (this.headerInTitle && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter) {
+			return this.instantiationService.createInstance(SessionsFilterActionViewItem, action, options, () => this.sessionsControl?.reportFilterMenuShown());
+		}
+		return super.createActionViewItem(action, options);
+	}
+
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping);
+		const header = renderSessionsHeader(parent, phoneLayout || this.headerInTitle, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown(), () => this.grouping);
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();
@@ -575,7 +642,7 @@ export class SessionsView extends ViewPane {
 		const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden === true;
 		const navigation = this.separateNavigation.read(reader);
 		this.updateCustomizationsPresentation(
-			getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
+			this.hideCustomizations ? 'hidden' : getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
 			navigation && !phone && enabled && !hidden,
 		);
 	}
@@ -998,6 +1065,11 @@ export class SessionsView extends ViewPane {
 				header.toolbar?.refresh();
 			}
 			header.label.textContent = inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
+			if (this.headerInTitle) {
+				// The title shows the actions; the row only shows the find widget while it is open.
+				header.row.style.display = this.isFindWidgetOpen ? '' : 'none';
+				continue;
+			}
 			// On phone the desktop header content is hidden; the row is only
 			// visible when the find widget is open (so the user can search).
 			if (isPhoneLayout(this.layoutService)) {

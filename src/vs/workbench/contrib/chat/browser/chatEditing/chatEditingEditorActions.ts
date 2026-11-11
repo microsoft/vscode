@@ -36,7 +36,6 @@ import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWid
 import { IChatEditingExplanationModelManager, IExplanationDiffInfo } from './chatEditingExplanationModelManager.js';
 import { DiffEditorViewModel } from '../../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { IChatWidgetService } from '../chat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -487,7 +486,6 @@ class ExplainMultiDiffAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const explanationModelManager = accessor.get(IChatEditingExplanationModelManager);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
 		const activePane = editorService.activeEditorPane;
@@ -610,7 +608,6 @@ class ExplainMultiDiffAction extends Action2 {
 			const manager = new ChatEditingExplanationWidgetManager(
 				fileData.editor,
 				chatWidgetService,
-				viewsService,
 				explanationModelManager,
 				diffInfo.modifiedModel.uri,
 			);

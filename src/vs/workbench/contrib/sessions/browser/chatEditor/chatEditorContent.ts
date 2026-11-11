@@ -59,6 +59,7 @@ export class ChatEditorContent extends Disposable {
 	private readonly _contentContainer: HTMLElement;
 	/** The view of its composer, or of the request the composer sent, while it shows instead of the chat. */
 	private readonly _composerView = observableValue<AbstractChatView | undefined>(this, undefined);
+	readonly composerView: IObservable<AbstractChatView | undefined> = this._composerView;
 	/**
 	 * The chat model of a composer's session whose chat it shows, kept loaded from the composer until the chat's view has
 	 * bound to it: only that handoff, as a model held longer cannot be released for its view to load it again, such as

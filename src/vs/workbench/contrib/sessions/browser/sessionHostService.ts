@@ -12,7 +12,7 @@ import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { getMainWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from './sessionsService.js';
+import { ISessionsNavigationHost } from './sessionsNavigationHost.js';
 
 /** Whether a host owns what it shows: windows and panes do, while composers and dialogs only draft in them. */
 function ownsContent(host: ISessionHost): boolean {
@@ -43,11 +43,11 @@ export class SessionHostService extends Disposable implements ISessionHostServic
 	readonly mainWindowHost: ISessionHost;
 
 	constructor(
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsNavigationHost navigationHost: ISessionsNavigationHost,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
-		this.mainWindowHost = sessionsService.gridHost;
+		this.mainWindowHost = navigationHost.mainWindowHost;
 		this._register(this.registerHost(this.mainWindowHost));
 	}
 

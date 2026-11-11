@@ -52,7 +52,7 @@ import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/st
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { USE_WORKTREE_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -115,6 +115,7 @@ import type { CanvasState } from '../../../../../../platform/agentHost/common/st
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -531,6 +532,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._optimisticSessionStateValues.delete(key);
 		this._sessionStateValues.set(key, advertised);
 		this._sessionStateEmitters.get(key)?.fire(advertised);
+	}
+
+	/** Fires a state with `config` to every subscribed session of `provider`, as the host does on every update of a running session. */
+	fireRunningSessionStates(provider: string, config: SessionState['config']): void {
+		for (const [key, emitter] of this._sessionStateEmitters) {
+			if (URI.parse(key).scheme === provider) {
+				const value = this._sessionStateValues.get(key);
+				const state: SessionState = value && !(value instanceof Error) && hasKey(value, { chats: true })
+					? value
+					: { provider, title: 'Session', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [] };
+				emitter.fire({ ...state, config });
+			}
+		}
 	}
 
 	setOptimisticSessionState(rawId: string, provider: string, state: SessionState | undefined): void {
@@ -9360,9 +9374,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('updates sensitive edit locations when running-session settings change', async () => {
+	test('updates sensitive edit locations when running-session settings change, and reads them only then', async () => {
 		const folder = URI.file('/home/user/project');
-		const configService = new TestConfigurationService();
+		let locationReads = 0;
+		const configService = new class extends TestConfigurationService {
+			override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
+				if (arg1 === ChatHookFilesLocationsSettingId || arg1 === ChatAgentFilesLocationsSettingId) {
+					locationReads++;
+				}
+				return super.getValue<T>(arg1, arg2);
+			}
+		}();
 		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, { 'initial-hooks': true });
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
@@ -9394,17 +9416,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = await provider.createNewChat(session.sessionId);
 		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 		agentHost.dispatchedActions.length = 0;
+		const changedConfigs = () => agentHost.dispatchedActions.flatMap(({ action }) =>
+			action.type === ActionType.SessionConfigChanged ? [action.config] : []);
+
+		// Updates of its state, such as for every turn, change neither its folders nor the settings: its locations are not read
+		// again, nor sent
+		const runningConfig: SessionState['config'] = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', [SessionConfigKey.SensitiveEditLocations]: [{ path: 'initial-hooks', isDirectory: true }] },
+		};
+		// Reading its config follows its state, as the chat showing it does
+		provider.getSessionConfig(committed.sessionId, committed.resource);
+		agentHost.fireRunningSessionStates('copilotcli', runningConfig);
+		locationReads = 0;
+		agentHost.fireRunningSessionStates('copilotcli', runningConfig);
+		agentHost.fireRunningSessionStates('copilotcli', runningConfig);
+		const unchanged = { reads: locationReads, changes: changedConfigs().length };
 
 		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, {
 			'initial-hooks': false,
 			'updated-hooks/hooks.json': true,
 		}, folder);
+		configService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatHookFilesLocationsSettingId }));
 		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'again' });
 
-		const changedConfigs = agentHost.dispatchedActions.flatMap(({ action }) =>
-			action.type === ActionType.SessionConfigChanged ? [action.config] : []);
-		assert.deepStrictEqual(changedConfigs.at(-1), {
-			[SessionConfigKey.SensitiveEditLocations]: [{ path: 'updated-hooks/hooks.json', isDirectory: true }],
+		assert.deepStrictEqual({ unchanged, last: changedConfigs().at(-1) }, {
+			unchanged: { reads: 0, changes: 0 },
+			last: { [SessionConfigKey.SensitiveEditLocations]: [{ path: 'updated-hooks/hooks.json', isDirectory: true }] },
 		});
 	});
 

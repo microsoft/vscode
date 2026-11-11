@@ -46,7 +46,6 @@ import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
 import { IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
 import { IChatWidgetService } from '../chat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -109,7 +108,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IChatEditingService _chatEditingService: IChatEditingService,
 		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
 		const codeEditorObs = observableCodeEditor(_editor);
@@ -121,7 +119,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._store.add(new ChatEditingExplanationWidgetManager(
 			this._editor,
 			this._chatWidgetService,
-			this._viewsService,
 			this._explanationModelManager,
 			this._entry.modifiedURI,
 		));

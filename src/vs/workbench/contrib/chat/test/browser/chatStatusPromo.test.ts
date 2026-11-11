@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -39,7 +39,7 @@ import { ToggleTooltipCommand } from '../../../../services/statusbar/browser/sta
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestChatWidgetService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
+import { ChatViewId, IChatViewHostDelegate, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
 import { ChatStatusPromo } from '../../browser/chatStatus/chatStatusPromo.js';
 import type { ChatWidget } from '../../browser/widget/chatWidget.js';
 import type { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
@@ -266,6 +266,14 @@ suite('ChatStatusPromo', () => {
 			seen: f.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
 			dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), events: f.telemetry.events,
 		}, { pip: false, sameTooltip: true, seen: '["sale"]', dismissed: undefined, events: ['chatPromoWidgetArmed', 'chatPromoWidgetShown'] });
+	});
+
+	test('offers nothing while something replaces the Chat view, in which trying the model would open', () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup });
+		const offered = !!f.entry;
+		f.widgets.chatViewHostDelegate = upcastPartial<IChatViewHostDelegate>({});
+		f.update();
+		assert.deepStrictEqual({ offered, replaced: f.entry }, { offered: true, replaced: undefined });
 	});
 
 	test('withdraws a displayed offer without dismissing it', () => {

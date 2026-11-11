@@ -25,6 +25,7 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -86,7 +87,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionArtifact, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
@@ -94,7 +95,7 @@ import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../.
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -104,8 +105,10 @@ import { ChatAgentService, IChatAgentService } from '../../../../../workbench/co
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
+import { getSessionsInScopeFolders } from '../../../../../workbench/contrib/sessions/browser/sessionScope.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
-import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
+import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 import { renderSessionsHeader, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
@@ -119,7 +122,7 @@ import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test
 import { getInboxWorkspaceFilter, getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
@@ -938,7 +941,7 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;
 				});
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
 					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -3539,6 +3542,190 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('groupByWorktree', () => {
+
+		function createWorktreeSession(id: string, folder: { readonly workingDirectory: string; readonly repository?: string; readonly branch?: string } | undefined, updatedHoursAgo: number, options?: ITestSessionOptions): ISession {
+			const { session } = createTestSession(id, { ...options, updatedAt: new Date(Date.now() - updatedHoursAgo * 3_600_000) });
+			if (!folder) {
+				return session;
+			}
+			const workingDirectory = URI.parse(folder.workingDirectory);
+			const repository = folder.repository ? URI.parse(folder.repository) : undefined;
+			return {
+				...session,
+				workspace: constObservable({
+					...session.workspace.get()!,
+					uri: repository ?? workingDirectory,
+					folders: [{
+						root: repository ?? workingDirectory,
+						workingDirectory,
+						name: id,
+						description: undefined,
+						gitRepository: repository ? {
+							uri: repository,
+							workTreeUri: workingDirectory,
+							branchName: folder.branch,
+							baseBranchName: undefined,
+							gitHubInfo: constObservable(undefined),
+						} : undefined,
+					}],
+				}),
+			};
+		}
+
+		function worktreeSessions(): ISession[] {
+			return [
+				createWorktreeSession('feature-a', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo', branch: 'feature-a' }, 3),
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo', branch: 'main' }, 4),
+				createWorktreeSession('cloud', undefined, 0),
+				createWorktreeSession('feature-b', { workingDirectory: 'file:///work/repo.worktrees/b', repository: 'file:///work/repo' }, 2),
+				createWorktreeSession('feature-a-2', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo', branch: 'feature-a' }, 1),
+				createWorktreeSession('plain', { workingDirectory: 'file:///other' }, 5),
+			];
+		}
+
+		test('lists the main checkouts first, then the worktrees by latest activity, then the sessions without a local folder', () => {
+			assert.deepStrictEqual(groupByWorktree(worktreeSessions()).map(section => ({ id: section.id, label: section.label, hover: section.hover, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'worktree:file:///work/repo', label: 'repo (main)', hover: URI.parse('file:///work/repo').fsPath, sessions: ['checkout'] },
+				{ id: 'worktree:file:///other', label: 'other', hover: URI.parse('file:///other').fsPath, sessions: ['plain'] },
+				{ id: 'worktree:file:///work/repo.worktrees/a', label: 'a (feature-a)', hover: URI.parse('file:///work/repo.worktrees/a').fsPath, sessions: ['feature-a', 'feature-a-2'] },
+				{ id: 'worktree:file:///work/repo.worktrees/b', label: 'b', hover: URI.parse('file:///work/repo.worktrees/b').fsPath, sessions: ['feature-b'] },
+				{ id: 'worktree:other', label: 'Other', hover: undefined, sessions: ['cloud'] },
+			]);
+		});
+
+		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
+			const harness = createListHarness(disposables, worktreeSessions());
+			const container = harness.createContainer(400, 1400);
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const visible = () => list.getVisibleSessions().map(session => session.sessionId);
+			const order = visible();
+			const worktreeA = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-section-label')?.textContent === 'a (feature-a)');
+			list.openFind();
+			try {
+				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+				assert.ok(findInput);
+				findInput.value = 'feature-a';
+				findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				assert.deepStrictEqual({ order, ariaLabel: worktreeA?.getAttribute('aria-label'), found: visible() }, {
+					order: ['checkout', 'plain', 'feature-a-2', 'feature-a', 'feature-b', 'cloud'],
+					ariaLabel: `a (feature-a), ${URI.parse('file:///work/repo.worktrees/a').fsPath}, 2`,
+					found: ['feature-a-2', 'feature-a'],
+				});
+			} finally {
+				list.closeFind();
+				// Closing find disposes its widget after its hide animation.
+				await timeout(350);
+			}
+		});
+
+		function openWorktreeList(harness: ReturnType<typeof createListHarness>) {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const sectionLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
+				.map(row => row.querySelector('.session-section-label:not(.session-group-labels *)')?.textContent)
+				.filter(isDefined);
+			return { list, sectionLabels };
+		}
+
+		test('keeps the worktree order when a comparison joins the list', () => {
+			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Picker', createdAt: 1 };
+			const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createWorktreeSession(id, { workingDirectory: 'file:///work/repo.worktrees/b', repository: 'file:///work/repo' }, 2 + index));
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: comparisonGroup.id,
+				title: 'Picker',
+				createdAt: 1,
+				workspace: URI.parse('file:///work/repo'),
+				prompt: 'Picker',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('z-checkout', { workingDirectory: 'file:///work/z' }, 5),
+				createWorktreeSession('a-worktree', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('cloud', undefined, 0),
+				...attempts,
+			], {
+				groups: [comparisonGroup],
+				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+				comparisons: [comparison],
+			});
+
+			assert.deepStrictEqual(openWorktreeList(harness).sectionLabels(), ['z', 'a', 'b', 'Other']);
+		});
+
+		test('shows a folder for a main checkout and a folder with a branch for a worktree', () => {
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo', branch: 'main' }, 2),
+				createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('plain', { workingDirectory: 'file:///other' }, 3),
+				// Listed before its provider reports the repository: a worktree by its path.
+				createWorktreeSession('projectless', { workingDirectory: 'file:///work/repo.worktrees/projectless' }, 4),
+			]);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const icons = Object.fromEntries([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].flatMap(row => {
+				const label = row.querySelector('.session-section-label')?.textContent;
+				const icon = row.querySelector('.session-section-icon');
+				return label && icon ? [[label, [ThemeIcon.asClassName(Codicon.folder), ThemeIcon.asClassName(Codicon.gitBranchCheckout)].find(className => className.split(' ').every(name => icon.classList.contains(name)))]] : [];
+			}));
+
+			assert.deepStrictEqual(icons, {
+				'repo (main)': ThemeIcon.asClassName(Codicon.folder),
+				'feature': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
+				'other': ThemeIcon.asClassName(Codicon.folder),
+				'projectless': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
+			});
+		});
+
+		test('keeps a manual order of worktree sections when groups change', () => {
+			const first: ISessionGroup = { id: 'first', name: 'First', createdAt: 1 };
+			const second: ISessionGroup = { id: 'second', name: 'Second', createdAt: 2 };
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 2),
+			], { groups: [first, second], liveGroups: true });
+			const orderService = harness.store.add(new SessionSectionOrderService(harness.instantiationService.get(IStorageService)));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			const { list } = openWorktreeList(harness);
+			const checkoutId = 'worktree:file:///work/repo';
+			const featureId = 'worktree:file:///work/repo.worktrees/feature';
+
+			list.moveHeaderTo(featureId, undefined, { siblingId: checkoutId, position: 'before' });
+			const moved = orderService.resolveOrder([checkoutId, featureId]);
+			// Nesting a group changes the groups, which forgets the order of headers that no longer exist.
+			list.moveHeaderTo(getSessionGroupSectionId(second.id), getSessionGroupSectionId(first.id), undefined);
+
+			assert.deepStrictEqual({ moved, afterGroupChange: orderService.resolveOrder([checkoutId, featureId]) }, {
+				moved: [featureId, checkoutId],
+				afterGroupChange: [featureId, checkoutId],
+			});
+		});
+	});
+
 	suite('groupByEnvironment', () => {
 		test('groups across agents and workspaces by stable environment identity, including disconnected and unknown hosts', () => {
 			const sessions = [
@@ -3929,6 +4116,283 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ two: render(2), three: render(3) }, {
 				two: { sessions: 2, showMore: [] },
 				three: { sessions: 1, showMore: ['+2 more workspaces'] },
+			});
+		});
+
+		function createFolderSession(id: string, label: string, folder: { readonly root: string; readonly workingDirectory?: string; readonly repository?: string; readonly worktree?: string }, createdAt?: Date, options?: ITestSessionOptions): ISession {
+			const { session } = createTestSession(id, { ...options, workspaceLabel: label, createdAt });
+			const root = URI.parse(folder.root);
+			return {
+				...session,
+				workspace: constObservable({
+					...session.workspace.get()!,
+					uri: root,
+					folders: [{
+						root,
+						workingDirectory: folder.workingDirectory ? URI.parse(folder.workingDirectory) : root,
+						name: label,
+						description: undefined,
+						gitRepository: folder.repository ? {
+							uri: URI.parse(folder.repository),
+							workTreeUri: folder.worktree ? URI.parse(folder.worktree) : undefined,
+							baseBranchName: undefined,
+							gitHubInfo: constObservable(undefined),
+						} : undefined,
+					}],
+				}),
+			};
+		}
+
+		test('scopes sessions to folders, their contents and the worktrees of their repositories', () => {
+			const sessions = [
+				createFolderSession('checkout', 'repo', { root: 'file:///repo', repository: 'file:///repo' }),
+				createFolderSession('nested', 'sub', { root: 'file:///repo/sub' }),
+				// An Agent Host worktree reports the checkout as its root and repository.
+				createFolderSession('worktree', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }),
+				// A session that reports its worktree as its repository still joins its repository by the worktree's path.
+				createFolderSession('ownWorktree', 'y', { root: 'file:///repo.worktrees/y', repository: 'file:///repo.worktrees/y', worktree: 'file:///repo.worktrees/y' }),
+				createFolderSession('other', 'other', { root: 'file:///other', repository: 'file:///other' }),
+				createFolderSession('remote', 'repo', { root: 'vscode-agent-host://host/repo', repository: 'vscode-agent-host://host/repo' }),
+				createTestSession('quickChat', { isQuickChat: true }).session,
+			];
+			const scoped = (...folders: string[]) => {
+				const scope = getSessionsInScopeFolders(sessions, folders.map(folder => URI.parse(folder)));
+				return sessions.filter(session => scope.includes(session)).map(session => session.sessionId);
+			};
+
+			assert.deepStrictEqual({
+				checkout: scoped('file:///repo'),
+				worktree: scoped('file:///repo.worktrees/x'),
+				ownWorktree: scoped('file:///repo.worktrees/y'),
+				multiRoot: scoped('file:///repo', 'file:///other'),
+				empty: scoped(),
+			}, {
+				checkout: ['checkout', 'nested', 'worktree', 'ownWorktree'],
+				worktree: ['checkout', 'worktree', 'ownWorktree'],
+				ownWorktree: ['checkout', 'worktree', 'ownWorktree'],
+				multiRoot: ['checkout', 'nested', 'worktree', 'ownWorktree', 'other'],
+				empty: [],
+			});
+		});
+
+		test('scopes a worktree that VS Code created by its path before its provider reports the repository', () => {
+			const sessions = [
+				// A session listed before its project is known: its folder is only the worktree.
+				createFolderSession('projectless', 'x', { root: 'file:///work/vscode.worktrees/x' }),
+				createFolderSession('checkout', 'vscode', { root: 'file:///work/vscode' }),
+				createFolderSession('elsewhere', 'other.worktrees', { root: 'file:///work/other.worktrees/y' }),
+			];
+			const scoped = (folder: string) => {
+				const scope = getSessionsInScopeFolders(sessions, [URI.parse(folder)]);
+				return sessions.filter(session => scope.includes(session)).map(session => session.sessionId);
+			};
+
+			// A worktree outside that layout names its repository through its `.git`, which the host reads.
+			const ownWorktreeScope = getSessionsInScopeFolders(sessions, [URI.parse('file:///work/owners/scope')], undefined, [URI.parse('file:///work/vscode')]);
+			const plainScope = getSessionsInScopeFolders(sessions, [URI.parse('file:///work/owners/scope')]);
+
+			assert.deepStrictEqual({
+				checkoutWindow: scoped('file:///work/vscode'),
+				worktreeWindow: scoped('file:///work/vscode.worktrees/z'),
+				ownWorktreeWindow: sessions.filter(session => ownWorktreeScope.includes(session)).map(session => session.sessionId),
+				withoutRepository: sessions.filter(session => plainScope.includes(session)).map(session => session.sessionId),
+			}, {
+				checkoutWindow: ['projectless', 'checkout'],
+				worktreeWindow: ['projectless', 'checkout'],
+				ownWorktreeWindow: ['projectless', 'checkout'],
+				withoutRepository: [],
+			});
+		});
+
+		test('says so when no session of the scope is shown, also when the filters hide its sessions', () => {
+			const harness = createListHarness(disposables, [
+				createFolderSession('elsewhere', 'other', { root: 'file:///other' }),
+				createFolderSession('archived', 'vscode', { root: 'file:///work/vscode' }, undefined, { isArchived: true }),
+			]);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scopeFolders: constObservable([URI.parse('file:///work/vscode')]),
+				onSessionOpen: () => { },
+			}));
+			list.setExcludeArchived(true);
+			list.layout(1400, 400);
+
+			assert.deepStrictEqual({
+				sessions: list.getVisibleSessions().length,
+				rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions to show in this folder.'),
+			}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
+		});
+
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+
+		/** Sessions of the window's folder `file:///work/repo` and its worktree, and of other folders, in every section. */
+		function createScopeHarness() {
+			const group: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+			const checkout = { root: 'file:///work/repo', repository: 'file:///work/repo' };
+			const harness = createListHarness(disposables, [
+				createFolderSession('checkout', 'repo', checkout, hoursAgo(1)),
+				createFolderSession('worktree', 'repo', { root: 'file:///work/repo', workingDirectory: 'file:///work/repo.worktrees/x', repository: 'file:///work/repo', worktree: 'file:///work/repo.worktrees/x' }, hoursAgo(2)),
+				createFolderSession('pinned-in', 'repo', checkout, hoursAgo(3)),
+				createFolderSession('grouped-in', 'repo', checkout, hoursAgo(4)),
+				createFolderSession('same-name', 'repo', { root: 'file:///elsewhere/repo' }, hoursAgo(5)),
+				createFolderSession('other', 'other', { root: 'file:///other' }, hoursAgo(6)),
+				createFolderSession('pinned-other', 'other', { root: 'file:///other' }, hoursAgo(7)),
+				createFolderSession('grouped-other', 'other', { root: 'file:///other' }, hoursAgo(8)),
+				createFolderSession('done-other', 'other', { root: 'file:///other' }, hoursAgo(9), { isArchived: true }),
+				createTestSession('chat', { isQuickChat: true, createdAt: hoursAgo(10) }).session,
+			], {
+				groups: [group],
+				memberships: new Map([['grouped-in', group.id], ['grouped-other', group.id]]),
+				pinnedSessionIds: new Set(['pinned-in', 'pinned-other']),
+			});
+			// Pinned, Done and Chats start collapsed: open them so that their sessions count as shown.
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ pinned: false, archived: false, [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+			return harness;
+		}
+
+		function openScopedList(harness: ReturnType<typeof createListHarness>, scopeFolders: IObservable<readonly URI[]> | undefined, grouping = SessionsGrouping.Workspace, findWidgetContainer?: HTMLElement) {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				scopeFolders,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.setExcludeArchived(false);
+			list.layout(1400, 400);
+			return {
+				list,
+				snapshot: () => ({
+					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+					showMore: [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')].map(label => label.textContent),
+				}),
+			};
+		}
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+			test(`shows only the sessions of the scope, in every section (${grouping})`, () => {
+				const harness = createScopeHarness();
+				const scopeFolders = observableValue<readonly URI[]>('scopeFolders', [URI.parse('file:///work/repo')]);
+				const unscoped = openScopedList(harness, undefined, grouping);
+				const scoped = openScopedList(harness, scopeFolders, grouping);
+
+				const inScope = { unscoped: unscoped.snapshot(), scoped: scoped.snapshot() };
+				scopeFolders.set([], undefined);
+				const emptyWindow = scoped.snapshot();
+
+				const all = ['chat', 'checkout', 'done-other', 'grouped-in', 'grouped-other', 'other', 'pinned-in', 'pinned-other', 'same-name', 'worktree'];
+				assert.deepStrictEqual({ inScope, emptyWindow }, {
+					inScope: {
+						unscoped: { sessions: all, showMore: [] },
+						scoped: { sessions: ['checkout', 'grouped-in', 'pinned-in', 'worktree'], showMore: [] },
+					},
+					emptyWindow: { sessions: all, showMore: [] },
+				});
+			});
+		}
+
+		test('searches only the sessions of the scope', async () => {
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const scoped = openScopedList(createScopeHarness(), constObservable([URI.parse('file:///work/repo')]), SessionsGrouping.Workspace, findWidgetContainer);
+			scoped.list.openFind();
+			try {
+				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+				assert.ok(findInput);
+				const find = (pattern: string) => {
+					findInput.value = pattern;
+					findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+					return scoped.snapshot().sessions;
+				};
+				assert.deepStrictEqual({ other: find('other'), checkout: find('checkout') }, { other: [], checkout: ['checkout'] });
+			} finally {
+				scoped.list.closeFind();
+				// Closing find disposes its widget after its hide animation.
+				await timeout(350);
+			}
+		});
+
+		test('marks only the sessions of the scope read from a section of a workspace name shared elsewhere', async () => {
+			const harness = createListHarness(disposables, [
+				createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1), { isRead: false }),
+				createFolderSession('outsider', 'repo', { root: 'file:///elsewhere/repo' }, hoursAgo(2), { isRead: false }),
+			]);
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
+			const markSectionRead = async (scopeFolders: IObservable<readonly URI[]> | undefined) => {
+				harness.managementService.readSessions.length = 0;
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					scopeFolders,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'repo');
+				assert.ok(row);
+				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+				return harness.managementService.readSessions.map(session => session.sessionId).sort();
+			};
+
+			assert.deepStrictEqual({
+				unscoped: await markSectionRead(undefined),
+				scoped: await markSectionRead(constObservable([URI.parse('file:///work/repo')])),
+			}, {
+				unscoped: ['here', 'outsider'],
+				scoped: ['here'],
+			});
+		});
+
+		test('leaves out a comparison of other folders nested in a custom group', () => {
+			const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
+			const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', { root: 'file:///other' }, hoursAgo(2 + index)));
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: comparisonGroup.id,
+				title: 'Elsewhere',
+				createdAt: 1,
+				workspace: URI.parse('file:///other'),
+				prompt: 'Elsewhere',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1)), ...attempts], {
+				groups: [work, comparisonGroup],
+				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+				comparisons: [comparison],
+			});
+			const render = (scopeFolders: IObservable<readonly URI[]> | undefined) => {
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					scopeFolders,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				return {
+					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+					comparison: !!container.querySelector('.session-comparison-group'),
+					placeholder: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].some(row => row.textContent?.includes('No session')),
+				};
+			};
+
+			assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable([URI.parse('file:///work/repo')])) }, {
+				unscoped: { sessions: ['attempt-1', 'attempt-2', 'here'], comparison: true, placeholder: false },
+				scoped: { sessions: ['here'], comparison: false, placeholder: true },
 			});
 		});
 
@@ -11310,7 +11774,7 @@ suite('Sessions - SessionsList', () => {
 			const multiFolderSession = withChanges(createMultiFolderSession([first, second], [undefined, [second]]));
 			const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
 					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -11371,7 +11835,7 @@ suite('Sessions - SessionsList', () => {
 				const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
-					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 						readonly activeSession = activeSession;
 						readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 						override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13152,7 +13616,7 @@ suite('Sessions - SessionsList', () => {
 			const other = createTestSession('Other').session;
 			const inGrid = (session: ISession, sticky: boolean) => upcastPartial<ITestSessionWithChat>({ ...session, sticky: constObservable(sticky) });
 			const harness = createListHarness(disposables, [pinned, other], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(undefined);
 					readonly gridShown = constObservable([inGrid(pinned, true), inGrid(other, false)]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13180,7 +13644,7 @@ suite('Sessions - SessionsList', () => {
 				const sticky = observableValue('sticky', true);
 				const gridSession = upcastPartial<ITestSessionWithChat>({ ...session, sticky });
 				const harness = createListHarness(disposables, [session], instantiationService => {
-					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 						readonly activeSession = constObservable(undefined);
 						readonly gridShown = constObservable([gridSession]);
 						override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13246,7 +13710,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, first, second, side]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13344,7 +13808,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, peer]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13379,7 +13843,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, peer]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13700,7 +14164,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				const harness = createListHarness(disposables, [session, other], instantiationService => {
 					if (activePeer) {
-						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
 							readonly gridShown = constObservable([activeSession]);
 							override readonly slotPanes = testGridPanes(this.gridShown);
@@ -15193,7 +15657,7 @@ suite('Sessions - SessionsList', () => {
 						visibleChatTabs: session.chats,
 					}) : undefined;
 					const harness = createListHarness(disposables, [session], instantiationService => {
-						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
 							readonly gridShown = constObservable(activeSession ? [activeSession] : []);
 							override readonly slotPanes = testGridPanes(this.gridShown);

@@ -14,12 +14,13 @@ import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCopilotReviewAuthor } from '../../../../platform/github/common/pullRequestFeedback.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from '../../../services/sessions/browser/sessionsStorageService.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel, IChatResponseModel } from '../../chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
-import { IGitHubService } from './github/githubService.js';
+import { IGitHubService } from '../browser/github/githubService.js';
 import { getSessionGitHubReferences } from '../common/github/sessionGitHubReferences.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState } from '../common/github/types.js';
 import { getPullRequestKey } from '../common/github/utils.js';
@@ -71,7 +72,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
-		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsStorageService private readonly storageService: IStorageService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {

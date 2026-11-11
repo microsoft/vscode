@@ -66,6 +66,8 @@ A caller can acquire a disposable reveal of a session row or its archive action 
 
 User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
+A host can scope the list to folders (the editor window's Agents viewlet passes its workspace folders through the `scopeFolders` option; the Agents window does not, nor does an empty window). While the scope is non-empty, the list shows only the sessions whose folder is, or is inside, a scope folder, or that share a git repository (such as a worktree) with one, learned from every session the list knows. Other sessions are left out before grouping, in every grouping, section (Pinned, custom groups, Chats and Done included) and search, and workspace capping hides no section. Matching reads only the folder and repository metadata providers report.
+
 ### Repository grouping
 
 Repository grouping places sessions by the GitHub repository of their primary folder, so the sessions of one repository share a section whichever environment runs them. A cloud session names its repository through its workspace; other sessions report it through their Git metadata. Sessions without a GitHub repository keep their workspace section. A section shows its repository's name, adding the owner only when several repository sections share that name.
@@ -79,6 +81,10 @@ User-created groups and the date sections share a user-managed order below the f
 ### Environment grouping
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
+
+### Worktree grouping
+
+Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, which shares the stored choice, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
 
 ### Inbox grouping
 
