@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, IObservable, IReader, observableSignal } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';

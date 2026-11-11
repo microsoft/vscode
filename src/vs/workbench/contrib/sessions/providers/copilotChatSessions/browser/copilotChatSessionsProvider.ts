@@ -32,7 +32,7 @@ import { linkKey } from '../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsListingScope, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../browser/newSession.js';
 import { SessionsListingScopeFilter } from '../../../browser/sessionScope.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../../base/common/cancellation.js';
