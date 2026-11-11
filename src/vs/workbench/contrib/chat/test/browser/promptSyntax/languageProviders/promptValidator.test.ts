@@ -939,6 +939,42 @@ suite('PromptValidator', () => {
 			]);
 		});
 
+		const hookMatcherCases: [name: string, eventName: string, matcher: string, expected: string[]][] = [
+			['rejects empty matchers', 'preToolUse', '""', [`The 'matcher' property in a hook must not be empty.`]],
+			['rejects non-string matchers', 'preToolUse', '[]', [`The 'matcher' property in a hook must be a string.`]],
+			['rejects native wildcard matchers', 'preToolUse', '"*"', [`The 'matcher' property in a hook must be a valid regular expression.`]],
+			['accepts native regular expressions', 'preToolUse', '"shell|bash"', []],
+			['accepts compatible wildcard matchers', 'PreToolUse', '"*"', []],
+			['accepts padded compatible wildcard matchers', 'PreToolUse', '" ** "', []],
+			['rejects empty compatible matchers', 'PreToolUse', '""', [`The 'matcher' property in a hook must not be empty.`]],
+			['accepts whitespace compatible matchers', 'PreToolUse', '"   "', []],
+			['rejects invalid compatible regexes', 'PreToolUse', '"["', [`The 'matcher' property in a hook must be a valid regular expression.`]],
+			['ignores matchers on startup hooks', 'sessionStart', '"["', []],
+			['ignores matchers on stop hooks', 'Stop', '[]', []],
+			['validates MCP hook matchers', 'preMcpToolCall', '"("', [`The 'matcher' property in a hook must be a valid regular expression.`]],
+			['validates notification hook matchers', 'notification', '"("', [`The 'matcher' property in a hook must be a valid regular expression.`]],
+		];
+		for (const [name, eventName, matcher, expected] of hookMatcherCases) {
+			test(`github-copilot agent ${name} for command and HTTP hooks`, async () => {
+				const results: string[][] = [];
+				for (const action of [['type: command', 'command: echo test'], ['type: http', 'url: https://example.com/hook']]) {
+					const content = [
+						'---',
+						'target: github-copilot',
+						'description: Test',
+						'hooks:',
+						`  ${eventName}:`,
+						`    - ${action[0]}`,
+						`      ${action[1]}`,
+						`      matcher: ${matcher}`,
+						'---',
+					].join('\n');
+					results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+				}
+				assert.deepStrictEqual(results, [expected, expected]);
+			});
+		}
+
 		const githubCopilotSchemaCases: [name: string, header: string[], expected: string[]][] = [
 			['github-copilot agent rejects invalid hook action combinations', [
 				'description: Test',
@@ -2105,6 +2141,18 @@ suite('PromptValidator', () => {
 				'    - matcher: "["',
 				'      hooks: []',
 			], [{ severity: MarkerSeverity.Error, message: `The 'matcher' property in a hook must be a valid regular expression.` }]],
+			['hooks - nested wildcard matcher is valid', [
+				'hooks:',
+				'  PreToolUse:',
+				'    - matcher: "*"',
+				'      hooks:',
+				'        - type: command',
+				'          command: "echo foo"',
+				'    - matcher: " ** "',
+				'      hooks:',
+				'        - type: command',
+				'          command: "echo bar"',
+			], []],
 			['hooks - nested hooks must be array', [
 				'hooks:',
 				'  PreToolUse:',

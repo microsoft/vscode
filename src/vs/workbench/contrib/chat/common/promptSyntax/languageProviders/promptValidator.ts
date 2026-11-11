@@ -1051,7 +1051,7 @@ export class PromptValidator {
 			}
 			const matcherProperty = item.properties.find(p => p.key.value === 'matcher');
 			if (matcherProperty) {
-				this.validateHookMatcher(matcherProperty.value, report);
+				this.validateHookMatcher(matcherProperty.value, target, eventName, report);
 			}
 			if (hooksProperty.value.type !== 'sequence') {
 				report(toMarker(localize('promptValidator.nestedHooksMustBeArray', "The 'hooks' property in a matcher must be an array of command objects."), hooksProperty.value.range, MarkerSeverity.Error));
@@ -1126,10 +1126,10 @@ export class PromptValidator {
 		const actionType = typeProperty?.value.type === 'scalar' ? typeProperty.value.value : 'command';
 		switch (actionType) {
 			case 'command':
-				this.validateCopilotCommandHook(item, report);
+				this.validateCopilotCommandHook(item, eventName, report);
 				break;
 			case 'http':
-				this.validateCopilotHttpHook(item, report);
+				this.validateCopilotHttpHook(item, eventName, report);
 				break;
 			case 'prompt':
 				this.validateCopilotPromptHook(item, eventName, report);
@@ -1139,7 +1139,7 @@ export class PromptValidator {
 		}
 	}
 
-	private validateCopilotCommandHook(item: IMapValue, report: (markers: IMarkerData) => void): void {
+	private validateCopilotCommandHook(item: IMapValue, eventName: string, report: (markers: IMarkerData) => void): void {
 		const shellFields = new Set(['bash', 'powershell', 'command', 'windows', 'linux', 'osx']);
 		const validProperties = new Set(['type', ...shellFields, 'exec', 'args', 'cwd', 'env', 'timeoutSec', 'timeout', 'matcher']);
 		let hasShellCommand = false;
@@ -1161,7 +1161,7 @@ export class PromptValidator {
 			} else if (name === 'cwd') {
 				this.validateHookString(name, property.value, report);
 			} else if (name === 'matcher') {
-				this.validateHookMatcher(property.value, report);
+				this.validateHookMatcher(property.value, Target.GitHubCopilot, eventName, report);
 			} else if (name === 'env') {
 				this.validateHookStringMap(name, property.value, report);
 			} else if (name === 'timeout' || name === 'timeoutSec') {
@@ -1176,7 +1176,7 @@ export class PromptValidator {
 		}
 	}
 
-	private validateCopilotHttpHook(item: IMapValue, report: (markers: IMarkerData) => void): void {
+	private validateCopilotHttpHook(item: IMapValue, eventName: string, report: (markers: IMarkerData) => void): void {
 		const validProperties = new Set(['type', 'url', 'headers', 'allowedEnvVars', 'timeoutSec', 'timeout', 'matcher']);
 		const url = item.properties.find(property => property.key.value === 'url');
 		if (!url) {
@@ -1197,7 +1197,7 @@ export class PromptValidator {
 			} else if (name === 'allowedEnvVars') {
 				this.validateHookStringArray(name, property.value, report);
 			} else if (name === 'matcher') {
-				this.validateHookMatcher(property.value, report);
+				this.validateHookMatcher(property.value, Target.GitHubCopilot, eventName, report);
 			} else if (name === 'timeout' || name === 'timeoutSec') {
 				this.validateHookTimeout(name, property.value, report);
 			}
@@ -1234,13 +1234,27 @@ export class PromptValidator {
 		}
 	}
 
-	private validateHookMatcher(value: IValue, report: (markers: IMarkerData) => void): void {
+	private validateHookMatcher(value: IValue, target: Target, eventName: string, report: (markers: IMarkerData) => void): void {
+		const canonicalEventName = getCanonicalAgentHookName(Target.GitHubCopilot, eventName);
+		if (target === Target.GitHubCopilot && !['preToolUse', 'postToolUse', 'preMcpToolCall', 'permissionRequest', 'subagentStart', 'preCompact', 'notification'].includes(canonicalEventName ?? '')) {
+			return;
+		}
 		if (value.type !== 'scalar') {
 			report(toMarker(localize('promptValidator.hookMatcherMustBeString', "The 'matcher' property in a hook must be a string."), value.range, MarkerSeverity.Error));
 			return;
 		}
+		if (target === Target.GitHubCopilot && value.value.length === 0) {
+			report(toMarker(localize('promptValidator.hookMatcherMustNotBeEmpty', "The 'matcher' property in a hook must not be empty."), value.range, MarkerSeverity.Error));
+			return;
+		}
+		// PascalCase aliases use Claude-compatible matchers, including trimmed match-all patterns.
+		const isCompatibleMatcher = canonicalEventName !== undefined && canonicalEventName !== eventName;
+		const matcher = isCompatibleMatcher ? value.value.trim() : value.value;
+		if (isCompatibleMatcher && (matcher.length === 0 || matcher === '*' || matcher === '**')) {
+			return;
+		}
 		try {
-			new RegExp(value.value);
+			new RegExp(`^(?:${matcher})$`);
 		} catch {
 			report(toMarker(localize('promptValidator.hookMatcherMustBeValidRegex', "The 'matcher' property in a hook must be a valid regular expression."), value.range, MarkerSeverity.Error));
 		}
