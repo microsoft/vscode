@@ -441,6 +441,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const animFrameRequested = new Map<number /* window ID */, boolean>();
 	/**
+	 * The requestAnimationFrame function that made the pending request. A test that fakes
+	 * requestAnimationFrame and restores it before the frame fires leaves that request pending forever.
+	 */
+	const animFrameRequestedWith = new Map<number /* window ID */, Window['requestAnimationFrame']>();
+	/**
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
@@ -454,6 +459,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		NEXT_QUEUE.delete(vscodeWindowId);
 		CURRENT_QUEUE.delete(vscodeWindowId);
 		animFrameRequested.delete(vscodeWindowId);
+		animFrameRequestedWith.delete(vscodeWindowId);
 		inAnimationFrameRunner.delete(vscodeWindowId);
 	}));
 
@@ -489,8 +495,10 @@ class AnimationFrameQueueItem implements IDisposable {
 		}
 		nextQueue.push(item);
 
-		if (!animFrameRequested.get(targetWindowId)) {
+		// Also request again when requestAnimationFrame was replaced since the pending request: its callback may never run.
+		if (!animFrameRequested.get(targetWindowId) || animFrameRequestedWith.get(targetWindowId) !== targetWindow.requestAnimationFrame) {
 			animFrameRequested.set(targetWindowId, true);
+			animFrameRequestedWith.set(targetWindowId, targetWindow.requestAnimationFrame);
 			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
 		}
 

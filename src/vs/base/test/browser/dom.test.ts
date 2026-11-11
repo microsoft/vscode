@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, scheduleAtNextAnimationFrame } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -531,6 +531,23 @@ suite('dom', () => {
 			await waitForAnimationFrame();
 
 			assert.strictEqual(callCount, 0);
+		});
+
+		test('runs after requestAnimationFrame was faked and restored with a frame pending', async () => {
+			// Like a test that fakes requestAnimationFrame and restores it before the faked frame fires.
+			const realRequestAnimationFrame = mainWindow.requestAnimationFrame;
+			const ran: string[] = [];
+			mainWindow.requestAnimationFrame = () => 0;
+			try {
+				scheduleAtNextAnimationFrame(mainWindow, () => ran.push('during fake'));
+			} finally {
+				mainWindow.requestAnimationFrame = realRequestAnimationFrame;
+			}
+			scheduleAtNextAnimationFrame(mainWindow, () => ran.push('after restore'));
+
+			await waitForAnimationFrame();
+
+			assert.deepStrictEqual(ran, ['during fake', 'after restore']);
 		});
 
 		test('can schedule again after execution', async () => {
