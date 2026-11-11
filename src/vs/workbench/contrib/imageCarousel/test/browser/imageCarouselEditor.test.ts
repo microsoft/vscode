@@ -243,6 +243,36 @@ suite('ImageCarouselEditor', () => {
 				replaced: { data: VSBuffer.fromString('replaced'), mimeType: 'image/jpeg' },
 			});
 		});
+
+		(isWeb ? test.skip : test)('keeps the changes of a markup that applies them asynchronously when the preview goes away', async () => {
+			const { editor, parent } = createEditor();
+			const saved = new DeferredPromise<void>();
+			const result = new DeferredPromise<IImageCarouselMarkUpResult | undefined>();
+			let disposed = false;
+			// Like the screenshot tool's, this markup discards the changes that it has not applied when it is disposed.
+			const markUp = (): IImageCarouselMarkUp => ({
+				result: result.p,
+				focus: () => { },
+				finish: () => void saved.p.then(() => result.complete({ data: VSBuffer.fromString('marked'), mimeType: 'image/png' })),
+				dispose: () => {
+					disposed = true;
+					void result.complete(undefined);
+				},
+			});
+			await editor.setInput(store.add(new ImageCarouselEditorInput({
+				id: 'collection', title: 'Images', sections: [{ title: '', images: [{ id: 'image', name: 'image.png', mimeType: 'image/png', data: VSBuffer.fromString('image'), markUp }] }],
+			}, 0)), undefined, {}, CancellationToken.None);
+			editor.markUpCurrentImage();
+			editor.clearInput();
+			const whileApplying = { shown: !!parent.querySelector('.image-carousel-mark-up'), disposed };
+			await saved.complete();
+			const applied = await result.p;
+			assert.deepStrictEqual({ whileApplying, applied: applied?.data.toString(), disposed }, {
+				whileApplying: { shown: false, disposed: false },
+				applied: 'marked',
+				disposed: true,
+			});
+		});
 	});
 
 	test('reuses and revokes a concurrently loaded blob URL', async () => {

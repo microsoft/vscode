@@ -603,7 +603,14 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 				show(preview);
 			}
 		}));
-		const active: IActiveMarkUp = { index, markUp: store.add(image.markUp(markUpContainer)) };
+		const markUp = image.markUp(markUpContainer);
+		// Disposing a markup can discard changes that it has not applied yet, so it is only disposed once it has ended,
+		// also when the preview goes away first.
+		store.add(toDisposable(() => {
+			const disposeMarkUp = () => markUp.dispose();
+			void markUp.result.then(disposeMarkUp, disposeMarkUp);
+		}));
+		const active: IActiveMarkUp = { index, markUp };
 		this._markUp = active;
 		this._markingUpContext.set(true);
 		active.markUp.focus();

@@ -13,12 +13,15 @@ export interface IImageCarouselMarkUpResult {
 	readonly mimeType: string;
 }
 
-/** Marks up an image in the Images Preview, see {@link ICarouselImage.markUp}. */
+/**
+ * Marks up an image in the Images Preview, see {@link ICarouselImage.markUp}. Disposing it can discard changes that it
+ * has not applied yet, so the Images Preview only disposes it once `result` has settled.
+ */
 export interface IImageCarouselMarkUp extends IDisposable {
 	/** Resolves once the markup ends, with the changed image, or `undefined` when it did not change. */
 	readonly result: Promise<IImageCarouselMarkUpResult | undefined>;
 	focus(): void;
-	/** Ends the markup and keeps its changes, like its own Done does. */
+	/** Ends the markup and keeps its changes, like its own Done does. `result` settles once they are applied. */
 	finish(): void;
 }
 
