@@ -162,22 +162,19 @@ suite('FolderLocationStatusBarContribution', () => {
 			await frames(5);
 			assert.strictEqual(signal(), true);
 
-			element.style.display = 'none';
-			element.style.width = '20px';
+			element.style.visibility = 'hidden';
 			await frames(5);
 			assert.strictEqual(signal(), false);
 
-			element.style.display = 'block';
-			element.style.width = '30px';
+			element.style.visibility = 'visible';
 			await frames(5);
 			assert.strictEqual(signal(), true);
 
+			// marked as shown while hidden, at an unchanged size: observation ends without a resize
+			element.style.visibility = 'hidden';
 			shown.value = true;
-			element.style.display = 'none';
-			element.style.width = '40px';
 			await frames(5);
-			element.style.display = 'block';
-			element.style.width = '50px';
+			element.style.visibility = 'visible';
 			await frames(5);
 			assert.strictEqual(signal(), true);
 		});
