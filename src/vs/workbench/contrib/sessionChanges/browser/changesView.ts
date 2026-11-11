@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -85,7 +85,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../sessions/browser/fixCIChecks.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../sessions/providers/agentHost/browser/agentHostSkillButtons.js';
-import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -425,6 +425,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
+		const artifactIntegrationsEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionArtifactIntegrationsEnabledContext.key]))), () =>
+			SessionArtifactIntegrationsEnabledContext.getValue(contextKeyService) === true);
 		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
@@ -475,10 +477,15 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			// by the host because the Agent Merge menu keys off them to know it
 			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
 			// Merge is unavailable this state simply offers no button.
+			//
+			// With artifact integrations, the pull request artifact offers the
+			// pull request operations, such as Mark Ready and Merge, instead.
+			const hidesPullRequestOperations = artifactIntegrationsEnabledObs.read(reader);
 			const operations = changes.changesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
 				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
+				.filter(op => !hidesPullRequestOperations || !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))
 				.filter(op => !excludedOperationIds.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
