@@ -258,7 +258,7 @@ export class ModelPickerAction extends Action2 {
 				order: 1,
 				// Hidden on phone when the active provider supplies a combined
 				// mode + model picker instead (see MobileChatInputConfigPicker).
-				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate())),
 			}],
 		});
 	}
@@ -311,4 +311,3 @@ export class ModelPickerToolbarsContribution extends Disposable implements IWork
 		}
 	}
 }
-
