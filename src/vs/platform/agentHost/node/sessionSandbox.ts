@@ -9,6 +9,7 @@ import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSet
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { resolveSessionSandboxPaths } from '../common/sandboxPathGrant.js';
 import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from './agentConfigurationService.js';
 import type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
@@ -25,6 +26,11 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 		...getSessionSandboxOverrides(configuration, target),
 	};
 	const policy = configuration.getSessionSandboxPolicy(target.session);
+	const sessionPaths = configuration.getSessionSandboxPaths(target.session);
+	if (sessionPaths) {
+		const os = platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+		sandbox[AgentHostSandboxKey.UserConfiguredPaths] = resolveSessionSandboxPaths(sandbox[AgentHostSandboxKey.UserConfiguredPaths], sessionPaths, os);
+	}
 	const addCurrentWorkingDirectory = SandboxSettingsResolutionHelper.resolveAllowAccess(
 		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory],
 		policy?.addCurrentWorkingDirectory,
