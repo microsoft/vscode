@@ -56,7 +56,7 @@ import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevC
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkProgress, parseLinkDevContainerStateOutput } from './devContainerState.js';
+import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkProgress, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -168,6 +168,12 @@ const devContainerUpResultValidator = vObj({
 
 const devContainerUserCommandsResultValidator = vObj({
 	outcome: vLiteral('success'),
+});
+
+const devContainerErrorResultValidator = vObj({
+	outcome: vLiteral('error'),
+	description: vOptionalProp(vString()),
+	message: vOptionalProp(vString()),
 });
 
 const devContainerStateConfigurationValidator = vObj({
@@ -346,8 +352,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				}
 				upResult = up.parsed;
 				registerContainer(upResult.containerId);
+				// Containers created with the setting on keep their volume, so they are linked even if it is off now.
+				await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, !!config.persistUserState, tokenSource.token);
 				if (config.persistUserState) {
-					await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, tokenSource.token);
 					await this._runUserCommands(config.connectionId, [...selectorArgs, '--container-id', upResult.containerId], tokenSource.token, sandboxEnvironment);
 				}
 			}
@@ -488,8 +495,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				return result;
 			},
 			devcontainer: args => this._runDevContainer(connectionId, args, token),
-			linkUserState: (containerId, remoteUser) => this._linkUserState(connectionId, containerId, remoteUser, token),
-			reportUserStateMount: added => this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: added ? 'added' : 'failed', reason: added ? undefined : 'volume', target: 'volume' }),
+			linkUserState: (containerId, remoteUser) => this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, token),
+			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
+				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
+				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {
@@ -579,7 +588,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 			this._logService.warn(`${LOG_PREFIX} Cannot add user state volume mount`, error);
 			this._reportOutput(connectionId, `Cannot add user state volume mount: ${getErrorMessage(error)}\n`);
-			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'failed', reason, target });
+			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'failed', reason, target, errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) });
 			return [];
 		}
 	}
@@ -599,11 +608,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	/** Links user state folders to the container's user state volume, if it has one. */
-	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, token: CancellationToken): Promise<void> {
+	/** Links user state folders to the container's user state volume, if it has one. `enabled` is whether the setting is on. */
+	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, enabled: boolean, token: CancellationToken): Promise<void> {
 		let reason = 'inspect';
 		let target: string | undefined;
 		let exitCode: number | undefined;
+		let homeFolder: string | undefined;
 		let progress: IDevContainerStateLinkProgress | undefined;
 		const getProgress = () => progress && {
 			restoredFolders: progress.restoredFolders,
@@ -616,7 +626,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		try {
 			const mount = findDevContainerStateMount(await this._getContainerMounts(connectionId, containerId, token));
 			if (!mount) {
-				this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'noMount' });
+				if (enabled) {
+					this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'noMount' });
+				}
 				return;
 			}
 			target = getDevContainerStateTargetKind(mount.Destination);
@@ -627,7 +639,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			reason = 'user';
 			const environment = await this._resolveShellEnvironment();
 			const user = await this._runLocalCommand('docker', ['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', 'id -u; id -g; printf "%s\\n" "$HOME"'], environment, token);
-			const [uid, gid, homeFolder] = user.stdout.trim().split(/\r?\n/);
+			const [uid, gid, home] = user.stdout.trim().split(/\r?\n/);
+			homeFolder = home;
 			if (user.code !== 0 || !uid || !gid || !homeFolder) {
 				exitCode = user.code;
 				throw new Error(`Cannot read the Dev Container user (exit ${user.code}): ${user.stderr}`);
@@ -654,9 +667,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;
 			}
+			if (!enabled && reason === 'inspect') {
+				// With the setting off, only containers known to have a state volume are linked.
+				this._logService.trace(`${LOG_PREFIX} Cannot check for a user state volume`, error);
+				return;
+			}
 			this._logService.warn(`${LOG_PREFIX} Cannot keep user state on its volume`, error);
 			this._reportOutput(connectionId, `Cannot keep user state on its volume: ${getErrorMessage(error)}\n`);
-			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'failed', reason, step: progress?.step, exitCode, target, ...getProgress() });
+			const errorMessage = sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], { homeFolder, user: remoteUser });
+			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'failed', reason, step: progress?.step, exitCode, target, ...getProgress(), errorMessage });
 		}
 	}
 
@@ -680,7 +699,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			result = await this._runDevContainer(connectionId, args, token, environment);
 		} catch (error) {
 			if (report && !isCancellationError(error) && !token.isCancellationRequested) {
-				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run' });
+				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) });
 			}
 			throw error;
 		}
@@ -689,7 +708,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		if (report) {
 			this._onDidReportUserState.fire(succeeded
 				? { connectionId, stage, outcome: 'succeeded' }
-				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code });
+				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code, errorMessage: getDevContainerCliErrorMessage(result.stdout, result.stderr) });
 		}
 		return { stdout: result.stdout, stderr: result.stderr, parsed: succeeded ? parsed : undefined };
 	}
@@ -1343,6 +1362,28 @@ export function parseDevContainerUpResult(output: string): IDevContainerUpResult
 		}
 	}
 	return undefined;
+}
+
+/** A failed Dev Container CLI command's error result and Docker daemon error, or its stderr, for telemetry. */
+export function getDevContainerCliErrorMessage(stdout: string, stderr: string): string | undefined {
+	let result: { readonly description?: string; readonly message?: string } | undefined;
+	for (const line of stdout.trim().split('\n').reverse()) {
+		try {
+			const { content, error } = devContainerErrorResultValidator.validate(JSON.parse(line));
+			if (!error) {
+				result = content;
+				break;
+			}
+		} catch {
+			// Continue scanning earlier output lines.
+		}
+	}
+	// Docker daemon errors, e.g., for invalid mounts, only appear in the logs.
+	const daemonError = stderr.split('\n').reverse().find(line => line.includes('Error response from daemon:'));
+	const parts = result
+		? [result.description, result.message, daemonError?.substring(daemonError.indexOf('Error response from daemon:'))]
+		: [stderr];
+	return sanitizeDevContainerStateErrorMessage(parts);
 }
 
 export function parseDevContainerMounts(output: string): readonly IDevContainerMount[] {

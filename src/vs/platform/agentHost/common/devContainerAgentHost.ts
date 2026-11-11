@@ -73,6 +73,8 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly existingFolders?: number;
 	readonly skippedFolders?: number;
 	readonly skipReasons?: string;
+	/** Sanitized error message of a failed stage, see `sanitizeDevContainerStateErrorMessage`. */
+	readonly errorMessage?: string;
 }
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');

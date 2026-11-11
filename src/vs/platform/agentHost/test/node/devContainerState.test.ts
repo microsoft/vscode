@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, IDevContainerStateLinkOptions, parseLinkDevContainerStateOutput } from '../../node/devContainerState.js';
+import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, IDevContainerStateLinkOptions, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
 
 suite('DevContainerState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -112,5 +112,33 @@ suite('DevContainerState', () => {
 			{ step: 'home', homeFound: false, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 			{ step: undefined, homeFound: true, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 		]);
+	});
+
+	test('removes command lines, CLI logs, ids and the container user from error messages', () => {
+		const stateVolume = `vscode-state-${'v'.repeat(52)}`;
+		const containerId = 'a'.repeat(64);
+		assert.deepStrictEqual([
+			sanitizeDevContainerStateErrorMessage([
+				`Command in container failed: set -eu\nhome='/home/node'\nvolume=${stateVolume}`,
+				`Persisting ~/.copilot in /workspaces/.vscode-state/.copilot\nmkdir: cannot create directory '/home/node/.cache': Permission denied\nunable to find user node: no matching entries in passwd file\nnodes and Node.js`,
+				'Cannot link user state (exit 1): Not persisting ~/.config: it is already mounted',
+			], { homeFolder: '/home/node/', user: 'node' }),
+			sanitizeDevContainerStateErrorMessage([
+				undefined,
+				`[12 ms] Start: Run: docker run -e API_SECRET=1 ${containerId}\n\x1b[31mError: Command failed: /usr/bin/docker volume create --label a=b ${stateVolume}\x1b[0m\n  Error response from daemon: container ${containerId.substring(0, 12)} not found in ${stateVolume}  \n\n`,
+			]),
+			sanitizeDevContainerStateErrorMessage(['Cannot read the Dev Container user (exit 1): unable to find user root in /root/.profile'], { homeFolder: '/root', user: 'root' }),
+			sanitizeDevContainerStateErrorMessage(['', '[1 ms] Start: Run: docker ps']),
+		], [
+			`Command in container failed: set <args>\nmkdir: cannot create directory '~/.cache': Permission denied\nunable to find user <user>: no matching entries in passwd file\nnodes and Node.js\nCannot link user state (exit 1):`,
+			`Error: Command failed: docker volume <args>\nError response from daemon: container <id> not found in vscode-state-<id>`,
+			'Cannot read the Dev Container user (exit 1): unable to find user root in ~/.profile',
+			undefined,
+		]);
+	});
+
+	test('keeps the start and end of long error messages', () => {
+		const message = sanitizeDevContainerStateErrorMessage([`start ${'x'.repeat(2000)} end`]);
+		assert.deepStrictEqual({ length: message?.length, start: message?.startsWith('start x'), end: message?.endsWith('x end'), elided: message?.includes('\n…\n') }, { length: 1000, start: true, end: true, elided: true });
 	});
 });

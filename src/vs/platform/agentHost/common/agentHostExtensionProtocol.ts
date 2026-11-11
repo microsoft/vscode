@@ -76,6 +76,7 @@ export const devContainerUserStateValidator = vObj({
 	existingFolders: vOptionalProp(vNumber()),
 	skippedFolders: vOptionalProp(vNumber()),
 	skipReasons: vOptionalProp(vString()),
+	errorMessage: vOptionalProp(vString()),
 });
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),

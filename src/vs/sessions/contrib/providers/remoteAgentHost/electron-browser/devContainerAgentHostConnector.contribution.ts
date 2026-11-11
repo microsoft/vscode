@@ -74,6 +74,8 @@ type DevContainerStateVolumeEvent = {
 	createdFolders: number | undefined;
 	existingFolders: number | undefined;
 	skippedFolders: number | undefined;
+	errorMessage: string | undefined;
+	enabled: boolean;
 	sample: boolean;
 	remote: boolean;
 };
@@ -93,11 +95,13 @@ type DevContainerStateVolumeClassification = {
 	createdFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of new state folders created on the volume.' };
 	existingFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders that were already linked.' };
 	skippedFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders not persisted.' };
+	errorMessage: { classification: 'CallstackOrException'; purpose: 'FeatureInsight'; comment: 'Error message of a failed stage without command lines, ids and the container user; the telemetry service also redacts paths and secrets.' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.stateVolume.enabled setting is on. Linking also runs for containers created with it on.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
 	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
 };
 
-export function reportDevContainerUserState(telemetryService: ITelemetryService, report: IDevContainerAgentHostUserStateReport, sample: boolean, remote: boolean): void {
+export function reportDevContainerUserState(telemetryService: ITelemetryService, report: IDevContainerAgentHostUserStateReport, enabled: boolean, sample: boolean, remote: boolean): void {
 	telemetryService.publicLog2<DevContainerStateVolumeEvent, DevContainerStateVolumeClassification>('vscodeAgents.devContainer/stateVolume', {
 		stage: report.stage,
 		outcome: report.outcome,
@@ -111,6 +115,8 @@ export function reportDevContainerUserState(telemetryService: ITelemetryService,
 		createdFolders: report.createdFolders,
 		existingFolders: report.existingFolders,
 		skippedFolders: report.skippedFolders,
+		errorMessage: report.errorMessage,
+		enabled,
 		sample,
 		remote,
 	});
@@ -513,7 +519,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			if (mainService.onDidReportUserState) {
 				connectionStore.add(mainService.onDidReportUserState(event => {
 					if (connectionIds.has(event.connectionId)) {
-						reportDevContainerUserState(this._telemetryService, event, !!sample, !!sourceEntry);
+						reportDevContainerUserState(this._telemetryService, event, persistUserState, !!sample, !!sourceEntry);
 					}
 				}));
 			}

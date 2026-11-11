@@ -292,6 +292,57 @@ export function parseLinkDevContainerStateOutput(stdout: string): IDevContainerS
 	};
 }
 
+/** Values that identify the container user, removed from error messages for telemetry. */
+export interface IDevContainerStateErrorValues {
+	readonly homeFolder?: string;
+	readonly user?: string;
+}
+
+const maxErrorMessageLength = 1000;
+const errorMessageHeadLength = 300;
+const failedCommandPattern = String.raw`\b(Command(?: in \w+)? failed): (\S+)(?: ([a-z][\w-]*)(?=\s|$))?`;
+
+/**
+ * Builds an error message for telemetry from parts such as an error message and a command's stderr. Removes command
+ * lines, Dev Containers CLI log entries, ids and the container user. The telemetry service redacts paths and secrets.
+ */
+export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | undefined)[], values: IDevContainerStateErrorValues = {}): string | undefined {
+	const replacements: [RegExp, string][] = [
+		[/vscode-state-[0-9a-v]{52}/g, 'vscode-state-<id>'],
+		[/\b(?:[0-9a-f]{64}|[0-9a-f]{12})\b/g, '<id>'],
+	];
+	const homeFolder = values.homeFolder?.replace(/\/+$/, '');
+	if (homeFolder) {
+		replacements.push([new RegExp(`${escapeRegExp(homeFolder)}(?![\\w.-])`, 'g'), '~']);
+	}
+	if (values.user && values.user !== 'root') {
+		replacements.push([new RegExp(`(?<![\\w.-])${escapeRegExp(values.user)}(?![\\w.-])`, 'g'), '<user>']);
+	}
+	const summarizeCommand = (_match: string, prefix: string, command: string, subcommand: string | undefined, args: string) =>
+		`${prefix}: ${command.split(/[\\/]/).pop()}${subcommand ? ` ${subcommand}` : ''}${args.trim() ? ' <args>' : ''}`;
+	const lines = parts.flatMap(part => {
+		let text = (part || '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+		// A part starting with a failed command is the command line, which can span lines and contain local values.
+		const wholePart = new RegExp(`^\\s*${failedCommandPattern}([\\s\\S]*)$`);
+		text = wholePart.test(text) ? text.replace(wholePart, summarizeCommand) : text.replace(new RegExp(`${failedCommandPattern}(.*)`, 'g'), summarizeCommand);
+		return text.split(/\r?\n/)
+			// CLI log entries include command lines. The link command's messages are informational.
+			.map(line => line.replace(/\[\d+ ms\].*/, '').replace(/(^|: )\s*(?:Persisting|Not persisting) ~\/.*/, '$1'))
+			.map(line => replacements.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), line).trim())
+			.filter(line => !!line);
+	});
+	const message = lines.join('\n');
+	if (message.length <= maxErrorMessageLength) {
+		return message || undefined;
+	}
+	// The specific error is usually at the end.
+	return `${message.substring(0, errorMessageHeadLength)}\n…\n${message.substring(message.length - (maxErrorMessageLength - errorMessageHeadLength - 3))}`;
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function isFolderName(value: string): boolean {
 	return /^[A-Za-z0-9._-]+$/.test(value) && value !== '.' && value !== '..';
 }

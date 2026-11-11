@@ -27,8 +27,10 @@ interface ISampleCommands {
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly readSource: () => Promise<{ readonly commitSha: string; readonly content: string }>;
 	readonly onContainerStarted: (containerId: string) => void;
+	/** Links user state folders if the container has a state volume, which containers created with the setting on keep. */
 	readonly linkUserState?: (containerId: string, remoteUser: string) => Promise<void>;
-	readonly reportUserStateMount?: (added: boolean) => void;
+	/** Reports that the state volume was added, or the error adding it. */
+	readonly reportUserStateMount?: (error?: unknown) => void;
 }
 
 export interface IPreparedDevContainerSample {
@@ -154,12 +156,12 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 				checked(await commands.docker(['volume', 'create', ...getDevContainerStateVolumeLabels(devContainerId).flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
 			} catch (error) {
 				if (!isCancellationError(error)) {
-					commands.reportUserStateMount?.(false);
+					commands.reportUserStateMount?.(error);
 				}
 				throw error;
 			}
 		}
-		commands.reportUserStateMount?.(true);
+		commands.reportUserStateMount?.();
 		// The repository volume is mounted at /workspaces.
 		userStateMountArgs.push('--mount', getDevContainerStateMount(devContainerId, devContainerStateFallbackTarget));
 	}
@@ -173,9 +175,7 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	if (errors.length || !isRecord(result) || result.outcome !== 'success' || typeof result.containerId !== 'string' || !result.containerId || typeof result.remoteUser !== 'string' || !result.remoteUser || result.remoteWorkspaceFolder !== workspace) {
 		throw new Error(localize('devContainerSample.invalidUpResult', "The Dev Container CLI returned an invalid sample container."));
 	}
-	if (persistUserState) {
-		await commands.linkUserState?.(result.containerId, result.remoteUser);
-	}
+	await commands.linkUserState?.(result.containerId, result.remoteUser);
 
 	// Publish only a complete checkout, and never replace an existing workspace.
 	const cloneScript = `set -eu
