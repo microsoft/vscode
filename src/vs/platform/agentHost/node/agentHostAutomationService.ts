@@ -51,6 +51,7 @@ const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
 const SCHEDULE_RETRY_DELAY_MS = 60_000;
 const RUN_HISTORY_PAGE_SIZE = 50;
+const HISTORY_DELETION_CHECKPOINT_SIZE = 50;
 /** Gives the network time to reconnect after a full wake before resuming a turn that sleep broke; resumes also wait until scheduled work is ready. */
 const RESUME_AFTER_WAKE_DELAY_MS = 10_000;
 
@@ -565,6 +566,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private async _deleteHistory(resource: string): Promise<readonly string[]> {
 		while (true) {
 			let failure: unknown;
+			let deletedSessions: string[] = [];
 			const sessions = await this._enqueueMutation(() => Promise.resolve(this._historyDeletions.get(resource)?.sessions ?? []));
 			if (sessions.length === 0) {
 				const completed = await this._enqueueMutation(() => this._completeHistoryDeletion(resource));
@@ -584,12 +586,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 						await this._enqueueMutation(() => this._recordHistoryDeletionProvider(resource, entry.session, provider));
 					}
 					await this._execution.deleteSession(session, provider);
-					await this._enqueueMutation(() => this._recordDeletedHistorySession(resource, entry.session));
+					deletedSessions.push(entry.session);
+					if (deletedSessions.length === HISTORY_DELETION_CHECKPOINT_SIZE) {
+						await this._enqueueMutation(() => this._recordDeletedHistorySessions(resource, deletedSessions));
+						deletedSessions = [];
+					}
 				} catch (error) {
 					this._logService.error(`[AgentHostAutomationService] Failed to delete Automation history session ${entry.session}`, error);
 					failure = error;
 				}
 			}
+			await this._enqueueMutation(() => this._recordDeletedHistorySessions(resource, deletedSessions));
 			if (failure) {
 				throw failure;
 			}
@@ -609,16 +616,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
 	}
 
-	private async _recordDeletedHistorySession(resource: string, session: string): Promise<void> {
+	private async _recordDeletedHistorySessions(resource: string, sessions: readonly string[]): Promise<void> {
+		if (sessions.length === 0) {
+			return;
+		}
 		const current = this._historyDeletions.get(resource);
 		if (!current) {
 			return;
 		}
 		const deletions = new Map(this._historyDeletions);
+		const deletedSessions = new Set(current.deletedSessions ?? []);
+		for (const session of sessions) {
+			deletedSessions.add(session);
+		}
 		deletions.set(resource, {
 			...current,
-			sessions: current.sessions.filter(candidate => candidate.session !== session),
-			deletedSessions: [...new Set([...(current.deletedSessions ?? []), session])],
+			sessions: current.sessions.filter(candidate => !deletedSessions.has(candidate.session)),
+			deletedSessions: [...deletedSessions],
 		});
 		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
 	}

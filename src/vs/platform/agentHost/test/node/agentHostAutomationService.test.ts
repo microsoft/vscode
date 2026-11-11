@@ -575,6 +575,37 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	test('checkpoints retained history deletion in batches', async () => {
+		const automation = createAction().resource;
+		const runs: AutomationRunState[] = Array.from({ length: 100 }, (_, index) => ({
+			resource: `ahp-automation-run:/checkpoint-${index}`, automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(index).toISOString(), startedAt: new Date(index).toISOString(), completedAt: new Date(index).toISOString() },
+			sessions: [`ahp-session:/checkpoint-${index}`],
+			primarySession: `ahp-session:/checkpoint-${index}`,
+		}));
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs, runProviders: Object.fromEntries(runs.map(run => [run.resource, 'codex'])),
+		});
+		await storageService.whenIdle();
+		let deleted = 0;
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => { deleted++; },
+		});
+		await service.handleConfigurationChanged();
+		const writesBeforeDeletion = writeAttempts;
+		await service.deleteAutomation(automation, true);
+		assert.deepStrictEqual({
+			deleted,
+			storageWrites: writeAttempts - writesBeforeDeletion,
+		}, {
+			deleted: 100,
+			storageWrites: 4,
+		});
+	});
+
 	test('receipts completed history deletion until the client acknowledges it', async () => {
 		const automation = createAction().resource;
 		const session = URI.parse('ahp-session:/receipted');
