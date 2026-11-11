@@ -8,29 +8,21 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable, ImmortalReference, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { GitHubCommit, GitHubIssue, GitHubIssueRef } from '../../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
+import { getPullRequestUrlKey } from '../../../../../platform/github/common/githubUrls.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPRFetcher } from '../../../../../sessions/contrib/github/browser/fetchers/githubPRFetcher.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestCIModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestCIModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestReviewThreadsModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestReviewThreadsModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubIssueModel } from '../../../../../sessions/contrib/github/browser/models/githubIssueModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubIssueFetcher } from '../../../../../sessions/contrib/github/browser/fetchers/githubIssueFetcher.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubCIOverallStatus, IGitHubIssue, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../../../sessions/contrib/github/common/types.js';
+import { GitHubPRFetcher } from '../../../../contrib/sessions/browser/github/fetchers/githubPRFetcher.js';
+import { GitHubPullRequestModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { GitHubIssueModel } from '../../../../contrib/sessions/browser/github/models/githubIssueModel.js';
+import { GitHubIssueFetcher } from '../../../../contrib/sessions/browser/github/fetchers/githubIssueFetcher.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { IPullRequestIconCache } from '../../../../contrib/sessions/browser/github/pullRequestIconCache.js';
+import { GitHubCIOverallStatus, IGitHubIssue, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../../contrib/sessions/common/github/types.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 
 interface IFixturePullRequestEntry {
@@ -45,14 +37,18 @@ interface IFixtureIssueEntry {
 	readonly issue: IGitHubIssue;
 }
 
-class FixtureGitHubPRFetcher extends mock<GitHubPRFetcher>() { }
+const fixtureGitHubClient = upcastPartial<GitHubPRFetcher['client']>({ onDidChange: Event.None, generation: 0 });
+
+class FixtureGitHubPRFetcher extends mock<GitHubPRFetcher>() {
+	override readonly client = fixtureGitHubClient;
+}
 
 class FixtureGitHubPullRequestModel extends GitHubPullRequestModel {
 
 	override readonly pullRequest: IObservable<IGitHubPullRequest | undefined>;
 
 	constructor(owner: string, repo: string, prNumber: number, pullRequest: IGitHubPullRequest | undefined) {
-		super(owner, repo, prNumber, new FixtureGitHubPRFetcher(), new NullLogService());
+		super(owner, repo, prNumber, new FixtureGitHubPRFetcher(), new NullLogService(), createFixturePullRequestIconCache());
 		this.pullRequest = constObservable(pullRequest);
 	}
 
@@ -80,7 +76,9 @@ class FixtureGitHubPullRequestModelReferenceCollection extends ReferenceCollecti
 	}
 }
 
-class FixtureGitHubIssueFetcher extends mock<GitHubIssueFetcher>() { }
+class FixtureGitHubIssueFetcher extends mock<GitHubIssueFetcher>() {
+	override readonly client = fixtureGitHubClient;
+}
 
 class FixtureGitHubIssueModel extends GitHubIssueModel {
 
@@ -169,8 +167,14 @@ export function createFixturePullRequestIconCache(): IPullRequestIconCache {
 	const icons = new Map<string, ThemeIcon>();
 	return {
 		_serviceBrand: undefined,
-		get: link => icons.get(link),
-		set: (link, icon) => { icons.set(link, icon); },
+		get: link => icons.get(getPullRequestUrlKey(link)),
+		getEntry: link => {
+			const icon = icons.get(getPullRequestUrlKey(link));
+			return icon ? { icon } : undefined;
+		},
+		set: (link, icon) => { icons.set(getPullRequestUrlKey(link), icon); },
+		getState: () => undefined,
+		setState: () => { },
 	};
 }
 
@@ -287,11 +291,9 @@ function createPullRequestSnapshot(ref: PullRequestRef): PullRequestSnapshot {
 		core: { status: 'missing', complete: false },
 		topLevelComments: { status: 'missing', complete: false },
 		submittedReviews: { status: 'missing', complete: false },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'missing', complete: false },
 		checks: { status: 'missing', complete: false },
 		mergeability: { status: 'missing', complete: false },
-		participants: { status: 'missing', complete: false },
 	};
 }
 

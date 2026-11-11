@@ -32,7 +32,6 @@ const policy: PullRequestPollingPolicy = {
 	checksBackstop: 500,
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
-	participants: 300,
 	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
@@ -90,7 +89,6 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 			case 'core': return { fragment, value: core(this.headSha), complete: true };
 			case 'topLevelComments': return { fragment, value: [{ id: 'C1', body: options.conversation?.includeBodies ? 'body' : undefined }], complete: true };
 			case 'submittedReviews': return { fragment, value: [], complete: true };
-			case 'inlineComments': return { fragment, value: [], complete: true };
 			case 'reviewThreads': return { fragment, value: [], complete: true, headSha: this.headSha };
 			case 'checks': return {
 				fragment,
@@ -121,7 +119,6 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 				complete: true,
 				headSha: this.headSha,
 			};
-			case 'participants': return { fragment, value: { participants: [] }, complete: true };
 		}
 	}
 }
@@ -140,15 +137,15 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 		return this.credential;
 	}
 
-	resolveCredential(): Promise<GitHubCredential> {
-		return Promise.resolve(this.credential);
-	}
-
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
 		this._controller.abort(new Error('credential invalidated'));
 		this._onDidInvalidate.fire({ credential: this.credential, reason });
+	}
+
+	reauthorize(): void {
+		this._onDidInvalidate.fire({ credential: this.credential, reason: 'reauthorization' });
 	}
 
 	dispose(): void {
@@ -250,7 +247,6 @@ suite('PullRequestResourceService', () => {
 					headSha: undefined,
 				},
 				submittedReviews: { status: 'missing', complete: false },
-				inlineComments: { status: 'missing', complete: false },
 				reviewThreads: { status: 'missing', complete: false },
 				checks: {
 					value: {
@@ -267,7 +263,6 @@ suite('PullRequestResourceService', () => {
 					headSha: 'head-1',
 				},
 				mergeability: { status: 'missing', complete: false },
-				participants: { status: 'missing', complete: false },
 			},
 		});
 
@@ -520,6 +515,71 @@ suite('PullRequestResourceService', () => {
 		subscription.dispose();
 	});
 
+	test('reauthorization retries only the fragments the credential failed', async () => {
+		const { clock, credentials, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, { priority: 'interactive', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		queries.handlers.set('checks', () => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); });
+		await assert.rejects(subscription.refresh('checks'));
+		queries.handlers.delete('checks');
+		queries.calls.length = 0;
+
+		credentials.reauthorize();
+		clock.flushDue();
+		await flushAsync();
+
+		const snapshot = subscription.resource.snapshot.get();
+		assert.deepStrictEqual({
+			calls: queries.calls.map(call => call.fragment),
+			core: snapshot.core.status,
+			checks: { status: snapshot.checks.status, error: snapshot.checks.error },
+			credentialAborted: credentials.credential.signal.aborted,
+		}, {
+			calls: ['checks'],
+			core: 'ready',
+			checks: { status: 'ready', error: undefined },
+			credentialAborted: false,
+		});
+		subscription.dispose();
+	});
+
+	test('retries a credential refusal of a request sent before reauthorization without refreshing healthy fragments', async () => {
+		const { credentials, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, { priority: 'interactive', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		queries.calls.length = 0;
+		const started = new DeferredPromise<void>();
+		const refuse = new DeferredPromise<void>();
+		let attempts = 0;
+		queries.handlers.set('checks', async () => {
+			if (++attempts === 1) {
+				await started.complete();
+				await refuse.p;
+				throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403);
+			}
+			return checksResult('reauthorized');
+		});
+		const pending = subscription.refresh('checks');
+		await started.p;
+		credentials.reauthorize();
+		await refuse.complete();
+		await pending;
+
+		const checks = subscription.resource.snapshot.get().checks;
+		assert.deepStrictEqual({
+			calls: queries.calls.map(call => call.fragment),
+			status: checks.status,
+			error: checks.error,
+			checkId: checks.value?.checks[0]?.id,
+		}, {
+			calls: ['checks', 'checks'],
+			status: 'ready',
+			error: undefined,
+			checkId: 'reauthorized',
+		});
+		subscription.dispose();
+	});
+
 	test('supersedes in-flight work when a subscriber expands the data shape', async () => {
 		const { queries, service } = setup();
 		const firstStarted = new DeferredPromise<void>();
@@ -737,6 +797,25 @@ suite('PullRequestResourceService', () => {
 		clock.advanceBy(10_000);
 		await flushAsync();
 		assert.deepStrictEqual(queries.calls, []);
+		subscription.dispose();
+	});
+
+	test('polls checks soon while a required check has not reported', async () => {
+		const { clock, queries, service } = setup();
+		queries.handlers.set('checks', () => ({
+			fragment: 'checks',
+			value: { headSha: 'head-1', requirednessComplete: true, requiredContexts: ['PR Gate'], expectedSuites: [], expectedSuitesComplete: true, checks: [] },
+			complete: true,
+			headSha: 'head-1',
+		}));
+		const subscription = service.subscribePullRequest(ref, { priority: 'background', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		await subscription.refresh('checks');
+
+		queries.calls.length = 0;
+		clock.advanceBy(policy.checksPendingBackground);
+		await flushAsync();
+		assert.deepStrictEqual(queries.calls.map(call => call.fragment), ['checks']);
 		subscription.dispose();
 	});
 });

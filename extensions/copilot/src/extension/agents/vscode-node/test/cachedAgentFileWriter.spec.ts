@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'chai';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, expect, suite, test } from 'vitest';
+import { afterEach, assert, beforeEach, expect, suite, test } from 'vitest';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';

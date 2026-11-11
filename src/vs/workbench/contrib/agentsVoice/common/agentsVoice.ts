@@ -34,7 +34,10 @@ export const AGENTS_VOICE_ENTITLED = new RawContextKey<boolean>('agentsVoiceEnti
 export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals('config.agents.voice.enabled', true),
-	AGENTS_VOICE_ENTITLED,
+	ContextKeyExpr.or(
+		AGENTS_VOICE_ENTITLED,
+		ContextKeyExpr.regex('config.agents.voice.useBYOKVoiceModel', /\S/),
+	),
 )!;
 
 export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | undefined {
@@ -43,6 +46,8 @@ export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | unde
 
 export const enum AgentsVoiceSettingId {
 	ShowButton = 'agents.voice.showButton',
+	UseBYOKVoiceModel = 'agents.voice.useBYOKVoiceModel',
+	SessionAwareness = 'agents.voice.sessionAwareness',
 }
 
 /**
@@ -52,13 +57,14 @@ export const AGENTS_VOICE_WINDOW_DEFAULT_WIDTH = 400;
 export const AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT = 70;
 
 /**
- * Storage keys for persisting window state across restarts.
+ * Storage keys for persisting Voice Mode state across restarts.
  */
 export const enum AgentsVoiceStorageKeys {
 	WindowOpen = 'agentsVoice.windowOpen',
 	WindowBounds = 'agentsVoice.windowBounds',
 	TranscriptIndex = 'agentsVoice.transcriptIndex',
 	OnboardingCompleted = 'agentsVoice.onboardingCompleted',
+	GptLiveNoticeShown = 'agentsVoice.gptLiveNoticeShown',
 	/**
 	 * First-run introduction shown above the chat input. Distinct from
 	 * {@link OnboardingCompleted}, which tracks the Voice Mode window's own

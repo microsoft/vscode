@@ -316,6 +316,10 @@ export class McpServerRequestHandler extends Disposable {
 					result = this._createMessageRequestHandler(request.params, token);
 				}
 			} else if (request.method === 'elicitation/create' && this._elicitationRequestHandler) {
+				if (typeof request.params?.message !== 'string') {
+					throw new McpError(MCP.INVALID_PARAMS, 'Elicitation message must be a string');
+				}
+
 				// Check if this is a task-augmented request
 				if (request.params.task) {
 					const taskResult = this._taskManager.createTask(

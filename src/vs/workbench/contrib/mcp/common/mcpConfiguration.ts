@@ -182,6 +182,61 @@ const mcpDevModeProps = (stdio: boolean): IJSONSchemaMap => ({
 	}
 });
 
+const mcpSandboxSchema = (allowGrants: boolean): IJSONSchema => ({
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		network: {
+			description: localize('app.mcp.json.sandbox.network', "Network access settings for the sandboxed server."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				...(allowGrants && {
+					allowedDomains: {
+						description: localize('app.mcp.json.sandbox.network.allowedDomains', "List of domains that the server is allowed to access. Wildcards are supported, e.g. `*.example.com`."),
+						type: 'array',
+						items: { type: 'string' },
+						default: []
+					},
+				}),
+				deniedDomains: {
+					description: localize('app.mcp.json.sandbox.network.deniedDomains', "List of domains that the server is not allowed to access. e.g. `invalid.example.com`."),
+					type: 'array',
+					items: { type: 'string' },
+					default: []
+				}
+			}
+		},
+		filesystem: {
+			description: localize('app.mcp.json.sandbox.filesystem', "Filesystem access settings for the sandboxed server. Glob patterns are supported for Mac OS only."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				denyRead: {
+					description: localize('app.mcp.json.sandbox.filesystem.denyRead', "List of file paths that the server is not allowed to read. By default, all files are allowed to be read. e.g. `~/src/secrets`."),
+					type: 'array',
+					items: { type: 'string' },
+					default: []
+				},
+				...(allowGrants && {
+					allowWrite: {
+						description: localize('app.mcp.json.sandbox.filesystem.allowWrite', "List of file paths that the server is allowed to write to. e.g. `~/src/`."),
+						type: 'array',
+						items: { type: 'string' },
+						default: []
+					},
+				}),
+				denyWrite: {
+					description: localize('app.mcp.json.sandbox.filesystem.denyWrite', "List of file paths that the server is not allowed to write to. e.g. `~/src/auth/`."),
+					type: 'array',
+					items: { type: 'string' },
+					default: []
+				}
+			}
+		}
+	}
+});
+
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
@@ -196,6 +251,10 @@ export const mcpStdioServerSchema: IJSONSchema = {
 			type: 'boolean',
 			default: false,
 			description: localize('app.mcp.json.sandboxEnabled', "Whether to run the server in a sandboxed environment.")
+		},
+		sandbox: {
+			...mcpSandboxSchema(true),
+			description: localize('app.mcp.json.serverSandbox', "Sandbox filesystem and network permissions for this server only. Root-level sandbox deny rules also apply. Dialog approvals are saved here. Requires sandboxEnabled on macOS or Linux.")
 		},
 		command: {
 			type: 'string',
@@ -291,55 +350,8 @@ export const mcpServerSchema: IJSONSchema = {
 	additionalProperties: false,
 	properties: {
 		sandbox: {
-			description: localize('app.mcp.json.sandbox', "Sandbox config that determines file system and network access. Sandboxing is enabled when sandboxEnabled property is set at the server level on Mac OS and Linux only."),
-			type: 'object',
-			additionalProperties: false,
-			properties: {
-				network: {
-					description: localize('app.mcp.json.sandbox.network', "Network access settings for the sandboxed server."),
-					type: 'object',
-					additionalProperties: false,
-					properties: {
-						allowedDomains: {
-							description: localize('app.mcp.json.sandbox.network.allowedDomains', "List of domains that the server is allowed to access. Wildcards are supported, e.g. `*.example.com`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						},
-						deniedDomains: {
-							description: localize('app.mcp.json.sandbox.network.deniedDomains', "List of domains that the server is not allowed to access. e.g. `invalid.example.com`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						}
-					}
-				},
-				filesystem: {
-					description: localize('app.mcp.json.sandbox.filesystem', "Filesystem access settings for the sandboxed server. Glob patterns are supported for Mac OS only."),
-					type: 'object',
-					additionalProperties: false,
-					properties: {
-						denyRead: {
-							description: localize('app.mcp.json.sandbox.filesystem.denyRead', "List of file paths that the server is not allowed to read. By default, all files are allowed to be read. e.g. `~/src/secrets`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						},
-						allowWrite: {
-							description: localize('app.mcp.json.sandbox.filesystem.allowWrite', "List of file paths that the server is allowed to write to. e.g. `~/src/`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						},
-						denyWrite: {
-							description: localize('app.mcp.json.sandbox.filesystem.denyWrite', "List of file paths that the server is not allowed to write to. e.g. `~/src/auth/`."),
-							type: 'array',
-							items: { type: 'string' },
-							default: []
-						}
-					}
-				}
-			}
+			...mcpSandboxSchema(false),
+			description: localize('app.mcp.json.sandbox', "Sandbox deny rules shared by all servers in this file. Allow rules are only supported in a server's sandbox property; root-level allow rules are ignored. Sandboxing requires sandboxEnabled at the server level on macOS or Linux.")
 		},
 		servers: {
 			examples: [

@@ -4,9 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
+import packageJson from '../../../../../package.json';
 import { ContributedToolName, getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../toolNames';
 
 describe('ToolNames', () => {
+	it('retires workspace generation without removing standard project tools', () => {
+		const toolNames = packageJson.contributes.languageModelTools.map(tool => tool.name);
+		const retiredSettings = [
+			'github.copilot.chat.newWorkspaceCreation.enabled',
+			'github.copilot.chat.newWorkspace.useContext7',
+			'github.copilot.chat.useProjectTemplates',
+		];
+
+		expect({
+			workspaceAliases: [
+				...Object.values(ToolName),
+				...Object.values(ContributedToolName),
+				...toolNames,
+				...packageJson.contributes.languageModelToolSets.flatMap(toolSet => toolSet.tools),
+			].filter(name => ['create_new_workspace', 'copilot_createNewWorkspace', 'newWorkspace'].includes(name)),
+			workspaceCommands: packageJson.contributes.chatParticipants.flatMap(participant => participant.commands ?? []).filter(command => command.name === 'new'),
+			workspaceSettings: packageJson.contributes.configuration.flatMap(configuration => Object.keys(configuration.properties)).filter(key => retiredSettings.includes(key)),
+			workspaceSkills: packageJson.contributes.chatSkills.filter(skill => skill.path.includes('project-setup-info')),
+			retainedTools: [
+				ContributedToolName.CreateFile,
+				ContributedToolName.CreateDirectory,
+				ContributedToolName.CreateNewJupyterNotebook,
+			].filter(name => toolNames.includes(name)),
+		}).toEqual({
+			workspaceAliases: [],
+			workspaceCommands: [],
+			workspaceSettings: [],
+			workspaceSkills: [],
+			retainedTools: [
+				ContributedToolName.CreateFile,
+				ContributedToolName.CreateDirectory,
+				ContributedToolName.CreateNewJupyterNotebook,
+			],
+		});
+	});
+
 	it('Can map tool names', async () => {
 		expect(getContributedToolName(ToolName.ApplyPatch)).toBe(ContributedToolName.ApplyPatch);
 		expect(getToolName(ContributedToolName.ApplyPatch)).toBe(ToolName.ApplyPatch);

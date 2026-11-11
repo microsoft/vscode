@@ -7,7 +7,6 @@ import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,6 +15,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
@@ -31,19 +31,16 @@ class ControllableStatFileSystemProvider extends InMemoryFileSystemProvider {
 
 suite('SessionDataService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let service: SessionDataService;
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		service = new SessionDataService(basePath, fileService, new NullLogService());
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getSessionDataDir returns correct URI', () => {
 		const session = AgentSession.uri('copilot', 'abc-123');
@@ -113,6 +110,55 @@ suite('SessionDataService', () => {
 		}
 	});
 
+	test('deleteSessionDataExcept keeps the named children and fires the will-delete event', async () => {
+		const session = AgentSession.uri('copilot', 'session-keep');
+		const dir = service.getSessionDataDir(session);
+		await fileService.writeFile(URI.joinPath(dir, 'session.db'), VSBuffer.fromString('db'));
+		await fileService.writeFile(URI.joinPath(dir, 'attachments', 'id', 'note.txt'), VSBuffer.fromString('note'));
+		const events: string[] = [];
+		const listener = service.onWillDeleteSessionData(e => events.push(`${e.session.toString()} ${e.workingDirectories?.join(',')}`));
+
+		await service.deleteSessionDataExcept(session, ['attachments'], ['file:///repo']);
+		const kept = (await fileService.resolve(dir)).children?.map(child => child.name);
+		await service.deleteSessionData(session);
+		listener.dispose();
+
+		assert.deepStrictEqual({ kept, removed: !(await fileService.exists(dir)), events }, {
+			kept: ['attachments'],
+			removed: true,
+			events: [`${session.toString()} file:///repo`, `${session.toString()} undefined`],
+		});
+	});
+
+	test('deleteSessionDataExcept treats what a concurrent delete removed first as deleted', async () => {
+		const racingScheme = 'racing-session-data';
+		const racingFiles = disposables.add(new FileService(new NullLogService()));
+		/** Deletes the whole session directory while its children are being listed, like a concurrent full delete. */
+		class ConcurrentlyDeletingProvider extends InMemoryFileSystemProvider {
+			override async readdir(resource: URI) {
+				const entries = await super.readdir(resource);
+				if (resource.path.endsWith('/session-race')) {
+					await super.delete(resource, { recursive: true, useTrash: false, atomic: false });
+				}
+				return entries;
+			}
+		}
+		disposables.add(racingFiles.registerProvider(racingScheme, disposables.add(new ConcurrentlyDeletingProvider())));
+		const warnings: string[] = [];
+		const racing = new SessionDataService(URI.from({ scheme: racingScheme, path: '/userData' }), racingFiles, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		});
+		const raced = AgentSession.uri('copilot', 'session-race');
+		const gone = AgentSession.uri('copilot', 'session-gone');
+		await racingFiles.writeFile(URI.joinPath(racing.getSessionDataDir(raced), 'session.db'), VSBuffer.fromString('db'));
+		await racingFiles.writeFile(URI.joinPath(racing.getSessionDataDir(raced), 'attachments', 'note.txt'), VSBuffer.fromString('note'));
+
+		await racing.deleteSessionDataExcept(raced, ['attachments']);
+		await racing.deleteSessionDataExcept(gone, ['attachments']);
+
+		assert.deepStrictEqual({ warnings, racedExists: await racingFiles.exists(racing.getSessionDataDir(raced)) }, { warnings: [], racedExists: false });
+	});
+
 	test('deleteSessionData is a no-op when directory does not exist', async () => {
 		const session = AgentSession.uri('copilot', 'nonexistent');
 		// Should not throw
@@ -165,7 +211,7 @@ suite('SessionDataService', () => {
 
 suite('SessionDataService — openDatabase ref-counting', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
 	let fileService: FileService;
 	let provider: ControllableStatFileSystemProvider;
@@ -178,10 +224,6 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns a functional database reference', async () => {
 		const session = AgentSession.uri('copilot', 'ref-test');

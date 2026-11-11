@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -21,7 +22,8 @@ import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/cont
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
-import { getRemoteTunnelAccessState, ToggleRemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
+import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
+import { getRemoteTunnelAccessState, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -29,17 +31,29 @@ export const TOGGLE_SHARING_ID = 'sessions.tunnelHost.toggleSharing';
 
 const CATEGORY = localize2('tunnelHost.category', 'Remote Connections');
 
-export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<void> {
+export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<RemoteConnectionsToggleResult> {
 	const remoteTunnelService = accessor.get(IRemoteTunnelService);
 	const configurationService = accessor.get(IConfigurationService);
 	if (isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
 		const sharingService = accessor.get(IMissionControlSharingService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
 		const enabled = sharingService.state.get() !== 'disabled';
-		if (!enabled) {
-			await remoteTunnelService.stopTunnel();
+		try {
+			if (!enabled) {
+				await remoteTunnelService.stopTunnel();
+			}
+			await sharingService.setEnabled(!enabled);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				logService.error('Failed to toggle GitHub environment sharing', error);
+				notificationService.error(enabled
+					? localize('tunnelHost.disableSharingFailed', "Failed to disable GitHub environment sharing: {0}", getErrorMessage(error))
+					: localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
+				return 'failed';
+			}
 		}
-		await sharingService.setEnabled(!enabled);
-		return;
+		return 'completed';
 	}
 	const commandService = accessor.get(ICommandService);
 	const [mode, status] = await Promise.all([
@@ -53,6 +67,7 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 	} else {
 		await commandService.executeCommand(command);
 	}
+	return 'completed';
 }
 
 export class TunnelHostContribution extends Disposable implements IWorkbenchContribution {
@@ -100,9 +115,9 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			return instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action);
+			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
-		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
+		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory));
 		void this._loadState();
 	}
 
@@ -167,8 +182,8 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await executeToggleRemoteConnections(accessor);
+	run(accessor: ServicesAccessor): Promise<RemoteConnectionsToggleResult> {
+		return executeToggleRemoteConnections(accessor);
 	}
 });
 

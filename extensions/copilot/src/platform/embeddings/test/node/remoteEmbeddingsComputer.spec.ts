@@ -64,28 +64,23 @@ describe('RemoteEmbeddingsComputer', () => {
 		);
 	}
 
-	test('uses the Metis CAPI endpoint for Metis embeddings', async () => {
+	test('returns no Metis embeddings for no-auth users without calling CAPI', async () => {
 		const endpointProvider = new TestEndpointProvider();
 		const computer = createComputer(endpointProvider);
-		const fetch = vi.spyOn(computer, 'rawEmbeddingsFetch').mockResolvedValue({
-			type: 'success',
-			embeddings: [[1, 0]],
-		});
+		const fetch = vi.spyOn(computer, 'rawEmbeddingsFetch');
 
 		const result = await computer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, ['input'], { inputType: 'query' });
 
 		expect({
 			requestedFamilies: endpointProvider.requestedFamilies,
-			requestedModel: fetch.mock.calls[0][0].model,
-			inputType: fetch.mock.calls[0][4],
+			fetchCalls: fetch.mock.calls.length,
 			resultType: result.type.id,
-			valueTypes: result.values.map(value => value.type.id),
+			values: result.values,
 		}).toEqual({
-			requestedFamilies: ['metis'],
-			requestedModel: LEGACY_EMBEDDING_MODEL_ID.Metis_I16_Binary,
-			inputType: 'query',
+			requestedFamilies: [],
+			fetchCalls: 0,
 			resultType: EmbeddingType.metis_1024_I16_Binary.id,
-			valueTypes: [EmbeddingType.metis_1024_I16_Binary.id],
+			values: [],
 		});
 	});
 

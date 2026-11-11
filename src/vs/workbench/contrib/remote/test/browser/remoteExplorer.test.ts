@@ -5,21 +5,22 @@
 
 import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from '../../../../../platform/tunnel/common/tunnel.js';
-import { IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
+import { ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from '../../../../../platform/tunnel/common/tunnel.js';
+import { IExternalUriOpener, IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
-import { TunnelModel } from '../../../../services/remote/common/tunnelModel.js';
+import { Tunnel, TunnelModel } from '../../../../services/remote/common/tunnelModel.js';
 import { isCandidateRemappedTunnelLocalEndpoint, OnAutoForwardedAction } from '../../browser/remoteExplorer.js';
-import { TunnelPanel } from '../../browser/tunnelView.js';
+import { OpenPortInPreviewAction, TunnelPanel } from '../../browser/tunnelView.js';
 
 suite('AutomaticPortForwarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -95,6 +96,35 @@ suite('AutomaticPortForwarding', () => {
 			elevatedLinks: [{ label: 'See all forwarded ports', href: `command:${TunnelPanel.ID}.focus` }],
 			forwarded: [{ remote: { host: 'localhost', port: 80 }, local: 80, elevateIfNeeded: true }],
 		});
+	});
+
+	test('previews a forwarded port with the protocol of its tunnel', async () => {
+		const previews: { href: string; sourceUri: string }[] = [];
+		const preview = async (protocol: TunnelProtocol) => {
+			const model = new class extends mock<TunnelModel>() {
+				override readonly forwarded = new Map([['localhost:3000', upcastPartial<Tunnel>({ remoteHost: 'localhost', remotePort: 3000, protocol, localUri: URI.parse(`${protocol}://localhost:3001`) })]]);
+				override readonly detected = new Map<string, Tunnel>();
+			};
+			const externalOpenerService = new class extends mock<IExternalUriOpenerService>() {
+				override async getOpener() {
+					return upcastPartial<IExternalUriOpener>({
+						openExternalUri: async (href, ctx) => {
+							previews.push({ href, sourceUri: ctx.sourceUri.toString() });
+							return true;
+						}
+					});
+				}
+			};
+			await OpenPortInPreviewAction.run(model, new class extends mock<IOpenerService>() { }, externalOpenerService, 'localhost:3000');
+		};
+
+		await preview(TunnelProtocol.Http);
+		await preview(TunnelProtocol.Https);
+
+		assert.deepStrictEqual(previews, [
+			{ href: 'http://localhost:3001/', sourceUri: 'http://localhost:3000/' },
+			{ href: 'https://localhost:3001/', sourceUri: 'https://localhost:3000/' },
+		]);
 	});
 
 	test('identifies remapped local tunnel ports', () => {

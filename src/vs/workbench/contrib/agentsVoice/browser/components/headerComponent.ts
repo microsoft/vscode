@@ -154,13 +154,12 @@ export function createHeader(): HeaderComponent {
 			// Mic button — shown only when connected
 			micBtn.style.display = showConnected ? '' : 'none';
 			const micColor = props.voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
-				: props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
-					: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
-						: 'var(--vscode-descriptionForeground)';
+				: props.isConnected ? 'var(--vscode-editorInfo-foreground)'
+					: 'var(--vscode-descriptionForeground)';
 			micBtn.style.color = micColor;
-			const micIsActive = props.voiceState === 'listening' || props.voiceState === 'speaking';
+			const micIsActive = props.isConnected;
 			micBtn.classList.toggle('agents-voice-mode-active', micIsActive);
-			micBtn.style.setProperty('--agents-voice-icon-rgb', props.voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+			micBtn.style.setProperty('--agents-voice-icon-rgb', '88,166,255');
 			micBtn.style.borderRadius = '50%';
 			if (!micIsActive) {
 				micBtn.style.boxShadow = 'none';

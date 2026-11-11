@@ -20,6 +20,7 @@ const SUPPORTED_ANTHROPIC_BETAS: readonly string[] = [
 	'context-management',
 	'advanced-tool-use',
 	'per-turn-control',
+	'thinking-display-updates',
 ];
 
 /**

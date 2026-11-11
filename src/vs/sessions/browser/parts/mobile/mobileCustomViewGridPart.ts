@@ -5,9 +5,9 @@
 
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Part } from '../../../../workbench/browser/part.js';
-import { clearAgentsPartCardStyles } from '../agentsPartCard.js';
+import { clearAgentsPartCardStyles } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { CustomViewGridPart } from '../customViewGridPart.js';
-import { isPhoneLayout } from './mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/browser/parts/sessions/mobileLayout.js';
 
 /**
  * Mobile variant of {@link CustomViewGridPart}.

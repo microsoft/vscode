@@ -16,6 +16,8 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { hasSessionPullRequestForBranch, readSessionGitHubState, readSessionGitState, type SessionState } from '../common/state/sessionState.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 
 export class AgentHostMergeOperationHandler implements IChangesetOperationHandler {
 
@@ -24,14 +26,22 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
-		private readonly _onGitStateChanged: (sessionKey: string) => Promise<void>,
+		private readonly _onGitStateChanged: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		private readonly _onMerged: (sessionKey: string, commit: string) => Promise<void>,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 	) { }
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		const parsed = parseChangesetUri(params.channel);
+		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
+	}
+
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		source = this.captureCredentialSource(params, source);
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -130,7 +140,7 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		} finally {
 			if (shouldRefresh) {
 				try {
-					await this._onGitStateChanged(parsed.ownerUri);
+					await this._onGitStateChanged(parsed.ownerUri, source);
 				} catch (error) {
 					this._logService.warn(`[AgentHostMergeOperationHandler] Post-merge refresh failed for ${parsed.ownerUri}: ${error instanceof Error ? error.message : String(error)}`);
 				}

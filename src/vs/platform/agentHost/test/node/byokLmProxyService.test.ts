@@ -173,6 +173,32 @@ suite('ByokLmProxyService', () => {
 		assert.deepStrictEqual(captured?.input, [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }]);
 	});
 
+	test('forwards the authenticated session as conversation ID while preserving model options', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			async handle => {
+				for (const selectedSessionId of [sessionId, sessionId, 'sess-2']) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle, selectedSessionId),
+						body: JSON.stringify({ model: 'm', input: 'hi', temperature: 0.5, top_p: 0.9, max_output_tokens: 100 }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+		assert.deepStrictEqual(captured.map(request => request.modelOptions), [
+			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: sessionId },
+			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: sessionId },
+			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: 'sess-2' },
+		]);
+	});
+
 	test('forwards image input on the initial and subsequent turns', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const statuses: number[] = [];
@@ -400,6 +426,15 @@ suite('ByokLmProxyService', () => {
 		);
 
 		assert.strictEqual(captured[1]?.previousResponseId, 'resp_explicit');
+		assert.deepStrictEqual(captured.map(request => request.modelOptions), [
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+			{ _conversationId: 'sess-2' },
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+		]);
 		assert.deepStrictEqual(captured.slice(2, 5).map(request => request.previousResponseId), [undefined, undefined, undefined]);
 		assert.deepStrictEqual({
 			previousResponseId: captured[5]?.previousResponseId,
@@ -866,68 +901,50 @@ suite('ByokLmProxyService', () => {
 
 	test('returns a 503 when no renderer bridge is connected', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const service = new ByokLmProxyService(new NullLogService(), registry);
-		const handle = await service.start();
-		try {
-			const response = await fetch(responsesUrl(handle, 'acme'), {
-				method: 'POST',
-				headers: authHeaders(handle),
-				body: JSON.stringify({ model: 'm', input: [] }),
-			});
-			assert.strictEqual(response.status, 503);
-		} finally {
-			handle.dispose();
-			service.dispose();
-		}
+		const service = store.add(new ByokLmProxyService(new NullLogService(), registry));
+		const handle = store.add(await service.start());
+		const response = await fetch(responsesUrl(handle, 'acme'), {
+			method: 'POST',
+			headers: authHeaders(handle),
+			body: JSON.stringify({ model: 'm', input: [] }),
+		});
+		assert.strictEqual(response.status, 503);
 	});
 
 	test('routes requests to a serving window and excludes a non-serving one', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const calls: string[] = [];
 		// The serving window (editor): pushes models and answers chat.
-		const regServing = registry.register('editor', servingConnection(
+		store.add(registry.register('editor', servingConnection(
 			async () => { calls.push('serving'); return { output: [{ type: 'message', content: [{ type: 'text', text: 'from serving' }] }] }; },
 			[{ vendor: 'acme', id: 'claude' }],
-		));
+		)));
 		// A non-serving window (connected without a BYOK handler): it never pushes
 		// a snapshot, so it must never be picked for routing even though connected.
-		const regNonServing = registry.register('no-handler', {
+		store.add(registry.register('no-handler', {
 			chat: async () => { calls.push('no-handler'); return { output: [{ type: 'message', content: [{ type: 'text', text: 'from non-serving' }] }] }; },
 			onDidChangeModels: Event.None,
+		}));
+		const service = store.add(new ByokLmProxyService(new NullLogService(), registry));
+		const handle = store.add(await service.start());
+		const res = await fetch(responsesUrl(handle, 'acme'), {
+			method: 'POST', headers: authHeaders(handle),
+			body: JSON.stringify({ model: 'claude', input: [] }),
 		});
-		const service = new ByokLmProxyService(new NullLogService(), registry);
-		const handle = await service.start();
-		try {
-			const res = await fetch(responsesUrl(handle, 'acme'), {
-				method: 'POST', headers: authHeaders(handle),
-				body: JSON.stringify({ model: 'claude', input: [] }),
-			});
-			assert.deepStrictEqual({
-				routedToServing: (await res.text()).includes('from serving'),
-				calls,
-			}, { routedToServing: true, calls: ['serving'] });
-		} finally {
-			handle.dispose();
-			regServing.dispose();
-			regNonServing.dispose();
-			service.dispose();
-		}
+		assert.deepStrictEqual({
+			routedToServing: (await res.text()).includes('from serving'),
+			calls,
+		}, { routedToServing: true, calls: ['serving'] });
 	});
 
 	test('rebinds with a fresh nonce after every handle is disposed', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', servingConnection(async () => ({ output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] })));
-		const service = new ByokLmProxyService(new NullLogService(), registry);
+		store.add(registry.register('client-1', servingConnection(async () => ({ output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] }))));
+		const service = store.add(new ByokLmProxyService(new NullLogService(), registry));
 		const first = await service.start();
 		const firstNonce = first.nonce;
 		first.dispose();
-		const second = await service.start();
-		try {
-			assert.notStrictEqual(second.nonce, firstNonce);
-		} finally {
-			second.dispose();
-			registration.dispose();
-			service.dispose();
-		}
+		const second = store.add(await service.start());
+		assert.notStrictEqual(second.nonce, firstNonce);
 	});
 });

@@ -84,6 +84,15 @@ class LoggableHeaders {
 
 }
 
+/** The code (`ECONNRESET`) or else the name of a thrown value: never its message, which may echo the URL. */
+function loggableErrorCode(error: unknown): string {
+	const code = error && typeof error === 'object' ? (error as { readonly code?: unknown }).code : undefined;
+	if (typeof code === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(code)) {
+		return code;
+	}
+	return error instanceof Error && /^[A-Za-z0-9_.-]{1,64}$/.test(error.name) ? error.name : 'error';
+}
+
 export abstract class AbstractRequestService extends Disposable implements IRequestService {
 
 	declare readonly _serviceBrand: undefined;
@@ -98,6 +107,9 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	}
 
 	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		if (options.logUrl === false) {
+			return this._logHostAndRequest(options, request);
+		}
 		const prefix = `#${++this.counter}: ${options.url}`;
 		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		const startTime = Date.now();
@@ -115,6 +127,36 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 				this.logService.trace(`${prefix} - cancelled`, options.type);
 			} else {
 				this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			}
+			throw error;
+		}
+	}
+
+	/** {@link logAndRequest} for `logUrl: false`: logs the host, the status and the error's name or code only. */
+	private async _logHostAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		let host = '<invalid url>';
+		try {
+			host = new URL(options.url ?? '').host;
+		} catch {
+			// Logged as invalid.
+		}
+		const prefix = `#${++this.counter}: ${host}`;
+		this.logService.trace(`${prefix} - begin`, options.type);
+		const startTime = Date.now();
+		try {
+			const result = await request();
+			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode);
+			this._onDidCompleteRequest.fire({
+				callSite: options.callSite,
+				latency: Date.now() - startTime,
+				statusCode: result.res.statusCode,
+			});
+			return result;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				this.logService.trace(`${prefix} - cancelled`, options.type);
+			} else {
+				this.logService.error(`${prefix} - error`, options.type, loggableErrorCode(error));
 			}
 			throw error;
 		}

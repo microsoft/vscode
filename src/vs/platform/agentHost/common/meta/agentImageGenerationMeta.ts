@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { imageGenerationToolMetaKey, parseImageGenerationToolMetadata, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './vscode/agentImageGenerationMeta.js';
+export { imageGenerationToolMetaKey, parseImageGenerationToolMetadata, parseImageGenerationToolUsage, readImageGenerationToolMetadata, type IImageGenerationToolMetadata, type IImageGenerationToolUsage } from './vscode/agentImageGenerationMeta.js';

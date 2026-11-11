@@ -3344,7 +3344,7 @@ dependencies = [
 [[package]]
 name = "tunnels"
 version = "0.1.0"
-source = "git+https://github.com/microsoft/dev-tunnels?rev=64048c1409ff56cb958b879de7ea069ec71edc8b#64048c1409ff56cb958b879de7ea069ec71edc8b"
+source = "git+https://github.com/microsoft/dev-tunnels?rev=b73b0eb774b86a5b519c300f2f41c9072a66f663#b73b0eb774b86a5b519c300f2f41c9072a66f663"
 dependencies = [
  "async-trait",
  "futures-util",

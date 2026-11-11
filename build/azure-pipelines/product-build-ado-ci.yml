@@ -230,7 +230,7 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      sourceAnalysisPool: 1es-windows-2022-x64
+      sourceAnalysisPool: 1es-windows-2022-x64-wus3
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:
@@ -326,22 +326,11 @@ extends:
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           dependsOn: []
           pool:
-            name: 1es-windows-2022-x64
+            name: 1es-windows-2022-x64-wus3
             os: windows
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -350,18 +339,25 @@ extends:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CHECK_ONLY: true
+                  VSCODE_POOL_NAME: 1es-windows-2022-x64-wus3
 
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-chromium
-                  - copilot
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -385,10 +381,28 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_JOB_NAME: Smoke
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
                   - smoke-electron
+                  - smoke-wsl-kerberos-proxy
+                  - smoke-wsl-basic-proxy
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
@@ -409,13 +423,19 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-chromium
-                  - copilot
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -439,10 +459,26 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_JOB_NAME: Smoke
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
                   - smoke-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
@@ -466,13 +502,18 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
-                  - copilot
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -493,35 +534,19 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
                 VSCODE_JOB_NAME: Smoke
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
                   - smoke-electron
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
+                  - smoke-agents-basic-proxy
 
 
-      - stage: node_modules
-        dependsOn: []
-        jobs:
-          - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-            parameters:
-              NPM_ARCH: arm64
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-            parameters:
-              NPM_ARCH: arm
-              VSCODE_ARCH: armhf
-          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: x64
-          - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: arm64
-          - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-            parameters:
-              VSCODE_ARCH: x64
-          - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self

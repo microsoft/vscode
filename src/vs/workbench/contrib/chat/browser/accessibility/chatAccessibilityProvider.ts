@@ -13,14 +13,14 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { getTerminalExecutionTargetDescription, migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatTreeItem, IChatResponseIdentity } from '../chat.js';
 import { getChatRequestText } from '../chatRequestText.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
@@ -59,6 +59,10 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 			if (v.toolSpecificData.kind === 'terminal') {
 				const terminalData = migrateLegacyTerminalToolSpecificData(v.toolSpecificData);
 				input = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				const executionTarget = getTerminalExecutionTargetDescription(terminalData);
+				if (executionTarget) {
+					input = localize('terminalInputWithExecutionTarget', "{0} ({1})", input, executionTarget);
+				}
 			} else if (v.toolSpecificData.kind === 'extensions') {
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {
@@ -95,6 +99,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
 	constructor(
+		private readonly _getResponseIdentity: () => IChatResponseIdentity | undefined = () => undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -119,7 +124,10 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		if (isResponseVM(element)) {
-			return this._getLabelWithInfo(element);
+			// Name who answers a chat answered by another agent than its session type serves.
+			const identity = this._getResponseIdentity();
+			const label = this._getLabelWithInfo(element);
+			return identity ? localize('chatResponseFromIdentity', "{0}: {1}", identity.label, label) : label;
 		}
 
 		return '';

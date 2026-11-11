@@ -70,6 +70,7 @@ suite('Agent Host timing OTel', () => {
 			Object.assign(process.env, env);
 			return disposables.add(new AgentHostOTelService({ fetchFn }, new NullLogService(), new class extends mock<INativeEnvironmentService>() {
 				override readonly userDataPath = directory;
+				override readonly userHome = URI.file(directory);
 			}));
 		} finally {
 			for (const [key, value] of saved) {
@@ -212,7 +213,7 @@ suite('Agent Host timing OTel', () => {
 		const agent = disposables.add(new MockAgent());
 		const chat = buildDefaultChatUri(URI.parse('mock:/session-1'));
 		for (const result of ['success', 'error', 'cancelled'] as const) {
-			tracker.turnStarted(agent, chat, result, undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(agent, chat, 'mock:/session-1', result, undefined, undefined, 'default', undefined, undefined);
 			tracker.markSendStage(chat, result, 'workingDirectory');
 			if (result === 'success') {
 				tracker.markSendDispatched(chat, result);

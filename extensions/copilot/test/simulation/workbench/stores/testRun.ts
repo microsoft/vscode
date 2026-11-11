@@ -8,17 +8,10 @@ import * as mobx from 'mobx';
 import * as path from 'path';
 import { INLINE_STATE_TAG, InterceptedRequest, ISerializedFileEdit, ISerializedNesUserEditsHistory, IWorkspaceState, IWrittenFile, NES_LOG_CONTEXT_TAG, NES_USER_EDITS_HISTORY_TAG, NEXT_EDIT_SUGGESTION_TAG, OutputAnnotation, REQUESTS_TAG } from '../../shared/sharedTypes';
 import { ObservablePromise } from '../utils/utils';
-import { EvaluationError } from './amlResults';
 import { InitialWorkspaceState, InteractionWorkspaceState, WorkspaceState } from './simulationWorkspaceState';
 
 
 export class TestRun {
-
-	@mobx.observable
-	public errorsOnlyInBefore: EvaluationError[] | undefined = undefined;
-
-	@mobx.observable
-	public errorsOnlyInAfter: any[] | undefined = undefined;
 
 	@mobx.observable
 	public stdout: string | undefined = undefined;

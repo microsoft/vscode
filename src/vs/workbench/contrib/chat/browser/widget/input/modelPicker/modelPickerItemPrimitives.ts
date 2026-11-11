@@ -6,7 +6,7 @@
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
 import Severity from '../../../../../../../base/common/severity.js';
@@ -17,7 +17,8 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { withSeverityPrefix } from '../../../../../../../platform/notification/common/notification.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { getOrganizationSupportActionLabel } from '../../../../../../services/policies/common/organizationSupport.js';
+import { getLanguageModelProviderDisplayName, getLanguageModelProviderIcon, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
@@ -58,6 +59,8 @@ export type ProviderGroupKey = string;
 export interface IProviderGroupInfo {
 	readonly vendor: string;
 	readonly groupName: string;
+	/** The icon the provider declared, when the group is named after it. */
+	readonly icon?: LanguageModelProviderIcon;
 }
 
 export function getProviderGroupKey(vendor: string, groupName: string): ProviderGroupKey {
@@ -70,7 +73,7 @@ export function buildModelToProviderGroupMap(languageModelsService: ILanguageMod
 		for (const group of languageModelsService.getLanguageModelGroups(vendor.vendor)) {
 			const groupName = group.group?.name ?? vendor.displayName;
 			for (const identifier of group.modelIdentifiers) {
-				map.set(identifier, { vendor: vendor.vendor, groupName });
+				map.set(identifier, { vendor: vendor.vendor, groupName, icon: vendor.icon });
 			}
 		}
 	}
@@ -90,11 +93,14 @@ export function getProviderGroupForModel(
 		return byokGroup ?? {
 			vendor: model.metadata.vendor,
 			groupName: sourcePresentation?.label ?? getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
+			// A source presentation renames the group, so the vendor's icon would no longer match it.
+			icon: sourcePresentation ? undefined : getLanguageModelProviderIcon(languageModelsService, model.metadata.modelGroup.id),
 		};
 	}
 	return modelToGroup.get(model.identifier) ?? {
 		vendor: model.metadata.vendor,
 		groupName: getLanguageModelProviderDisplayName(languageModelsService, model.metadata.vendor),
+		icon: getLanguageModelProviderIcon(languageModelsService, model.metadata.vendor),
 	};
 }
 
@@ -176,11 +182,27 @@ export function getUnavailableReason(
 	return entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion) ? 'update' : 'admin';
 }
 
+/** The organization's help page, resolved once per picker open. */
+export interface IModelPickerOrganizationSupport {
+	readonly url: string;
+	/** Names the page's host, since the organization rather than VS Code controls it. */
+	readonly tooltip: string;
+}
+
+function createOrganizationSupportLink(label: string, { url, tooltip }: IModelPickerOrganizationSupport): MarkdownString {
+	// Parentheses would end the link destination early, quotes would end its title, and a
+	// backslash would be read as a Markdown escape and dropped from the URL.
+	const destination = url.replace(/\\/g, '%5C').replace(/\(/g, '%28').replace(/\)/g, '%29');
+	const title = tooltip.replace(/["\\]/g, '\\$&');
+	return new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${destination} "${title}")`);
+}
+
 export function createUnavailableModelItem(
 	id: string,
 	entry: IModelControlEntry,
 	reason: 'upgrade' | 'update' | 'admin',
 	manageSettingsUrl: string | undefined,
+	organizationSupport: IModelPickerOrganizationSupport | undefined,
 	updateStateType: StateType,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction> {
@@ -190,9 +212,12 @@ export function createUnavailableModelItem(
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
-		description = manageSettingsUrl
-			? new MarkdownString(localize('chat.modelPicker.adminLink', "[Contact your admin]({0})", manageSettingsUrl), { isTrusted: true })
-			: localize('chat.modelPicker.adminDescription', "Contact your admin");
+		const label = getOrganizationSupportActionLabel();
+		description = organizationSupport
+			? createOrganizationSupportLink(label, organizationSupport)
+			: manageSettingsUrl
+				? new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${manageSettingsUrl})`, { isTrusted: true })
+				: label;
 	}
 
 	let hoverContent: MarkdownString;

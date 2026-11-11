@@ -25,6 +25,8 @@ export interface IChatArtifact {
 	readonly uri: string;
 	/** Suggested filename when saving, independent of the source URI. */
 	readonly fileName?: string;
+	/** Identifies a generated image collected from a successful tool result. */
+	readonly generatedImageMimeType?: string;
 	readonly toolCallId?: string;
 	readonly dataPartIndex?: number;
 	readonly type: 'devServer' | 'screenshot' | 'plan' | undefined;

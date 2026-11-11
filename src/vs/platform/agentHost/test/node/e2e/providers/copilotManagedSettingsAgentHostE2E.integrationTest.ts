@@ -11,20 +11,23 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgentExtensionInventory } from '../../../../common/agent.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../../../../common/agentService.js';
+import { ListAgentExtensionsExtensionMethod } from '../../../../common/agentHostExtensionProtocol.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../../../common/agentHostManagedSettings.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../../common/agentHostSchema.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../../../common/meta/clientPluginCustomizationMeta.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -185,7 +188,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 				continue;
 			}
 			confirmations++;
-			assert.ok(approval === 'approve' || approval === 'deny', 'Removed asks and managed denials must not require confirmation');
+			assert.ok(approval === 'approve' || approval === 'deny', 'Assisted approvals, removed asks, and managed denials must not require human confirmation');
 			assert.deepStrictEqual(action.options?.map(option => option.id), ['allow-once', 'skip']);
 			if (operation === 'write') {
 				assert.strictEqual(existsSync(join(workspace, filename)), false, 'The file must not be written before human approval');
@@ -199,6 +202,15 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 			});
 		}
 		assert.strictEqual(confirmations, approval === 'approve' || approval === 'deny' ? 1 : 0);
+		const toolCalls = client.receivedNotifications(notification => {
+			if (!isActionNotification(notification, ActionType.ChatToolCallStart)) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(notification);
+			return channel === chat && action.type === ActionType.ChatToolCallStart && action.turnId === turnId
+				&& action.toolName === (operation === 'read' ? 'view' : 'create');
+		});
+		assert.strictEqual(toolCalls.length, 1, 'The requested native tool must run exactly once per turn');
 		if (approval === 'blocked') {
 			if (operation === 'write') {
 				assert.strictEqual(existsSync(join(workspace, filename)), false);
@@ -218,39 +230,40 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 		test(`managed read approval remains one-time under ${mode}`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Read'] }, mode);
-			const chat = buildDefaultChatUri(session);
-			await fileTurn(chat, 'managed-read-first', 'read', 'approve');
-			await fileTurn(chat, 'managed-read-second', 'read', 'approve');
+			const chat = defaultChatChannel(session);
+			await fileTurn(chat, 'managed-read-first', 'read', mode === 'assisted' ? 'none' : 'approve');
+			await fileTurn(chat, 'managed-read-second', 'read', mode === 'assisted' ? 'none' : 'approve');
 		});
 
 		test(`managed write approval remains one-time under ${mode}`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Write'] }, mode);
-			const chat = buildDefaultChatUri(session);
-			await fileTurn(chat, 'managed-write-first', 'write', 'approve');
-			await fileTurn(chat, 'managed-write-second', 'write', 'approve');
+			const chat = defaultChatChannel(session);
+			await fileTurn(chat, 'managed-write-first', 'write', mode === 'assisted' ? 'none' : 'approve');
+			await fileTurn(chat, 'managed-write-second', 'write', mode === 'assisted' ? 'none' : 'approve');
 		});
 
-		test(`managed write denial prevents mutation under ${mode}`, async function () {
-			this.timeout(180_000);
-			const session = await createSession({ ask: ['Write'] }, mode);
-			await fileTurn(buildDefaultChatUri(session), 'managed-write-denied', 'write', 'deny');
-		});
 	}
+
+	test('managed write denial prevents mutation under autoApprove', async function () {
+		this.timeout(180_000);
+		const session = await createSession({ ask: ['Write'] });
+		await fileTurn(defaultChatChannel(session), 'managed-write-denied', 'write', 'deny');
+	});
 
 	for (const operation of ['read', 'write'] as const) {
 		test(`managed ${operation} denial blocks the native tool under Allow All`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ deny: [operation === 'read' ? 'Read' : 'Write'] });
-			await fileTurn(buildDefaultChatUri(session), `managed-${operation}-blocked`, operation, 'blocked');
+			await fileTurn(defaultChatChannel(session), `managed-${operation}-blocked`, operation, 'blocked');
 		});
 	}
 
 	test('removing managed asks refreshes both default and peer chats before their next turn', async function () {
 		this.timeout(180_000);
 		const session = await createSession({ ask: ['Write'] });
-		const defaultChat = buildDefaultChatUri(session);
-		const peer = buildChatUri(session, 'managed-peer');
+		const defaultChat = defaultChatChannel(session);
+		const peer = newTestChatUri();
 		await client.call('createChat', { channel: session, chat: peer });
 		await client.call<SubscribeResult>('subscribe', { channel: peer });
 		await fileTurn(defaultChat, 'managed-default-before', 'write', 'approve');
@@ -263,8 +276,8 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 	test('adding managed asks refreshes both materialized default and peer chats', async function () {
 		this.timeout(180_000);
 		const session = await createSession({});
-		const defaultChat = buildDefaultChatUri(session);
-		const peer = buildChatUri(session, 'managed-peer');
+		const defaultChat = defaultChatChannel(session);
+		const peer = newTestChatUri();
 		await client.call('createChat', { channel: session, chat: peer });
 		await client.call<SubscribeResult>('subscribe', { channel: peer });
 		await fileTurn(defaultChat, 'unmanaged-default-before', 'write', 'none');
@@ -277,29 +290,29 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 	test('cold host resume reapplies the current managed ask contribution', async function () {
 		this.timeout(180_000);
 		const session = await createSession({ ask: ['Write'] });
-		await fileTurn(buildDefaultChatUri(session), 'managed-before-restart', 'write', 'approve');
+		await fileTurn(defaultChatChannel(session), 'managed-before-restart', 'write', 'approve');
 		client = await lease.restart();
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'managed-resumed-client' });
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: resolveGitHubToken() });
 		await contribute({ ask: ['Write'] });
 		await client.call('subscribe', { channel: session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+		await client.call('subscribe', { channel: defaultChatChannel(session) });
 		clientSeq = 1;
-		await fileTurn(buildDefaultChatUri(session), 'managed-after-restart', 'write', 'approve');
+		await fileTurn(defaultChatChannel(session), 'managed-after-restart', 'write', 'approve');
 	});
 
 	test('cold host resume does not persist a removed managed ask contribution', async function () {
 		this.timeout(180_000);
 		const session = await createSession({ ask: ['Write'] });
-		await fileTurn(buildDefaultChatUri(session), 'managed-before-clear', 'write', 'approve');
+		await fileTurn(defaultChatChannel(session), 'managed-before-clear', 'write', 'approve');
 		client = await lease.restart();
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'managed-cleared-client' });
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: resolveGitHubToken() });
 		await contribute({});
 		await client.call('subscribe', { channel: session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+		await client.call('subscribe', { channel: defaultChatChannel(session) });
 		clientSeq = 1;
-		await fileTurn(buildDefaultChatUri(session), 'managed-after-clear', 'write', 'none');
+		await fileTurn(defaultChatChannel(session), 'managed-after-clear', 'write', 'none');
 	});
 });
 
@@ -310,6 +323,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		readonly workspace: string;
 		readonly plugin: ClientPluginCustomization;
 		readonly standalone: ClientPluginCustomization;
+		readonly extensionStartedFile: string;
 	}
 
 	interface IRuntimeCustomizations {
@@ -322,12 +336,15 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		const workspace = join(directory, 'workspace');
 		const pluginDirectory = join(directory, 'plugin');
 		const standaloneDirectory = join(directory, 'standalone');
+		const extensionDirectory = join(workspace, '.github', 'extensions', 'lockdown-extension');
+		const extensionStartedFile = join(extensionDirectory, 'started');
 		for (const folder of [
 			workspace,
 			join(pluginDirectory, '.plugin'),
 			join(pluginDirectory, 'skills', 'lockdown-plugin-skill'),
 			join(standaloneDirectory, '.plugin'),
 			join(standaloneDirectory, 'skills', 'lockdown-standalone-skill'),
+			extensionDirectory,
 		]) {
 			await mkdir(folder, { recursive: true });
 		}
@@ -353,6 +370,12 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 				'lockdown-standalone-server': { command: process.execPath, args: [serverScript], env: { ELECTRON_RUN_AS_NODE: '1' } },
 			},
 		}));
+		await writeFile(join(extensionDirectory, 'extension.mjs'), `
+import { writeFileSync } from 'node:fs';
+import { joinSession } from '@github/copilot-sdk/extension';
+writeFileSync(new URL('./started', import.meta.url), 'started');
+await joinSession({ tools: [] });
+`, 'utf8');
 		const toCustomization = (folder: string, name: string, meta?: Record<string, unknown>): ClientPluginCustomization => {
 			const uri = URI.file(folder).toString();
 			return {
@@ -373,6 +396,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 				...toClientPluginStandaloneMeta(),
 				...toClientPluginMcpDefaultCwdsMeta({ 'lockdown-standalone-server': null }),
 			}),
+			extensionStartedFile,
 		};
 	}
 
@@ -409,7 +433,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 		};
 	}
 
-	async function createReadySession(client: TestProtocolClient, clientId: string, workspace: string, createdSessions: string[]): Promise<string> {
+	async function createReadySession(client: TestProtocolClient, clientId: string, workspace: string, createdSessions: string[], canvasesEnabled = false): Promise<string> {
 		return createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspace), async () => {
 			// A freshly started host opens Copilot sessions only after the runtime publishes its model catalog.
 			await client.waitForNotification(n => {
@@ -420,6 +444,23 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 				return action.type === ActionType.RootAgentsChanged
 					&& action.agents.some(agent => agent.provider === COPILOT_CONFIG.provider && agent.models.length > 0);
 			});
+			if (canvasesEnabled) {
+				client.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq: 1,
+					action: {
+						type: ActionType.RootConfigChanged,
+						config: {
+							[AgentHostCanvasesEnabledConfigKey]: true,
+							[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+						},
+					},
+				});
+				await client.waitForNotification(n =>
+					isActionNotification(n, ActionType.RootConfigChanged)
+					&& getActionEnvelope(n).action.type === ActionType.RootConfigChanged,
+				);
+			}
 		}, async () => {
 			await client.call('subscribe', { channel: ROOT_STATE_URI });
 		});
@@ -457,6 +498,68 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 			assert.deepStrictEqual({ locked, unlocked }, {
 				locked: { pluginSkill: true, standaloneSkill: false, standaloneServer: false },
 				unlocked: { pluginSkill: true, standaloneSkill: true, standaloneServer: true },
+			});
+		} catch (error) {
+			lease.dumpRuntimeLogsOnFailure(this.test!.title);
+			throw error;
+		} finally {
+			try {
+				await lease.release(createdSessions, this.test?.state === 'failed');
+			} finally {
+				try {
+					await lease.dispose();
+				} finally {
+					await removeTempDirs([directory]);
+				}
+			}
+		}
+	});
+
+	test('extension lockdown blocks project extensions without broadening the existing four-category array', async function () {
+		this.timeout(240_000);
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-extension-lockdown-'));
+		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
+			env: {
+				COPILOT_CACHE_HOME: join(directory, 'cache'),
+				COPILOT_MANAGED_SETTINGS_CACHE: '0',
+			},
+		});
+		const createdSessions: string[] = [];
+		try {
+			const fixture = await createFixture(directory);
+			let { client, server } = await lease.acquire(this.test!.title, 'none');
+			assert.ok(server.capiReplay);
+			server.capiReplay.setManagedSettings({ strictPluginOnlyCustomization: ['extensions'] });
+
+			const lockedSession = await createReadySession(client, 'extension-lockdown-locked', fixture.workspace, createdSessions, true);
+			await driveTurnToCompletion(client, lockedSession, 'turn-extension-lockdown-locked', '/env', 1);
+			const lockedInventory = await client.call<IAgentExtensionInventory>(ListAgentExtensionsExtensionMethod, { session: lockedSession });
+			assert.deepStrictEqual({
+				extension: lockedInventory.extensions.find(extension => extension.id === 'project:lockdown-extension'),
+				started: existsSync(fixture.extensionStartedFile),
+			}, {
+				extension: undefined,
+				started: false,
+			});
+			await client.call('disposeSession', { channel: lockedSession });
+			createdSessions.splice(createdSessions.indexOf(lockedSession), 1);
+
+			server.capiReplay.setManagedSettings({ strictPluginOnlyCustomization: ['skills', 'agents', 'hooks', 'mcp'] });
+			client = await lease.restart();
+			const existingCategoriesSession = await createReadySession(client, 'extension-lockdown-existing-categories', fixture.workspace, createdSessions, true);
+			await driveTurnToCompletion(client, existingCategoriesSession, 'turn-extension-lockdown-existing-categories', '/env', 1);
+			const existingCategories = await retry(async () => {
+				const inventory = await client.call<IAgentExtensionInventory>(ListAgentExtensionsExtensionMethod, { session: existingCategoriesSession });
+				const extension = inventory.extensions.find(extension => extension.id === 'project:lockdown-extension');
+				assert.ok(extension?.status === 'running', JSON.stringify({ inventory, started: existsSync(fixture.extensionStartedFile) }));
+				assert.ok(existsSync(fixture.extensionStartedFile), JSON.stringify(inventory));
+				return { id: extension.id, source: extension.source, status: extension.status };
+			}, 100, 300);
+
+			assert.deepStrictEqual(existingCategories, {
+				id: 'project:lockdown-extension',
+				source: 'project',
+				status: 'running',
 			});
 		} catch (error) {
 			lease.dumpRuntimeLogsOnFailure(this.test!.title);

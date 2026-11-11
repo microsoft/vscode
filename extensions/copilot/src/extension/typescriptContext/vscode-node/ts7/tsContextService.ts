@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as inspector from 'inspector';
 
-import type { API } from '@typescript/native/unstable/async';
+import type { API } from '@typescript/native/async';
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { type ContextItem, type RequestContext, KnownSources } from '../../../../platform/languageServer/common/languageContextService';
@@ -228,7 +228,7 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 			}
 			// Workaround for https://github.com/microsoft/typescript-go/issues/4916
 			api.clearSourceFileCache();
-			const snapshot = await api.updateSnapshot();
+			const snapshot = await api.createSnapshot();
 			try {
 				if (token.isCancellationRequested) {
 					return ComputeContextResult.cancelled;

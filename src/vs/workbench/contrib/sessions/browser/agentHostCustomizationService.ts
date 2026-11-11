@@ -1,0 +1,201 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { URI } from '../../../../base/common/uri.js';
+import { fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { combinedDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarget } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsProvider } from '../common/sessionsProvider.js';
+import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IAgentHostActiveClientService } from '../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+
+export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
+	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
+
+	constructor(
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@INotificationService notificationService: INotificationService,
+	) {
+		super(instantiationService, logService, notificationService);
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
+			for (const session of e.removed) {
+				this._disposeMcpDiagnostics(session.resource);
+			}
+			this._fireCustomAgentsChanged();
+			this._fireCustomizationsChanged();
+		}));
+	}
+
+	private _getSession(sessionResource: URI): ISession | undefined {
+		const focusedSession = this._focusedSessionHostService.focusedHost.get().session.get();
+		if (focusedSession && isEqual(focusedSession.resource, sessionResource)) {
+			return focusedSession;
+		}
+		const automationSession = this._sessionsManagementService.automationSession.get();
+		if (automationSession && isEqual(automationSession.resource, sessionResource)) {
+			return automationSession;
+		}
+		return this._sessionsManagementService.getSession(sessionResource);
+	}
+
+	private _getAHSProvider(session: ISession): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		if (provider && isAgentHostProvider(provider)) {
+			this._ensureProviderListener(provider);
+			return provider;
+		}
+		return undefined;
+	}
+
+	protected _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
+		const session = this._getSession(sessionResource);
+		if (!session) {
+			return undefined;
+		}
+		const provider = this._getAHSProvider(session);
+		if (!provider) {
+			return undefined;
+		}
+		const backendSession = provider.getBackendSessionResource(session.sessionId);
+		if (!backendSession) {
+			return undefined;
+		}
+		return {
+			backendSession,
+			clientId: provider.getClientId?.(),
+			customizations: provider.getCustomizations(session.sessionId),
+			resourceUris: {
+				fromAgentHost: resource => provider.mapAgentHostResource(resource),
+				toAgentHost: fromAgentHostUri,
+			},
+			workingDirectory: provider.getWorkingDirectory(session.sessionId),
+			workingDirectories: provider.getWorkingDirectories(session.sessionId),
+			rootConfig: provider.getRootConfig(),
+			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
+			authenticate: request => provider.authenticate(request),
+			handleMcpRequest: provider.handleMcpRequest ? (channel, method, params) => provider.handleMcpRequest!(channel, method, params) : undefined,
+			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
+				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
+			},
+			startMcpServer: rawId => {
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
+			},
+			stopMcpServer: rawId => {
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
+			},
+			backgroundMcpServer: rawId => {
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.background?.() ?? Promise.resolve();
+			},
+			setRootConfigValue: (property, value) => {
+				void provider.setRootConfigValue(property, value);
+			},
+		};
+	}
+
+	override getCustomAgents(resource: URI): readonly AgentCustomization[] {
+		const directSession = this._getSession(resource);
+		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(resource);
+		const session = directSession ?? ownedChat?.session;
+		const provider = session && this._getAHSProvider(session);
+		if (!session || !provider) {
+			return [];
+		}
+		const agents = provider.getCustomAgents(session.sessionId);
+		if (agents.length > 0) {
+			return agents;
+		}
+		// The mode of the chat the caller shows, which its resource names: a chat input passes its chat's resource. A session's
+		// resource names its main chat when that shares it, else the provider's mode of the session.
+		const chat = ownedChat?.chat ?? this._getChatOfSessionResource(session, resource);
+		const activeMode = (chat ? chat.mode.get() : session.mode.get())?.id;
+		return activeMode ? [this._agentFromMode(activeMode)] : agents;
+	}
+
+	private _getChatOfSessionResource(session: ISession, resource: URI): IChat | undefined {
+		const mainChat = session.mainChat.get();
+		return isEqual(mainChat.resource, resource) ? mainChat : session.chats.get().find(chat => isEqual(chat.resource, resource));
+	}
+
+	getBackendChatResource(sessionResource: URI): URI | undefined {
+		const directSession = this._getSession(sessionResource);
+		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(sessionResource);
+		const session = directSession ?? ownedChat?.session;
+		if (!session) {
+			return undefined;
+		}
+		const provider = this._getAHSProvider(session);
+		if (!provider) {
+			return undefined;
+		}
+		const chat = ownedChat?.chat ?? this._getFocusedChatOf(session) ?? session.mainChat.get();
+		return provider.getBackendChatResource(chat.resource);
+	}
+
+	/** The chat the focused host shows of `session`, if it shows the session. */
+	private _getFocusedChatOf(session: ISession): IChat | undefined {
+		const focusedHost = this._focusedSessionHostService.focusedHost.get();
+		return isEqual(focusedHost.session.get()?.resource, session.resource) ? focusedHost.chat.get() : undefined;
+	}
+
+	private _ensureProviderListener(provider: IAgentHostSessionsProvider): void {
+		if (this._providerListeners.has(provider)) {
+			return;
+		}
+
+		// Keep both subscriptions alive under one map key so replacing the provider entry disposes both together.
+		this._providerListeners.set(provider, combinedDisposable(
+			provider.onDidChangeCustomAgents(() => {
+				this._fireCustomAgentsChanged();
+			}),
+			provider.onDidChangeCustomizations(() => {
+				this._fireCustomizationsChanged();
+			})
+		));
+	}
+
+	private _serverIdMatchesRawId(serverId: string, rawId: string): boolean {
+		const separator = serverId.indexOf('/');
+		return serverId === rawId || (separator >= 0 && serverId.slice(separator + 1) === rawId);
+	}
+
+	private _agentFromMode(uri: string): AgentCustomization {
+		return {
+			id: uri,
+			uri,
+			name: agentNameFromUri(uri),
+			type: CustomizationType.Agent,
+		};
+	}
+}
+
+function agentNameFromUri(uri: string): string {
+	try {
+		let name = basename(URI.parse(uri));
+		for (const suffix of ['.agent.md', '.md']) {
+			if (name.endsWith(suffix)) {
+				name = name.substring(0, name.length - suffix.length);
+				break;
+			}
+		}
+		return name || uri;
+	} catch {
+		return uri;
+	}
+}

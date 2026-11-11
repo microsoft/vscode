@@ -23,6 +23,11 @@ export const enum McpServerFormKind {
 export interface IMcpServerFormKeyValue {
 	name: string;
 	value: string;
+	/**
+	 * Name of the entry in the configuration this row was loaded from, used to merge the row with
+	 * later changes to the file. Absent for rows the user added.
+	 */
+	origin?: string;
 }
 
 /**
@@ -101,14 +106,14 @@ export function toMcpServerFormState(config: IMcpServerConfiguration): IMcpServe
 			args: formatMcpServerArgs(config.args),
 			cwd: config.cwd ?? '',
 			envFile: config.envFile ?? '',
-			env: Object.entries(config.env ?? {}).map(([name, value]) => ({ name, value: value === null ? '' : String(value) })),
+			env: Object.entries(config.env ?? {}).map(([name, value]) => ({ name, value: value === null ? '' : String(value), origin: name })),
 		};
 	}
 	return {
 		...empty,
 		kind: config.transport === 'sse' ? McpServerFormKind.Sse : McpServerFormKind.Http,
 		url: config.url ?? '',
-		headers: Object.entries(config.headers ?? {}).map(([name, value]) => ({ name, value })),
+		headers: Object.entries(config.headers ?? {}).map(([name, value]) => ({ name, value, origin: name })),
 	};
 }
 
@@ -172,6 +177,42 @@ export function validateMcpServerFormState(state: IMcpServerFormState): IMcpServ
 		}
 	}
 	return result;
+}
+
+/**
+ * Three-way merges name/value rows after the configuration file changed while the form had unsaved
+ * edits. {@link base} is the configuration the edits were made against, {@link local} the rows in
+ * the form and {@link remote} the configuration now in the file. Rows the user added, removed,
+ * renamed or changed keep the user's edit; all other rows take the file's current entry, and entries
+ * the file added are appended. Rows taken from the file are copies, so {@link remote} is not shared.
+ */
+export function mergeMcpServerFormKeyValues(base: readonly IMcpServerFormKeyValue[], local: readonly IMcpServerFormKeyValue[], remote: readonly IMcpServerFormKeyValue[]): IMcpServerFormKeyValue[] {
+	const baseByName = new Map(base.map(entry => [entry.name, entry]));
+	const remoteByName = new Map(remote.map(entry => [entry.name, entry]));
+	const merged: IMcpServerFormKeyValue[] = [];
+	// Names the merged rows already account for, so a file entry is not added twice.
+	const covered = new Set<string>();
+	for (const row of local) {
+		const origin = row.origin === undefined ? undefined : baseByName.get(row.origin);
+		if (origin) {
+			covered.add(origin.name);
+		}
+		if (origin && row.name.trim() === origin.name && row.value === origin.value) {
+			const latest = remoteByName.get(origin.name);
+			if (latest) {
+				merged.push({ ...latest });
+			}
+			continue;
+		}
+		covered.add(row.name.trim());
+		merged.push(row);
+	}
+	for (const entry of remote) {
+		if (!baseByName.has(entry.name) && !covered.has(entry.name)) {
+			merged.push({ ...entry });
+		}
+	}
+	return merged;
 }
 
 export function isMcpServerFormValid(validation: IMcpServerFormValidation): boolean {

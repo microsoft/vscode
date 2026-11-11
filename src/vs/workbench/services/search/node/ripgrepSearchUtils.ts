@@ -21,6 +21,38 @@ export function searchRangeToRange(range: SearchRange): searchExtTypes.Range {
 	return new searchExtTypes.Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 }
 
+/**
+ * The number of symbolic link loops a single ripgrep run may report before we stop following
+ * symbolic links. ripgrep only detects links that point back to an ancestor, so a tree of
+ * cross-linked symbolic links (e.g. a fake sysfs) makes it enumerate exponentially many paths
+ * and the search effectively never finishes. Regular workspaces report about one loop per
+ * self-referencing link.
+ */
+export const MAX_RIPGREP_SYMLINK_LOOPS = 1000;
+
+/**
+ * Counts the symbolic link loops that ripgrep reports on stderr while following symbolic links.
+ */
+export class RipgrepSymlinkLoopDetector {
+	private loopCount = 0;
+	private partialLine = '';
+
+	/**
+	 * @returns whether ripgrep has reported more than {@link MAX_RIPGREP_SYMLINK_LOOPS} loops
+	 */
+	handleStderr(data: string): boolean {
+		const lines = (this.partialLine + data).split('\n');
+		this.partialLine = lines.pop() ?? '';
+		for (const line of lines) {
+			if (line.includes('File system loop found')) {
+				this.loopCount++;
+			}
+		}
+
+		return this.loopCount > MAX_RIPGREP_SYMLINK_LOOPS;
+	}
+}
+
 export interface IOutputChannel {
 	appendLine(msg: string): void;
 }
