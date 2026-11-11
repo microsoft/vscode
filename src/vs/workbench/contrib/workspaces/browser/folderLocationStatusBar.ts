@@ -12,7 +12,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -86,11 +86,12 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	private createIntroductionStep(): ISpotlightStep {
 		const location = this.folderLocationService.currentLocation;
 		const primaryName = this.primaryName ?? '';
+		const locationText = location ? getFolderLocationText(location) : '';
 		return {
 			id: 'folderLocation',
 			targetId: FOLDER_LOCATION_INTRODUCTION_TARGET_ID,
 			title: localize('folderLocationIntroductionTitle', "Folder Location"),
-			description: localize('folderLocationSwitched', "The folder is now at the location '{0}'. Files, search, terminals and extensions use this location, but open editors stay where they are.", location?.label ?? ''),
+			description: localize('folderLocationSwitched', "The folder is now at the location '{0}'. Files, search, terminals and extensions use this location, but open editors stay where they are.", locationText),
 			primaryAction: {
 				label: localize('returnToPrimaryNamed', "Return to {0}", primaryName),
 				run: () => this.commandService.executeCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID),
@@ -116,9 +117,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.location.id}) ${location.label}`,
-			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", location.label),
-			tooltip: localize('folderLocationTooltip', "The folder '{0}' is at the location '{1}'{2}. Files, search, terminals and extensions use this location, but open editors stay where they are.", primaryName, location.label, location.description ? `: ${location.description}` : ''),
+			text: `$(${location.icon?.id ?? Codicon.location.id}) ${getFolderLocationText(location)}`,
+			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
+			tooltip: localize('folderLocationTooltip', "The folder '{0}' is at the location '{1}'. Files, search, terminals and extensions use this location, but open editors stay where they are.", primaryName, getFolderLocationText(location)),
 			kind: 'prominent' as const
 		};
 

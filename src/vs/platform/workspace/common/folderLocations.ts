@@ -21,6 +21,14 @@ export interface IFolderLocation {
 }
 
 /**
+ * The compact text of a location shown in the UI: its label, followed by
+ * its description if there is one, e.g. `my-location · my-description`.
+ */
+export function getFolderLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string {
+	return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
+}
+
+/**
  * An alternate location together with the provider that resolved it.
  */
 export interface IResolvedFolderLocation extends IFolderLocation {
