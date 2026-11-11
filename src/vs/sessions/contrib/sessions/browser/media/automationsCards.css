@@ -78,6 +78,8 @@
 }
 
 .automation-authoring-composer {
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size100);
 	margin-bottom: var(--vscode-spacing-size320);
 }
 

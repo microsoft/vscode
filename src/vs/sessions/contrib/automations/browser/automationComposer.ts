@@ -6,6 +6,7 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
@@ -29,7 +30,8 @@ import { INewChatInputSendRequest } from '../../../../workbench/contrib/sessions
 import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { WorkspacePicker } from '../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { IPreferredSessionType } from '../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { URI } from '../../../../base/common/uri.js';
 import { BUILTIN_SKILLS_URI } from '../../chat/browser/promptsService.js';
@@ -60,6 +62,7 @@ export class AutomationComposer extends Disposable {
 	private target: { readonly folder: URI | undefined; readonly pick: IPreferredSessionType } | undefined;
 	private readonly message = DOM.$('.automation-authoring-message', { role: 'alert', 'aria-atomic': 'true' });
 	private readonly sending = observableValue(this, false);
+	private submitted = false;
 	private readonly token = cancelOnDispose(this._store);
 
 	constructor(
@@ -67,6 +70,7 @@ export class AutomationComposer extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IChatViewFactory chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -156,6 +160,7 @@ export class AutomationComposer extends Disposable {
 		}
 		const pickChanged = observableSignalFromEvent(this, this.input.sessionTypePicker.onDidChangeSelectedPick);
 		const typesChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessionTypes);
+		let creatingDraft = false;
 		this._register(autorun(reader => {
 			pickChanged.read(reader);
 			typesChanged.read(reader);
@@ -163,25 +168,32 @@ export class AutomationComposer extends Disposable {
 			const selectedFolder = folder.read(reader);
 			const pick = this.input.sessionTypePicker.selectedPick;
 			this.element.hidden = !enabled.read(reader);
-			if (!enabled.read(reader) || !pick?.providerId || !allowed.includes(pick.providerId) || this.sending.read(reader)) {
+			if (!enabled.read(reader) || !pick?.providerId || !allowed.includes(pick.providerId) || this.sending.read(reader) || this.submitted) {
+				return;
+			}
+			const currentDraft = sessionsManagementService.newSession.read(reader);
+			if (creatingDraft) {
 				return;
 			}
 			if (this.target?.pick.providerId === pick.providerId && this.target.pick.sessionTypeId === pick.sessionTypeId
-				&& isEqual(this.target.folder, selectedFolder) && this.session.read(undefined)) {
+				&& isEqual(this.target.folder, selectedFolder) && currentDraft && this.session.read(undefined) === currentDraft) {
 				return;
 			}
 			this.targetReady.set(false, undefined);
+			creatingDraft = true;
 			try {
-				const session = selectedFolder
-					? sessionsManagementService.createNewSession(selectedFolder, pick)
-					: sessionsManagementService.createQuickChat(pick);
-				this.target = { folder: selectedFolder, pick };
 				transaction(tx => {
+					const session = selectedFolder
+						? sessionsManagementService.createNewSession(selectedFolder, pick)
+						: sessionsManagementService.createQuickChat(pick);
+					this.target = { folder: selectedFolder, pick };
 					this.session.set(session, tx);
 					this.targetReady.set(true, tx);
 				});
 			} catch (error) {
 				this.showError(error);
+			} finally {
+				creatingDraft = false;
 			}
 		}));
 		this._register(toDisposable(() => {
@@ -226,12 +238,34 @@ export class AutomationComposer extends Disposable {
 			}
 			const goal = request.query.replace(/^\s*\/automate(?=\s|$)\s*/, '');
 			request.userInteraction?.handoff(session, session.mainChat.get());
-			await this.sessionsManagementService.sendNewChatRequest(session, {
+			const options: ISendRequestOptions = {
 				query: localize('automation.composer.authoringPrompt', "Follow only the attached automate SKILL.md to help me create an automation. Use this session's workspace as the default automation workspace unless I choose another.\n\n{0}", goal),
 				attachedContext: [...(request.attachments ?? []), toPromptFileVariableEntry(skillUri, PromptFileVariableKind.PromptFile)],
 				...(request.userInteraction ? { onDidCreateResponse: request.userInteraction.onDidCreateResponse } : {}),
+			};
+			let startedSession: ISession | undefined;
+			const sent = Event.once(Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === options))(event => {
+				startedSession = event.session;
 			});
+			try {
+				await this.sessionsManagementService.sendNewChatRequest(session, options);
+			} finally {
+				sent.dispose();
+			}
+			if (!startedSession) {
+				throw new Error(localize('automation.composer.sessionUnconfirmed', "The provider did not confirm the new session. Check your sessions before retrying."));
+			}
 			telemetry.sessionStarted();
+			this.submitted = true;
+			this.targetReady.set(false, undefined);
+			if (!this._store.isDisposed && this.isEnabled()) {
+				try {
+					await this.sessionsService.openSession(startedSession.resource);
+				} catch (error) {
+					this.logService.error('[AutomationComposer] Failed to open the started session.', error);
+					this.notificationService.error(localize('automation.composer.openFailed', "The session started, but could not be opened. Open it from Chats instead of sending again."));
+				}
+			}
 			return true;
 		} catch (error) {
 			if (!isCancellationError(error)) {

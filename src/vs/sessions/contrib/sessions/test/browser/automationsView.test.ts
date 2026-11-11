@@ -2260,6 +2260,31 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('the creation input aligns with history rows at wide and narrow widths', () => {
+		const { automationService, widget } = setup();
+		widget.element.style.setProperty('--vscode-spacing-size100', '10px');
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		const input = widget.element.querySelector<HTMLTextAreaElement>('.automation-authoring-composer textarea')!;
+		input.style.width = '100%';
+		input.style.boxSizing = 'border-box';
+		const rows = widget.element.querySelector<HTMLElement>('.automations-history-group-runs')!;
+		const geometry = [1400, 620].map(width => {
+			widget.layout(width, 800);
+			const inputBounds = input.getBoundingClientRect();
+			const historyBounds = rows.getBoundingClientRect();
+			return {
+				hasWidth: inputBounds.width > 0 && historyBounds.width > 0,
+				width: inputBounds.width,
+				aligned: Math.abs(inputBounds.left - historyBounds.left) < 1,
+				equalWidth: Math.abs(inputBounds.width - historyBounds.width) < 1,
+				fits: inputBounds.right <= widget.element.getBoundingClientRect().right,
+			};
+		});
+		assert.deepStrictEqual(geometry, [880, 552].map(width => ({ hasWidth: true, width, aligned: true, equalWidth: true, fits: true })));
+	});
+
 	test('template cards put the prompt before the schedule', () => {
 		const { widget } = setup();
 		const cards = Array.from(widget.element.querySelectorAll('.automations-template-card'));

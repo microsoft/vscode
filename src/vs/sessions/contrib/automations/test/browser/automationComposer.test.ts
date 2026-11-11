@@ -26,7 +26,9 @@ import { INewChatComposerInputOptions } from '../../../../../workbench/contrib/s
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -66,14 +68,23 @@ suite('Automation composer', () => {
 		const drafts: { folder: URI | undefined; session: ISession }[] = [];
 		const requests: { session: ISession; options: ISendRequestOptions }[] = [];
 		const discarded: ISession[] = [];
+		const opened: URI[] = [];
+		const notifications: string[] = [];
+		const sent = store.add(new Emitter<ISendRequestSentEvent>());
+		const currentDraft = observableValue<ISession | undefined>('currentDraft', undefined);
 		let sendFailure: Error | undefined;
+		let openFailure: Error | undefined;
+		let replacement: ISession | undefined;
 		const createDraft = (folder: URI | undefined) => {
 			const session = Object.assign(createTestActiveSession(`draft-${drafts.length}`, false), { providerId: 'host', sessionType: 'copilotcli' });
 			drafts.push({ folder, session });
+			currentDraft.set(session, undefined);
 			return session;
 		};
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessionTypes: Event.None,
+			onDidSendRequest: sent.event,
+			newSession: currentDraft,
 			createQuickChat: () => createDraft(undefined),
 			createNewSession: folder => createDraft(folder),
 			discardNewSession: session => { if (session) { discarded.push(session); } },
@@ -84,8 +95,19 @@ suite('Automation composer', () => {
 				if (sendFailure) {
 					throw sendFailure;
 				}
+				currentDraft.set(undefined, undefined);
+				sent.fire({ session: replacement ?? session, chat: session.mainChat.get(), options, isNewSession: true, isNewChat: true });
 			},
 		}));
+		instantiationService.stub(ISessionsService, {
+			openSession: async resource => {
+				opened.push(resource);
+				if (openFailure) {
+					throw openFailure;
+				}
+			}
+		});
+		instantiationService.stub(INotificationService, { error: message => notifications.push(String(message)) });
 		const commands: string[] = [];
 		instantiationService.stub(ICommandService, { executeCommand: async command => { commands.push(command); } });
 		const workspaceChanged = store.add(new Emitter<void>());
@@ -123,10 +145,12 @@ suite('Automation composer', () => {
 		const options = creations.getCalls().find(call => call.args[0] === SharedChatInputComposer)!.args[1] as INewChatComposerInputOptions;
 		root.appendChild(composer.element);
 		return {
-			composer, root, input, providers, prompts, disabledSkills, drafts, requests, discarded, telemetry, commands, configuration, options,
+			composer, root, input, providers, prompts, disabledSkills, drafts, requests, discarded, telemetry, commands, configuration, options, opened, notifications, currentDraft,
 			selectFolder: (folder: URI | undefined) => { selectedFolder = folder; workspaceChanged.fire(); },
 			selectHarness: (value: IPreferredSessionType) => { pick = value; pickChanged.fire(value); },
 			setSendFailure: (error: Error | undefined) => { sendFailure = error; },
+			setOpenFailure: (error: Error) => { openFailure = error; },
+			replaceStartedSession: (session: ISession) => { replacement = session; },
 		};
 	}
 
@@ -244,5 +268,42 @@ suite('Automation composer', () => {
 		assert.deepStrictEqual({ stale, sent, targets: drafts.map(draft => draft.folder), requests: requests.map(request => request.session === drafts[1].session) }, {
 			stale: false, sent: true, targets: [undefined, folder], requests: [true],
 		});
+	});
+
+	test('opens the confirmed replacement session after Send rather than leaving the composer active', async () => {
+		const { options, drafts, opened, replaceStartedSession } = setup();
+		const replacement = createTestActiveSession('confirmed');
+		replaceStartedSession(replacement);
+		const sent = await options.sendRequest({ query: 'Review changes' });
+		assert.deepStrictEqual({ sent, opened, anotherSend: await options.sendRequest({ query: 'Review changes' }), drafts: drafts.length }, {
+			sent: true, opened: [replacement.resource], anotherSend: false, drafts: 1,
+		});
+	});
+
+	test('failure to open a started session does not restore a duplicate send or report dispatch failure', async () => {
+		const { options, notifications, telemetry, setOpenFailure } = setup();
+		setOpenFailure(new Error('View unavailable'));
+		const sent = await options.sendRequest({ query: 'Review changes' });
+		assert.deepStrictEqual({
+			sent, anotherSend: await options.sendRequest({ query: 'Review changes' }), notifications,
+			outcomes: telemetry.events.filter(event => event.name === 'automation.dialogOutcome').map(event => event.data),
+		}, {
+			sent: true, anotherSend: false,
+			notifications: ['The session started, but could not be opened. Open it from Chats instead of sending again.'],
+			outcomes: [{ operation: 'create', outcome: 'sessionStarted' }],
+		});
+	});
+
+	test('recreates a discarded backing draft without losing the idea or selected workspace', () => {
+		const { options, drafts, currentDraft, input, selectFolder } = setup();
+		selectFolder(folder);
+		input.value = 'An unsent automation idea';
+		currentDraft.set(undefined, undefined);
+		assert.deepStrictEqual({
+			drafts: drafts.map(draft => draft.folder),
+			boundToCurrent: options.session.get() === currentDraft.get(),
+			idea: input.value,
+			ready: options.canSendRequest.get(),
+		}, { drafts: [undefined, folder, folder], boundToCurrent: true, idea: 'An unsent automation idea', ready: true });
 	});
 });
