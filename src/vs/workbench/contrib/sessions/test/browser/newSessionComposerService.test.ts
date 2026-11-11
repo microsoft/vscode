@@ -116,22 +116,31 @@ suite('NewSessionComposerService', () => {
 		const mainWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined, windowId: constObservable(1) });
 		const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(2) });
 		const chatWindowPane = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane, parent: chatWindowHost, windowId: constObservable(2) });
-		const hostedFocus = disposables.add(new Emitter<void>());
+		const firstHostedFocus = disposables.add(new Emitter<void>());
+		const secondHostedFocus = disposables.add(new Emitter<void>());
 		const main = composer();
-		const hosted = { ...composer(), onDidFocus: hostedFocus.event };
+		const firstHosted = { ...composer(), onDidFocus: firstHostedFocus.event };
+		const secondHosted = { ...composer(), onDidFocus: secondHostedFocus.event };
 		disposables.add(service.registerComposer(main, constObservable(true), mainWindowHost));
-		disposables.add(service.registerComposer(hosted, constObservable(false), chatWindowPane));
+		disposables.add(service.registerComposer(firstHosted, constObservable(false), chatWindowPane));
+		disposables.add(service.registerComposer(secondHosted, constObservable(false), chatWindowPane));
+		const selected: string[] = [];
+		disposables.add(autorun(reader => {
+			const current = service.getComposer(chatWindowHost, reader);
+			selected.push(current === firstHosted ? 'first' : current === secondHosted ? 'second' : 'none');
+		}));
 
-		hostedFocus.fire();
+		firstHostedFocus.fire();
+		secondHostedFocus.fire();
 
 		assert.deepStrictEqual({
 			active: service.activeComposer.get() === main,
 			main: service.getComposer(mainWindowHost) === main,
-			chatWindow: service.getComposer(chatWindowHost) === hosted,
+			selected,
 		}, {
 			active: true,
 			main: true,
-			chatWindow: true,
+			selected: ['second', 'first', 'second'],
 		});
 	});
 

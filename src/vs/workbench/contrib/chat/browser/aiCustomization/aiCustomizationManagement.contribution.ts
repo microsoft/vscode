@@ -793,7 +793,7 @@ registerAction2(class extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const harnessService = accessor.get(ICustomizationHarnessService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+		const { section, revealUri, sessionResource, hasExplicitSessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
 			target,
 			widget?.input.pendingDelegationTarget,
 			widget?.viewModel?.sessionResource,
@@ -808,6 +808,7 @@ registerAction2(class extends Action2 {
 
 		const input = AICustomizationManagementEditorInput.getOrCreate();
 		const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+		workspaceService.setActiveSessionResource?.(hasExplicitSessionResource ? sessionResource : undefined);
 		const targetLabels = workspaceService.activeTargetLabels?.get();
 		input.setTargetLabels(
 			targetLabels?.harness ?? harnessService.getActiveDescriptor().label,

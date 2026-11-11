@@ -77,7 +77,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { AgentsWindowUsage } from '../../../chat/common/agentsWindowUsage.js';
-import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
+import { INewSessionComposerService, INewSessionTargetLabels, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import { Menus } from '../menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
@@ -590,14 +590,7 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.setTargetLabels(derived(this, reader => {
 			workspacePickerSelectionChanged.read(reader);
 			selectedSessionTypeChanged.read(reader);
-			const environment = this._environment.read(reader);
-			const resolvedWorkspace = this._workspacePicker.selectedResolved?.workspace;
-			const selectedType = this._newChatInput.sessionTypePicker.selectedSessionType;
-			return {
-				harness: environment?.kind === 'cloud' ? localize('environmentPicker.copilot', "Copilot") : selectedType?.sessionType.label,
-				workspace: resolvedWorkspace?.isVirtualWorkspace ? resolvedWorkspace.label : resolvedWorkspace?.folders[0]?.name,
-				environment: environment?.label,
-			};
+			return this._getCustomizationTargetLabels(reader);
 		}));
 		if (this.options.initialAttachments?.length) {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
@@ -1706,6 +1699,19 @@ export class NewChatWidget extends Disposable {
 	 */
 	private _takesGlobalComposerActions(reader: IReader): boolean {
 		return this._isMainWindowComposer() && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+	}
+
+	private _getCustomizationTargetLabels(reader: IReader | undefined): INewSessionTargetLabels {
+		const environment = this._environment.read(reader);
+		const workspace = this._workspacePicker.selectedResolved?.workspace;
+		const selectedType = this._newChatInput.sessionTypePicker.selectedSessionType;
+		return {
+			harness: environment?.kind === 'cloud' ? localize('environmentPicker.copilot', "Copilot") : selectedType?.sessionType.label,
+			workspace: workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name,
+			environment: environment?.label,
+			projectRoot: workspace?.folders[0]?.workingDirectory,
+			repositoryRoot: workspace?.folders[0]?.root,
+		};
 	}
 
 	/** Whether it is not a composer of a host of its own, such as a chat window's: those take neither the global composer actions nor Voice Mode. */

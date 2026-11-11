@@ -47,7 +47,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { INewSessionTargetLabels, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
@@ -153,6 +153,11 @@ const takesGlobalComposerActions = Reflect.get(NewChatWidget.prototype, '_takesG
 	readonly _draftHost?: object;
 	readonly options: { readonly hostVisible?: IObservable<boolean>; readonly inputVisible?: IObservable<boolean> };
 }, reader: IReader | undefined) => boolean;
+const getCustomizationTargetLabels = Reflect.get(NewChatWidget.prototype, '_getCustomizationTargetLabels') as (this: {
+	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
+	readonly _workspacePicker: { readonly selectedResolved: { readonly workspace: ISessionWorkspace } | undefined };
+	readonly _newChatInput: { readonly sessionTypePicker: { readonly selectedSessionType: { readonly sessionType: { readonly label: string } } | undefined } };
+}, reader: IReader | undefined) => INewSessionTargetLabels;
 const isPreferredServable = Reflect.get(NewChatWidget.prototype, '_isPreferredServable') as (
 	this: {
 		readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
@@ -569,6 +574,28 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds customization target labels from the selected environment, workspace, and harness', () => {
+		const root = URI.file('/workspace');
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{ root, workingDirectory: root, name: 'vscode', description: undefined }],
+			isVirtualWorkspace: false,
+		});
+		const read = (environment: ISessionCreationEnvironment, harness: string, selectedWorkspace: ISessionWorkspace | undefined) =>
+			getCustomizationTargetLabels.call({
+				_environment: constObservable(environment),
+				_workspacePicker: { selectedResolved: selectedWorkspace ? { workspace: selectedWorkspace } : undefined },
+				_newChatInput: { sessionTypePicker: { selectedSessionType: { sessionType: { label: harness } } } },
+			}, undefined);
+
+		assert.deepStrictEqual({
+			cloud: read({ id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] }, 'Ignored', workspace),
+			remoteWithoutWorkspace: read({ id: 'remote', kind: 'remote', label: 'devbox-1', icon: Codicon.remote, providerIds: ['remote'] }, 'Claude', undefined),
+		}, {
+			cloud: { harness: 'Copilot', workspace: 'vscode', environment: 'Cloud', projectRoot: URI.file('/workspace'), repositoryRoot: URI.file('/workspace') },
+			remoteWithoutWorkspace: { harness: 'Claude', workspace: undefined, environment: 'devbox-1', projectRoot: undefined, repositoryRoot: undefined },
+		});
+	});
 
 	test('revealing the Inbox composer restores a consumed draft without replacing an existing or pending draft', () => {
 		const session = observableValue<ITestSessionWithChat | undefined>('draft', createTestActiveSession('draft', false));

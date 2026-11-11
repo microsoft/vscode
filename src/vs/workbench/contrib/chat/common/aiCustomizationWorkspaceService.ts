@@ -159,6 +159,12 @@ export interface IAICustomizationWorkspaceService {
 	readonly activeTargetLabels?: IObservable<IAICustomizationTargetLabels>;
 
 	/**
+	 * Targets customization management at a specific session or chat resource.
+	 * Pass `undefined` to follow the focused session or new-session composer.
+	 */
+	setActiveSessionResource?(resource: URI | undefined): void;
+
+	/**
 	 * Returns the current active project root, if any.
 	 */
 	getActiveProjectRoot(): URI | undefined;

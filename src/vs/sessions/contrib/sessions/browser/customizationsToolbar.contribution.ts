@@ -86,6 +86,7 @@ async function openCustomizationOverviewPage(editorService: IEditorService, harn
 	if (resource) {
 		harnessService.setActiveSession(resource);
 	}
+	workspaceService.setActiveSessionResource?.(targetResource);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
 	const targetLabels = workspaceService.activeTargetLabels?.get();
@@ -109,6 +110,7 @@ async function openCustomizationSectionPage(editorService: IEditorService, harne
 	if (session) {
 		harnessService.setActiveSession(session.resource);
 	}
+	workspaceService.setActiveSessionResource?.(undefined);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
 	const targetLabels = workspaceService.activeTargetLabels?.get();
@@ -309,11 +311,12 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
 				const sessionsService = accessor.get(ISessionsManagementService);
 				const hover = accessor.get(IInstantiationService).createInstance(ChatCustomizationsHover);
-				const resource = hover.getSessionResource(context);
+				const explicitResource = hover.getExplicitSessionResource(context);
+				const resource = explicitResource ?? hover.getSessionResource();
 				const target = sessionsService.getSession(resource) ?? sessionsService.getSessionForChatResource(resource)?.session;
 				const ignored = getIgnoredCustomizationMigrationGroups(accessor.get(IStorageService), getChatSessionType(resource), hover.getProjectRoot(resource));
 				const hint = await accessor.get(ICustomizationMigrationService).computeMigrationHint(resource, CancellationToken.None, ignored);
-				await openCustomizationOverviewPage(editorService, harnessService, hostService, workspaceService, { migration: !!hint }, target, resource);
+				await openCustomizationOverviewPage(editorService, harnessService, hostService, workspaceService, { migration: !!hint }, target, explicitResource);
 			}
 		}));
 		for (const menu of [Menus.SessionBarToolbar, Menus.NewSessionGlobalToolbar, Menus.SidebarCustomizationsEntryPoint, MenuId.ChatExecute]) {
