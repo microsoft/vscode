@@ -4726,6 +4726,73 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('opening and closing a custom view swaps the real grid cards without vertical motion', async () => {
+		const disposables = store.add(new DisposableStore());
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.noeditorpane.noauxiliarybar.nopanel.nocustomviewgrid'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.cssText = 'position: fixed; top: 0; left: 0; width: 800px; height: 600px;';
+		const sessionsPartView = disposables.add(new TestPartView(Parts.SESSIONS_PART));
+		sessionsPartView.element.classList.add('part', 'sessionspart', 'agents-part-card', 'agents-card-surface');
+		const customViewGridPartView = disposables.add(new TestPartView(Parts.CUSTOM_VIEW_GRID_PART));
+		customViewGridPartView.element.classList.add('part', 'customviewgridpart', 'agents-part-card', 'agents-card-surface');
+		const grid = disposables.add(new Grid(sessionsPartView));
+		grid.addView(customViewGridPartView, Sizing.Distribute, sessionsPartView, Direction.Right);
+		grid.setViewVisible(customViewGridPartView, false);
+		root.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const isCardView = (view: object): view is TestPartView => view === sessionsPartView || view === customViewGridPartView;
+		const host = createHost({ partVisibility: { editor: false, auxiliaryBar: false, panel: false, sessions: true } });
+		Object.assign(host, {
+			mainContainer: root,
+			sessionsPartView,
+			customViewGridPartView,
+			workbenchGrid: {
+				getViewSize: (view: object) => isCardView(view) ? grid.getViewSize(view) : { width: 0, height: 600 },
+				isViewVisible: (view: object) => isCardView(view) && grid.isViewVisible(view),
+				setViewVisible: (view: object, visible: boolean) => {
+					if (isCardView(view)) {
+						grid.setViewVisible(view, visible);
+					}
+				},
+				resizeView: (view: object, size: IViewSize) => {
+					if (isCardView(view)) {
+						grid.resizeView(view, size);
+					}
+				},
+			},
+		});
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		await nextFrame();
+		sessionsPartView.element.getAnimations().forEach(animation => animation.finish());
+		await nextFrame();
+		const initialTop = sessionsPartView.element.getBoundingClientRect().top;
+
+		applyCustomViewGridVisibility.call(host, {});
+		await nextFrame();
+		const opened = {
+			topDelta: customViewGridPartView.element.getBoundingClientRect().top - initialTop,
+			animations: customViewGridPartView.element.getAnimations().length,
+			sessionsVisible: grid.isViewVisible(sessionsPartView),
+			customViewVisible: grid.isViewVisible(customViewGridPartView),
+		};
+		customViewGridPartView.element.getAnimations().forEach(animation => animation.finish());
+
+		applyCustomViewGridVisibility.call(host, undefined);
+		await nextFrame();
+		const restored = {
+			topDelta: sessionsPartView.element.getBoundingClientRect().top - initialTop,
+			animations: sessionsPartView.element.getAnimations().length,
+			sessionsVisible: grid.isViewVisible(sessionsPartView),
+			customViewVisible: grid.isViewVisible(customViewGridPartView),
+		};
+
+		assert.deepStrictEqual({ opened, restored }, {
+			opened: { topDelta: 0, animations: 0, sessionsVisible: false, customViewVisible: true },
+			restored: { topDelta: 0, animations: 0, sessionsVisible: true, customViewVisible: false },
+		});
+	});
+
 	test('suspends session content throughout the custom view grid swap', () => {
 		const host = createHost();
 
