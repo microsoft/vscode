@@ -11,6 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $started = [DateTime]::UtcNow
 $script:failedSections = @()
+$script:collectionProblems = 0
 $maximumRecords = 64
 
 function Write-JsonFile([string]$Name, $Value) {
@@ -48,7 +49,12 @@ function Write-Diagnostic([string]$Name, [scriptblock]$Collect) {
 			errorType = $_.Exception.GetType().Name
 			errorCode = $_.Exception.HResult
 		}
-		Write-Host "##vso[task.logissue type=warning]Network diagnostic '$Name' is unavailable ($reason, $($record.errorType)); see the diagnostic artifact."
+		# The hosted Windows images disable the DNS Client operational channel, so do not report that expected state as a
+		# collection problem in every failed job.
+		if ($reason -ne 'channelDisabled') {
+			$script:collectionProblems++
+			Write-Host "##vso[task.logissue type=warning]Network diagnostic '$Name' is unavailable ($reason, $($record.errorType)); see the diagnostic artifact."
+		}
 		Write-JsonFile $Name $record
 	}
 }
@@ -300,6 +306,6 @@ $capture.completed = $true
 $capture.finishedAt = [DateTime]::UtcNow.ToString('o')
 $capture.unavailableSections = @($script:failedSections)
 Write-JsonFile 'capture' $capture
-if ($script:failedSections.Count -gt 0) {
+if ($script:collectionProblems -gt 0) {
 	exit 1
 }

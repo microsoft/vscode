@@ -87,7 +87,7 @@ function Get-NetTCPConnection {
 function Get-WinEvent {
 	[CmdletBinding()] param([string]$ListLog, [string]$LogName, [string]$FilterXPath, [int]$MaxEvents)
 	if ($ListLog) {
-		return [pscustomobject]@{ IsEnabled = -not ($env:DIAGNOSTIC_SCENARIO -eq 'unavailable' -and $ListLog -eq 'Microsoft-Windows-DNS-Client/Operational') }
+		return [pscustomobject]@{ IsEnabled = -not ($env:DIAGNOSTIC_SCENARIO -in @('unavailable', 'channel-disabled') -and $ListLog -eq 'Microsoft-Windows-DNS-Client/Operational') }
 	}
 	if ($FilterXPath -notlike '*timediff(@SystemTime) <= 3600000*' -or $MaxEvents -ne 65) { throw 'Missing event bounds' }
 	if ($env:DIAGNOSTIC_SCENARIO -eq 'empty') {
@@ -311,6 +311,22 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 				operational: 'unavailable', operationalReason: 'channelDisabled', logs: 'unavailable', leaked: false,
 			});
 			assert.match(result.stdout, /##vso\[task.logissue type=warning\]/);
+		} finally {
+			f.dispose();
+		}
+	});
+
+	test('records a disabled event channel without reporting it as a collection problem', () => {
+		// The hosted Windows images disable the DNS Client operational channel.
+		const f = fixture('channel-disabled');
+		try {
+			const result = f.run();
+			assert.deepStrictEqual({
+				status: result.status,
+				unavailable: f.capture().unavailableSections,
+				reason: f.section('dns-query-results').reason,
+				warned: result.stdout.includes('type=warning'),
+			}, { status: 0, unavailable: ['dns-query-results'], reason: 'channelDisabled', warned: false });
 		} finally {
 			f.dispose();
 		}
