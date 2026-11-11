@@ -5,7 +5,7 @@
 
 import { SESSION_WORKTREE_ICON } from '../../../common/sessionWorktreeIcon.js';
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { extUri } from '../../../../../../base/common/resources.js';
@@ -171,6 +171,28 @@ suite('AgentsViewFolderLocation', () => {
 		const describe = async (name: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(`/work/vscode.worktrees/${name}`), CancellationToken.None))?.description;
 
 		assert.deepStrictEqual({ branch: await describe('feature'), detached: await describe('detached'), withoutHead: await describe('headless') }, { branch: 'agents/feature', detached: '0123456', withoutHead: undefined });
+	});
+
+	test('the locations of a folder are its linked checkouts, read with the primary\'s real path once, and none once cancelled', async () => {
+		const realpaths: string[] = [];
+		const listing = upcastPartial<IFileService>({
+			...fileService,
+			resolve: async (resource: URI) => upcastPartial<IFileStatWithMetadata>({
+				children: resource.path === '/work/vscode/.git/worktrees'
+					? ['feature', 'detached', 'headless'].map(name => upcastPartial<IFileStatWithMetadata>({ resource: URI.file(`/work/vscode/.git/worktrees/${name}`), isDirectory: true }))
+					: [],
+			}),
+			realpath: async (resource: URI) => { realpaths.push(resource.path); return resource; },
+		});
+		const provider = new AgentsViewFolderLocationProvider(listing);
+		const locations = (await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None)).map(location => location.label);
+		const primaryRealpaths = realpaths.filter(path => path === '/work/vscode').length;
+		const cancellation = new CancellationTokenSource();
+		cancellation.cancel();
+		const cancelled = await provider.provideLocations(URI.file('/work/vscode'), cancellation.token);
+		cancellation.dispose();
+
+		assert.deepStrictEqual({ locations, primaryRealpaths, cancelled }, { locations: ['feature', 'detached', 'headless'], primaryRealpaths: 1, cancelled: [] });
 	});
 
 	test('the alternate locations of a folder are its linked checkouts, which git links both ways', async () => {
