@@ -1,0 +1,97 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { AgentsChatPartComposerFolders } from '../../../browser/agentsView/agentsChatPartComposerFolders.js';
+
+suite('AgentsChatPartComposerFolders', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const worktree = (path: string, branch: string): IFolderLocation => ({ uri: URI.file(path), label: path.split('/').pop()!, description: branch, icon: Codicon.gitBranchCheckout });
+
+	function create(options: { folders: { uri: string; primaryUri?: string }[]; remote?: boolean }) {
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeProviders = store.add(new Emitter<void>());
+		let folders = options.folders;
+		let locations: IFolderLocation[] = [worktree('/work/vscode.worktrees/a', 'feature-a'), worktree('/work/vscode.worktrees/b', 'feature-b')];
+		const asked: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder.uri), primaryUri: folder.primaryUri ? URI.file(folder.primaryUri) : undefined })) }),
+			getWorkbenchState: () => folders.length === 1 ? WorkbenchState.FOLDER : folders.length ? WorkbenchState.WORKSPACE : WorkbenchState.EMPTY,
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeProviders: onDidChangeProviders.event,
+			getLocations: async primary => { asked.push(primary.path); return locations; },
+		}));
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: options.remote ? 'ssh-remote+host' : undefined }));
+		const composerFolders = store.add(instantiationService.createInstance(AgentsChatPartComposerFolders));
+		return {
+			composerFolders,
+			asked,
+			snapshot: () => ({
+				folders: composerFolders.folders.get().map(uri => uri.path),
+				presentations: composerFolders.folders.get().map(uri => composerFolders.getPresentation(uri)?.description ?? null),
+			}),
+			moveTo: (next: { uri: string; primaryUri?: string }[]) => { folders = next; onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); },
+			addWorktree: (location: IFolderLocation) => { locations = [...locations, location]; },
+			providersChanged: () => onDidChangeProviders.fire(),
+		};
+	}
+
+	test('offers the folder of a local window and its linked checkouts, by their branch, from the folder\'s primary location also while the folder is at one of them', async () => {
+		const { composerFolders, asked, snapshot, moveTo, addWorktree } = create({ folders: [{ uri: '/work/vscode' }] });
+		await timeout(0);
+		const atPrimary = snapshot();
+		moveTo([{ uri: '/work/vscode.worktrees/a', primaryUri: '/work/vscode' }]);
+		await timeout(0);
+		const atWorktree = snapshot();
+		addWorktree(worktree('/work/vscode.worktrees/c', 'feature-c'));
+		composerFolders.refresh();
+		await timeout(0);
+
+		assert.deepStrictEqual({ atPrimary, atWorktree, afterNewWorktree: snapshot().folders, asked }, {
+			atPrimary: { folders: ['/work/vscode', '/work/vscode.worktrees/a', '/work/vscode.worktrees/b'], presentations: [null, 'feature-a', 'feature-b'] },
+			atWorktree: { folders: ['/work/vscode.worktrees/a', '/work/vscode', '/work/vscode.worktrees/b'], presentations: ['feature-a', null, 'feature-b'] },
+			afterNewWorktree: ['/work/vscode.worktrees/a', '/work/vscode', '/work/vscode.worktrees/b', '/work/vscode.worktrees/c'],
+			asked: ['/work/vscode', '/work/vscode', '/work/vscode'],
+		});
+	});
+
+	test('offers only the window\'s folders where its folder cannot move: several folders, a remote window, no folder', async () => {
+		const multiRoot = create({ folders: [{ uri: '/work/vscode' }, { uri: '/work/tools' }] });
+		const remote = create({ folders: [{ uri: '/work/vscode' }], remote: true });
+		const empty = create({ folders: [] });
+		await timeout(0);
+
+		assert.deepStrictEqual({ multiRoot: multiRoot.snapshot().folders, remote: remote.snapshot().folders, empty: empty.snapshot().folders, asked: [...multiRoot.asked, ...remote.asked, ...empty.asked] }, {
+			multiRoot: ['/work/vscode', '/work/tools'],
+			remote: ['/work/vscode'],
+			empty: [],
+			asked: [],
+		});
+	});
+
+	test('reads the locations again as providers change', async () => {
+		const { asked, providersChanged } = create({ folders: [{ uri: '/work/vscode' }] });
+		await timeout(0);
+		providersChanged();
+		await timeout(0);
+
+		assert.deepStrictEqual(asked, ['/work/vscode', '/work/vscode']);
+	});
+});

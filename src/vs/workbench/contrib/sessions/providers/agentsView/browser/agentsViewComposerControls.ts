@@ -12,10 +12,17 @@ import { AgentHostAgentPickerContribution, registerAgentHostAgentPickerActions }
 import { AgentHostSessionConfigPickerContribution, registerAgentHostSessionConfigPickerActions } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
 import { CopilotPickerActionViewItemContribution, registerCopilotSandboxPickerActions } from '../../copilotChatSessions/browser/copilotSandboxPickers.js';
 
-/** The agent host's pickers as an editor window's chat part has them: also for the sessions of its composers and chats. */
+/**
+ * The agent host's pickers as an editor window's chat part has them: also for the sessions of its composers and chats,
+ * and without the isolation picker of a new session, whose workspace picker offers New Worktree instead.
+ */
 export class EditorWindowAgentHostSessionConfigPickerContribution extends AgentHostSessionConfigPickerContribution {
 	protected override get includesSessionHosts(): boolean {
 		return true;
+	}
+
+	protected override showsRepositoryProperty(isIsolation: boolean, isNewSession: boolean): boolean {
+		return !(isIsolation && isNewSession);
 	}
 }
 

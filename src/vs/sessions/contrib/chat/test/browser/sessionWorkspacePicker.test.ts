@@ -8808,14 +8808,14 @@ suite('WorkspacePicker - Allowed folders', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A picker of an editor window's composer, which offers only the window's folders. */
-	function createPicker(folders: readonly string[], noWorkspace?: { selected: boolean }) {
+	function createPicker(folders: readonly string[], noWorkspace?: { selected: boolean }, options?: Pick<IWorkspacePickerOptions, 'getAllowedFolderPresentation' | 'newWorktree'>) {
 		const providersService = store.add(new MockSessionsProvidersService());
 		providersService.setProviders([createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL })]);
 		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', folders.map(folder => URI.file(folder)));
 		let shows = 0;
 		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
 		const getNoWorkspaceOption = noWorkspace && (() => ({ description: 'No workspace', isSelected: noWorkspace.selected, select: () => { noWorkspace.selected = true; } }));
-		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders, getNoWorkspaceOption }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders, getNoWorkspaceOption, ...options }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
 		const container = document.createElement('div');
 		picker.render(container);
 		const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
@@ -8888,6 +8888,34 @@ suite('WorkspacePicker - Allowed folders', () => {
 			oneFolder: { items: ['Chat', '', '/local/vscode'], trigger: { hidden: false, readOnly: 'false', popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
 			oneFolderChat: { hidden: false, readOnly: 'false', popup: 'listbox', ariaLabel: 'Workspace: Chat' },
 			multiRoot: ['Chat', '', '/local/vscode', '/local/tools'],
+		});
+	});
+
+	test('offers the linked checkouts of the window\'s folder by their branch, and New Worktree, which the trigger shows until a folder is picked again', async () => {
+		const newWorktree = { selected: false };
+		const { picker } = createPicker(['/local/vscode', '/local/vscode.worktrees/a'], undefined, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode.worktrees/a' ? { uri: folderUri, label: 'a', description: 'feature-a', icon: Codicon.gitBranchCheckout } : undefined,
+			newWorktree: { isAvailable: () => true, isSelected: () => newWorktree.selected, setSelected: selected => { newWorktree.selected = selected; } },
+		});
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
+		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
+		const snapshot = () => ({
+			items: picker.getItems().map(item => item.kind === ActionListItemKind.Separator ? '---' : `${item.label}${item.description ? ` (${item.description})` : ''}${item.item?.checked ? ' *' : ''}`),
+			trigger: trigger.getAttribute('aria-label'),
+		});
+
+		const folder = snapshot();
+		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
+		const inNewWorktree = snapshot();
+		await picker.dispatchFolder(URI.file('/local/vscode'), 'local-1');
+
+		assert.deepStrictEqual({ folder, inNewWorktree, folderAgain: snapshot(), selected: newWorktree.selected }, {
+			folder: { items: ['local/vscode *', 'a (feature-a)', '---', 'New Worktree'], trigger: 'Workspace: local/vscode' },
+			inNewWorktree: { items: ['local/vscode', 'a (feature-a)', '---', 'New Worktree *'], trigger: 'Workspace: local/vscode - New Worktree' },
+			folderAgain: { items: ['local/vscode *', 'a (feature-a)', '---', 'New Worktree'], trigger: 'Workspace: local/vscode' },
+			selected: false,
 		});
 	});
 

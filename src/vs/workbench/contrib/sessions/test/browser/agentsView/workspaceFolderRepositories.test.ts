@@ -15,6 +15,9 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { parseGitHubOrigin, readFolderGitRepository, WorkspaceFolderRepositories } from '../../../browser/agentsView/workspaceFolderRepositories.js';
+import { getSessionsInScopeFolders } from '../../../browser/sessionScope.js';
+import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { parseGitHubRepositoryFromGitConfig } from '../../../browser/gitHubRepositoryResolver.js';
 
 suite('WorkspaceFolderRepositories', () => {
@@ -108,6 +111,49 @@ suite('WorkspaceFolderRepositories', () => {
 			// Only the folder that joined and the one that failed are read again.
 			added: { repositories: ['/work/vscode', '/work/denied', '/work/other'], reads: 5, warnings: 1 },
 			removedAtOnce: { repositories: ['/work/denied', '/work/other'], reads: 5, warnings: 1 },
+		});
+	});
+
+	test('once the window\'s folder moved into a worktree of its repository, the scope still lists the sessions of the repository and of all its worktrees', async () => {
+		const { fileService } = createFileService({
+			'/work/vscode/.git': true,
+			'/work/vscode.worktrees/feature/.git': 'gitdir: /work/vscode/.git/worktrees/feature',
+		});
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		// The folder keeps its primary location, and is now at its linked checkout
+		let folder = upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [folder] }),
+		}));
+		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const sessionIn = (root: string, workingDirectory: string) => upcastPartial<ISession>({
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file(root), workingDirectory: URI.file(workingDirectory) })] })),
+		});
+		const sessions = {
+			repository: sessionIn('/work/vscode', '/work/vscode'),
+			feature: sessionIn('/work/vscode', '/work/vscode.worktrees/feature'),
+			otherWorktree: sessionIn('/work/vscode', '/work/vscode.worktrees/other'),
+			elsewhere: sessionIn('/work/tools', '/work/tools'),
+		};
+		const listed = () => {
+			const scope = getSessionsInScopeFolders(Object.values(sessions), [folder.uri], undefined, repositories.repositories.get());
+			return Object.entries(sessions).filter(([, session]) => scope.includes(session)).map(([name]) => name);
+		};
+
+		await timeout(0);
+		const atPrimary = listed();
+		folder = upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode.worktrees/feature'), primaryUri: URI.file('/work/vscode') });
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [folder] });
+		await timeout(0);
+
+		assert.deepStrictEqual({ atPrimary, atWorktree: listed(), repositories: repositories.repositories.get().map(uri => uri.path) }, {
+			atPrimary: ['repository', 'feature', 'otherWorktree'],
+			atWorktree: ['repository', 'feature', 'otherWorktree'],
+			repositories: ['/work/vscode'],
 		});
 	});
 
