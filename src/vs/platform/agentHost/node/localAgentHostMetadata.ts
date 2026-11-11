@@ -29,6 +29,11 @@ const endpointDirectoryName = 'local-endpoint';
 const entriesDirectoryName = 'entries';
 const legacyMetadataFileName = 'metadata.json';
 
+interface IAgentHostEndpointPublication {
+	readonly entry: IAgentHostEndpointMetadata;
+	readonly mtimeMs: number;
+}
+
 /** The editor's own entry in the shared local agent host endpoint registry. */
 export type ILocalAgentHostEndpointMetadata = IAgentHostEndpointMetadata & {
 	readonly type: 'editor';
@@ -127,29 +132,32 @@ export function cleanupLocalAgentHostEndpointSocketSync(endpointPath: string): v
  * merging a read-only legacy `metadata.json` array left by older builds.
  * Confirmed-dead entries are pruned (and their own files best-effort removed);
  * the rest are deduped by identity — a live entry file winning over a colliding
- * legacy entry — and returned in a deterministic order.
+ * legacy entry — and returned newest-published first, then by server type and instance ID.
  */
 export async function readLocalAgentHostEndpointRegistry(userDataPath: string, logService?: ILogService): Promise<IAgentHostEndpointMetadata[]> {
 	const entryFiles = await readEntryFilesAsync(getEntriesDirectory(userDataPath), logService);
 	const legacy = await readLegacyRegistryAsync(getLegacyMetadataPath(userDataPath), logService);
 
 	const live: IAgentHostEndpointMetadata[] = [];
+	const publishTimes = new Map<IAgentHostEndpointMetadata, number>();
 	// Legacy entries first so a live entry file wins the dedupe on collision.
-	for (const entry of legacy) {
+	for (const { entry, mtimeMs } of legacy) {
 		if (isPidAlive(entry.pid)) {
 			live.push(entry);
+			publishTimes.set(entry, mtimeMs);
 		}
 	}
-	for (const { entry, path } of entryFiles) {
+	for (const { entry, path, mtimeMs } of entryFiles) {
 		if (isPidAlive(entry.pid)) {
 			live.push(entry);
+			publishTimes.set(entry, mtimeMs);
 		} else {
 			logService?.info(`[AgentHost] Pruning stale local endpoint registry entry: ${entry.type} PID ${entry.pid} (instance ${entry.instanceId}) is no longer running`);
 			await fs.promises.rm(path, { force: true }).catch(() => { /* best effort */ });
 		}
 	}
 
-	return sortForDeterministicOrder(dedupeAgentHostEndpointMetadata(live));
+	return sortForDeterministicOrder(dedupeAgentHostEndpointMetadata(live), publishTimes);
 }
 
 /** Returns a live endpoint using the same location preference as remote clients. */
@@ -194,7 +202,7 @@ function getEndpointPath(userDataPath: string, instanceId: string): string {
 	return join(getSocketDirectory(userDataPath), `${instanceId}.sock`);
 }
 
-async function readEntryFilesAsync(entriesDirectory: string, logService?: ILogService): Promise<{ readonly entry: IAgentHostEndpointMetadata; readonly path: string }[]> {
+async function readEntryFilesAsync(entriesDirectory: string, logService?: ILogService): Promise<(IAgentHostEndpointPublication & { readonly path: string })[]> {
 	let names: string[];
 	try {
 		names = await fs.promises.readdir(entriesDirectory);
@@ -205,36 +213,38 @@ async function readEntryFilesAsync(entriesDirectory: string, logService?: ILogSe
 		throw error;
 	}
 
-	const results: { entry: IAgentHostEndpointMetadata; path: string }[] = [];
+	const results: (IAgentHostEndpointPublication & { readonly path: string })[] = [];
 	for (const name of names) {
 		// Ignore temp staging files and other non-entry files quietly.
 		if (!name.endsWith('.json')) {
 			continue;
 		}
 		const path = join(entriesDirectory, name);
-		const entry = await readEntryFileAsync(path, logService);
-		if (!entry) {
+		const publication = await readEntryFileAsync(path, logService);
+		if (!publication) {
 			continue;
 		}
 		// A valid entry must live under its own canonical identity file name;
 		// otherwise a misnamed copy could shadow or delete the real entry.
-		if (name !== getAgentHostEndpointEntryFileName(entry)) {
+		if (name !== getAgentHostEndpointEntryFileName(publication.entry)) {
 			logService?.warn(`[AgentHost] Ignoring local agent host endpoint entry ${path} whose file name does not match its identity`);
 			continue;
 		}
-		results.push({ entry, path });
+		results.push({ ...publication, path });
 	}
 	return results;
 }
 
-async function readEntryFileAsync(path: string, logService?: ILogService): Promise<IAgentHostEndpointMetadata | undefined> {
+async function readEntryFileAsync(path: string, logService?: ILogService): Promise<IAgentHostEndpointPublication | undefined> {
 	let raw: string;
+	let mtimeMs: number;
 	try {
 		const stat = await fs.promises.lstat(path);
 		if (!stat.isFile() || stat.isSymbolicLink()) {
 			return undefined;
 		}
 		raw = await fs.promises.readFile(path, 'utf8');
+		mtimeMs = stat.mtimeMs;
 	} catch (error) {
 		if (isNotFound(error)) {
 			return undefined;
@@ -258,17 +268,19 @@ async function readEntryFileAsync(path: string, logService?: ILogService): Promi
 		logService?.warn(`[AgentHost] Ignoring invalid or unsupported local agent host endpoint entry ${path}`);
 		return undefined;
 	}
-	return entry;
+	return { entry, mtimeMs };
 }
 
-async function readLegacyRegistryAsync(metadataPath: string, logService?: ILogService): Promise<IAgentHostEndpointMetadata[]> {
+async function readLegacyRegistryAsync(metadataPath: string, logService?: ILogService): Promise<IAgentHostEndpointPublication[]> {
 	let raw: string;
+	let mtimeMs: number;
 	try {
 		const stat = await fs.promises.lstat(metadataPath);
 		if (!stat.isFile() || stat.isSymbolicLink()) {
 			return [];
 		}
 		raw = await fs.promises.readFile(metadataPath, 'utf8');
+		mtimeMs = stat.mtimeMs;
 	} catch (error) {
 		if (isNotFound(error)) {
 			return [];
@@ -277,7 +289,7 @@ async function readLegacyRegistryAsync(metadataPath: string, logService?: ILogSe
 	}
 
 	try {
-		return parseAgentHostEndpointRegistry(JSON.parse(raw));
+		return parseAgentHostEndpointRegistry(JSON.parse(raw)).map(entry => ({ entry, mtimeMs }));
 	} catch (error) {
 		if (error instanceof SyntaxError) {
 			logService?.warn(`[AgentHost] Ignoring malformed legacy local agent host endpoint registry ${metadataPath}`);
@@ -319,9 +331,13 @@ async function renameReplacingAsync(from: string, to: string, logService?: ILogS
 	}
 }
 
-/** Deterministic order (standalone before editor, then `instanceId`), matching the Rust reader. */
-function sortForDeterministicOrder(entries: IAgentHostEndpointMetadata[]): IAgentHostEndpointMetadata[] {
+/** Newest-published first, then standalone before editor and `instanceId`, matching the Rust reader. */
+function sortForDeterministicOrder(entries: IAgentHostEndpointMetadata[], publishTimes: ReadonlyMap<IAgentHostEndpointMetadata, number>): IAgentHostEndpointMetadata[] {
 	return entries.sort((a, b) => {
+		const timeDelta = (publishTimes.get(b) ?? 0) - (publishTimes.get(a) ?? 0);
+		if (timeDelta !== 0) {
+			return timeDelta;
+		}
 		const rankDelta = serverTypeSortRank(a.type) - serverTypeSortRank(b.type);
 		if (rankDelta !== 0) {
 			return rankDelta;

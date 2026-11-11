@@ -22,6 +22,7 @@ use crate::tunnels::agent_host::{
 	AgentHostSidecar, GithubEnvironmentConfig, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
+use crate::tunnels::code_server::CodeServerArgs;
 use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
 use crate::tunnels::legal;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
@@ -1013,7 +1014,8 @@ async fn spawn_supervisor_and_wait_ready(
 }
 
 /// Endpoint of a running agent host supervisor, as recorded in the shared
-/// local agent-host endpoint registry and consumed by tunnel callers.
+/// local agent-host endpoint registry and consumed by tunnel + bridge
+/// callers.
 pub struct ActiveAgentHost {
 	pub pid: u32,
 	/// Host the supervisor was bound to (e.g. `"0.0.0.0"`, `"::1"`,
@@ -1034,6 +1036,23 @@ impl ActiveAgentHost {
 	/// loopback to preserve the prior behaviour.
 	pub fn dial_host(&self) -> &str {
 		dial_host(self.host.as_deref())
+	}
+
+	/// Populate the `--agent-host-bridge-*` fields on a [`CodeServerArgs`]
+	/// so a spawned VS Code server that predates registry discovery dials
+	/// this supervisor. Uses [`dial_host`] for the host so a supervisor bound
+	/// to a wildcard (`0.0.0.0` / `::`) is reached via loopback rather
+	/// than the wildcard itself. Those servers put the host into a `ws://`
+	/// URL, so IPv6 literals are bracketed.
+	pub fn apply_to_bridge(&self, csa: &mut CodeServerArgs) {
+		let host = self.dial_host();
+		csa.agent_host_bridge_host = Some(if host.contains(':') && !host.starts_with('[') {
+			format!("[{host}]")
+		} else {
+			host.to_string()
+		});
+		csa.agent_host_bridge_port = Some(self.port);
+		csa.agent_host_bridge_connection_token = self.token.clone();
 	}
 }
 
@@ -1352,6 +1371,32 @@ mod tests {
 			token: Some("tok".to_string()),
 			instance_id: "instance-existing".to_string(),
 		}
+	}
+
+	#[test]
+	fn apply_to_bridge_brackets_ipv6_hosts_for_legacy_server_urls() {
+		let bridge_host = |host: Option<&str>| {
+			let mut csa = CodeServerArgs::default();
+			ActiveAgentHost {
+				pid: 1,
+				host: host.map(str::to_string),
+				port: 9000,
+				token: None,
+			}
+			.apply_to_bridge(&mut csa);
+			csa.agent_host_bridge_host.unwrap()
+		};
+		assert_eq!(
+			[
+				Some("::1"),
+				Some("[::1]"),
+				Some("::"),
+				Some("127.0.0.1"),
+				None
+			]
+			.map(bridge_host),
+			["[::1]", "[::1]", "127.0.0.1", "127.0.0.1", "127.0.0.1"]
+		);
 	}
 
 	#[test]

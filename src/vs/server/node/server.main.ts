@@ -35,6 +35,8 @@ const errorReporter: ErrorReporter = {
 };
 
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+// CLIs set this for servers that predate agent host discovery through the endpoint registry; keep it from child processes.
+delete process.env['VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN'];
 
 const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
 const USER_DATA_PATH = args['user-data-dir'] || join(REMOTE_DATA_FOLDER, 'data');

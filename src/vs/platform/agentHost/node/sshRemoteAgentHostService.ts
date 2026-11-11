@@ -977,8 +977,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				};
 
 				// Deterministic dedicated (standalone) selection: reuse a live
-				// standalone (lowest `instanceId` first, so repeated silent
-				// attempts are stable) when one exists, or spawn a new
+				// standalone (newest-published first, matching the CLI)
+				// when one exists, or spawn a new
 				// dedicated one otherwise. Shared by the stored-preference
 				// paths below and the silent/background reconnect policy —
 				// neither ever opens the picker.
