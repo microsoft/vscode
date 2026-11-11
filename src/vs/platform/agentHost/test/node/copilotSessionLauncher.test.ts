@@ -58,7 +58,7 @@ import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWra
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, encodeModelRouterAgentEffort, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -1854,22 +1854,6 @@ suite('CopilotSessionLauncher Connectors', () => {
 		});
 	}
 
-});
-
-suite('encodeModelRouterAgentEffort', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('encodes an agent\'s effort for the model it runs on: its own, else the chat\'s', () => {
-		const onDevice = 'vscode-on-device/qwen';
-		assert.deepStrictEqual({
-			// An on-device model reads a missing effort as thinking on, so Off is sent as `minimal`.
-			ownOnDevice: encodeModelRouterAgentEffort(onDevice, { id: 'claude-opus' }, 'none'),
-			inheritsOnDevice: encodeModelRouterAgentEffort(undefined, { id: onDevice }, 'none'),
-			ownCloudOverOnDeviceChat: encodeModelRouterAgentEffort('claude-haiku', { id: onDevice }, 'none'),
-			inheritsCloud: encodeModelRouterAgentEffort(undefined, { id: 'claude-opus' }, 'none'),
-			otherEffort: encodeModelRouterAgentEffort(undefined, { id: onDevice }, 'high'),
-		}, { ownOnDevice: 'minimal', inheritsOnDevice: 'minimal', ownCloudOverOnDeviceChat: 'none', inheritsCloud: 'none', otherEffort: 'high' });
-	});
 });
 
 suite('getCopilotAgentSelectionName', () => {
@@ -3865,7 +3849,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
-		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterAgents'> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral'> = {},
 	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
@@ -3952,38 +3936,14 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
 	});
 
-	test('a model router role reuses an agent of a plugin the runtime loads itself, and never takes a built-in agent\'s name', async () => {
+	test('tells the main agent the guidance of the chat\'s model router route, but not an ephemeral session', async () => {
 		const store = disposables.add(new DisposableStore());
-		const nativeUri = URI.file('/plugins/shop/agents/test-writer.agent.md');
-		const config = await buildResumeConfig(createLauncher(store, {}, '---\nname: Writes Tests\nmodel: claude-sonnet\n---\nWrite tests.'), undefined, {
-			discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {},
-			// The runtime registers this agent itself, so the host forwards no definition for it.
-			nativeAgents: [{ type: CustomizationType.Agent, id: 'shop:test-writer', uri: nativeUri.toString(), name: 'Test Writer', _meta: { 'vscode.modelPolicy': 'required' } }],
-		}, undefined, {}, {
-			modelRouterAgents: {
-				router: 'Team', playbook: 'feature',
-				agents: [
-					{ name: 'tester', description: '', agent: 'test writer', model: 'claude-haiku' },
-					{ name: 'tester-as-written', description: '', agent: 'Test Writer' },
-					{ name: 'general-purpose', description: 'Has the name of an agent the runtime brings.' },
-				],
-			},
-		});
-		const names = new Set(['tester', 'tester-as-written', 'general-purpose', 'Test Writer', 'Writes Tests', getSdkCustomAgentName(nativeUri)]);
+		const modelRouterGuidance = { router: 'Team', route: 'feature', guidance: 'Plan first.' };
+		const content = async (isEphemeral: boolean) => (await buildResumeConfig(createLauncher(store, {}), undefined, undefined, undefined, {}, { modelRouterGuidance, isEphemeral })).systemMessage?.content ?? '';
 		assert.deepStrictEqual({
-			agents: config.customAgents?.filter(agent => names.has(agent.name) || names.has(agent.displayName ?? '')).map(agent => ({ name: agent.name, prompt: agent.prompt, model: agent.model, modelPolicy: agent.modelPolicy })),
-			briefed: /Agents you can start[^]*- `tester`/.test(config.systemMessage?.content ?? ''),
-			briefedReserved: config.systemMessage?.content?.includes('`general-purpose`'),
-		}, {
-			// Only the roles' copies are added: the plugin's agent stays the runtime's own.
-			agents: [
-				{ name: 'tester', prompt: 'Write tests.', model: 'claude-haiku', modelPolicy: 'required' },
-				// A role without a model keeps the agent's, and with it the agent's own model policy.
-				{ name: 'tester-as-written', prompt: 'Write tests.', model: 'claude-sonnet', modelPolicy: 'required' },
-			],
-			briefed: true,
-			briefedReserved: false,
-		});
+			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
+			ephemeral: (await content(true)).includes('model_router_guidance'),
+		}, { chat: true, ephemeral: false });
 	});
 
 	test('custom-agent tool reference remapping remains launch-only', async () => {

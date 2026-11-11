@@ -50,7 +50,7 @@ import { getPlanActionDescription, type ChatInputRequestWithPlanReview, type IAg
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
-import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
+import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
@@ -1458,7 +1458,7 @@ export class CopilotAgentSession extends Disposable {
 	get hasStartedRootWork(): boolean { return this._rootWorkStarted; }
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
 	/** The model router agent plan this session was launched with, compared by identity. */
-	get modelRouterAgents(): IModelRouterAgentPlan | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterAgents; }
+	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
 
 	/**
 	 * Notes that the root agent is doing work in this session, whoever started it: a sent message,
