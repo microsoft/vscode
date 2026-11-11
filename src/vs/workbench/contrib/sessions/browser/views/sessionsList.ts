@@ -444,6 +444,7 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 }
 
 function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
+	sectionId = getUnscopedSectionId(sectionId);
 	switch (sectionId) {
 		case NEW_SESSION_SECTION_ID:
 			return Codicon.plus;
@@ -518,11 +519,13 @@ const ENVIRONMENT_SECTION_PREFIX = 'environment:';
 
 /** Whether a section lists one workspace, repository, or environment and can be reordered among custom groups. */
 function isSessionGroupingSection(sectionId: string): boolean {
+	sectionId = getUnscopedSectionId(sectionId);
 	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX);
 }
 
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 function getSessionSectionType(sectionId: string): string {
+	sectionId = getUnscopedSectionId(sectionId);
 	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
 }
 
@@ -715,8 +718,17 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 export const SessionsListSearchOpenContext = new RawContextKey<boolean>('sessionsListSearchOpen', false, localize('sessionsListSearchOpen', "Whether the search of the Sessions list is open."));
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
-/** Suffix of the section that a scoped list splits off a grouping section for its sessions outside the scope. */
-const OUT_OF_SCOPE_SECTION_ID_SUFFIX = '#outOfScope';
+/**
+ * Prefix of the grouping sections that a scoped list lists behind its "+N more" row, for the sessions outside its scope.
+ * It precedes the grouping prefix (`workspace:`, `repository:`, `environment:`), so no section of a label produces it.
+ */
+const OUT_OF_SCOPE_SECTION_PREFIX = 'outOfScope:';
+
+/** The id of a section without the {@link OUT_OF_SCOPE_SECTION_PREFIX} of a scoped list. */
+function getUnscopedSectionId(sectionId: string): string {
+	return sectionId.startsWith(OUT_OF_SCOPE_SECTION_PREFIX) ? sectionId.slice(OUT_OF_SCOPE_SECTION_PREFIX.length) : sectionId;
+}
+
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 const INSET_ROW_GAP = 2;
 
@@ -5830,7 +5842,44 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session));
+		const groupSessions = (sessions: ISession[]) => groupSessionsForList(sessions, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session));
+		const sections = groupSessions(forSections);
+
+		// A host scope (the window's workspace folders) lists only its workspaces inline, in "All" too. The sessions of the
+		// other top-level grouping sections are grouped again, into sections listed behind the "+N more" row. This happens
+		// before comparisons and groups find their sections, so that they find the sections of their own sessions.
+		const scopeFolders = grouping !== SessionsGrouping.Date && !inbox && !this.hasFindPattern ? this.options.scopeFolders?.get() ?? [] : [];
+		// The scope's repositories are known from every session, including those placed in custom groups or filtered out.
+		const sessionsInScope = scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
+		const scope = sessionsInScope && { includes: (session: ISession) => sessionsInScope.includes(session) || session.sessionId === onboardingSession?.sessionId };
+		const getScopedSectionId = (sectionId: string, sessions: readonly ISession[]) =>
+			scope && isSessionGroupingSection(sectionId) && this.getSectionParentId(sectionId) === undefined && !sessions.some(scope.includes)
+				? `${OUT_OF_SCOPE_SECTION_PREFIX}${sectionId}`
+				: sectionId;
+		if (scope) {
+			const outOfScope: ISession[] = [];
+			for (let index = sections.length - 1; index >= 0; index--) {
+				const section = sections[index];
+				if (!isSessionGroupingSection(section.id) || this.getSectionParentId(section.id) !== undefined) {
+					continue;
+				}
+				const inScope = section.sessions.filter(scope.includes);
+				if (inScope.length === section.sessions.length) {
+					continue;
+				}
+				outOfScope.push(...section.sessions.filter(session => !scope.includes(session)));
+				if (inScope.length === 0) {
+					sections.splice(index, 1);
+				} else {
+					sections[index] = { ...section, collapseStateId: section.id.startsWith('workspace:') ? workspaceCollapseStateId(inScope) : section.collapseStateId, sessions: inScope };
+				}
+			}
+			if (outOfScope.length > 0) {
+				sections.push(...groupSessions(outOfScope)
+					.filter(section => isSessionGroupingSection(section.id))
+					.map(section => ({ ...section, id: `${OUT_OF_SCOPE_SECTION_PREFIX}${section.id}` })));
+			}
+		}
 
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
@@ -5894,11 +5943,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				const sectionId = inbox
+				const naturalSectionId = inbox
 					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? SessionInboxSection.Working
 					: grouping === SessionsGrouping.Date
 						? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
 						: environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
+				// A comparison outside a scope joins the sections behind the "+N more" row.
+				const sectionId = naturalSectionId && getScopedSectionId(naturalSectionId, comparisonSessions);
 				if (!sectionId) {
 					continue;
 				}
@@ -6023,34 +6074,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// When the user has chosen "Show All Sessions" (uncapped), show every
 		// section inline instead of hiding some behind a "+N more" entry.
 		const partitionFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern && this.workspaceGroupCapped;
-		// A host scope (the window's workspace folders) lists only its workspaces inline, in "All" too.
-		const scopeFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern ? this.options.scopeFolders?.get() ?? [] : [];
 		const moreFolderSectionIds = new Set<string>();
-		if (scopeFolders.length > 0) {
-			// The scope's repositories are known from every session, including those placed in custom groups or filtered out.
-			const scope = getSessionsInScopeFolders(this.sessions, scopeFolders);
-			const isInScope = (session: ISession) => scope.includes(session) || session.sessionId === onboardingSession?.sessionId;
-			for (let index = 0; index < sections.length; index++) {
-				const section = sections[index];
-				if (!isSessionGroupingSection(section.id) || this.getSectionParentId(section.id) !== undefined) {
-					continue;
-				}
-				const inScope = section.sessions.filter(isInScope);
-				if (inScope.length === 0) {
+		if (scope) {
+			for (const section of sections) {
+				if (section.id.startsWith(OUT_OF_SCOPE_SECTION_PREFIX)) {
 					moreFolderSectionIds.add(section.id);
-				} else if (inScope.length < section.sessions.length) {
-					// Sections group by label, so a workspace of the same name elsewhere goes under "+N more" as a section of its own.
-					const outOfScope = section.sessions.filter(session => !isInScope(session));
-					const isWorkspaceSection = section.id.startsWith('workspace:');
-					const outOfScopeSection: ISessionSection = {
-						...section,
-						id: `${section.id}${OUT_OF_SCOPE_SECTION_ID_SUFFIX}`,
-						collapseStateId: isWorkspaceSection ? workspaceCollapseStateId(outOfScope) : undefined,
-						sessions: outOfScope,
-					};
-					sections.splice(index, 1, { ...section, collapseStateId: isWorkspaceSection ? workspaceCollapseStateId(inScope) : section.collapseStateId, sessions: inScope }, outOfScopeSection);
-					moreFolderSectionIds.add(outOfScopeSection.id);
-					index++;
 				}
 			}
 		} else if (partitionFolders) {
@@ -10022,6 +10050,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */
 function isGroupingSpecificCollapseStateId(id: string): boolean {
+	id = getUnscopedSectionId(id);
 	return id.startsWith('workspace:') || id.startsWith(ENVIRONMENT_SECTION_PREFIX) || id === 'recent' || id === 'older';
 }
 

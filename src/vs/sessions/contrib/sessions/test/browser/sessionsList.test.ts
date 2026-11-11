@@ -3973,6 +3973,62 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('keeps the sections behind the more row apart from workspaces whose label looks like their ids', () => {
+			const harness = createListHarness(disposables, [
+				createFolderSession('in-scope', 'repo', { root: 'file:///a/repo' }, hoursAgo(1)),
+				createFolderSession('look-alike', 'outOfScope:workspace:repo', { root: 'file:///c' }, hoursAgo(2)),
+				createFolderSession('suffixed', 'repo#outOfScope', { root: 'file:///d' }, hoursAgo(3)),
+				createFolderSession('same-name', 'repo', { root: 'file:///b/repo' }, hoursAgo(4)),
+			]);
+			const scoped = openScopedList(harness, constObservable([URI.parse('file:///a/repo'), URI.parse('file:///c')]));
+
+			const before = { ...scoped.snapshot(), sections: scoped.sectionLabels() };
+			scoped.click('+2 more workspaces');
+
+			assert.deepStrictEqual({ before, expanded: { ...scoped.snapshot(), sections: scoped.sectionLabels() } }, {
+				before: { sessions: ['look-alike', 'in-scope'], showMore: ['+2 more workspaces'], sections: ['outOfScope:workspace:repo', 'repo'] },
+				expanded: { sessions: ['look-alike', 'in-scope', 'same-name', 'suffixed'], showMore: ['Show fewer workspaces'], sections: ['outOfScope:workspace:repo', 'repo', 'repo', 'repo#outOfScope'] },
+			});
+		});
+
+		test('lists a comparison outside the scope once, whole, behind the more row', () => {
+			const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 1 };
+			const attempt = (id: string) => createFolderSession(id, 'repo', { root: 'file:///b/repo' }, hoursAgo(2));
+			const attempts = [attempt('attempt-1'), attempt('attempt-2')];
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: group.id,
+				title: 'Elsewhere',
+				createdAt: 1,
+				workspace: URI.parse('file:///b/repo'),
+				prompt: 'Elsewhere',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [createFolderSession('in-scope', 'repo', { root: 'file:///a/repo' }, hoursAgo(1)), ...attempts], {
+				groups: [group],
+				memberships: new Map(attempts.map(session => [session.sessionId, group.id])),
+				comparisons: [comparison],
+			});
+			const unscoped = openScopedList(harness, undefined);
+			const scoped = openScopedList(harness, constObservable([URI.parse('file:///a/repo')]));
+
+			const before = { unscoped: unscoped.snapshot(), scoped: scoped.snapshot() };
+			scoped.click('+1 more workspace');
+
+			assert.deepStrictEqual({ before, expanded: scoped.snapshot() }, {
+				before: {
+					unscoped: { sessions: ['in-scope', 'attempt-1', 'attempt-2'], showMore: [] },
+					scoped: { sessions: ['in-scope'], showMore: ['+1 more workspace'] },
+				},
+				expanded: { sessions: ['in-scope', 'attempt-1', 'attempt-2'], showMore: ['Show fewer workspaces'] },
+			});
+		});
+
 		test('knows the scope\'s repository from a session in a custom group or filtered out', () => {
 			const render = (anchorOptions: ITestSessionOptions, placeInGroup: boolean, excludeClaude: boolean) => {
 				const anchor = createFolderSession('anchor', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }, hoursAgo(1), anchorOptions);
