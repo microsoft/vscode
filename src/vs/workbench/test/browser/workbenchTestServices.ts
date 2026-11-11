@@ -97,7 +97,6 @@ import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteA
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../services/sessions/browser/sessionsStorageService.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
@@ -310,8 +309,7 @@ export function workbenchInstantiationService(
 	const textResourceConfigurationService = new TestTextResourceConfigurationService(configService);
 	instantiationService.stub(ITextResourceConfigurationService, textResourceConfigurationService);
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
-	const storageService = instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
-	instantiationService.stub(ISessionsStorageService, storageService);
+	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
 	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();

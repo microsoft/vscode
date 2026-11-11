@@ -6,7 +6,6 @@
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISessionsNavigationHost } from '../../../../workbench/contrib/sessions/browser/sessionsNavigationHost.js';
 import { SessionsServiceNavigationHost } from '../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationHost.js';
-import { ISessionsStorageService, SessionsStorageService } from '../../../../workbench/services/sessions/browser/sessionsStorageService.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostCustomizationService } from '../../../../workbench/contrib/sessions/browser/agentHostCustomizationService.js';
 import { ISessionsService, SessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -27,7 +26,6 @@ import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../..
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.
-registerSingleton(ISessionsStorageService, SessionsStorageService, InstantiationType.Delayed);
 registerSingleton(ISessionsProvidersService, SessionsProvidersService, InstantiationType.Delayed);
 registerSingleton(IAgentHostCustomizationService, AgentHostCustomizationService, InstantiationType.Delayed);
 registerSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);

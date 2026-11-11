@@ -10,7 +10,6 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -92,7 +91,6 @@ suite('SessionGroupsService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsStorageService, storageService);
 		orderService = disposables.add(new SessionSectionOrderService(storageService));
 		instantiationService.stub(ISessionSectionOrderService, orderService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());

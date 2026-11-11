@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -17,9 +17,7 @@ import { SyncDescriptor } from '../../../../../../platform/instantiation/common/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
-import { ISessionsStorageService } from '../../../../../services/sessions/browser/sessionsStorageService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
@@ -55,7 +53,6 @@ suite('AgentsViewGate', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let createdStorageServices: number;
 
 	// The Agents window registers the Sessions view too, as other tests load it: set that registration aside meanwhile.
 	let agentsWindowView: { readonly view: IViewDescriptor; readonly container: ViewContainer } | undefined;
@@ -87,16 +84,10 @@ suite('AgentsViewGate', () => {
 	let contextKeyService: MockContextKeyService;
 
 	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }): AgentsViewGate {
-		createdStorageServices = 0;
 		createdChatParts = 0;
 		delegates = 0;
 		hiddenParts = [];
-		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ISessionsStorageService, new SyncDescriptor(class extends mock<IStorageService>() {
-			constructor() {
-				super();
-				createdStorageServices++;
-			}
-		})], [IAgentsChatPartFrame, new SyncDescriptor(class {
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
 			constructor() {
 				createdChatParts++;
 			}
@@ -151,7 +142,7 @@ suite('AgentsViewGate', () => {
 		assert.deepStrictEqual({ ...registered(), reads }, { container: undefined, view: undefined, reads: [ChatConfiguration.AgentsViewEnabled] });
 	});
 
-	test('registers the Sessions view before the Explorer, without loading its state or registering its actions, while the setting is on', () => {
+	test('registers the Sessions view before the Explorer, without registering its actions, while the setting is on', () => {
 		const before = sessionItemMenuItems();
 		const gate = createGate(true);
 		const listActionsBeforeShown = sessionItemMenuItems() - before;
@@ -163,7 +154,6 @@ suite('AgentsViewGate', () => {
 			order: container?.order,
 			view: view?.id,
 			when: view?.when?.serialize(),
-			createdStorageServices,
 			createdChatParts,
 			listActionsBeforeShown,
 		}, {
@@ -172,7 +162,6 @@ suite('AgentsViewGate', () => {
 			order: -1,
 			view: SessionsViewId,
 			when: AgentsViewWhen.serialize(),
-			createdStorageServices: 0,
 			createdChatParts: 1,
 			listActionsBeforeShown: 0,
 		});
@@ -275,7 +264,7 @@ suite('AgentsViewGate', () => {
 		createGate(true);
 		const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(AGENTS_VIEW_CONTAINER_ID)!;
 		const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(container);
-		const shown = (values: Record<string, unknown>) => views.filter(view => view.when?.evaluate({ getValue: <T>(key: string) => ({ 'config.chat.agent.enabled': true, remoteName: '', agentsViewStateReady: true, chatSetupInstalled: true, ...values })[key] as T })).map(view => view.id);
+		const shown = (values: Record<string, unknown>) => views.filter(view => view.when?.evaluate({ getValue: <T>(key: string) => ({ 'config.chat.agent.enabled': true, remoteName: '', chatSetupInstalled: true, ...values })[key] as T })).map(view => view.id);
 
 		assert.deepStrictEqual({
 			signedIn: shown({}),

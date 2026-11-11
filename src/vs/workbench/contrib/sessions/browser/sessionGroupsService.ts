@@ -12,7 +12,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../services/sessions/browser/sessionsStorageService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -364,7 +363,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	private readonly _slotSendSessionIds = new Set<string>();
 
 	constructor(
-		@ISessionsStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionSectionOrderService private readonly sectionOrderService: ISessionSectionOrderService,
 	) {
