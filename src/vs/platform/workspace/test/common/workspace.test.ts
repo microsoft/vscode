@@ -8,7 +8,7 @@ import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRawFileWorkspaceFolder, Workspace, WorkspaceFolder } from '../../common/workspace.js';
+import { IRawFileWorkspaceFolder, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
 import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -45,6 +45,15 @@ suite('Workspace', () => {
 		const actual = testObject.getFolder(URI.file(join(fileFolder, 'test/a')));
 
 		assert.strictEqual(actual, expected);
+	});
+
+	test('single folder identifier uses the primary location', () => {
+		const alternate = new Workspace('id', [new WorkspaceFolder({ uri: test1FolderUri, primaryUri: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
+		const primary = new Workspace('id', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
+
+		assert.deepStrictEqual(
+			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), json: alternate.folders[0].toJSON().primaryUri?.toString() },
+			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, json: mainFolderUri.toString() });
 	});
 
 	test('getFolder returns the closest folder if the uri is sub', () => {
