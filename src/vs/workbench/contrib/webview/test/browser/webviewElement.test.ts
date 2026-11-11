@@ -53,12 +53,17 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, hashParentOrigin?: (parentOrigin: string, defaultHash: () => Promise<string>) => Promise<string>) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
 
 			protected override get platform(): string { return platform; }
+
+			protected override hashParentOrigin(parentOrigin: string): Promise<string> {
+				const defaultHash = () => super.hashParentOrigin(parentOrigin);
+				return hashParentOrigin ? hashParentOrigin(parentOrigin, defaultHash) : defaultHash();
+			}
 
 			protected override webviewContentEndpoint(encodedWebviewOrigin: string): string {
 				const origin = `https://${encodedWebviewOrigin}.invalid`;
@@ -330,31 +335,27 @@ suite('WebviewElement', () => {
 	}
 
 	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
-		const { webview, container, setSource } = await createWebview(undefined, 'browser', false);
-		const realDigest = crypto.subtle.digest.bind(crypto.subtle);
-		const firstDigest = new DeferredPromise<void>();
-		const secondDigest = new DeferredPromise<void>();
-		let digestCalls = 0;
-		sinon.stub(crypto.subtle, 'digest').callsFake(async (...args: Parameters<typeof realDigest>) => {
-			if (digestCalls++ === 0) {
-				await firstDigest.p;
+		const firstHash = new DeferredPromise<string>();
+		let delayFirstHash = false;
+		const { webview, container, setSource } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
+			if (delayFirstHash) {
+				delayFirstHash = false;
+				return firstHash.p;
 			}
-			const result = await realDigest(...args);
-			if (digestCalls === 2 && !secondDigest.isSettled) {
-				secondDigest.complete();
-			}
-			return result;
+			return defaultHash();
 		});
+		delayFirstHash = true;
 		const before = setSource.callCount;
 
 		webview.mountTo(container, mainWindow);
 		webview.mountTo(container, mainWindow);
-		await secondDigest.p;
 		await timeout(0);
-		firstDigest.complete();
-		await timeout(10);
+		const afterSecondMount = setSource.callCount - before;
+		firstHash.complete('stale-origin');
+		await firstHash.p;
+		await timeout(0);
 
-		assert.strictEqual(setSource.callCount - before, 1);
+		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before }, { afterSecondMount: 1, afterStaleCompletion: 1 });
 	});
 
 	test('remount rejects the old handshake and key token', async () => {
