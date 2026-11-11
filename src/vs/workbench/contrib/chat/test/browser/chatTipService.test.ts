@@ -45,7 +45,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, INSERT_AUTOMATE_COMMAND_ID } from '../../browser/actions/chatActions.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
@@ -661,8 +661,19 @@ suite('ChatTipService', () => {
 				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
 				experimentalTipMessages: new Map(),
 			}).value,
-			'Use `/automate` to talk through an automation idea with the agent and end the conversation with one created.',
+			'Use [/automate](command:workbench.action.chat.insertAutomateCommand "Run /automate") to have the agent walk you through turning a task into a recurring automation.',
 		);
+	});
+
+	test('removes the automate tip after its insert command is used', () => {
+		testDisposables.add(CommandsRegistry.registerCommand(INSERT_AUTOMATE_COMMAND_ID, () => { }));
+		contextKeyService.createKey(IsSessionsWindowContext.key, true);
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey('chatAutomationsEnabled', true);
+		const service = createService();
+		assert.ok(findTipById(service, 'tip.automate'));
+		commandExecutedEmitter.fire({ commandId: INSERT_AUTOMATE_COMMAND_ID, args: [] });
+		assertTipNeverShown(service, 'tip.automate');
 	});
 
 	test('records # file reference usage for attach files tip eligibility', () => {

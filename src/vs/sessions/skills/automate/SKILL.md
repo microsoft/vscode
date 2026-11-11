@@ -6,6 +6,8 @@ description: 'Propose an automation from a completed task or a new idea, then cr
 
 # Propose an Automation
 
+Turn a task the user just did, or a new idea, into an automation: a saved prompt that an agent reruns later on a schedule or trigger, locally or in the cloud, instead of the user repeating the task by hand.
+
 ## Infer the task
 
 - After completed work, bare `/automate` repeats its relevant goal, inputs, scope, and result, not the whole chat.

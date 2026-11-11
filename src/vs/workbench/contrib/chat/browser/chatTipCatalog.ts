@@ -23,6 +23,7 @@ import {
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
+	INSERT_AUTOMATE_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
 	INSERT_TROUBLESHOOT_COMMAND_ID,
 } from './actions/chatActions.js';
@@ -364,9 +365,16 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	{
 		id: 'tip.automate',
 		tier: ChatTipTier.Qol,
-		buildMessage() {
+		buildMessage(ctx) {
+			const kb = formatKeybinding(ctx, INSERT_AUTOMATE_COMMAND_ID);
 			return new MarkdownString(
-				localize('tip.automate', "Use `/automate` to talk through an automation idea with the agent and end the conversation with one created.")
+				localize(
+					'tip.automate',
+					"Use [{0}](command:{1} \"Run /automate\"){2} to have the agent walk you through turning a task into a recurring automation.",
+					'/automate',
+					INSERT_AUTOMATE_COMMAND_ID,
+					kb
+				)
 			);
 		},
 		when: ContextKeyExpr.and(
@@ -374,6 +382,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			ChatContextKeys.enabled,
 			ChatAutomationsEnabledContext,
 		),
+		excludeWhenCommandsExecuted: [INSERT_AUTOMATE_COMMAND_ID],
 		excludeWhenToolsInvoked: ['vscode_configureAutomation'],
 	},
 	{

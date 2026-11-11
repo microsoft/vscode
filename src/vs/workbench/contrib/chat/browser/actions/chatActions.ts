@@ -95,6 +95,7 @@ export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
 export const GENERATE_HOOK_COMMAND_ID = 'workbench.action.chat.generateHook';
 export const INSERT_FORK_CONVERSATION_COMMAND_ID = 'workbench.action.chat.insertForkConversationCommand';
 export const INSERT_TROUBLESHOOT_COMMAND_ID = 'workbench.action.chat.insertTroubleshootCommand';
+export const INSERT_AUTOMATE_COMMAND_ID = 'workbench.action.chat.insertAutomateCommand';
 
 /** Opens a customization request using skills only when the destination chat is Local. */
 export async function openCustomizationChat(accessor: ServicesAccessor, type: PromptsType | 'init', workspaceFolder?: URI, preferences?: string): Promise<void> {
@@ -1585,6 +1586,27 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				query: '/troubleshoot ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class InsertAutomateSlashCommandAction extends Action2 {
+		constructor() {
+			super({
+				id: INSERT_AUTOMATE_COMMAND_ID,
+				title: localize2('insertAutomateSlashCommand', "Insert Automate Command"),
+				shortTitle: localize2('insertAutomateSlashCommand.short', "Insert /automate"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				query: '/automate ',
 				isPartialQuery: true,
 			});
 		}
