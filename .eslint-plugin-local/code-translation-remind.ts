@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import { readFileSync } from 'fs';
 import { createImportRuleListener } from './utils.ts';
 
 
-export default new class TranslationRemind implements eslint.Rule.RuleModule {
+export default new class TranslationRemind implements CreateRule {
 
 	private static NLS_MODULE = 'vs/nls';
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const currentFile = context.filename.replace(/\\/g, '/');
 		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
 		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
@@ -33,7 +32,7 @@ export default new class TranslationRemind implements eslint.Rule.RuleModule {
 		return createImportRuleListener((node, path) => this._checkImport(context, resource, node, path));
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, resource: string, node: TSESTree.Node, path: string) {
+	private _checkImport(context: Context, resource: string, node: ESTree.Node, path: string) {
 
 		if (path !== TranslationRemind.NLS_MODULE && !path.endsWith('/nls.js')) {
 			return;

@@ -334,6 +334,12 @@ export function dialAgentHostHost(bound: string | undefined): string {
 	return bound;
 }
 
+/** The host to put in a `ws://` URL for an agent host bound to `bound`, with IPv6 literals bracketed. */
+export function formatAgentHostUrlHost(bound: string | undefined): string {
+	const host = dialAgentHostHost(bound);
+	return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+}
+
 /**
  * Build the `code agent endpoints` command that lists every live agent
  * host endpoint (editor + standalone) known to the shared registry on the

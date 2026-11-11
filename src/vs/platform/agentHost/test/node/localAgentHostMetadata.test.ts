@@ -143,12 +143,13 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		});
 	});
 
-	test('discovers compatible standalone hosts in deterministic order and removes only their own entries', async () => {
+	test('discovers compatible standalone hosts in deterministic order when publication times tie and removes only their own entries', async () => {
 		const editor = createLocalAgentHostEndpointMetadata(userDataPath);
 		const stable = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'a' }, 'stable-token'), quality: 'stable' };
 		const first = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'b' }, 'first-token'), quality: 'insider' };
 		const second = { ...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'c' }, 'second-token'), quality: 'insider' };
 		await Promise.all([second, editor, stable, first].map(entry => publishLocalAgentHostEndpointMetadata(userDataPath, entry)));
+		await Promise.all([second, editor, stable, first].map(entry => fs.promises.utimes(join(entriesDirectory, entryFileName(entry)), 1000, 1000)));
 
 		const preferredEditor = await readLocalAgentHostEndpoint(userDataPath, 'insider', 'editor');
 		const selected = await readLocalAgentHostEndpoint(userDataPath, 'insider');
@@ -170,6 +171,19 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			unavailable: undefined,
 			remaining: [stable.instanceId, editor.instanceId],
 		});
+	});
+
+	test('orders entries by newest publication time, including legacy metadata', async () => {
+		const older = makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'a' }, 'older-token');
+		const newer = makeEntry({ type: 'editor', pid: process.pid, instanceId: 'z' }, 'newer-token');
+		const legacy = makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'legacy' }, 'legacy-token');
+		await Promise.all([older, newer].map(entry => publishLocalAgentHostEndpointMetadata(userDataPath, entry)));
+		await fs.promises.writeFile(legacyMetadataPath, JSON.stringify([legacy]), 'utf8');
+		await fs.promises.utimes(join(entriesDirectory, entryFileName(older)), 1000, 1000);
+		await fs.promises.utimes(legacyMetadataPath, 2000, 2000);
+		await fs.promises.utimes(join(entriesDirectory, entryFileName(newer)), 3000, 3000);
+
+		assert.deepStrictEqual((await readLocalAgentHostEndpointRegistry(userDataPath)).map(entry => entry.instanceId), ['z', 'legacy', 'a']);
 	});
 
 	test('concurrent writers preserve every entry (no lost updates, no lock)', async () => {
@@ -266,6 +280,8 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			endpoint: { type: 'socket', path: join(userDataPath, 'ignored.sock') },
 		};
 		await publishLocalAgentHostEndpointMetadata(userDataPath, winningEntry);
+		await fs.promises.utimes(join(entriesDirectory, entryFileName(winningEntry)), 1000, 1000);
+		await fs.promises.utimes(legacyMetadataPath, 2000, 2000);
 
 		const registry = await readLocalAgentHostEndpointRegistry(userDataPath);
 		assert.deepStrictEqual({

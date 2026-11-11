@@ -34,13 +34,14 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { type AgentHostEndpointAddress, isShareableAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
+import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
 	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
+	formatAgentHostUrlHost,
 	getRemoteCLIDataDir,
 	ISshExec,
 	resolveRemotePlatform,
@@ -372,9 +373,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			let endpoint = live
-				.filter(candidate => isShareableAgentHostEndpoint(candidate, this._productService.quality))
-				.sort((a, b) => a.instanceId.localeCompare(b.instanceId))[0];
+			let endpoint = selectAgentHostEndpoint(live, this._productService.quality, undefined);
 			if (!endpoint) {
 				const sessionId = this._telemetryService.sessionId;
 				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
@@ -765,7 +764,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		});
 		const duplex = Duplex.from({ readable: child.stdout, writable: child.stdin });
 		const WS = nativeRequire('ws') as typeof WebSocket;
-		const urlHost = endpoint.type === 'tcp' ? endpoint.host : '127.0.0.1';
+		const urlHost = endpoint.type === 'tcp' ? formatAgentHostUrlHost(endpoint.host) : '127.0.0.1';
 		const urlPort = endpoint.type === 'tcp' ? endpoint.port : 80;
 		let url = `ws://${urlHost}:${urlPort}`;
 		if (connectionToken) {

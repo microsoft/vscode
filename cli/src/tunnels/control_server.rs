@@ -107,7 +107,8 @@ struct HandlerContext {
 	http_requests: HttpRequestsMap,
 	/// Shared `ensure_supervisor_running` future, awaited in `handle_serve`
 	/// so the spawned server can discover the supervisor via the shared
-	/// local agent-host endpoint registry.
+	/// local agent-host endpoint registry. `None` for `command-shell`, whose
+	/// server starts its own agent host when no shared one is running.
 	active_agent_host: Option<SharedActiveAgentHost>,
 }
 
@@ -813,15 +814,18 @@ async fn handle_serve(
 	// Ensure the supervisor is running before spawning the VS Code server
 	// so the server can discover it via the shared local agent-host endpoint
 	// registry. `active_agent_host` is genuinely lazy (see `serve()`), so
-	// awaiting it here first drives the supervisor to start. On failure,
-	// the server will start its own agent host.
+	// awaiting it here first drives the supervisor to start. The bridge
+	// arguments are only for servers that predate registry discovery, since
+	// the client may request an older server commit; newer servers ignore
+	// them. On failure, the server will start its own agent host.
 	if let Some(ah_fut) = c.active_agent_host.clone() {
-		if let Err(e) = ah_fut.await {
-			warning!(
+		match ah_fut.await {
+			Ok(a) => a.apply_to_bridge(&mut csa),
+			Err(e) => warning!(
 				c.log,
 				"Agent host supervisor unavailable; server will start its own agent host: {}",
 				e
-			);
+			),
 		}
 	}
 

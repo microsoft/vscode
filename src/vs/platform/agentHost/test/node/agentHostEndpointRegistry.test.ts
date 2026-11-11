@@ -34,7 +34,7 @@ suite('Agent Host Endpoint Registry (schema v2)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const preference of ['editor', 'dedicated', undefined] as const) {
-		test(`selects a deterministic endpoint for the ${preference ?? 'default'} location`, () => {
+		test(`selects the first matching endpoint in registry order for the ${preference ?? 'default'} location`, () => {
 			const entries = [
 				createEntry({ instanceId: 'editor-b' }),
 				createEntry({ instanceId: 'editor-a', quality: 'stable' }),
@@ -42,7 +42,7 @@ suite('Agent Host Endpoint Registry (schema v2)', () => {
 				createEntry({ type: 'standalone', instanceId: 'standalone-a', quality: 'insider' }),
 				createEntry({ type: 'standalone', instanceId: 'incompatible', quality: 'stable' }),
 			];
-			assert.strictEqual(selectAgentHostEndpoint(entries, 'insider', preference)?.instanceId, preference === 'editor' ? 'editor-a' : 'standalone-a');
+			assert.strictEqual(selectAgentHostEndpoint(entries, 'insider', preference)?.instanceId, preference === 'editor' ? 'editor-b' : 'standalone-b');
 		});
 	}
 

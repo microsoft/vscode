@@ -82,6 +82,7 @@ import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataPro
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
 import { readLocalAgentHostEndpoint } from '../../platform/agentHost/node/localAgentHostMetadata.js';
+import { formatAgentHostUrlHost } from '../../platform/agentHost/node/sshRemoteAgentHostHelpers.js';
 import '../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { readGithubEnvironmentOptions, ServerAgentHostManager } from './serverAgentHostManager.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
@@ -328,7 +329,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 							logService.trace('[AgentHostChannel] Ignoring renderer environment overrides for a shared agent host');
 						}
 						return sharedEndpoint.endpoint.type === 'tcp'
-							? { host: sharedEndpoint.endpoint.host, port: String(sharedEndpoint.endpoint.port), connectionToken: sharedEndpoint.connectionToken }
+							? { host: formatAgentHostUrlHost(sharedEndpoint.endpoint.host), port: String(sharedEndpoint.endpoint.port), connectionToken: sharedEndpoint.connectionToken }
 							: { socketPath: sharedEndpoint.endpoint.path, connectionToken: sharedEndpoint.connectionToken };
 					}
 					ownPort ??= findFreePortFaster(10000 + Math.floor(Math.random() * 50000), 100, 5000, host).then(freePort => {

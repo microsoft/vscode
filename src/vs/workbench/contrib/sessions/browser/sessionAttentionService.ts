@@ -43,11 +43,13 @@ interface IAttentionNotification {
 	readonly kind: AttentionKind;
 	readonly priority: InboxNotificationPriority;
 	readonly provisionalId?: string;
+	readonly timestamp?: number;
 }
 
 interface IPullRequestCandidate {
 	readonly ref: IGitHubPullRequestRef;
 	readonly identity: string;
+	readonly timestamp?: number;
 }
 
 export class SessionAttentionService extends Disposable implements ISessionAttentionService {
@@ -222,7 +224,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 			notificationIds: notifications.map(item => item.id).sort(),
 			...(pendingInput?.provisionalId ? { pendingInput: { notificationId: pendingInput.id, provisionalId: pendingInput.provisionalId } } : {}),
 			isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
-				&& !notifications.some(item => item.kind !== AttentionKind.PullRequestMerged),
+				&& !notifications.some(item => item.kind !== AttentionKind.PullRequestMerged || item.timestamp !== undefined && item.timestamp >= attentionStartTime),
 		};
 	}
 
@@ -335,8 +337,12 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 			}
 			if (state === GitHubPullRequestState.Merged) {
 				if (isOwned) {
-					const timestamp = parseTimestamp(pullRequest?.mergedAt) ?? parseTimestamp(pullRequest?.updatedAt) ?? updatedAt;
-					merged.push({ ref, identity: pullRequest?.mergedAt ?? String(timestamp) });
+					// Modification time can identify a notification, but cannot establish when a merge happened.
+					merged.push({
+						ref,
+						identity: pullRequest?.mergedAt ?? String(parseTimestamp(pullRequest?.updatedAt) ?? updatedAt),
+						timestamp: parseTimestamp(pullRequest?.mergedAt),
+					});
 				}
 				continue;
 			}
@@ -374,10 +380,12 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 	private addPullRequestNotification(notifications: IAttentionNotification[], session: ISession, kind: AttentionKind, candidates: readonly IPullRequestCandidate[]): void {
 		if (candidates.length) {
 			const suffix = candidates.map(candidate => `${candidate.ref.owner}/${candidate.ref.repo}#${candidate.ref.number}:${candidate.identity}`).sort().join(',');
+			const timestamps = candidates.map(candidate => candidate.timestamp).filter(timestamp => timestamp !== undefined);
 			notifications.push({
 				id: `${session.sessionId}:${kind}:${suffix}`,
 				kind,
 				priority: kind === AttentionKind.FailingCI || kind === AttentionKind.ReviewComments ? InboxNotificationPriority.Now : InboxNotificationPriority.Next,
+				...(timestamps.length ? { timestamp: Math.max(...timestamps) } : {}),
 			});
 		}
 	}

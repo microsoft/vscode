@@ -38,12 +38,12 @@ suite('SessionAttentionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const attentionStartTimeStorageKey = 'sessions.inboxNotifications.attentionStartTime';
 
-	function createSession(id: string, status = SessionStatus.Completed, updatedAt = 100, pullRequests: readonly { number: number; owned?: boolean }[] = []): ISession {
+	function createSession(id: string, status = SessionStatus.Completed, updatedAt = 100, pullRequests: readonly { number: number; owned?: boolean; state?: GitHubPullRequestState }[] = []): ISession {
 		const chat = upcastPartial<IChat>({ resource: URI.parse(`test:///chat/${id}`), status: observableValue('chat.status', status) });
 		const gitHubInfo: IGitHubInfo = {
 			owner: 'owner', repo: 'repo',
 			pullRequests: pullRequests.map(ref => ({
-				owner: 'owner', repo: 'repo', number: ref.number, state: 'open',
+				owner: 'owner', repo: 'repo', number: ref.number, state: ref.state ?? GitHubPullRequestState.Open,
 				uri: URI.parse(`https://github.com/owner/repo/pull/${ref.number}`),
 				createdByThisSession: ref.owned ?? true,
 			})),
@@ -546,6 +546,83 @@ suite('SessionAttentionService', () => {
 			newCompletion: [InboxTab.ReadyForYou, InboxNotificationPriority.Next, false, ['pr:pullRequestMerged:owner/repo#42:2026-09-21T16:00:00Z']],
 		});
 	});
+
+	test('new PR merges return historical completions to Inbox without overriding holds or timed snoozes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const start = Date.now();
+		const sessions = ['historical', 'cleared', 'untilActivity', 'held', 'snoozed'].map((id, index) =>
+			createSession(id, SessionStatus.Completed, start - 1000, [{ number: index + 1 }]));
+		for (const session of sessions) {
+			(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		}
+		const fixture = createFixture(sessions);
+		for (const [index] of sessions.entries()) {
+			fixture.github.setPullRequest(index + 1, {
+				...openPullRequest(index + 1), state: GitHubPullRequestState.Merged, mergedAt: new Date(start - 1).toISOString(),
+			});
+		}
+		store.add(fixture.service.acquireSessionAttention());
+		const list = fixture.createListModel();
+		const states = () => sessions.map(session => list.getInboxState(session)?.kind);
+		const historical = states();
+		list.setInboxState([sessions[1]], 'done');
+		list.setInboxState([sessions[2]], 'untilActivity');
+		list.setInboxState([sessions[3]], 'hold');
+		list.setInboxState([sessions[4]], start + 60_000);
+		for (const [index] of sessions.entries()) {
+			fixture.github.setPullRequest(index + 1, openPullRequest(index + 1));
+		}
+		const beforeMerge = states();
+		for (const [index] of sessions.entries()) {
+			fixture.github.setPullRequest(index + 1, {
+				...openPullRequest(index + 1), state: GitHubPullRequestState.Merged, mergedAt: new Date(start).toISOString(),
+			});
+		}
+		const merged = states();
+		list.setInboxState([sessions[0]], 'done');
+		const acknowledged = states();
+		list.dispose();
+		const restored = fixture.createListModel();
+		assert.deepStrictEqual({
+			historical, beforeMerge, merged, acknowledged,
+			restored: sessions.map(session => restored.getInboxState(session)?.kind),
+		}, {
+			historical: ['done', 'done', 'done', 'done', 'done'],
+			beforeMerge: ['done', 'done', 'untilActivity', 'hold', 'snoozed'],
+			merged: [undefined, undefined, undefined, 'hold', 'snoozed'],
+			acknowledged: ['done', undefined, undefined, 'hold', 'snoozed'],
+			restored: ['done', undefined, undefined, 'hold', 'snoozed'],
+		});
+	}));
+
+	for (const mergedAt of [undefined, 'invalid']) {
+		test(`historical merges with ${mergedAt === undefined ? 'missing' : 'invalid'} merge times wait for authoritative metadata`, () => runWithFakedTimers({}, async () => {
+			const start = Date.now();
+			const session = createSession('pr', SessionStatus.Completed, start - 1000, [
+				{ number: 41, state: GitHubPullRequestState.Merged },
+				{ number: 42, state: GitHubPullRequestState.Merged },
+			]);
+			(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+			(session.updatedAt as ISettableObservable<Date>).set(new Date(start + 1000), undefined);
+			const fixture = createFixture([session]);
+			store.add(fixture.service.acquireSessionAttention());
+			const list = fixture.createListModel();
+			const states = [list.getInboxState(session)?.kind];
+			fixture.github.setPullRequest(41, {
+				...openPullRequest(41), state: GitHubPullRequestState.Merged, mergedAt: new Date(start - 1).toISOString(),
+			});
+			states.push(list.getInboxState(session)?.kind);
+			const partial = {
+				...openPullRequest(42), state: GitHubPullRequestState.Merged, mergedAt, updatedAt: new Date(start + 1000).toISOString(),
+			};
+			fixture.github.setPullRequest(42, partial);
+			states.push(list.getInboxState(session)?.kind);
+			fixture.github.setPullRequest(42, { ...partial, updatedAt: new Date(start + 2000).toISOString() });
+			states.push(list.getInboxState(session)?.kind);
+			fixture.github.setPullRequest(42, { ...partial, mergedAt: new Date(start).toISOString() });
+			states.push(list.getInboxState(session)?.kind);
+			assert.deepStrictEqual(states, ['done', 'done', 'done', 'done', undefined]);
+		}));
+	}
 
 	test('prospective restoration uses batch PR ownership without changing archive state or polling', () => {
 		const older = createSession('older', SessionStatus.Completed, 100, [{ number: 42 }]);

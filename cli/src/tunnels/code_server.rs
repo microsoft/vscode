@@ -43,6 +43,7 @@ static LISTENING_PORT_RE: LazyLock<Regex> =
 	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
 static WEB_UI_RE: LazyLock<Regex> =
 	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
+const AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV: &str = "VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN";
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -74,6 +75,14 @@ pub struct CodeServerArgs {
 	pub without_connection_token: bool,
 	// reconnection
 	pub reconnection_grace_time: Option<u32>,
+	// agent-host bridge: tells a spawned VS Code server that predates
+	// registry discovery where the canonical agent host is listening, so
+	// it registers the `agentHostProxy` IPC channel against it instead of
+	// spawning an agent host of its own. Newer servers ignore these and
+	// discover the same agent host via the shared endpoint registry.
+	pub agent_host_bridge_host: Option<String>,
+	pub agent_host_bridge_port: Option<u16>,
+	pub agent_host_bridge_connection_token: Option<String>,
 }
 
 impl CodeServerArgs {
@@ -159,11 +168,22 @@ impl CodeServerArgs {
 		if self.start_server {
 			args.push(String::from("--start-server"));
 		}
+		if let Some(port) = self.agent_host_bridge_port {
+			args.push(format!("--agent-host-bridge-port={port}"));
+			if let Some(host) = &self.agent_host_bridge_host {
+				args.push(format!("--agent-host-bridge-host={host}"));
+			}
+		}
 		args
 	}
 
 	fn apply_to_command(&self, command: &mut Command) {
 		command.args(self.command_arguments());
+		if self.agent_host_bridge_port.is_some() {
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				command.env(AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV, token);
+			}
+		}
 	}
 }
 
@@ -1038,5 +1058,44 @@ mod tests {
 			"{error}"
 		);
 		assert!(!process_exists(pid));
+	}
+
+	#[test]
+	fn agent_host_bridge_connection_token_is_only_in_command_environment() {
+		let args = CodeServerArgs {
+			agent_host_bridge_host: Some("127.0.0.1".to_string()),
+			agent_host_bridge_port: Some(9000),
+			agent_host_bridge_connection_token: Some("secret-token".to_string()),
+			..Default::default()
+		};
+		let mut command = Command::new("code-server");
+		args.apply_to_command(&mut command);
+		let command = command.as_std();
+
+		assert_eq!(
+			(
+				command
+					.get_args()
+					.map(|argument| argument.to_string_lossy().into_owned())
+					.collect::<Vec<_>>(),
+				command
+					.get_envs()
+					.map(|(name, value)| (
+						name.to_string_lossy().into_owned(),
+						value.map(|value| value.to_string_lossy().into_owned())
+					))
+					.collect::<Vec<_>>(),
+			),
+			(
+				vec![
+					"--agent-host-bridge-port=9000".to_string(),
+					"--agent-host-bridge-host=127.0.0.1".to_string(),
+				],
+				vec![(
+					AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV.to_string(),
+					Some("secret-token".to_string()),
+				)],
+			)
+		);
 	}
 }

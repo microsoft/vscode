@@ -125,9 +125,6 @@ allowBuilds:
   utf-8-validate@5.0.10: true
   windows-foreground-love@0.6.1: true
 overrides:
-  # Copilot's typescript-eslint packages pin their own @typescript-eslint/types
-  '@es-joy/jsdoccomment>@typescript-eslint/types': 8.66.0
-  '@stylistic/eslint-plugin>@typescript-eslint/types': 8.66.0
   node-gyp-build: 4.8.1
   kerberos@2.1.1>node-addon-api: 7.1.0
   koffi: 3.2.1

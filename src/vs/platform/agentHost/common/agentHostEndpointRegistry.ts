@@ -156,16 +156,15 @@ export function isShareableAgentHostEndpoint(entry: IAgentHostEndpointMetadata, 
 	return entry.type === 'standalone' && (!entry.quality || !quality || entry.quality === quality);
 }
 
-/** Selects the lowest-instanceId editor when requested, otherwise a compatible standalone. */
+/** Selects the first matching endpoint in the newest-first order produced by registry readers and `code agent endpoints`. */
 export function selectAgentHostEndpoint(entries: readonly IAgentHostEndpointMetadata[], quality: string | undefined, preference: RemoteAgentHostLocationPreference | undefined): IAgentHostEndpointMetadata | undefined {
-	const sorted = [...entries].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
 	if (preference === 'editor') {
-		const editor = sorted.find(entry => entry.type === 'editor');
+		const editor = entries.find(entry => entry.type === 'editor');
 		if (editor) {
 			return editor;
 		}
 	}
-	return sorted.find(entry => isShareableAgentHostEndpoint(entry, quality));
+	return entries.find(entry => isShareableAgentHostEndpoint(entry, quality));
 }
 
 /** Stable string key for `(type, pid, instanceId)`, suitable for use as a Map key. */

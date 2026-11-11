@@ -129,7 +129,8 @@ suite('getRedactedServerParsedArgs', () => {
 	test('redacts connection tokens without changing the original arguments', () => {
 		const args = {
 			'connection-token': 'server-token',
-			'agent-host-port': '9000',
+			'agent-host-bridge-connection-token': 'bridge-token',
+			'agent-host-bridge-port': '9000',
 		} as ServerParsedArgs;
 
 		assert.deepStrictEqual({
@@ -138,11 +139,13 @@ suite('getRedactedServerParsedArgs', () => {
 		}, {
 			redactedArgs: {
 				'connection-token': '<redacted>',
-				'agent-host-port': '9000',
+				'agent-host-bridge-connection-token': '<redacted>',
+				'agent-host-bridge-port': '9000',
 			},
 			args: {
 				'connection-token': 'server-token',
-				'agent-host-port': '9000',
+				'agent-host-bridge-connection-token': 'bridge-token',
+				'agent-host-bridge-port': '9000',
 			},
 		});
 	});

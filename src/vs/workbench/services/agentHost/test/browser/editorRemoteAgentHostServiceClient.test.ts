@@ -134,6 +134,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		[`ssh-remote+${encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'MyHost' })))}`, 'ssh:MyHost'],
 		[`ssh-remote+${encodeHex(VSBuffer.fromString(JSON.stringify({ hostName: 'myhost', user: 'me', port: 2222 })))}`, 'me@myhost:2222'],
 		['ssh-remote+me@myhost:2222', 'me@myhost:2222'],
+		['ssh-remote+myhost:2222', undefined],
 		['tunnel+my-tunnel', undefined],
 		['wsl+test', undefined],
 		['dev-container+test', undefined],

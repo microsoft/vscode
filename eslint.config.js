@@ -3,21 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
-import tseslint from 'typescript-eslint';
-
-import stylistic from '@stylistic/eslint-plugin';
-import pluginLocal from './.eslint-plugin-local/index.ts';
-import pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
-import pluginJsdoc from 'eslint-plugin-jsdoc';
-
-// Adapters that load third-party rules under the names oxlint also uses for them (see .eslint-plugin-local/README.md)
-import pluginEslintJs from './.eslint-plugin-local/adapters/eslintCore.ts';
-import pluginHeader from './.eslint-plugin-local/adapters/header.ts';
-import pluginTypeScriptEslintJs from './.eslint-plugin-local/adapters/typescriptEslint.ts';
 
 const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore'), 'utf8')
 	.toString()
@@ -46,7 +34,7 @@ const codeLayers = {
 	'electron-main': ['common', 'node', 'electron-utility'],
 };
 
-export default defineConfig(
+export default [
 	// Global ignores
 	{
 		ignores: [
@@ -56,17 +44,6 @@ export default defineConfig(
 	},
 	// All files (JS and TS)
 	{
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-			'header': pluginHeader,
-			'@stylistic': stylistic,
-			'eslint-js': pluginEslintJs,
-			'ts-eslint-js': pluginTypeScriptEslintJs,
-			'jsdoc-js': pluginJsdoc,
-		},
 		rules: {
 			'constructor-super': 'warn',
 			'curly': 'warn',
@@ -205,9 +182,6 @@ export default defineConfig(
 			'.eslint-plugin-local/**/*.ts',
 		],
 		ignores: allowedBracketNotationFiles,
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-bracket-notation-for-identifiers': 'warn',
 		},
@@ -217,13 +191,6 @@ export default defineConfig(
 		files: [
 			'**/*.{ts,tsx,mts,cts}',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-			'local': pluginLocal,
-		},
 		rules: {
 			'@stylistic/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [
@@ -242,9 +209,6 @@ export default defineConfig(
 		files: [
 			'src/**/*.ts',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-telemetry-common-property': 'warn',
 		}
@@ -254,9 +218,6 @@ export default defineConfig(
 		files: [
 			'build/**/*.ts',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-direct-gulp-import': 'warn',
 		}
@@ -405,9 +366,6 @@ export default defineConfig(
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-in-operator': 'warn',
 		}
@@ -439,9 +397,6 @@ export default defineConfig(
 			// Codex's own generated app-server protocol (not AHP `_meta`).
 			'src/vs/platform/agentHost/node/codex/protocol/**',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-untyped-meta-access': 'warn',
 		}
@@ -875,12 +830,6 @@ export default defineConfig(
 			'**/*.test.ts',
 			'**/*.integrationTest.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'@typescript-eslint/no-explicit-any': [
 				'warn',
@@ -895,12 +844,6 @@ export default defineConfig(
 		files: [
 			'**/*.test.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-dangerous-type-assertions': 'off',
 			'local/code-must-use-super-dispose': 'off',
@@ -926,12 +869,6 @@ export default defineConfig(
 		files: [
 			'src/vs/**/*.test.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-ensure-no-disposables-leak-in-test': [
 				'warn',
@@ -963,12 +900,6 @@ export default defineConfig(
 		ignores: [
 			'extensions/git/src/api/git.constants.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'no-restricted-imports': 'off',
 			'ts-eslint-js/no-restricted-imports': [
@@ -991,12 +922,6 @@ export default defineConfig(
 			'**/vscode.d.ts',
 			'**/vscode.proposed.*.d.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'eslint-js/no-restricted-syntax': [
 				'warn',
@@ -1084,9 +1009,6 @@ export default defineConfig(
 		files: [
 			'**/vscode.d.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'jsdoc-js/tag-lines': 'off',
 			'jsdoc-js/valid-types': 'off',
@@ -1121,7 +1043,7 @@ export default defineConfig(
 					'checkDestructured': false
 				}
 			],
-			'jsdoc-js/require-returns': 'warn'
+			'jsdoc/require-returns': 'warn'
 		}
 	},
 	// common/browser layer
@@ -1129,12 +1051,6 @@ export default defineConfig(
 		files: [
 			'src/**/{common,browser}/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-amd-node-module': 'warn'
 		}
@@ -1145,12 +1061,6 @@ export default defineConfig(
 			'src/*.ts',
 			'src/**/{node,electron-main,electron-utility}/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'no-restricted-globals': [
 				'warn',
@@ -1179,12 +1089,6 @@ export default defineConfig(
 			'src/vs/platform/*/electron-main/**/*.ts',
 			'src/vs/platform/*/node/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-static-node-module-import': [
 				'error',
@@ -1202,12 +1106,6 @@ export default defineConfig(
 		files: [
 			'src/**/{browser,electron-browser}/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-global-document-listener': 'warn',
 			'eslint-js/no-restricted-syntax': [
@@ -1552,9 +1450,6 @@ export default defineConfig(
 		files: [
 			'src/**/electron-utility/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'no-restricted-imports': [
 				'warn',
@@ -1577,12 +1472,6 @@ export default defineConfig(
 		files: [
 			'src/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'no-restricted-imports': [
 				'warn',
@@ -2467,12 +2356,6 @@ export default defineConfig(
 		files: [
 			'test/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-import-patterns': [
 				'warn',
@@ -2585,9 +2468,6 @@ export default defineConfig(
 			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts',
 			'src/vs/workbench/contrib/sessions/providers/copilotChatSessions/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'no-restricted-imports': [
 				'warn',
@@ -2618,9 +2498,6 @@ export default defineConfig(
 			'src/vs/workbench/contrib/chat/test/browser/chatTipService.test.ts',
 			'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatToolAuthenticationSubPart.test.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'local/code-no-restricted-path-imports': [
 				'error',
@@ -2639,12 +2516,6 @@ export default defineConfig(
 		files: [
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-runtime-import': [
 				'error',
@@ -2671,9 +2542,6 @@ export default defineConfig(
 			'src/vs/workbench/contrib/terminal/**/*.ts',
 			'src/vs/workbench/contrib/terminalContrib/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'ts-eslint-js/naming-convention': [
 				'warn',
@@ -2723,12 +2591,6 @@ export default defineConfig(
 		files: [
 			'extensions/markdown-language-features/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'eslint-js/no-restricted-syntax': [
 				'warn',
@@ -2750,32 +2612,7 @@ export default defineConfig(
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-			parserOptions: {
-				project: [
-					// Markdown
-					'extensions/markdown-language-features/tsconfig.json',
-					'extensions/markdown-language-features/notebook/tsconfig.json',
-					'extensions/markdown-language-features/preview-src/tsconfig.json',
-
-					// Simple browser
-					'extensions/simple-browser/tsconfig.json',
-					'extensions/simple-browser/preview-src/tsconfig.json',
-
-					// Mermaid markdown features
-					'extensions/mermaid-markdown-features/tsconfig.json',
-					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
-
-					// TypeScript
-					'extensions/typescript-language-features/tsconfig.json',
-					'extensions/typescript-language-features/web/tsconfig.json',
-				],
-			}
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
+		// These rules need type information: oxlint runs them with --type-aware (see typeAwareLintFolders in build/lib/changedFiles.ts).
 		rules: {
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
@@ -2792,12 +2629,6 @@ export default defineConfig(
 			'extensions/copilot/**/.esbuild.ts',
 			'extensions/copilot/src/extension/completions-core/vscode-node/bridge/src/completionsTelemetryServiceBridge.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'copilot-local': pluginCopilotLocal,
-		},
 		rules: {
 			'local/code-no-dangerous-type-assertions': 'off',
 			'local/code-no-any-casts': 'off',
@@ -2913,9 +2744,6 @@ export default defineConfig(
 		files: [
 			'extensions/copilot/src/extension/**/*.tsx',
 		],
-		plugins: {
-			'copilot-local': pluginCopilotLocal,
-		},
 		rules: {
 			'copilot-local/no-missing-linebreak': 'warn'
 		}
@@ -2926,9 +2754,6 @@ export default defineConfig(
 			'extensions/copilot/**/*.test.ts',
 			'extensions/copilot/**/*.test.tsx',
 		],
-		plugins: {
-			'copilot-local': pluginCopilotLocal,
-		},
 		rules: {
 			'copilot-local/no-test-only': 'warn'
 		}
@@ -3116,12 +2941,6 @@ export default defineConfig(
 			'extensions/copilot/src/util/common/types.ts',
 			'extensions/copilot/src/util/node/worker.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'@typescript-eslint/no-explicit-any': [
 				'warn',
@@ -3173,10 +2992,8 @@ export default defineConfig(
 			'**/*.mjs',
 		],
 		ignores: allowedJavaScriptFiles,
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-new-javascript-files': 'error',
 		},
-	});
+	},
+];
