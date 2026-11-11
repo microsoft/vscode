@@ -7,7 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +19,9 @@ import { GitCommitOptions, IGitRepository, IGitService } from '../../../../../wo
 import { SessionsAICustomizationWorkspaceService } from '../../browser/aiCustomizationWorkspaceService.js';
 import { IChat, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposer, INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 suite('SessionsAICustomizationWorkspaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,6 +38,8 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 			upcastPartial<IFileService>({}),
 			upcastPartial<INotificationService>({}),
 			upcastPartial<ILabelService>({}),
+			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+			upcastPartial<INewSessionComposerService>({ activeComposer: constObservable(undefined) }),
 		);
 		const labels = [service.activeProjectLabel.get()];
 
@@ -71,6 +76,85 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 		assert.deepStrictEqual(labels, [undefined, 'workspace', 'microsoft/vscode']);
 	});
 
+	test('separates harness, workspace, and environment labels', () => {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', createActiveSession({
+			uri: URI.file('/workspace'),
+			label: 'workspace',
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'vscode',
+				description: undefined,
+			}],
+			icon: { id: 'folder' },
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		}, {
+			sessionId: 'session',
+			providerId: 'cloud',
+			harness: 'copilot',
+			environment: 'cloud',
+		}));
+		const provider = upcastPartial<ISessionsProvider>({
+			environment: { id: 'cloud', label: 'Cloud' },
+			getHarnessPresentation: harness => harness === 'copilot' ? { label: 'Copilot', icon: { id: 'copilot' } } : undefined,
+		});
+		const service = new SessionsAICustomizationWorkspaceService(
+			focusedSessionHostServiceOf(activeSession),
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IPromptsService>({}),
+			upcastPartial<IGitService>({}),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IFileService>({}),
+			upcastPartial<INotificationService>({}),
+			upcastPartial<ILabelService>({}),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(): T | undefined {
+					return provider as T;
+				}
+			}(),
+			upcastPartial<INewSessionComposerService>({ activeComposer: constObservable(undefined) }),
+		);
+
+		assert.deepStrictEqual(service.activeTargetLabels.get(), {
+			harness: 'Copilot',
+			workspace: 'vscode',
+			environment: 'Cloud',
+		});
+	});
+
+	test('uses new-session picker labels before a draft exists', () => {
+		const targetLabels = {
+			harness: 'Copilot',
+			workspace: 'vscode',
+			environment: 'Cloud',
+		};
+		const service = new SessionsAICustomizationWorkspaceService(
+			focusedSessionHostServiceOf(observableValue<ITestSessionWithChat | undefined>('activeSession', undefined)),
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IPromptsService>({}),
+			upcastPartial<IGitService>({}),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IFileService>({}),
+			upcastPartial<INotificationService>({}),
+			upcastPartial<ILabelService>({}),
+			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+			upcastPartial<INewSessionComposerService>({
+				activeComposer: constObservable(upcastPartial<INewSessionComposer>({
+					targetLabels: constObservable(targetLabels),
+				})),
+			}),
+		);
+
+		assert.deepStrictEqual({
+			project: service.activeProjectLabel.get(),
+			target: service.activeTargetLabels.get(),
+		}, {
+			project: 'vscode',
+			target: targetLabels,
+		});
+	});
+
 	suite('committing customizations', () => {
 		const repositoryRoot = URI.file('/repo');
 		const worktreeRoot = URI.file('/worktree');
@@ -99,6 +183,8 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 				}),
 				upcastPartial<INotificationService>({ notify: notification => { options.notifications?.push(notification); return undefined!; } }),
 				upcastPartial<ILabelService>({}),
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<INewSessionComposerService>({ activeComposer: constObservable(undefined) }),
 			);
 		}
 
@@ -187,7 +273,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 	});
 });
 
-function createActiveSession(workspace: ISessionWorkspace): ITestSessionWithChat {
+function createActiveSession(workspace: ISessionWorkspace, session?: Partial<ITestSessionWithChat>): ITestSessionWithChat {
 	const chat = upcastPartial<IChat>({ workspace: constObservable(workspace) });
-	return upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(chat) });
+	return upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(chat), ...session });
 }

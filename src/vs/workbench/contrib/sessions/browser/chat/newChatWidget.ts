@@ -582,9 +582,27 @@ export class NewChatWidget extends Disposable {
 			? noSessionPickerVisibility
 			: newChatInput.pickerVisibility.visibility.read(reader));
 		const workspacePickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
+		const selectedSessionTypeChanged = observableSignalFromEvent(this, this._newChatInput.sessionTypePicker.onDidChangeSelectedPick);
 		this._newChatInput.sessionTypePicker.setSessionWorkspaceFolderSource(derived(this, reader => {
 			workspacePickerSelectionChanged.read(reader);
 			return this._isQuickChatComposer.read(reader) ? undefined : this._workspacePicker.selectedFolderUri;
+		}));
+		this._newChatInput.setTargetLabels(derived(this, reader => {
+			workspacePickerSelectionChanged.read(reader);
+			selectedSessionTypeChanged.read(reader);
+			const environment = this._environment.read(reader);
+			const resolvedWorkspace = this._workspacePicker.selectedResolved?.workspace;
+			const selectedPick = this._newChatInput.sessionTypePicker.selectedPick;
+			const folderUri = this._workspacePicker.selectedFolderUri;
+			const selectedType = selectedPick && folderUri
+				? this.sessionsManagementService.getSessionTypesForFolder(folderUri).find(type =>
+					type.providerId === selectedPick.providerId && type.sessionType.id === selectedPick.sessionTypeId)
+				: undefined;
+			return {
+				harness: environment?.kind === 'cloud' ? localize('environmentPicker.copilot', "Copilot") : selectedType?.sessionType.label,
+				workspace: resolvedWorkspace?.isVirtualWorkspace ? resolvedWorkspace.label : resolvedWorkspace?.folders[0]?.name,
+				environment: environment?.label,
+			};
 		}));
 		if (this.options.initialAttachments?.length) {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);

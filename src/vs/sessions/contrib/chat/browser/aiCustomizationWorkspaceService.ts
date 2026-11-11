@@ -7,7 +7,7 @@ import { derived, IObservable, observableValue, ISettableObservable } from '../.
 import { relativePath, basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IAICustomizationTargetLabels } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -20,6 +20,9 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getHarnessPresentationOrDefault } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -36,6 +39,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 	readonly activeProjectLabel: IObservable<string | undefined>;
+	readonly activeTargetLabels: IObservable<IAICustomizationTargetLabels>;
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
@@ -53,6 +57,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
 
@@ -75,7 +81,25 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return this.labelService.getUriBasenameLabel(override);
 			}
 			const workspace = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader);
-			return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
+			if (workspace) {
+				return workspace.isVirtualWorkspace ? workspace.label : workspace.folders[0]?.name;
+			}
+			return this.newSessionComposerService.activeComposer.read(reader)?.targetLabels?.read(reader).workspace;
+		});
+
+		this.activeTargetLabels = derived(reader => {
+			const workspace = this.activeProjectLabel.read(reader);
+			const session = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
+			if (!session) {
+				const composerLabels = this.newSessionComposerService.activeComposer.read(reader)?.targetLabels?.read(reader);
+				return { ...composerLabels, workspace };
+			}
+			const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+			return {
+				harness: getHarnessPresentationOrDefault(provider, session.harness, reader).label,
+				workspace,
+				environment: provider?.environment.label ?? session.environment,
+			};
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {

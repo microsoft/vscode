@@ -68,9 +68,16 @@ export interface INewSessionComposerPicker {
 	openComparison?(): void;
 }
 
+export interface INewSessionTargetLabels {
+	readonly harness?: string;
+	readonly workspace?: string;
+	readonly environment?: string;
+}
+
 export interface INewSessionComposer {
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly modelPicker?: INewSessionComposerPicker;
+	readonly targetLabels?: IObservable<INewSessionTargetLabels>;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
