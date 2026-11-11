@@ -1334,6 +1334,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
 		const parentWindow = this.codeWindowById(windowId);
 		if (!parentWindow) {
 			return;
@@ -1356,6 +1360,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openContentTracingWindow(): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
 		if (typeof this.contentTracingWindowId !== 'number') {
 			// Disable ready-to-show event with paintWhenInitiallyHidden to
 			// customize content tracing window below.
