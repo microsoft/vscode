@@ -161,7 +161,6 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _panelViewBySession = new ResourceMap<string>();
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
-	private readonly _takenWorkingSets = new ResourceSet();
 	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
 	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
@@ -1421,7 +1420,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _takeStashedEditors(session: ISession, chatResource: URI): IStashedSessionEditors | undefined {
 		const key = this._ownerKeyForChat(session.resource, chatResource, session.mainChat.get().resource);
 		const workingSet = key && this._workingSets.get(key);
-		if (!key || !workingSet || this._takenWorkingSets.has(key)) {
+		if (!key || !workingSet) {
 			return undefined;
 		}
 		const resolved = this._editorGroupsService.resolveWorkingSet(workingSet);
@@ -1429,19 +1428,27 @@ export abstract class BaseLayoutController extends Disposable {
 			return undefined;
 		}
 
-		this._takenWorkingSets.add(key);
-		let accepted = false;
+		this._workingSets.delete(key);
+		let settled = false;
 		return {
 			editors: resolved.editors,
 			activeEditor: resolved.activeEditor,
 			accept: () => {
-				accepted = true;
-				this._deleteWorkingSet(key);
+				if (!settled) {
+					settled = true;
+					this._releaseWorkingSetReference(workingSet);
+				}
 			},
 			dispose: () => {
-				this._takenWorkingSets.delete(key);
-				if (!accepted) {
-					resolved.editors.forEach(editor => editor.dispose());
+				if (settled) {
+					return;
+				}
+				settled = true;
+				resolved.editors.forEach(editor => editor.dispose());
+				if (this._workingSets.has(key)) {
+					this._releaseWorkingSetReference(workingSet);
+				} else {
+					this._workingSets.set(key, workingSet);
 				}
 			}
 		};

@@ -582,6 +582,37 @@ suite('BaseLayoutController', () => {
 		}, { first: 1, whileTaken: undefined, afterDispose: 1, afterAccept: undefined });
 	});
 
+	test('a stash taken for a window is not applied to the main part meanwhile, and the old handle never removes a newer stash', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/newer.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		handle?.accept();
+		handle?.dispose();
+		const newer = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+
+		assert.deepStrictEqual({
+			taken: handle?.editors.length,
+			newer: newer?.editors.map(editor => editor.resource?.path),
+		}, { taken: 1, newer: ['/repo/newer.ts'] });
+		newer?.dispose();
+	});
+
 	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });
