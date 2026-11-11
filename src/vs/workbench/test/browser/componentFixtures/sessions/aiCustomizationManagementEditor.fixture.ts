@@ -3761,7 +3761,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Each scope lists Canvas extension and plugin parent rows with their Canvases nested beneath; plugin parents follow the user\'s own extensions under User and link "Plugin: name". Enablement switches and source actions appear only on parent rows, including the microsoft-foundry plugin, which reports no Canvases. Canvas child rows show only their names, and Workspace-provided Canvas extensions remain read-only.'],
+		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Each scope lists Canvas extension and plugin parent rows with their Canvases nested beneath; plugin parents follow the user\'s own extensions under User and link "Plugin: name", while other parents show "Extension: name". Enablement switches and source actions appear only on parent rows, including the microsoft-foundry plugin, which reports no Canvases. Canvas child rows show only their names, and Workspace-provided Canvas extensions remain read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,

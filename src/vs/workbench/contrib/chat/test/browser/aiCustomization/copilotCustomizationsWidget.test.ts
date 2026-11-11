@@ -269,6 +269,7 @@ suite('CopilotCanvasesWidget', () => {
 		const tree = [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .monaco-list-row')]
 			.map(row => `${row.getAttribute('aria-level')}:${(row.querySelector('.group-label') ?? row.querySelector('.copilot-customization-tree-label'))?.textContent}`);
 		const canvasDetails = canvasRows.map(row => row.querySelector('.copilot-customization-tree-detail')?.textContent);
+		const userDetail = harness.container.querySelector('.monaco-list-row[aria-label^="Preview Extension."] .copilot-customization-tree-detail')?.textContent;
 		const accessible = harness.widget.getAccessibilityContent();
 		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
 		assert.ok(search);
@@ -297,6 +298,7 @@ suite('CopilotCanvasesWidget', () => {
 			workspaceSwitchVisible,
 			workspaceSwitchTabIndex,
 			pluginSwitchVisible,
+			userDetail,
 			workspaceDetail,
 			pluginDetail,
 			workspaceEnablementExplanation: accessible.includes('Workspace canvas extension enablement is not available.'),
@@ -327,7 +329,8 @@ suite('CopilotCanvasesWidget', () => {
 			workspaceSwitchVisible: false,
 			workspaceSwitchTabIndex: -1,
 			pluginSwitchVisible: true,
-			workspaceDetail: 'Workspace Canvas Extension',
+			userDetail: 'Extension: Preview Extension',
+			workspaceDetail: 'Extension: Workspace Tools',
 			pluginDetail: 'Plugin: Diagram Plugin',
 			workspaceEnablementExplanation: true,
 			extensionRows: 3,

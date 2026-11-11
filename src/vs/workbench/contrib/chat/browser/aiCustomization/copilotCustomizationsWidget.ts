@@ -32,7 +32,6 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -49,6 +48,7 @@ import { extensionIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.j
 import { IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { setVirtualizedRowActionsTabbable } from './customizationCardList.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeAriaLabel, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { ICopilotExtensionsService } from './copilotExtensionsService.js';
@@ -167,6 +167,7 @@ interface ICopilotCanvasExtensionTemplateData {
 	readonly label: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly pluginLink: HTMLAnchorElement;
+	readonly sourceText: HTMLElement;
 	readonly detailSeparator: HTMLElement;
 	readonly detailText: HTMLElement;
 	readonly actions: HTMLElement;
@@ -204,6 +205,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		const label = DOM.append(text, $('.copilot-customization-tree-label'));
 		const detail = DOM.append(text, $('.copilot-customization-tree-detail'));
 		const pluginLink = DOM.append(detail, $<HTMLAnchorElement>('a.copilot-customization-tree-source-link.source-link'));
+		const sourceText = DOM.append(detail, $('.copilot-customization-tree-detail-text'));
 		const detailSeparator = DOM.append(detail, $('.copilot-customization-tree-detail-separator'));
 		const detailText = DOM.append(detail, $('.copilot-customization-tree-detail-text'));
 		const actions = DOM.append(container, $('.copilot-customization-tree-actions'));
@@ -224,7 +226,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		moreButton.element.dataset.customizationAction = 'more';
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.CLICK, event => event.stopPropagation()));
-		const template = { container, label, detail, pluginLink, detailSeparator, detailText, actions, toggle, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
+		const template = { container, label, detail, pluginLink, sourceText, detailSeparator, detailText, actions, toggle, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
 		this.templates.add(template);
 		return template;
 	}
@@ -242,12 +244,15 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		templateData.label.textContent = item.extensionName;
 		const detailText = this.getDetail(item);
 		const isPlugin = item.extensionSource === 'plugin';
+		const sourceLabel = isPlugin
+			? getCustomizationContributionSourceLabel('plugin', item.extension?.pluginName ?? item.extensionName)
+			: getCustomizationContributionSourceLabel('extension', item.extensionName);
 		templateData.pluginLink.style.display = isPlugin ? '' : 'none';
-		templateData.pluginLink.textContent = isPlugin
-			? localize('copilotCanvases.pluginSource', "Plugin: {0}", item.extension?.pluginName ?? item.extensionName)
-			: '';
-		templateData.detailSeparator.style.display = isPlugin && detailText ? '' : 'none';
-		templateData.detailSeparator.textContent = isPlugin && detailText ? '·' : '';
+		templateData.pluginLink.textContent = isPlugin ? sourceLabel : '';
+		templateData.sourceText.style.display = isPlugin ? 'none' : '';
+		templateData.sourceText.textContent = isPlugin ? '' : sourceLabel;
+		templateData.detailSeparator.style.display = detailText ? '' : 'none';
+		templateData.detailSeparator.textContent = detailText ? '·' : '';
 		templateData.detailText.textContent = detailText;
 		if (isPlugin) {
 			const openPluginLabel = localize('copilotCanvases.openPluginDetails', "Open plugin details for {0}", item.extension?.pluginName ?? item.extensionName);
@@ -288,7 +293,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 			}));
 		}
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.label, { content: item.extensionName }));
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.detail, { content: [templateData.pluginLink.textContent, detailText].filter(Boolean).join(' · ') }));
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.detail, { content: [sourceLabel, detailText].filter(Boolean).join(' · ') }));
 		this.updateActionsTabbability(templateData);
 	}
 
@@ -491,7 +496,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IHoverService hoverService: IHoverService,
-		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -1591,20 +1595,13 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		return item.cached ? localize('copilotCanvases.lastKnownCanvas', "Last known") : '';
 	}
 
+	/**
+	 * Status text shown after a canvas extension's source label.
+	 */
 	private getExtensionDetail(item: ICopilotCanvasExtensionItem): string {
-		if (item.canvases.length === 0 && this.isExtensionEnabled(item)) {
-			return localize('copilotCanvases.noCanvasesReported', "No Canvases Reported");
-		}
-		if (item.extensionSource === 'project') {
-			return this.getExtensionSource(item);
-		}
-		if (item.extensionSource === 'plugin') {
-			return '';
-		}
-		if (item.extension?.resource) {
-			return this.labelService.getUriLabel(dirname(item.extension.resource), { relative: true });
-		}
-		return this.getExtensionSource(item);
+		return item.canvases.length === 0 && this.isExtensionEnabled(item)
+			? localize('copilotCanvases.noCanvasesReported', "No Canvases Reported")
+			: '';
 	}
 
 	private getExtensionSource(item: ICopilotCanvasExtensionItem): string {
