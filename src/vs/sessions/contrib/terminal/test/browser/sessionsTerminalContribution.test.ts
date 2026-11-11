@@ -46,6 +46,7 @@ import { CustomViewVisibleContext } from '../../../../common/agentsWindowContext
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -300,6 +301,7 @@ suite('SessionsTerminalContribution', () => {
 	let showBackgroundCalls: number[];
 	let disposeOnCreatePaths: Set<string>;
 	let defaultCwdCalls: (URI | undefined)[];
+	let localDefaultCwdCalls: (URI | undefined)[];
 	let vetoSafeDispose: boolean;
 	let safeDisposeBarrier: DeferredPromise<void> | undefined;
 	let logService: TestLogService;
@@ -325,6 +327,7 @@ suite('SessionsTerminalContribution', () => {
 		showBackgroundCalls = [];
 		disposeOnCreatePaths = new Set();
 		defaultCwdCalls = [];
+		localDefaultCwdCalls = [];
 		vetoSafeDispose = false;
 		safeDisposeBarrier = undefined;
 		logService = new TestLogService();
@@ -352,6 +355,10 @@ suite('SessionsTerminalContribution', () => {
 			readonly activeSession = activeSessionObs;
 		});
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: activeSessionObs, gridShown: constObservable([]), windowSessions: constObservable([]) }));
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+			override readonly activeCustomViewOpen = constObservable(undefined);
+		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override onDidCreateInstance = onDidCreateInstance.event;
@@ -364,6 +371,9 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override get activeInstance(): ITerminalInstance | undefined {
 				return activeInstanceId !== undefined ? terminalInstances.get(activeInstanceId) : undefined;
+			}
+			override setDefaultCwd(cwd: URI | undefined): void {
+				localDefaultCwdCalls.push(cwd);
 			}
 			override async createTerminal(opts?: any): Promise<ITerminalInstance> {
 				const cwdUri: URI | undefined = opts?.config?.cwd;

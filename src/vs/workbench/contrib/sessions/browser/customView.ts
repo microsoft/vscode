@@ -30,6 +30,9 @@ export interface ICustomViewDescriptor {
 
 	readonly actions?: ICustomViewActions;
 
+	/** Keep the desktop bottom panel available while this view replaces the session content. */
+	readonly allowPanel?: boolean;
+
 	/** Handle an unparameterized New Session action without leaving this view. */
 	readonly openNewSession?: () => Promise<void> | undefined;
 
@@ -41,10 +44,10 @@ export interface ICustomViewDescriptor {
 }
 
 /**
- * A full-surface view hosted in the custom view grid, in place of the sessions
- * grid. The host renders the surrounding chrome (header with title, description
- * and actions, plus the scroll container); a view only fills its content area
- * and is disposed when it is hidden.
+ * A view hosted in the custom view grid, in place of the sessions grid. The host
+ * renders the surrounding chrome (header with title, description and actions,
+ * plus the scroll container); a view only fills its content area and is disposed
+ * when it is hidden.
  */
 export abstract class AbstractCustomView extends Disposable {
 
@@ -82,7 +85,8 @@ export interface ICustomViewOpenRequest {
  * Owns which custom view (if any) should be rendered in place of the sessions
  * grid. Only one view can be shown at a time. The Agents workbench observes
  * {@link activeCustomView} and, while it is set, renders the custom view grid
- * and hides the sessions grid, the side panel and the bottom panel.
+ * and hides the sessions grid and side panel. A view may keep the desktop
+ * bottom panel available through {@link ICustomViewDescriptor.allowPanel}.
  */
 export interface ICustomViewService {
 

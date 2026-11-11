@@ -25,7 +25,7 @@ import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutConte
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
+import { CustomViewAllowsPanelContext, CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
@@ -354,18 +354,19 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
 // The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
 const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate());
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
+const panelAvailable = ContextKeyExpr.or(CustomViewVisibleContext.negate(), CustomViewAllowsPanelContext);
 
 const showPanelCommand = {
 	id: TogglePanelAction.ID,
 	title: localize('showPanel', "Show Panel"),
 	icon: Codicon.layoutPanelOff,
-	precondition: CustomViewVisibleContext.negate()
+	precondition: panelAvailable
 };
 const hidePanelCommand = {
 	id: TogglePanelAction.ID,
 	title: localize('hidePanel', "Hide Panel"),
 	icon: Codicon.layoutPanel,
-	precondition: CustomViewVisibleContext.negate()
+	precondition: panelAvailable
 };
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionMenu, {

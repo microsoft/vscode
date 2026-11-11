@@ -510,6 +510,8 @@ suite('Sessions - Workbench', () => {
 			},
 			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
 			_customViewVisibleKey: { set: () => { } },
+			_customViewAllowsPanelKey: { set: () => { } },
+			_customViewAllowsPanel: false,
 			sessionsPartService: {
 				focusNewSessionSlot: () => { focusedSessions++; },
 				setContentVisible: (visible: boolean) => {
@@ -4723,6 +4725,25 @@ suite('Sessions - Workbench', () => {
 				{ partId: Parts.PANEL_PART, visible: false },
 			],
 			focusedParts: [Parts.CUSTOM_VIEW_GRID_PART],
+		});
+	});
+
+	test('a desktop custom view may keep the bottom panel available', () => {
+		const host = createHost({ single: true, partVisibility: { panel: true, sessions: true } });
+		const descriptor = { allowPanel: true };
+
+		applyCustomViewGridVisibility.call(host, descriptor);
+
+		assert.deepStrictEqual({
+			customViewGrid: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
+			sessions: isVisible.call(host, Parts.SESSIONS_PART),
+			panel: isVisible.call(host, Parts.PANEL_PART),
+			panelGridNode: host.gridVisibility.get(host.panelPartView),
+		}, {
+			customViewGrid: true,
+			sessions: false,
+			panel: true,
+			panelGridNode: true,
 		});
 	});
 
