@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutContext, ChatLayoutPresentation, getChatLayoutOwnerAfterReplacement } from '../../common/chatLayout.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../workbench/services/sessions/common/session.js';
 
 suite('Chat layout contract', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,8 +19,11 @@ suite('Chat layout contract', () => {
 		return upcastPartial<IChat>({ resource: URI.parse(resource) });
 	}
 
-	function session(resource: string, mainChat: IChat): IActiveSession {
-		return upcastPartial<IActiveSession>({
+	/** A session fake that carries the chat its host shows. */
+	type SessionWithChat = ISession & { readonly activeChat: IObservable<IChat> };
+
+	function session(resource: string, mainChat: IChat): SessionWithChat {
+		return upcastPartial<SessionWithChat>({
 			resource: URI.parse(resource),
 			mainChat: constObservable(mainChat),
 			activeChat: observableValue('activeChat', mainChat),
@@ -83,8 +85,8 @@ suite('Chat layout contract', () => {
 		const main = chat('opaque-main:/one');
 		const peer = chat('different-peer:/two');
 		const activeChat = observableValue('activeChat', main);
-		const active = observableValue<IActiveSession | undefined>('active', { ...session('opaque-session:/one', main), activeChat });
-		const layout = store.add(new ChatLayoutContext(presentation, active));
+		const active = observableValue<SessionWithChat | undefined>('active', { ...session('opaque-session:/one', main), activeChat });
+		const layout = store.add(new ChatLayoutContext(presentation, active, derived(reader => active.read(reader)?.activeChat.read(reader))));
 		const queued = layout.state.get();
 		const origin = queued.owner;
 		phone.set(true, undefined);
@@ -111,8 +113,8 @@ suite('Chat layout contract', () => {
 		const peer = chat('chat:/peer');
 		const activeChat = observableValue('activeChat', main);
 		const first = { ...session('session:/first', main), activeChat };
-		const active = observableValue<IActiveSession | undefined>('active', first);
-		const layout = store.add(new ChatLayoutContext(presentation, active));
+		const active = observableValue<SessionWithChat | undefined>('active', first);
+		const layout = store.add(new ChatLayoutContext(presentation, active, derived(reader => active.read(reader)?.activeChat.read(reader))));
 		const queued = layout.state.get();
 		activeChat.set(peer, undefined);
 		const peerOwner = layout.state.get().owner;

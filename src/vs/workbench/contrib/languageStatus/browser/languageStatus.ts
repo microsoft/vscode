@@ -15,10 +15,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
-import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { LinkedText } from '../../../../base/common/linkedText.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -274,7 +273,7 @@ class LanguageStatus {
 		// dedicated status bar items are shows as-is in the status bar
 		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 		for (const status of model.dedicated) {
-			const props = LanguageStatus._asStatusbarEntry(status);
+			const props = this._asStatusbarEntry(status);
 
 			// First check if we already processed a status with this id in the current update
 			// (can happen when duplicate status ids exist momentarily during status updates).
@@ -379,10 +378,13 @@ class LanguageStatus {
 		}
 	}
 
-	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+	private _renderTextPlus(target: HTMLElement, text: string | LinkedText, store: DisposableStore, separator = true): void {
 		let didRenderSeparator = false;
-		for (const node of parseLinkedText(text).nodes) {
-			if (!didRenderSeparator) {
+		for (const node of typeof text === 'string' ? [text] : text.nodes) {
+			if (node === '') {
+				continue;
+			}
+			if (separator && !didRenderSeparator) {
 				dom.append(target, dom.$('span.separator'));
 				didRenderSeparator = true;
 			}
@@ -400,8 +402,9 @@ class LanguageStatus {
 			return status.accessibilityInfo;
 		}
 		const textValue = typeof status.label === 'string' ? status.label : status.label.value;
-		if (status.detail) {
-			return { label: localize('aria.1', '{0}, {1}', textValue, status.detail) };
+		const detail = status.detail.toString();
+		if (detail) {
+			return { label: localize('aria.1', '{0}, {1}', textValue, detail) };
 		} else {
 			return { label: localize('aria.2', '{0}', textValue) };
 		}
@@ -409,7 +412,7 @@ class LanguageStatus {
 
 	// ---
 
-	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
+	private _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
 
 		let kind: StatusbarEntryKind | undefined;
 		if (item.severity === Severity.Warning) {
@@ -419,13 +422,19 @@ class LanguageStatus {
 		}
 
 		const textValue = typeof item.label === 'string' ? item.label : item.label.shortValue;
+		let tooltip: string | HTMLElement | undefined = item.command?.tooltip || undefined;
+		if (!tooltip) {
+			const detailTooltip = dom.$('div');
+			this._renderTextPlus(detailTooltip, item.detail, this._renderDisposables, false);
+			tooltip = detailTooltip.hasChildNodes() ? detailTooltip : undefined;
+		}
 
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
 			text: computeText(textValue, item.busy),
 			ariaLabel: LanguageStatus._accessibilityInformation(item).label,
 			role: item.accessibilityInfo?.role,
-			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
+			tooltip,
 			kind,
 			command: item.command
 		};

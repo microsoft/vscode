@@ -37,9 +37,10 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { emptyAgentTerminalPath, type IAgentTerminalPath } from '../common/agentTerminalPath.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
+import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
-import type { AgentProvider, AgentSandboxCertificateOperation } from '../common/agent.js';
+import type { AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -60,7 +61,6 @@ import {
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationApplyResult,
 	IAgentCustomizationInstallationRequest,
-	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
 	type IAgentExtensionInventory,
@@ -632,8 +632,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
-		return this._getManagementService().setPluginEnabled(provider, plugin, enabled);
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().setPluginEnabled(provider, plugin, enabled, scope, session, chat);
 	}
 
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
@@ -692,12 +692,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listCustomizationInstallations(provider, session);
 	}
 
-	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation> {
 		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
 	}
 
-	applyCustomizationInstallation(provider: string, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
-		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	applyCustomizationInstallation(provider: string, request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+		return this._getManagementService().applyCustomizationInstallation(provider, request);
 	}
 
 	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -811,6 +811,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
 	}
 
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._requireClient().prepareSessionWorktreeCleanup(session);
+	}
+
 	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
 		return this._requireClient().sessionWorktreeCleanup(session, retry, force);
 	}
@@ -882,8 +886,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		);
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		const result = await this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+		if (result) {
+			throw reviveConnectionDiagnosticError(result.error);
+		}
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {

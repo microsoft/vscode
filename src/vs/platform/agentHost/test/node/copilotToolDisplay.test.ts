@@ -88,6 +88,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['task_complete', 'Task Complete'],
 			['ask_user', 'Ask User'],
 			['skill', 'Invoke Skill'],
+			['read_resource', 'Read MCP Resource'],
 			['task', 'Delegate Task'],
 			['list_agents', 'List Agents'],
 			['read_agent', 'Read Agent'],
@@ -115,6 +116,24 @@ suite('copilotToolDisplay — friendly tool names', () => {
 		for (const [toolName, displayName] of cases) {
 			assert.strictEqual(getToolDisplayName(toolName), displayName, toolName);
 		}
+	});
+
+	test('read_resource names the MCP resource and handles missing input and failure', () => {
+		const displayName = getToolDisplayName('read_resource');
+		const parameters = { server: 'skills', uri: 'skill://review/template.md' };
+		assert.deepStrictEqual({
+			invocation: getInvocationMessage('read_resource', displayName, parameters),
+			completed: getPastTenseMessage('read_resource', displayName, parameters, true),
+			withoutInput: getInvocationMessage('read_resource', displayName, undefined),
+			completedWithoutInput: getPastTenseMessage('read_resource', displayName, undefined, true),
+			failed: getPastTenseMessage('read_resource', displayName, parameters, false),
+		}, {
+			invocation: { markdown: 'Reading MCP resource `skill://review/template.md`' },
+			completed: { markdown: 'Read MCP resource `skill://review/template.md`' },
+			withoutInput: 'Reading MCP resource',
+			completedWithoutInput: 'Read MCP resource',
+			failed: '"Read MCP Resource" failed',
+		});
 	});
 
 	test('falls back to the raw tool name for unknown tools', () => {
@@ -338,21 +357,22 @@ suite('Sandbox path grant confirmation display', () => {
 		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] });
 		const messages = [read, write, upgrade].map(display => typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage);
 		assert.deepStrictEqual(messages.map(message => message?.split('\n\n').slice(0, 2)), [
-			['Allow read access to `/read` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
-			['Allow read/write access to `/write` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
+			['Allow read access to `/read` and retry inside the sandbox.', 'Session access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization\'s restrictions still apply.'],
+			['Allow read/write access to `/write` and retry inside the sandbox.', 'Session access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization\'s restrictions still apply.'],
 			['Change access to `/folder` from read-only to read/write and retry inside the sandbox.', 'The blocked path was `/folder/new/file`. Access will cover the granted path above, including its contents if it is a folder.'],
 		]);
 	});
 
-	test('explains persistence in the header with Allow and Skip buttons', () => {
+	test('offers Session first, User second and Skip', () => {
 		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' });
 		assert.deepStrictEqual({
 			title: display.confirmationTitle,
 			options: display.options?.map(option => ({ id: option.id, label: option.label, kind: option.kind })),
 		}, {
-			title: 'Add to user sandbox settings and retry?',
+			title: 'Allow sandbox path access and retry?',
 			options: [
-				{ id: 'save-sandbox-path', label: 'Allow', kind: 'approve' },
+				{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: 'approve' },
+				{ id: 'save-sandbox-path', label: 'Allow for This User', kind: 'approve' },
 				{ id: 'skip', label: 'Skip', kind: 'deny' },
 			],
 		});
@@ -1279,6 +1299,18 @@ suite('skill events', () => {
 			withOrigin: { markdown: 'Read skill fs:review' },
 			withoutOrigin: { markdown: 'Read skill' },
 		});
+	});
+
+	test('SDK skills have no source links while disk skills remain openable', () => {
+		assert.deepStrictEqual([
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'sdk', path: '/skill/troubleshoot', content: '' }, 'sdk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'personal', path: '/user/skills/troubleshoot/SKILL.md', content: '' }, 'disk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'other', source: 'sdk', path: '', content: '' }, 'other').invocationMessage,
+		], [
+			{ markdown: 'Read skill troubleshoot' },
+			{ markdown: 'Read skill [troubleshoot](file:///user/skills/troubleshoot/SKILL.md)' },
+			{ markdown: 'Read skill other' },
+		]);
 	});
 
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {

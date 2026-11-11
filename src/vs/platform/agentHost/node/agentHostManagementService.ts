@@ -7,13 +7,14 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -41,11 +42,16 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		this._missionControl = service;
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		if (!this._missionControl) {
-			throw new Error('Mission Control is unavailable in this Agent Host');
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): ReturnType<IAgentHostManagementService['configureMissionControl']> {
+		try {
+			if (!this._missionControl) {
+				throw new Error('Mission Control is unavailable in this Agent Host');
+			}
+			await this._missionControl.configure(options, withdrawingAccountId);
+		} catch (error) {
+			this._logService.error('GitHub environment configuration failed', error);
+			return { error: getConnectionDiagnosticError(error) };
 		}
-		return this._missionControl.configure(options, withdrawingAccountId);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
@@ -162,11 +168,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.setPluginEnabled) {
 			throw new Error('Agent Host plugin enablement is unavailable');
 		}
-		return this._runMutation(() => this._agentService.setPluginEnabled!(provider, plugin, enabled));
+		return this._runMutation(() => this._agentService.setPluginEnabled!(provider, plugin, enabled, scope, session, chat));
 	}
 
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
@@ -267,18 +273,18 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.listCustomizationInstallations!(provider, session));
 	}
 
-	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation> {
 		if (!this._agentService.prepareCustomizationInstallation) {
 			throw new Error('Agent Host customization installation preparation is unavailable');
 		}
 		return this._runMutation(() => this._agentService.prepareCustomizationInstallation!(provider, session, request));
 	}
 
-	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+	applyCustomizationInstallation(provider: AgentProvider, request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
 		if (!this._agentService.applyCustomizationInstallation) {
 			throw new Error('Agent Host customization installation apply is unavailable');
 		}
-		return this._runMutation(() => this._agentService.applyCustomizationInstallation!(provider, operationId));
+		return this._runMutation(() => this._agentService.applyCustomizationInstallation!(provider, request));
 	}
 
 	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {

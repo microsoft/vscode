@@ -18,10 +18,10 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceFolderLabelService } from '../../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
-import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -78,7 +78,7 @@ function makeWorkspace(folderOrFolders: ISessionFolder | readonly ISessionFolder
 	};
 }
 
-function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): IActiveSession {
+function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): ITestSessionWithChat {
 	const activeChat: IChat = { ...stubChat, workspace: constObservable(chatWorkspace) };
 	return {
 		resource: URI.parse(`test:///${sessionId}`),
@@ -165,7 +165,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createContribution() {
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const workspaceEditing = new TestWorkspaceEditing();
 		const workspaceTrust = new TestWorkspaceTrust();
 		const workspaceFoldersChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
@@ -175,7 +175,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
@@ -198,7 +198,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			uriIdentityService,
 			workspaceContextService,
 			workspaceEditing,

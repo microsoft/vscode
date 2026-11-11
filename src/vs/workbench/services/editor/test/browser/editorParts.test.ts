@@ -5,27 +5,35 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ConfirmResult, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
+import { EditorGroupLockActionsHiddenContext } from '../../../../common/contextkeys.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
-import { createEditorParts, TestEditorParts, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createEditorParts, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { IUntitledTextEditorService } from '../../../untitled/common/untitledTextEditorService.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../layout/browser/layoutService.js';
-import { GroupsOrder, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../common/editorGroupsService.js';
 
 /**
  * An editor part that is created by someone else than the editor parts
@@ -140,6 +148,22 @@ suite('Editor Parts', () => {
 		listener.dispose();
 
 		assert.deepStrictEqual(used, ['part', 'workbench']);
+	});
+
+	test('a part whose groups hide their lock actions binds that in the context of each of its groups, also of groups added later', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: () => disposables.add(new ContextKeyService(new TestConfigurationService())) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const part = parts.createEditorPart({ container, groupViewOptions: { hideLockActions: true } satisfies IEditorGroupViewOptions });
+		disposables.add({ dispose: () => part.close() });
+		part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		const hidden = (group: IEditorGroup) => (group as IEditorGroupView).scopedContextKeyService.getContextKeyValue(EditorGroupLockActionsHiddenContext.key) ?? false;
+		assert.deepStrictEqual({ part: part.groups.map(hidden), mainPart: parts.mainPart.groups.map(hidden) }, { part: [true, true], mainPart: [false] });
 	});
 
 	test('several parts in one window: an element resolves to the closest part containing it', async () => {
@@ -296,5 +320,129 @@ suite('Editor Parts', () => {
 		}, { applied: true, ownedStaysRegistered: true, ownedGroupStays: true, hasRestorableState: true });
 
 		parts.deleteWorkingSet(workingSet);
+	});
+
+	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
+		const { instantiationService, parts } = await createServices();
+		const partA = createOwnedPart(instantiationService, parts);
+		const partB = createOwnedPart(instantiationService, parts);
+
+		let confirmations = 0;
+		const fileDialogService = instantiationService.invokeFunction(accessor => accessor.get(IFileDialogService));
+		const showSaveConfirm = fileDialogService.showSaveConfirm.bind(fileDialogService);
+		fileDialogService.showSaveConfirm = async (...args: Parameters<IFileDialogService['showSaveConfirm']>) => { confirmations++; return showSaveConfirm(...args); };
+
+		const editors = inputs(instantiationService);
+		const sourceGroup = partA.activeGroup;
+		for (const editor of editors) {
+			await sourceGroup.openEditor(editor, { pinned: true });
+		}
+		partA.addGroup(sourceGroup, GroupDirection.RIGHT);
+
+		const movedGroup = partA.moveGroup(sourceGroup, partB.activeGroup, GroupDirection.RIGHT);
+
+		return {
+			editors,
+			confirmations,
+			sourceRemoved: !partA.groups.includes(sourceGroup),
+			partACount: partA.count,
+			partAEditors: partA.groups.flatMap(group => group.editors),
+			partBCount: partB.count,
+			targetEditors: movedGroup.editors
+		};
+	}
+
+	test('moving a group into a group of another part leaves its editors only in the target', async () => {
+		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
+		const second = disposables.add(new TestFileEditorInput(URI.file('/second.txt'), 'testTypeId'));
+		const result = await moveGroupAcrossParts(() => [first, second]);
+
+		assert.deepStrictEqual({
+			sourceRemoved: result.sourceRemoved,
+			partACount: result.partACount,
+			partAEditors: result.partAEditors.length,
+			partBCount: result.partBCount,
+			targetEditors: result.targetEditors.map(editor => editor.resource?.path),
+			disposed: [first.gotDisposed, second.gotDisposed]
+		}, { sourceRemoved: true, partACount: 1, partAEditors: 0, partBCount: 2, targetEditors: ['/first.txt', '/second.txt'], disposed: [false, false] });
+	});
+
+	test('moving a group with a dirty editor into another part moves it without confirmation and keeps it dirty and alive', async () => {
+		const clean = disposables.add(new TestFileEditorInput(URI.file('/clean.txt'), 'testTypeId'));
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/dirty.txt'), 'testTypeId'));
+		dirty.setDirty();
+		const result = await moveGroupAcrossParts(() => [clean, dirty]);
+
+		assert.deepStrictEqual({
+			sourceRemoved: result.sourceRemoved,
+			partAEditors: result.partAEditors.length,
+			targetEditors: result.targetEditors.map(editor => editor.resource?.path),
+			confirmations: result.confirmations,
+			dirty: dirty.isDirty(),
+			disposed: [clean.gotDisposed, dirty.gotDisposed]
+		}, { sourceRemoved: true, partAEditors: 0, targetEditors: ['/clean.txt', '/dirty.txt'], confirmations: 0, dirty: true, disposed: [false, false] });
+	});
+
+	test('moving a group with a dirty untitled editor into another part keeps its content and working copy', async () => {
+		let untitled!: UntitledTextEditorInput;
+		const result = await moveGroupAcrossParts(instantiationService => {
+			const model = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IUntitledTextEditorService)).create({ initialValue: 'content' }));
+			untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
+			return [untitled];
+		});
+		const resolvedModel = await untitled.resolve();
+		resolvedModel.textEditorModel?.setValue('changed');
+
+		assert.deepStrictEqual({
+			sourceRemoved: result.sourceRemoved,
+			partAEditors: result.partAEditors.length,
+			targetIsSameInput: result.targetEditors.length === 1 && result.targetEditors[0] === untitled,
+			confirmations: result.confirmations,
+			dirty: untitled.isDirty(),
+			disposed: untitled.isDisposed(),
+			content: resolvedModel.textEditorModel?.getValue()
+		}, { sourceRemoved: true, partAEditors: 0, targetIsSameInput: true, confirmations: 0, dirty: true, disposed: false, content: 'changed' });
+	});
+
+	test('closing all editors without confirming closes a dirty editor that is open in a group of another part, but keeps one that is open only here', async () => {
+		const { instantiationService, parts } = await createServices();
+		const partA = createOwnedPart(instantiationService, parts);
+		const partB = createOwnedPart(instantiationService, parts);
+
+		const shared = disposables.add(new TestFileEditorInput(URI.file('/shared.txt'), 'testTypeId'));
+		const only = disposables.add(new TestFileEditorInput(URI.file('/only.txt'), 'testTypeId'));
+		shared.setDirty();
+		only.setDirty();
+
+		await partA.activeGroup.openEditor(shared, { pinned: true });
+		await partA.activeGroup.openEditor(only, { pinned: true });
+		await partB.activeGroup.openEditor(shared, { pinned: true });
+
+		const closed = partA.activeGroup.closeAllEditors({ excludeConfirming: true, force: true });
+
+		assert.deepStrictEqual({
+			closed,
+			partA: partA.activeGroup.editors.map(editor => editor.resource?.path),
+			partB: partB.activeGroup.editors.map(editor => editor.resource?.path),
+			sharedDirtyAndAlive: shared.isDirty() && !shared.gotDisposed,
+			onlyDirtyAndAlive: only.isDirty() && !only.gotDisposed
+		}, { closed: true, partA: ['/only.txt'], partB: ['/shared.txt'], sharedDirtyAndAlive: true, onlyDirtyAndAlive: true });
+	});
+
+	test('closing a dirty editor that is open only in its group asks for confirmation (the spy counts it)', async () => {
+		const { instantiationService, parts } = await createServices();
+		const part = createOwnedPart(instantiationService, parts);
+
+		let confirmations = 0;
+		const fileDialogService = instantiationService.invokeFunction(accessor => accessor.get(IFileDialogService));
+		fileDialogService.showSaveConfirm = async () => { confirmations++; return ConfirmResult.CANCEL; };
+
+		const only = disposables.add(new TestFileEditorInput(URI.file('/only.txt'), 'testTypeId'));
+		only.setDirty();
+		await part.activeGroup.openEditor(only, { pinned: true });
+
+		await part.activeGroup.closeAllEditors({ force: true });
+
+		assert.deepStrictEqual({ confirmations, editors: part.activeGroup.editors.length }, { confirmations: 1, editors: 1 });
 	});
 });

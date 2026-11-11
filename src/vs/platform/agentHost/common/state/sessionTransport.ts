@@ -39,6 +39,7 @@ export function getProtocolMessageSize(message: object): number {
 export const enum AgentHostTransportFailureReason {
 	Unknown = 'unknown',
 	HostNotRunning = 'hostNotRunning',
+	AuthenticationFailed = 'authenticationFailed',
 }
 
 /** Signals that reconnecting the transport cannot recover the connection. */

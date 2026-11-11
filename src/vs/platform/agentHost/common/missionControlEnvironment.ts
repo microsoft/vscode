@@ -13,6 +13,7 @@ import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
 export const AgentHostDefaultCloneDirectorySettingId = 'chat.agentHost.defaultCloneDirectory';
 export const GitHubEnvironmentsEnabledSettingId = 'chat.agentHost.githubEnvironments.enabled';
+export const GITHUB_ENVIRONMENTS_DOCS_URL = 'https://aka.ms/vscode-agent-environments';
 export const GitHubEnvironmentsAvailabilityTreatment = 'githubEnvironmentsAvailable';
 export const GitHubEnvironmentsAvailableContext = new RawContextKey<boolean>('githubEnvironmentsAvailable', false);
 
@@ -24,9 +25,15 @@ export interface IMissionControlAvailabilityService {
 	readonly available: IObservable<boolean | undefined>;
 }
 export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
+export const MissionControlUseLocalCredentialsConfigKey = 'missionControlUseLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
 export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
+export const MissionControlOwnerMismatchErrorCode = 'MissionControlOwnerMismatch';
 export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';
+
+export class MissionControlOwnerMismatchError extends Error {
+	readonly code = MissionControlOwnerMismatchErrorCode;
+}
 
 export function isGitHubEnvironmentBackend(backend: AgentHostRemoteConnectionsBackend): boolean {
 	return backend === 'githubEnvironment' || backend === 'missionControl';
@@ -41,6 +48,7 @@ export interface IMissionControlSharingService {
 	/** Machine-local name override used when registering this environment. */
 	readonly environmentName: IObservable<string | undefined>;
 	setEnvironmentName(name: string): Promise<void>;
+	/** Enabling waits for the latest configuration and bounded transient retries; disabling cancels pending enablement. */
 	setEnabled(enabled: boolean): Promise<void>;
 	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
 	setProjectFolders(folders: readonly URI[]): void;
@@ -56,6 +64,10 @@ export const IMissionControlEnvironmentService = createDecorator<IMissionControl
 export interface IMissionControlEnvironmentService {
 	readonly _serviceBrand: undefined;
 	readonly hosts: IObservable<readonly IMissionControlHost[]>;
+	/** Hosts confirmed online by this window's discovery in the current account and inventory lifetime; peer-window storage updates do not count. */
+	readonly discoveredOnlineHostIds: IObservable<ReadonlySet<string>>;
+	/** The registration of the computer running this window, if known; it is included in {@link hosts}. */
+	readonly ownEnvironmentId: IObservable<string | undefined>;
 	readonly accountKey: string | undefined;
 	readonly enabled: boolean;
 	initialize(): Promise<void>;

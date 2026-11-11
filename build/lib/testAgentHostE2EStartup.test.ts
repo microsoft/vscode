@@ -30,6 +30,7 @@ async function createRunnerRepository(repoRoot: string): Promise<IRunnerReposito
 		'test/integration/agentHost/runner.ts',
 		'test/integration/agentHost/child.ps1',
 		'build/lib/electronVersion.ts',
+		'build/npm/pnpm/nativeBuildEnv.ts',
 		'build/lib/pnpm.ts',
 		'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts',
 	]) {
@@ -39,10 +40,10 @@ async function createRunnerRepository(repoRoot: string): Promise<IRunnerReposito
 	await fs.writeFile(path.join(repoRoot, 'test/integration/agentHost/package.json'), '{"type":"commonjs"}');
 	await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({
 		type: 'module', scripts: { electron: 'node setup-electron.ts' },
+		nativeBuild: { runtime: 'electron', target: '42.9.3', disturl: 'https://electronjs.org/headers', msBuildId: 'test' },
 	}));
 	// Like the repository: `pnpm run` doesn't install dependencies first.
 	await fs.writeFile(path.join(repoRoot, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: false\n');
-	await fs.writeFile(path.join(repoRoot, '.npmrc'), 'target="42.9.3"\nms_build_id="test"\n');
 	await fs.writeFile(path.join(repoRoot, 'product.json'), JSON.stringify({
 		nameLong: 'Code - OSS', nameShort: 'Code - OSS', applicationName: 'code-oss',
 	}));

@@ -369,6 +369,12 @@ export interface IChatResponseModel {
 	readonly usageObs: IObservable<IChatUsage | undefined>;
 	readonly completionTokenCount: number | undefined;
 	readonly completionTokenCountObs: IObservable<number | undefined>;
+	/**
+	 * Whether {@link usage}'s `completionTokens` is the latest model call's output.
+	 * False for a response restored from an older save, which only kept the
+	 * whole-response total ({@link completionTokenCount}).
+	 */
+	readonly lastCallCompletionTokensKnown: boolean;
 	/** Elapsed generation time in ms (excluding confirmation waits). Set on completion and serialized. */
 	readonly elapsedMs: number | undefined;
 	readonly codeBlockInfos: ICodeBlockInfo[] | undefined;
@@ -945,7 +951,6 @@ export class Response extends AbstractResponse implements IDisposable {
 	private readonly _toolInvocationDisposables = this._store.add(new DisposableStore());
 	private readonly _pendingConfirmationCandidates = new Set<ChatResponseConfirmationPart>();
 	private _onDidChangeValue = this._store.add(new Emitter<void>());
-	private _activeReasoning: { part: IChatThinkingPart; startedAt: number } | undefined;
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
 	}
@@ -999,7 +1004,6 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	clear(): void {
-		this.finalizeReasoningDuration();
 		this._toolInvocationDisposables.clear();
 		this._pendingConfirmationCandidates.clear();
 		this._responseParts = [];
@@ -1007,7 +1011,6 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	clearToPreviousToolInvocation(message?: string): void {
-		this.finalizeReasoningDuration();
 		// look through the response parts and find the last tool invocation, then slice the response parts to that point
 		let lastToolInvocationIndex = -1;
 		for (let i = this._responseParts.length - 1; i >= 0; i--) {
@@ -1035,12 +1038,6 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean): void {
-		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
-		// reasoning section nor its reasoning timer.
-		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
-			this.finalizeReasoningDuration();
-		}
-
 		if (progress.kind === 'clearToPreviousToolInvocation') {
 			if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry) {
 				this.clearToPreviousToolInvocation(localize('copyrightContentRetry', "Response cleared due to possible match to public code, retrying with modified prompt."));
@@ -1083,9 +1080,6 @@ export class Response extends AbstractResponse implements IDisposable {
 				...(progress.reasoningStartedAt !== undefined ? { reasoningStartedAt: progress.reasoningStartedAt } : {}),
 				...(progress.reasoningDurationMs !== undefined ? { reasoningDurationMs: progress.reasoningDurationMs } : {}),
 			};
-			if ((hasTiming || hasProviderTiming) && this._activeReasoning?.part.id === progress.id) {
-				this._activeReasoning = undefined;
-			}
 			if ((hasTiming || hasProviderTiming) && progress.id !== undefined) {
 				const index = this._responseParts.findLastIndex(part => part.kind === 'thinking' && part.id === progress.id);
 				const part = this._responseParts[index];
@@ -1119,24 +1113,19 @@ export class Response extends AbstractResponse implements IDisposable {
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
 				? (Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : (lastResponsePart.value || ''))
 				: '';
-			const differentId = lastResponsePart?.kind === 'thinking' && progress.id !== undefined && lastResponsePart.id !== undefined && progress.id !== lastResponsePart.id;
-			if (differentId) {
-				this.finalizeReasoningDuration();
-			}
+			// Untimed providers can send a new ID for every chunk rather than every reasoning run.
+			const differentReasoningRun = lastResponsePart?.kind === 'thinking'
+				&& progress.id !== undefined && lastResponsePart.id !== undefined && progress.id !== lastResponsePart.id
+				&& (hasTiming || hasProviderTiming || lastResponsePart.reasoningTimingSource === 'provider'
+					|| lastResponsePart.reasoningStartedAt !== undefined || lastResponsePart.reasoningDurationMs !== undefined);
 			const isEmpty = (s: string) => s.length === 0;
-			if (isEmpty(currText)) {
-				this.finalizeReasoningDuration();
-			} else if (!this._activeReasoning && !restored && !hasTiming && !hasProviderTiming && !(lastResponsePart?.kind === 'thinking' && !differentId && lastResponsePart.reasoningTimingSource === 'provider')) {
-				// Replayed history keeps its recorded timing; this clock only measures live reasoning.
-				this._activeReasoning = { part: progress, startedAt: Date.now() };
-			}
 
 			// Do not merge if either the current or last thinking chunk is empty; empty chunks separate thinking
 			if (!lastResponsePart
 				|| lastResponsePart.kind !== 'thinking'
 				|| isEmpty(currText)
 				|| isEmpty(lastText)
-				|| differentId
+				|| differentReasoningRun
 				|| !canMergeMarkdownStrings(new MarkdownString(lastText), new MarkdownString(currText))) {
 				this._responseParts.push(progress);
 			} else {
@@ -1147,9 +1136,6 @@ export class Response extends AbstractResponse implements IDisposable {
 					value: appendMarkdownString(new MarkdownString(lastText), new MarkdownString(currText)).value
 				};
 				this._responseParts[idx] = mergedPart;
-				if (this._activeReasoning?.part === lastResponsePart || this._activeReasoning?.part === progress) {
-					this._activeReasoning.part = mergedPart;
-				}
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
@@ -1261,20 +1247,6 @@ export class Response extends AbstractResponse implements IDisposable {
 		}
 		this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
 		this._contentChanged();
-	}
-
-	/**
-	 * Persists the start and duration of the active reasoning interval.
-	 */
-	finalizeReasoningDuration(): void {
-		if (!this._activeReasoning) {
-			return;
-		}
-
-		const { part, startedAt } = this._activeReasoning;
-		part.reasoningStartedAt = startedAt;
-		part.reasoningDurationMs = Math.max(0, Date.now() - startedAt);
-		this._activeReasoning = undefined;
 	}
 
 	public addCitation(citation: IChatCodeCitation) {
@@ -1587,6 +1559,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._completionTokenCountObs;
 	}
 
+	private _lastCallCompletionTokensKnown = true;
+	public get lastCallCompletionTokensKnown(): boolean {
+		return this._lastCallCompletionTokensKnown;
+	}
+
 	public get elapsedMs(): number | undefined {
 		return this._elapsedMs;
 	}
@@ -1861,7 +1838,23 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	setUsage(usage: IChatUsage): void {
 		this._parentUsage = usage;
+		this._lastCallCompletionTokensKnown = true;
 		this._setUsage(this._withSubagentCopilotCredits(usage), true);
+	}
+
+	/**
+	 * Restores saved usage. When the save recorded the latest call's output,
+	 * `usage.completionTokens` is that call's and `completionTokenCount` the
+	 * saved whole-response total. An older save only kept the total, so the
+	 * response is restored as before and marked as not knowing its latest call.
+	 */
+	restoreUsage(usage: IChatUsage, completionTokenCount: number | undefined, lastCallKnown: boolean): void {
+		this._parentUsage = usage;
+		this._setUsage(this._withSubagentCopilotCredits(usage), !lastCallKnown);
+		if (lastCallKnown && this._completionTokenCountObs.get() === undefined && completionTokenCount !== undefined) {
+			this._completionTokenCountObs.set(completionTokenCount, undefined);
+		}
+		this._lastCallCompletionTokensKnown = lastCallKnown;
 	}
 
 	/** Replaces settled history metadata without recreating the response or accumulating replayed usage. */
@@ -1988,8 +1981,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		if (this._result?.errorDetails?.responseIsRedacted) {
 			this._response.clear();
 		}
-		this._response.finalizeReasoningDuration();
-
 		// Compute elapsed generation time before setting terminal state
 		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
 
@@ -2000,8 +1991,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 
-	cancel(): void {
-		this._response.finalizeReasoningDuration();
+	/** Cancels the response, as of `completedAt` when restoring a recorded cancellation. */
+	cancel(completedAt = Date.now()): void {
+		this._cancel(completedAt, completedAt);
+	}
+
+	/** Cancels a restored response whose cancellation time was not recorded. */
+	cancelWithoutTimestamp(): void {
+		this._cancel(Date.now(), undefined);
+	}
+
+	private _cancel(completedAt: number, completionTimestamp: number | undefined): void {
 		// Transition any tool invocations that are still streaming partial
 		// input from the LM into the Cancelled state so that UI consumers
 		// (e.g. the thinking content part) stop showing their in-progress
@@ -2016,9 +2016,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			}
 		}
 
-		const completedAt = Date.now();
 		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
-		this._completionTimestamp = completedAt;
+		this._completionTimestamp = completionTimestamp;
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
@@ -2084,7 +2083,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
 			promptTokens: this.usage?.promptTokens,
 			completionTokens: this.completionTokenCount,
-			lastCallCompletionTokens: this.usage?.modelTotals?.length ? this.usage.completionTokens : undefined,
+			lastCallCompletionTokens: this.usage && this._lastCallCompletionTokensKnown ? this.usage.completionTokens : undefined,
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
 			...(this.usage?.latestModelCall ? { latestModelCall: this.usage.latestModelCall } : {}),
@@ -2212,7 +2211,7 @@ interface ISerializableChatResponseData {
 	timeSpentWaiting?: number;
 	promptTokens?: number;
 	completionTokens?: number;
-	/** Last chat call's output, kept separate from whole-turn consumption on restore. */
+	/** Latest chat call's output, kept separate from whole-turn consumption on restore. Absent in older saves, where only the whole-turn total was kept. */
 	lastCallCompletionTokens?: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
@@ -3492,7 +3491,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number') {
-				request.response.setUsage({
+				request.response.restoreUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
 					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens ?? 0 : 0),
@@ -3504,7 +3503,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelTotals: raw.modelTotals,
 					sessionCopilotCredits: raw.sessionCopilotCredits,
 					sessionCopilotCreditsStatus: raw.sessionCopilotCreditsStatus,
-				});
+				}, raw.completionTokens, raw.lastCallCompletionTokens !== undefined);
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 				request.response.applyReference(revive(raw.usedContext));

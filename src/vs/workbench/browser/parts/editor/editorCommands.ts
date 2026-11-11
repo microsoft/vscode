@@ -6,6 +6,7 @@
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -47,6 +48,7 @@ import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SI
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { getGroupTransferVeto, getModalToMainTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -1462,39 +1464,56 @@ function registerOtherEditorCommands(): void {
 	});
 }
 
-function registerModalEditorCommands(): void {
+/**
+ * Opens the editors of the modal editor part in the main window: an explicit transfer, so all its editors go, or none
+ * when one cannot (see `EditorInput.canMove`). Resolves to whether they went.
+ */
+export class MoveModalEditorToMainWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
+			title: localize2('moveToMainWindow', 'Open Modal Editor in Main Window'),
+			category: Categories.View,
+			f1: true,
+			icon: Codicon.openInProduct,
+			precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
+			menu: {
+				id: MenuId.ModalEditorTitle,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
+			}
+		});
+	}
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
-				title: localize2('moveToMainWindow', 'Open Modal Editor in Main Window'),
-				category: Categories.View,
-				f1: true,
-				icon: Codicon.openInProduct,
-				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
-				menu: {
-					id: MenuId.ModalEditorTitle,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const editorGroupsService = accessor.get(IEditorGroupsService);
+	async run(accessor: ServicesAccessor): Promise<boolean> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const dialogService = accessor.get(IDialogService);
 
-			for (const part of editorGroupsService.parts) {
-				if (isModalEditorPart(part)) {
-					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
-						return;
-					}
-					await part.close({ mergeAllEditorsToMainPart: true });
-					break;
+		for (const part of editorGroupsService.parts) {
+			if (isModalEditorPart(part)) {
+				if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+					return false;
 				}
+
+				// Before anything moves: closing the part merges back what can go, one editor after another
+				const veto = getModalToMainTransferVeto(part, editorGroupsService.mainPart);
+				if (veto) {
+					showEditorTransferVeto(dialogService, veto);
+					return false;
+				}
+
+				return part.close({ mergeAllEditorsToMainPart: true });
 			}
 		}
-	});
+
+		return false;
+	}
+}
+
+function registerModalEditorCommands(): void {
+
+	registerAction2(MoveModalEditorToMainWindowAction);
 
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1515,20 +1534,39 @@ function registerModalEditorCommands(): void {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const dialogService = accessor.get(IDialogService);
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
 					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
 						return;
 					}
-					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
+					const groups = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+					const moved = await transferToNewWindow({
+						// All editors of all its groups go, or none
+						getVeto: target => {
+							for (const group of groups) {
+								const veto = getGroupTransferVeto(group, target);
+								if (veto) {
+									return veto;
+								}
+							}
+							return undefined;
+						},
+						showVeto: veto => showEditorTransferVeto(dialogService, veto),
+						createPart: () => editorGroupsService.createAuxiliaryEditorPart(),
+						isSourceAlive: () => editorGroupsService.parts.includes(part),
+						transfer: auxiliaryEditorPart => {
+							for (const group of groups) {
+								group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), auxiliaryEditorPart.activeGroup);
+							}
 
-					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-						group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), auxiliaryEditorPart.activeGroup);
+							auxiliaryEditorPart.activeGroup.focus();
+						},
+					});
+					if (moved) {
+						await part.close();
 					}
-
-					auxiliaryEditorPart.activeGroup.focus();
-					await part.close();
 					break;
 				}
 			}

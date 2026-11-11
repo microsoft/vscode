@@ -28,7 +28,7 @@ Grouping-section appearance is persisted by the section's stable identity, indep
 
 The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Automation runs are excluded from the primary Sessions list unless they are shown there: explicitly from the run's context menu, or automatically according to a setting (always, once the user sends a message in the run's session, or never). An explicit hide from the run's context menu overrides the setting. This listing, including an explicit hide, is client-side list state keyed by session, so it works for the automation runs of every provider. A shown session stays in Automations and otherwise follows the placement precedence below. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
+Automation runs are excluded from the primary Sessions list unless they are shown there: explicitly from the run's context menu, by the persisted Show Automation Runs list filter, or automatically according to a setting (always, once the user sends a message in the run's session, or never). An explicit hide from the run's context menu overrides both the filter and the setting. Toggling the filter does not rewrite either explicit choice. This listing, including an explicit hide, is client-side list state keyed by session, so it works for the automation runs of every provider. A shown session stays in Automations and otherwise follows the placement precedence below. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
 ## Placement precedence
 
@@ -56,9 +56,9 @@ Archived
   reordering are ordinary persisted list state.
 - A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
-The active session remains visible even when a filter would otherwise exclude it.
+The active session remains visible even when an ordinary filter would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
 
-A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite ordinary filters and presentation caps, expands its section, and exposes the requested spotlight target. A reveal outside the current Inbox scope fails explicitly without changing the scope. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping
 
@@ -80,6 +80,24 @@ User-created groups and the date sections share a user-managed order below the f
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
 
+### Inbox grouping
+
+Inbox is an opt-in presentation of the same catalog, classified into Inbox, Working, Ready to merge, On hold, and Cleared, with archived inventory in Archived. Desktop and phone use one scrolling tree. Pinned precedes the always-expanded Inbox; empty secondary categories are omitted. All categories, including On hold, list sessions directly without workspace or environment subgroups. Nested chats and comparison containers retain their structure. Selection, explicit reveal, search, and programmatic snapshots cover the whole scoped tree; passive selection restoration must not expand a user-collapsed category. Category expansion is persisted by its existing identity.
+
+The workspace and environment pickers above the tree each select All or one value and filter every category, including Pinned, Cleared and Archived. A workspace is an exact workspace URI plus its execution environment, not a display label or repository shared across machines. No Workspace means an explicitly identified quick chat, not metadata still loading. Scope is remembered separately from other grouping modes and does not change the new-session composer. The pickers replace the environment submenu only in Inbox; ordinary environment exclusions remain saved and apply again outside Inbox. Harness, creating-application, archive and search filters still compose with scope. Creating-application choices follow the selected Inbox environment.
+
+Selecting an incompatible environment explicitly resets the workspace to All. Disconnected or temporarily unavailable selections retain their identities and labels, and metadata hydration refreshes matching rows and picker choices. Reset Filters includes both scope selections and its Undo restores them. An empty scoped Inbox explains that no activity matches rather than reporting all work complete. Comparison placement and visible participants follow the scope without changing saved membership.
+
+Inbox is available through grouping menus, commands, and agent tools regardless of `sessions.list.inboxEnabled`. The setting chooses Inbox rather than Workspace as the default only when no explicit grouping is saved. Selecting any grouping, including the current default, persists that choice across setting changes and reloads. Pins remain visible above the categories; archived sessions remain separate. Custom memberships, automatic-section placement, and manual ordering are retained but do not determine Inbox placement. Comparison groups remain intact and follow their highest-attention participant. Switching out of Inbox restores ordinary organization.
+
+Selecting Inbox grouping enables Cmd/Ctrl+Enter for Send in Background and adds focus preservation and an Open Session confirmation to explicit background sends from the new-session composer. Existing Alt+Enter behavior and always-background composers remain available in other groupings.
+
+`ISessionsListModelService` owns profile-local triage state. Completed history from before the sidebar Inbox's first activation starts in Cleared unless it has an outstanding question, an actionable notification, or is unread and was modified today in the user's local calendar day. This unread exception uses the session's last-modified time, not its last-turn end time. Read-state and modification changes update this implicit placement without overriding explicit clear, hold, or snooze choices. Return to Inbox and expired snoozes override that initial placement, including after reload. Clearing is an explicit, reversible acknowledgement, not marking sessions as read, archiving, stopping, or deleting them. The persisted `done` triage value and section identity retain their existing meaning. New activity or newly observed notification identities return acknowledged sessions to the inbox. Put on Hold persists until explicit resumption, regardless of new activity or reloads. Timed and until-activity snoozes share the On hold section but expire automatically into the category appropriate to current activity; none of these states pauses execution. Pinning keeps even held sessions visible. New completions are never cleared merely because time passes or a pull request merges.
+
+`ISessionAttentionService.sessionAttention` owns notification-based classification and priority independently of list triage decisions. A visible Inbox-mode list acquires attention tracking and releases it on hiding, leaving the mode, or disposal. Its first activation establishes a persisted, profile-local completion cutoff so late-arriving history does not appear as new work. That demand respects disabled AI.
+
+Inbox categories have fixed order; rows prioritize the shared notification priority and then the selected created-time or updated-time ordering. A session with multiple unarchived chats remains available in Inbox while one chat is working if another has completed, needs input, or has failed. Placement drag and drop is unavailable in this mode rather than changing the saved project organization. Provider-owned nested chat moves are unchanged.
+
 ### Nested custom groups
 
 User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group.
@@ -100,6 +118,8 @@ New Nested Session opens the New Session composer for a nested chat of any sessi
 
 Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
+Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
+
 ## Durable user intent
 
 Pin, group, ordering, and automation listing state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
@@ -112,11 +132,13 @@ List-owned state is removed only when:
 
 Stale entries that match no current session are inert and may be compacted by their owning service.
 
+A new session joins the custom group its draft's owner chose. The main window's New Session composer keeps one pending group, such as from New Session on a group. A composer with a draft slot of its own, such as a chat window's, keeps the group of the session it was opened from for its slot (`ISessionGroupsService.setDraftSlotGroup`), and never takes the main composer's pending group. A slot's intent belongs to its owner, not to one draft: it applies to every send of the slot until its registration (the disposable `setDraftSlotGroup` returns) is disposed. Each accepted request copies it into an association of its own with the accepted session, which becomes membership once that session starts and is dropped when the request ends without starting it; the slot's intent stays as it is either way.
+
 ## Sorting and filtering
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-Filters compose across harness, environment, creating application within each environment, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance.
+Filters compose across harness, environment, creating application within each environment, automation-run visibility, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance. Show Automation Runs includes every automation session that was not explicitly hidden, ahead of the listing setting and explicit Show choices.
 
 The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. Searching shows the sessions whose title, chat titles, location, group, branch, pull requests, or remote host contain every word of the query, in any order, ignoring case and accents; a session's nested chats show when their title contains a word. A search bypasses presentation capping and expands the rows that hold its results without persisting that expansion, and the rows return to their previous collapse state when it ends.
 
