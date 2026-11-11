@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ChatEditorOverflowWidgetsHost } from '../../../browser/widget/chatEditorOverflowWidgetsHost.js';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatEditorOverflowWidgetsHost', () => {
 
@@ -22,6 +23,7 @@ suite('ChatEditorOverflowWidgetsHost', () => {
 		// The other window of a chat, such as a chat window.
 		const frame = mainWindow.document.body.appendChild($('iframe')) as HTMLIFrameElement;
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const otherWindow = frame.contentWindow!;
 		const otherContainer = otherWindow.document.body.appendChild(otherWindow.document.createElement('div'));
 		const layoutService = { getContainer: (window: Window) => window === otherWindow ? otherContainer : mainContainer } as Pick<ILayoutService, 'getContainer'> as ILayoutService;
