@@ -50,7 +50,7 @@ import { EditorWindowSessionsService } from './editorWindowSessionsService.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
-import { ChatViewFactory } from '../chat/chatView.js';
+import { DefaultChatViewFactory } from '../chat/defaultChatViewFactory.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from '../chat/chatViewStateService.js';
 import { ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../chatBackgroundService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
@@ -123,7 +123,8 @@ registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationTy
 // Not delayed: hosts are compared by identity, which a delayed proxy would not keep
 registerSingleton(ISessionHost, EditorWindowMainSessionHost, InstantiationType.Eager);
 registerSingleton(ISessionsService, EditorWindowSessionsService, InstantiationType.Delayed);
-registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
+// As the Agents window's, so that its chats show over the chat background the user picked
+registerSingleton(IChatViewFactory, DefaultChatViewFactory, InstantiationType.Delayed);
 registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
 registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);

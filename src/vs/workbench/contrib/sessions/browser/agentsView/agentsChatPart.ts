@@ -13,6 +13,7 @@ import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -30,12 +31,15 @@ import { IChat, ISession, isSessionCreated } from '../../../../services/sessions
 import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { getChatWindowMainPartOptions } from '../../../chatWindow/browser/chatWindow.js';
+import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowService.js';
 import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatEditorInput, getChatEditorInputDetails, IChatEditorWindow, ISessionChatViewHost, registerSessionChatViewEditor, registerSessionChatViewHost } from '../chatEditor/chatEditor.js';
 import { ChatEditorContent, IChatEditorComposer } from '../chatEditor/chatEditorContent.js';
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
 import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from '../chatEditor/sessionChatOpening.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -339,6 +343,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
@@ -554,6 +560,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			services: new ServiceCollection([ISessionHost, this.mainWindowHost]),
 		});
 		this._partStore.add(this._frame.part.setContent(part));
+		// It shows its chats as a chat window's chat part does: over the chat surface, with the same options of its tabs
+		const background = this._chatViewFactory.createChatBackground?.(container, this._instantiationService);
+		if (background) {
+			this._partStore.add(background);
+		}
+		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, this._configurationService);
+		this._partStore.add(enforceChatPartOptions(part, derived(reader => getChatWindowMainPartOptions(showTabs.read(reader)))));
 		// The part goes with the window; its chats are not dirty, so nothing moves back to the editor area
 		this._partStore.add(toDisposable(() => part.forceClose()));
 
