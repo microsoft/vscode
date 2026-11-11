@@ -59,7 +59,8 @@ export async function waitForSessionChat(sessionsManagementService: ISessionsMan
 	const store = new DisposableStore();
 	try {
 		return await raceTimeout(new Promise<IResolvedSessionChat | undefined>(resolve => {
-			store.add(sessionsManagementService.onDidChangeSessions(() => {
+			// Of every session, also one that a listing scope hides, such as of another folder, which a host can show
+			store.add(sessionsManagementService.onDidChangeAllSessions(() => {
 				const loaded = resolveSessionChat(sessionsManagementService, resource);
 				if (loaded) {
 					resolve(loaded);
@@ -125,6 +126,8 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	get isComposer(): boolean { return !!this._composer.get(); }
 	/** Whether it is a new-session composer whose closing loses nothing (see {@link ChatWindowComposerModel.isPristine}). */
 	get isPristineComposer(): boolean { return !!this._composer.get()?.isPristine(); }
+	/** Whether it is a new-session composer with nothing typed or attached, and no send of it under way. */
+	get isIdleComposer(): boolean { return !!this._composer.get()?.isIdle(); }
 	/** The custom group of the sessions list that the sessions of its new-session composer join, while it is one. */
 	get composerGroupId(): string | undefined { return this._composer.get()?.groupId; }
 
@@ -203,7 +206,8 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 		// Once it knows its session, only sessions added or removed can change where its chat is: what changes in its session
 		// it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
 		const sessionsChanged = observableSignal(this);
-		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+		// Of every session, also one that a listing scope hides, such as of another folder, which its host can show
+		this._register(this.sessionsManagementService.onDidChangeAllSessions(e => {
 			const known = this._knownSession;
 			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
 				this._knownSessionRemoved = true;

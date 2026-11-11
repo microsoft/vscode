@@ -170,6 +170,8 @@ suite('Sessions chat window provider', () => {
 		const slots: (INewSessionDraftSlot & { readonly newSession: ISettableObservable<ISession | undefined> })[] = [];
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			// The Agents window lists every session: all of its sessions change as its listed ones do
+			override readonly onDidChangeAllSessions = onDidChangeSessions.event;
 			override readonly onDidAcceptNewSessionRequest = onDidAcceptNewSessionRequest.event;
 			override readonly onDidEndNewSessionRequest = onDidEndNewSessionRequest.event;
 			override readonly onDidReplaceNewDraftSession = Event.None;
