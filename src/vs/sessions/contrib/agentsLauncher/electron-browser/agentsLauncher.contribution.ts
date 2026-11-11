@@ -7,7 +7,7 @@ import './media/agentsLauncher.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -45,7 +45,7 @@ import { SessionsCategories } from '../../../../workbench/contrib/sessions/commo
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createSessionHostServices, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ChatWindowComposerBackgroundSends, ChatWindowComposerModel, createChatWindowComposerResource } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
-import { computeAgentsLauncherBounds, followOrdinarySend, AgentsLauncherPresenter } from './agentsLauncher.js';
+import { AgentsLauncherPresenter, computeAgentsLauncherBounds, DismissalCheck, dismissWhenAllowed, followOrdinarySend } from './agentsLauncher.js';
 
 const AGENTS_LAUNCHER_INITIAL_HEIGHT = 180;
 const AGENTS_LAUNCHER_BLUR_HIDE_DELAY = 150;
@@ -434,12 +434,13 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		if (!auxiliaryWindow || windowId !== auxiliaryWindow.window.vscodeWindowId || !this._presenter.visible.get()) {
 			return;
 		}
-		this._blurHide.value = disposableTimeout(() => {
-			if (auxiliaryWindow !== this._window || auxiliaryWindow.window.document.hasFocus() || this._composer.input.get().attempt || this._hasOwnedPopupOpen()) {
-				return;
+		// Focusing the launcher again or hiding it clears the check; until then, a send or a popup of the launcher only defers hiding.
+		this._blurHide.value = dismissWhenAllowed(() => {
+			if (auxiliaryWindow !== this._window || !this._presenter.visible.get() || auxiliaryWindow.window.document.hasFocus()) {
+				return DismissalCheck.Keep;
 			}
-			void this.hide().catch(error => this._logService.error('[AgentsLauncher] Failed to hide after blur', error));
-		}, AGENTS_LAUNCHER_BLUR_HIDE_DELAY);
+			return this._composer.input.get().attempt || this._hasOwnedPopupOpen() ? DismissalCheck.Defer : DismissalCheck.Dismiss;
+		}, AGENTS_LAUNCHER_BLUR_HIDE_DELAY, () => void this.hide().catch(error => this._logService.error('[AgentsLauncher] Failed to hide after blur', error)));
 	}
 
 	private _hasOwnedPopupOpen(): boolean {

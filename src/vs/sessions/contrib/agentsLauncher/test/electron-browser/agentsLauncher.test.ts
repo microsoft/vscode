@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
-import { computeAgentsLauncherBounds, followOrdinarySend, IAgentsLauncherWindowPresentation, AgentsLauncherPresenter } from '../../electron-browser/agentsLauncher.js';
+import { AgentsLauncherPresenter, computeAgentsLauncherBounds, DismissalCheck, dismissWhenAllowed, followOrdinarySend, IAgentsLauncherWindowPresentation } from '../../electron-browser/agentsLauncher.js';
 
 /** Records the window operations of a presenter, any of which a test can hold until it completes them. */
 class RecordingPresentation implements IAgentsLauncherWindowPresentation {
@@ -199,6 +200,30 @@ suite('Agents Launcher', () => {
 			operations: ['prepare', 'hide'],
 		});
 	});
+
+	test('hides once it has left the launcher, checking again while a send or popup defers it, until it is kept', () => runWithFakedTimers({}, async () => {
+		const run = async (checks: DismissalCheck[], disposeAfter?: number) => {
+			const results = [...checks];
+			let checked = 0, dismissed = 0;
+			const dismissal = dismissWhenAllowed(() => { checked++; return results.shift() ?? DismissalCheck.Defer; }, 150, () => dismissed++);
+			await timeout(disposeAfter ?? 150 * (checks.length + 2));
+			dismissal.dispose();
+			await timeout(1000);
+			return { checked, dismissed };
+		};
+
+		assert.deepStrictEqual({
+			dismissed: await run([DismissalCheck.Dismiss]),
+			deferred: await run([DismissalCheck.Defer, DismissalCheck.Defer, DismissalCheck.Dismiss]),
+			kept: await run([DismissalCheck.Defer, DismissalCheck.Keep]),
+			disposedWhileDeferred: await run([DismissalCheck.Defer, DismissalCheck.Defer, DismissalCheck.Dismiss], 400),
+		}, {
+			dismissed: { checked: 1, dismissed: 1 },
+			deferred: { checked: 3, dismissed: 1 },
+			kept: { checked: 2, dismissed: 0 },
+			disposedWhileDeferred: { checked: 2, dismissed: 0 },
+		});
+	}));
 
 	test('positions and clamps the window within its display', () => {
 		const bounds = [

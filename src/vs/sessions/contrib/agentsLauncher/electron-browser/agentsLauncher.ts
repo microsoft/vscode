@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -150,4 +151,34 @@ export function followOrdinarySend(sessionsManagementService: ISessionsManagemen
 		}
 	}));
 	return store;
+}
+
+/** What {@link dismissWhenAllowed} does as it checks: dismiss now, check again later, or stop checking. */
+export const enum DismissalCheck {
+	Dismiss,
+	Defer,
+	Keep,
+}
+
+/**
+ * Calls `dismiss` `delay` milliseconds from now, should `check` then allow it. While `check` defers it, such as during a
+ * send or with a popup open, it checks again after each `delay`, so that the launcher still hides once nothing defers it.
+ * Disposing the result stops checking.
+ */
+export function dismissWhenAllowed(check: () => DismissalCheck, delay: number, dismiss: () => void): IDisposable {
+	const timer = new MutableDisposable();
+	const schedule = () => {
+		timer.value = disposableTimeout(() => {
+			switch (check()) {
+				case DismissalCheck.Dismiss:
+					dismiss();
+					break;
+				case DismissalCheck.Defer:
+					schedule();
+					break;
+			}
+		}, delay);
+	};
+	schedule();
+	return timer;
 }
