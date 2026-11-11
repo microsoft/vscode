@@ -715,9 +715,11 @@ export class ChatWindowGrid extends Disposable {
 	private _recoverTerminalsHeight(grid: PartGrid, height: number): void {
 		const current = grid.serializeGrid();
 		const line = current && findLineOf(current.root, current.orientation, ChatWindowGridCell.Terminals);
+		// A row beside them is one sibling, sized by any part it has: its height is the row's
 		const siblings = (line?.children ?? [])
-			.map(child => child.type === 'leaf' ? (child.data as { id: string }).id : undefined)
-			.filter((id): id is string => id !== undefined && id !== ChatWindowGridCell.Terminals && grid.isCellVisible(id))
+			.filter(child => child.visible !== false && !(child.type === 'leaf' && (child.data as { id: string }).id === ChatWindowGridCell.Terminals))
+			.map(child => collectCellIds(child).find(id => grid.isCellVisible(id)))
+			.filter((id): id is string => id !== undefined)
 			.map(id => ({ id, height: grid.getCellSize(id).height }));
 		const total = siblings.reduce((sum, sibling) => sum + sibling.height, 0);
 		const taken = height - grid.getCellSize(ChatWindowGridCell.Terminals).height;

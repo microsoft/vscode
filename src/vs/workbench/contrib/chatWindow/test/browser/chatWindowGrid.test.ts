@@ -1482,6 +1482,20 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ arranged: arranged < 400, same, widthOnly: height() }, { arranged: true, same: arranged, widthOnly: arranged });
 	});
 
+	test('a row among the parts above the terminals gives room to them as a unit, in proportion to the parts beside it', () => {
+		const { grid, open, userResize, height } = setupWithTerminals();
+		open();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { edge: Direction.Up });
+		userResize(ChatWindowGridCell.Terminals, 'top', 300);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const before = heights();
+		grid.layout(1000, 400);
+		const squeezed = height() < 300;
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ squeezed, terminals: height(), parts: heights().map(size => Math.round(size / 10)) }, { squeezed: true, terminals: 300, parts: before.map(size => Math.round(size / 10)) });
+	});
+
 	test('in Stacked, the chat and the main part keep their shares as the terminals take their height back', () => {
 		const { mode, grid, position, open, userResize } = setupWithTerminals(ChatWindowLayoutMode.ChatOnly);
 		position.set(ChatWindowTerminalPosition.FullWidth, undefined);
