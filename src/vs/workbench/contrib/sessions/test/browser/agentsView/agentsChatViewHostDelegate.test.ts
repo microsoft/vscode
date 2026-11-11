@@ -10,6 +10,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
@@ -41,6 +42,7 @@ suite('AgentsChatViewHostDelegate', () => {
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }),
 			upcastPartial<IContextKeyService>({ contextMatchesRules: () => chatAvailable }),
 			upcastPartial<IAgentsViewProvidersService>({ acquire: () => { calls.push('acquire'); return toDisposable(() => calls.push('release')); } }),
+			upcastPartial<IEditorService>({ activeEditor: undefined }),
 		);
 		return { delegate, calls, composerWidget };
 	}
@@ -66,6 +68,7 @@ suite('AgentsChatViewHostDelegate', () => {
 					return toDisposable(() => calls.push('release'));
 				},
 			}),
+			upcastPartial<IEditorService>({ activeEditor: undefined }),
 		);
 
 		const widget = await delegate.openSession(chatResource, false);
