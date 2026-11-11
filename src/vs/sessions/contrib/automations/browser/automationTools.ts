@@ -366,7 +366,7 @@ export class DeleteAutomationTool implements IToolImpl {
 			icon: Codicon.trash,
 			displayName: localize('automation.tool.delete.displayName', "Delete Automation"),
 			userDescription: localize('automation.tool.delete.userDescription', "Delete a scheduled agent automation"),
-			modelDescription: 'Delete an automation and all of its run history by stable ID. Call listAutomations first to obtain the current ID and capabilities. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
+			modelDescription: 'Delete an automation by stable ID and request deletion of its run history. Associated sessions, including follow-up conversations, may also be permanently deleted. Call listAutomations first to obtain the current ID and capabilities. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -396,7 +396,7 @@ export class DeleteAutomationTool implements IToolImpl {
 				title: localize('automation.tool.delete.confirmationTitle', "Delete Automation?"),
 				message: new MarkdownString(localize(
 					'automation.tool.delete.confirmationMessage',
-					"Delete **{0}** (`{1}`)? Its saved configuration and all of its run history will be permanently removed. Runs already in flight will continue.",
+					"Delete **{0}** (`{1}`)? Its saved configuration will be permanently removed. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain. Runs already in flight will continue.",
 					automation.name,
 					automation.id,
 				)),

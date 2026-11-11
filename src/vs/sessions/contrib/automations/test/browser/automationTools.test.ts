@@ -803,7 +803,7 @@ suite('AutomationTools', () => {
 			result: JSON.parse(getText(result)),
 		}, {
 			confirmationTitle: 'Delete Automation?',
-			confirmationMessage: 'Delete **Daily review** (`automation-1`)? Its saved configuration and all of its run history will be permanently removed. Runs already in flight will continue.',
+			confirmationMessage: 'Delete **Daily review** (`automation-1`)? Its saved configuration will be permanently removed. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain. Runs already in flight will continue.',
 			allowAutoConfirm: undefined,
 			options: [
 				{ id: 'delete', label: 'Delete', kind: ConfirmationOptionKind.Approve },
@@ -838,7 +838,7 @@ suite('AutomationTools', () => {
 			const message = prepared.confirmationMessages?.message;
 			assert.deepStrictEqual({
 				options,
-				confirmation: (typeof message === 'string' ? message : message?.value)?.includes('all of its run history will be permanently removed'),
+				confirmation: (typeof message === 'string' ? message : message?.value)?.includes('associated sessions, including follow-up conversations'),
 				schema: tool.getToolData().inputSchema,
 			}, {
 				options: [supportsHistoryChoice ? { deleteHistory: true } : undefined],

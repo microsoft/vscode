@@ -2613,7 +2613,7 @@ async function confirmAndDeleteAutomation(
 	const confirmed = await dialogService.confirm({
 		type: 'warning',
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and all of its run history."),
+		detail: localize('confirmDeleteDetail', "This will permanently delete the automation. Its run history will be deleted where possible, which may permanently delete associated sessions, including follow-up conversations. History that cannot be safely matched to a session may remain."),
 		primaryButton: localize('delete', "Delete"),
 	});
 	if (!confirmed.confirmed) {
