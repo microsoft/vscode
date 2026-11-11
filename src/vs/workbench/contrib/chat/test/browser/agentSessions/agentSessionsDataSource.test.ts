@@ -176,7 +176,7 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: options.excludeArchived ?? false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
+			getExcludes: () => ({ providers: [], states: [], archived: options.excludeArchived ?? false, read: options.excludeRead ?? false, automation: true, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -279,6 +279,31 @@ suite('AgentSessionsDataSource', () => {
 			// Should be a flat list without sections
 			assert.strictEqual(result.length, 2);
 			assert.strictEqual(getSectionsFromResult(result).length, 0);
+		});
+
+		test('applies the list filter to automation sessions hidden from other model consumers', () => {
+			const ordinary = createMockSession({ id: 'ordinary' });
+			const automation = createMockSession({ id: 'automation', metadata: { isAutomation: true } });
+			const model = {
+				...createMockModel([ordinary]),
+				sessionsIncludingAutomationRuns: [ordinary, automation],
+			} satisfies IAgentSessionsModel;
+			const hidden = disposables.add(new AgentSessionsDataSource(
+				createMockFilter({ groupBy: undefined, exclude: session => session.metadata?.isAutomation === true }),
+				createMockSorter(),
+			));
+			const shown = disposables.add(new AgentSessionsDataSource(
+				createMockFilter({ groupBy: undefined }),
+				createMockSorter(),
+			));
+
+			assert.deepStrictEqual({
+				hidden: [...hidden.getChildren(model)].filter(isAgentSession).map(session => session.label).sort(),
+				shown: [...shown.getChildren(model)].filter(isAgentSession).map(session => session.label).sort(),
+			}, {
+				hidden: ['Session ordinary'],
+				shown: ['Session automation', 'Session ordinary'],
+			});
 		});
 
 		test('in-progress sessions are placed in their date-based section', () => {
@@ -1480,7 +1505,7 @@ suite('AgentSessionsPicker', () => {
 	const filter: IAgentSessionsFilter = {
 		onDidChange: Event.None,
 		exclude: () => false,
-		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
+		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, automation: true, repositoryGroupCapped: true }),
 		isDefault: () => true,
 		notifyResults: () => { },
 		reset: () => { },

@@ -451,6 +451,7 @@ export class SessionsView extends ViewPane {
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 
 		this.registerSessionFilters(sessionsControl);
+		this.registerAutomationFilter(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
 
@@ -707,6 +708,31 @@ export class SessionsView extends ViewPane {
 	}
 
 	private readonly archivedFilterRegistration = this._register(new DisposableStore());
+
+	private registerAutomationFilter(sessionsControl: SessionsList): void {
+		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showAutomationRuns', sessionsControl.filters.isShowAutomationRuns());
+		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isShowAutomationRuns() });
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterAutomationRuns',
+					title: localize('showAutomationRuns', "Show Automation Runs"),
+					toggled: ContextKeyExpr.equals(contextKey.key, true),
+					menu: [{
+						id: Menus.SessionsViewFilter,
+						group: '3_visibility',
+						order: 0.5,
+					}],
+				});
+			}
+			override run() {
+				const show = !sessionsControl.filters.isShowAutomationRuns();
+				sessionsControl.filters.setShowAutomationRuns(show);
+				contextKeyInstance.set(show);
+			}
+		}));
+	}
 
 	private registerSessionFilters(sessionsControl: SessionsList): void {
 		const changed = observableSignalFromEvent(this, Event.any(
