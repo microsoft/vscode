@@ -493,7 +493,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const pathService = disposables.add(new AgentTerminalPathService());
 		pathService.setClientPath('window', { prepend: [join(process.cwd(), 'pre')], append: [join(process.cwd(), 'post')] });
 
-		async function spawnPath(id: string, claim: TerminalClaim): Promise<string[]> {
+		async function spawnPath(id: string, claim: TerminalClaim): Promise<{ path: string[]; pathPrefix: string | undefined }> {
 			const pty = new TestPty();
 			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty, pathService));
 			const createTerminal = manager.createTerminal({ channel: `agenthost-terminal://test/${id}`, claim, cwd: process.cwd(), cols: 80, rows: 24 }, { shell: '/bin/bash' });
@@ -502,20 +502,25 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 			await createTerminal;
 			const env = manager.spawnOptions?.env ?? {};
 			const key = Object.keys(env).find(name => name.toUpperCase() === 'PATH') ?? 'PATH';
-			return (env[key] ?? '').split(delimiter);
+			return { path: (env[key] ?? '').split(delimiter), pathPrefix: env.VSCODE_PATH_PREFIX };
 		}
 
-		const sessionPath = await spawnPath('session', { kind: TerminalClaimKind.Session, session: 'copilot:/session-1', chat: buildDefaultChatUri('copilot:/session-1'), turnId: 'turn-1', toolCallId: 'tool-1' });
-		const clientPath = await spawnPath('client', { kind: TerminalClaimKind.Client, clientId: 'test-client' });
+		const session = await spawnPath('session', { kind: TerminalClaimKind.Session, session: 'copilot:/session-1', chat: buildDefaultChatUri('copilot:/session-1'), turnId: 'turn-1', toolCallId: 'tool-1' });
+		const client = await spawnPath('client', { kind: TerminalClaimKind.Client, clientId: 'test-client' });
 
 		assert.deepStrictEqual({
-			sessionFirst: sessionPath[0],
-			sessionLast: sessionPath.at(-1),
-			clientHasEntries: clientPath.includes(join(process.cwd(), 'pre')) || clientPath.includes(join(process.cwd(), 'post')),
+			sessionFirst: session.path[0],
+			sessionLast: session.path.at(-1),
+			// macOS login profiles reorder PATH; shell integration re-applies the prefix afterwards.
+			sessionPathPrefix: session.pathPrefix,
+			clientHasEntries: client.path.includes(join(process.cwd(), 'pre')) || client.path.includes(join(process.cwd(), 'post')),
+			clientPathPrefix: client.pathPrefix,
 		}, {
 			sessionFirst: join(process.cwd(), 'pre'),
 			sessionLast: join(process.cwd(), 'post'),
+			sessionPathPrefix: process.platform === 'darwin' ? join(process.cwd(), 'pre') + delimiter : undefined,
 			clientHasEntries: false,
+			clientPathPrefix: undefined,
 		});
 	});
 

@@ -77,27 +77,31 @@ suite('shellInitScript', () => {
 			assert.strictEqual(withAgentTerminalPath(scripts, { prepend: [], append: [] }, 'bash'), scripts);
 		});
 
-		test('puts the PATH prelude before the client script and keeps its shell', () => {
+		test('puts the PATH block after the client script and keeps its shell', () => {
 			const [result] = withAgentTerminalPath([{ shell: 'powershell', script: 'client' }], path, 'bash');
-			assert.deepStrictEqual({ shell: result.shell, preludeFirst: result.script.indexOf('$env:PATH') < result.script.indexOf('client') }, { shell: 'powershell', preludeFirst: true });
+			assert.deepStrictEqual({ shell: result.shell, blockAfterClient: result.script.indexOf('client') < result.script.indexOf('$env:PATH') }, { shell: 'powershell', blockAfterClient: true });
 		});
 
 		(process.platform === 'win32' ? suite.skip : suite)('bash behavior', () => {
-			test('adds missing entries once, in order', async () => {
-				const [{ script }] = withAgentTerminalPath([], path, 'bash');
-				const { stdout } = await execFileAsync('bash', ['--norc', '--noprofile', '-c', `${script}\n${script}\nbuiltin echo "$PATH"`], {
-					env: { ...process.env, PATH: '/usr/bin:/bin:/opt/z' },
+			test('moves prepended entries to the front after a profile pushed them back, once', async () => {
+				const profile = { shell: 'bash' as const, script: 'PATH=/usr/local/bin:"$PATH"' };
+				const [{ script: withProfile }] = withAgentTerminalPath([profile], path, 'bash');
+				const [{ script: alone }] = withAgentTerminalPath([], path, 'bash');
+				const { stdout } = await execFileAsync('bash', ['--norc', '--noprofile', '-c', `${withProfile}\n${alone}\n${alone}\nbuiltin echo "$PATH"`], {
+					env: { ...process.env, PATH: '/usr/bin:/opt/b:/bin:/opt/z' },
 				});
-				assert.strictEqual(stdout.trim(), `/opt/o'brien:/opt/b:/usr/bin:/bin:/opt/z`);
+				assert.strictEqual(stdout.trim(), `/opt/o'brien:/opt/b:/usr/local/bin:/usr/bin:/bin:/opt/z`);
 			});
 		});
 
 		(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
-			test('adds missing entries once, in order', async () => {
+			test('moves prepended entries to the front after a profile pushed them back, once', async () => {
 				const windowsPath = { prepend: [`C:\\o'brien`, 'C:\\b'], append: ['C:\\z'] };
-				const [{ script }] = withAgentTerminalPath([], windowsPath, 'powershell');
-				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$env:PATH = 'C:\\x;C:\\z'\n${script}\n${script}\nWrite-Output $env:PATH`]);
-				assert.strictEqual(stdout.trim(), `C:\\o'brien;C:\\b;C:\\x;C:\\z`);
+				const profile = { shell: 'powershell' as const, script: `$env:PATH = 'C:\\profile;' + $env:PATH` };
+				const [{ script: withProfile }] = withAgentTerminalPath([profile], windowsPath, 'powershell');
+				const [{ script: alone }] = withAgentTerminalPath([], windowsPath, 'powershell');
+				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$env:PATH = 'C:\\x;c:\\B;C:\\z'\n${withProfile}\n${alone}\n${alone}\nWrite-Output $env:PATH`]);
+				assert.strictEqual(stdout.trim(), `C:\\o'brien;C:\\b;C:\\profile;C:\\x;C:\\z`);
 			}).timeout(10_000);
 		});
 	});

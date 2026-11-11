@@ -112,42 +112,53 @@ function createPowerShellInitScript(pythonActivation: string | undefined): IShel
 const MAX_SHELL_INIT_SCRIPT_LENGTH = 64 * 1024;
 
 /**
- * Adds the agent terminal `PATH` entries in front of the client script, or as
- * the only script when the client published none. The runtime sources the
- * script before every command in a long-lived shell, so each entry is added
- * only when missing.
+ * Adds the agent terminal `PATH` entries after the client script, or as the
+ * only script when the client published none. Running after the user's
+ * profile matches the integrated terminal, which re-applies prepended entries
+ * once login profiles have run. The runtime sources the script before every
+ * command in a long-lived shell, so prepended entries are moved to the front
+ * rather than added again, and appended entries are added only when missing.
  */
 export function withAgentTerminalPath(scripts: readonly IShellInitScript[], path: IAgentTerminalPath, defaultShell: ShellInitScriptShell): readonly IShellInitScript[] {
 	if (path.prepend.length === 0 && path.append.length === 0) {
 		return scripts;
 	}
 	const shell = scripts[0]?.shell ?? defaultShell;
-	const prelude = shell === 'powershell' ? createPowerShellPathPrelude(path) : createBashPathPrelude(path);
-	return [{ shell, script: [...prelude, scripts[0]?.script ?? ''].join('\n') }];
+	const block = shell === 'powershell' ? createPowerShellPathBlock(path) : createBashPathBlock(path);
+	return [{ shell, script: [...(scripts[0] ? [scripts[0].script] : []), ...block, ''].join('\n') }];
 }
 
-function createBashPathPrelude(path: IAgentTerminalPath): string[] {
-	const add = (directory: string, prepend: boolean) => {
-		const quoted = quoteBash(directory);
-		return `case ":$PATH:" in *:${quoted}:*) ;; *) PATH=${prepend ? `${quoted}:"$PATH"` : `"$PATH":${quoted}`} ;; esac`;
-	};
+function createBashPathBlock(path: IAgentTerminalPath): string[] {
 	return [
-		// Prepending in reverse keeps the given order at the front.
-		...[...path.prepend].reverse().map(directory => add(directory, true)),
-		...path.append.map(directory => add(directory, false)),
+		`__vscode_agent_path_front() {`,
+		`\tlocal p=":$PATH:"`,
+		`\twhile [[ "$p" == *":$1:"* ]]; do p="\${p//":$1:"/:}"; done`,
+		`\tp="\${p#:}"; p="\${p%:}"`,
+		`\tPATH="$1\${p:+:$p}"`,
+		`}`,
+		// Moving to the front in reverse keeps the given order.
+		...[...path.prepend].reverse().map(directory => `__vscode_agent_path_front ${quoteBash(directory)}`),
+		...path.append.map(directory => {
+			const quoted = quoteBash(directory);
+			return `case ":$PATH:" in *:${quoted}:*) ;; *) PATH="$PATH":${quoted} ;; esac`;
+		}),
+		`builtin unset -f __vscode_agent_path_front`,
 		`export PATH`,
 	];
 }
 
-function createPowerShellPathPrelude(path: IAgentTerminalPath): string[] {
-	const add = (directory: string, prepend: boolean) => {
-		const quoted = `'${directory.replaceAll(`'`, `''`)}'`;
-		const value = prepend ? `${quoted} + [System.IO.Path]::PathSeparator + $env:PATH` : `$env:PATH + [System.IO.Path]::PathSeparator + ${quoted}`;
-		return `if (-not (($env:PATH -split [System.IO.Path]::PathSeparator) -contains ${quoted})) { $env:PATH = ${value} }`;
-	};
+function createPowerShellPathBlock(path: IAgentTerminalPath): string[] {
+	const quote = (directory: string) => `'${directory.replaceAll(`'`, `''`)}'`;
 	return [
-		...[...path.prepend].reverse().map(directory => add(directory, true)),
-		...path.append.map(directory => add(directory, false)),
+		`$__vscodePathSeparator = [System.IO.Path]::PathSeparator`,
+		...[...path.prepend].reverse().map(directory => {
+			const quoted = quote(directory);
+			return `$env:PATH = (@(${quoted}) + @($env:PATH -split $__vscodePathSeparator | Where-Object { $_ -and $_ -ne ${quoted} })) -join $__vscodePathSeparator`;
+		}),
+		...path.append.map(directory => {
+			const quoted = quote(directory);
+			return `if (-not (($env:PATH -split $__vscodePathSeparator) -contains ${quoted})) { $env:PATH = $env:PATH + $__vscodePathSeparator + ${quoted} }`;
+		}),
 	];
 }
 
