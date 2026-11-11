@@ -879,11 +879,16 @@ export class ChatWindowGrid extends Disposable {
 				changed[cell] = size;
 			}
 		}
-		if (changed[ChatWindowGridCell.Terminals]) {
-			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: changed[ChatWindowGridCell.Terminals] };
-			// The height the user gives the terminals while a part hides is theirs as it shows again
-			if (this._beforeHide && before?.get(ChatWindowGridCell.Terminals)?.height !== changed[ChatWindowGridCell.Terminals].height) {
-				this._beforeHide.terminalsHeight = changed[ChatWindowGridCell.Terminals].height;
+		// Only a height the user gives the terminals is theirs: a width they take, such as beside the chat while the main part
+		// above them hides, leaves the height they fill there, which is not one the user chose; nor does a reset of a sash while
+		// a part hides, which measures them as they fill its room.
+		const terminals = changed[ChatWindowGridCell.Terminals];
+		const terminalsHeightChanged = before ? before.get(ChatWindowGridCell.Terminals)?.height !== terminals?.height : !this._beforeHide;
+		if (terminals && terminalsHeightChanged) {
+			this._sizes[TERMINALS_SIZE_KEY] = { [ChatWindowGridCell.Terminals]: terminals };
+			// As it shows again too, while a part hides
+			if (this._beforeHide) {
+				this._beforeHide.terminalsHeight = terminals.height;
 			}
 		}
 		const { [ChatWindowGridCell.Terminals]: _terminals, ...parts } = changed;
