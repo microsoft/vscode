@@ -1089,6 +1089,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.updateStickyProgressContent();
 	}
 
+	/** Whether the list shows a session chat, which behaves as in the Agents window, in whatever window shows it. */
+	private get isSessionsChat(): boolean {
+		return this.environmentService.isSessionsWindow || !!this.rendererOptions.isSessionsChat;
+	}
+
 	get templateId(): string {
 		return ChatListItemRenderer.ID;
 	}
@@ -1489,13 +1494,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			: undefined;
 		const subagentTitle = tool.subAgentInvocationId ? subagentData?.description ?? localize('confirmationSubagent', "Subagent") : undefined;
 		const revealSubagent = () => {
-			if (this.environmentService.isSessionsWindow && subagentData?.chatResource) {
+			if (this.isSessionsChat && subagentData?.chatResource) {
 				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource: subagentData.chatResource });
 			} else {
 				widget.reveal(response);
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow && subagentTitle
+		const revealSubagentLabel = this.isSessionsChat && subagentTitle
 			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 		const context: IChatContentPartRenderContext = {
@@ -2087,8 +2092,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseIdentity = isResponseVM(element) ? this.rendererOptions.responseIdentity : undefined;
 		templateData.username.textContent = responseIdentity?.label ?? element.username;
 		const hideChatUserIdentity = responseIdentity
-			? this.environmentService.isSessionsWindow
-			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
+			? this.isSessionsChat
+			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.isSessionsChat, isSystemInitiatedRequest);
 		templateData.username.classList.toggle('hidden', hideChatUserIdentity);
 		templateData.avatarContainer.classList.toggle('hidden', hideChatUserIdentity);
 
@@ -4892,13 +4897,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
 			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
 			const chatResource = currentSubagentPart.getChatResource();
-			if (this.environmentService.isSessionsWindow && chatResource) {
+			if (this.isSessionsChat && chatResource) {
 				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
 			} else {
 				currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow
+		const revealSubagentLabel = this.isSessionsChat
 			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 

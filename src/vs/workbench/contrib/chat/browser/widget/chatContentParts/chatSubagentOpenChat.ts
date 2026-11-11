@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import './media/chatSubagentOpenChat.css';
 import { $, addDisposableListener, EventHelper, EventLike, EventType, isHTMLElement, WindowIntervalTimer } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -892,7 +894,8 @@ class EditorOpenSubagentChatActionViewItemContribution extends Disposable implem
 		}
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
+			// A session chat opens its subagents' chats as the Agents window does, whatever window shows it
+			if (!(action instanceof MenuItemAction) || instantiationService.invokeFunction(accessor => ChatContextKeys.inSessionsChat.getValue(accessor.get(IContextKeyService)))) {
 				return undefined;
 			}
 			return instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
