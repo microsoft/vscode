@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { SESSION_WORKTREE_ICON } from '../../../common/sessionWorktreeIcon.js';
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -99,14 +101,14 @@ suite('AgentsViewFolderLocation', () => {
 
 	function sessionIn(path: string, repository?: string): ISession {
 		const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ root: URI.file(path), workingDirectory: URI.file(path), name: path, description: undefined, gitRepository: repository ? { uri: URI.file(repository) } : undefined }] as ISessionWorkspace['folders'] });
-		return upcastPartial<ISession>({ workspace: constObservable(workspace) });
+		return upcastPartial<ISession>({ resource: URI.parse(`session:${path}`), workspace: constObservable(workspace) });
 	}
 
 	/**
 	 * The service, started, in a single-folder window at `/work/vscode` (or at `location` of it), with the real workspace
 	 * editing service, whose resolving of a location waits for `resolution` when one is given.
 	 */
-	function createService(options?: { readonly location?: string; readonly workbenchState?: WorkbenchState; readonly chatEnabled?: boolean; readonly resolution?: DeferredPromise<void> }) {
+	function createService(options?: { readonly location?: string; readonly workbenchState?: WorkbenchState; readonly chatEnabled?: boolean; readonly resolution?: DeferredPromise<void>; readonly storage?: InMemoryStorageService }) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const contextKeyService = disposables.add(new ChangingContextKeyService());
 		contextKeyService.createKey(ChatContextKeys.enabled.key, options?.chatEnabled ?? true);
@@ -152,10 +154,13 @@ suite('AgentsViewFolderLocation', () => {
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>(workspaceContextService));
 		instantiationService.stub(IWorkspaceEditingService, workspaceEditingService);
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>(folderLocationService));
+		instantiationService.stub(IStorageService, options?.storage ?? disposables.add(new InMemoryStorageService()));
+		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeAllSessions: sessionsChanged.event }));
 
 		const service = disposables.add(instantiationService.createInstance(AgentsViewFolderLocationService));
 		service.start();
-		return { service, moves, trusted, notifications, hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
+		return { service, moves, trusted, notifications, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
 
 	test('a linked checkout shows with the icon of a worktree section of the Sessions list', async () => {
@@ -260,6 +265,27 @@ suite('AgentsViewFolderLocation', () => {
 		const result = await service.switchToSession(broken).then(() => 'resolved', () => 'rejected');
 
 		assert.deepStrictEqual({ result, notifications }, { result: 'resolved', notifications: ['error: Could not move the folder to the location of the session'] });
+	});
+
+	test('remembers the session last picked at each location of the folder, also after a reload, and forgets a deleted one', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { service, removeSession } = createService({ storage });
+		const atWorktree = sessionIn('/work/vscode.worktrees/feature');
+		const atFolder = sessionIn('/work/vscode/src');
+		const last = (svc: typeof service, path: string) => svc.getLastSession(URI.file(path))?.toString() ?? 'none';
+
+		await service.switchToSession(atWorktree);
+		await service.switchToSession(atFolder);
+		const picked = { worktree: last(service, '/work/vscode.worktrees/feature'), folder: last(service, '/work/vscode') };
+		const reloaded = createService({ storage }).service;
+		const afterReload = { worktree: last(reloaded, '/work/vscode.worktrees/feature'), folder: last(reloaded, '/work/vscode') };
+		removeSession(atWorktree);
+
+		assert.deepStrictEqual({ picked, afterReload, afterDelete: last(service, '/work/vscode.worktrees/feature') }, {
+			picked: { worktree: atWorktree.resource.toString(), folder: atFolder.resource.toString() },
+			afterReload: { worktree: atWorktree.resource.toString(), folder: atFolder.resource.toString() },
+			afterDelete: 'none',
+		});
 	});
 
 	test('a later open that keeps the folder where it is supersedes an earlier move still under way', async () => {
