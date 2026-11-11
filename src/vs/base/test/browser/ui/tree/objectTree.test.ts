@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener } from '../../../../browser/dom.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
@@ -262,6 +263,24 @@ suite('ObjectTree', function () {
 		}
 		disposeTemplate(): void { }
 	}
+
+	suite('Lifecycle', () => {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('disposing with a pending active-node update does not reject', async () => {
+			const unhandledRejections: string[] = [];
+			store.add(addDisposableListener(mainWindow, 'unhandledrejection', event => unhandledRejections.push(String(event.reason))));
+			const tree = store.add(new ObjectTree<number>('test', document.createElement('div'), new Delegate(), [new Renderer()]));
+
+			tree.setChildren(null, [{ element: 1 }, { element: 2 }]);
+			tree.setFocus([1]);
+			tree.setSelection([2]);
+			tree.dispose();
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.setTimeout(resolve, 0)));
+
+			assert.deepStrictEqual(unhandledRejections, []);
+		});
+	});
 
 	test('applies renderer row class names', function () {
 		const container = document.createElement('div');

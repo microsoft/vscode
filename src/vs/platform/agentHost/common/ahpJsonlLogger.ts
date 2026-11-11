@@ -440,6 +440,9 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (typeof value.authorization === 'string') {
 			return { ...value, authorization: '<redacted>' };
 		}
+		if (typeof value.password === 'string') {
+			return { ...value, password: '<redacted>' };
+		}
 		// Assisted permissions feedback is restricted telemetry, wherever a confirmation carries it.
 		const redactedMeta = isRecord(value._meta) ? redactAgentPermissionFeedback(value._meta, REDACTED_PERMISSION_FEEDBACK) : undefined;
 		if (redactedMeta) {

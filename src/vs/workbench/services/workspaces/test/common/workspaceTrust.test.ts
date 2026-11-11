@@ -92,6 +92,24 @@ suite('Workspace Trust', () => {
 			assert.strictEqual(testObject.isWorkspaceTrustEnabled(), false);
 		});
 
+		test('workspace trust stays enabled when the setting value is missing or not a boolean', async () => {
+			const settings = [
+				{ workspace: { trust: undefined } },
+				{ workspace: { trust: 'x' } },
+				{ workspace: 'x' },
+				{ workspace: { trust: { enabled: 'x' } } },
+				{ workspace: { trust: { enabled: 0 } } },
+				{ workspace: { trust: { enabled: null } } },
+				{ workspace: { trust: { enabled: { x: 1 } } } }
+			];
+			for (const value of settings) {
+				await configurationService.setUserConfiguration('security', value);
+				const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
+
+				assert.strictEqual(testObject.isWorkspaceTrustEnabled(), true, JSON.stringify(value));
+			}
+		});
+
 		test('workspace trust disabled (--disable-workspace-trust)', () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, disableWorkspaceTrust: true });
 			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustEnablementService));
@@ -1202,6 +1220,43 @@ suite('Workspace Trust', () => {
 			const agentHostUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=meta' });
 			assert.strictEqual(false, (await testObject.getUriTrustInfo(agentHostUri)).trusted);
 		});
+
+		for (const scheme of [Schemas.http, Schemas.https]) {
+			test(`${scheme} workspace configuration is not auto-trusted`, async () => {
+				await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+				environmentService.untitledWorkspacesHome = URI.file('/untitled-workspaces');
+				const configuration = URI.from({ scheme, authority: 'example.test', path: '/workspace.code-workspace' });
+				workspaceService.setWorkspace(new Workspace('network-workspace', [], configuration));
+				const testObject = await initializeTestObject();
+				const initialUriTrust = await testObject.getUriTrustInfo(configuration);
+				const initialWorkspaceTrust = testObject.isWorkspaceTrusted();
+				const canSetInitialTrust = testObject.canSetWorkspaceTrust();
+
+				await testObject.setWorkspaceTrust(true);
+				const trustedUriTrust = await testObject.getUriTrustInfo(configuration);
+				const trustedWorkspaceTrust = testObject.isWorkspaceTrusted();
+				const trustedUris = testObject.getTrustedUris().map(uri => uri.toString());
+				await testObject.setWorkspaceTrust(false);
+
+				assert.deepStrictEqual({
+					initialTrust: initialUriTrust.trusted,
+					initialWorkspaceTrust,
+					canSetInitialTrust,
+					trustedUriTrust: trustedUriTrust.trusted,
+					trustedWorkspaceTrust,
+					trustedUris,
+					revokedWorkspaceTrust: testObject.isWorkspaceTrusted(),
+				}, {
+					initialTrust: false,
+					initialWorkspaceTrust: false,
+					canSetInitialTrust: true,
+					trustedUriTrust: true,
+					trustedWorkspaceTrust: true,
+					trustedUris: [configuration.toString()],
+					revokedWorkspaceTrust: false,
+				});
+			});
+		}
 
 		test('agent host folder trust persists and ignores the _ah query', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));

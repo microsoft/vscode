@@ -15,12 +15,12 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { isSessionCreated, SessionStatus, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export async function prepareNewVoiceSession(
@@ -28,9 +28,9 @@ export async function prepareNewVoiceSession(
 	sessionsService: Pick<ISessionsService, 'openNewSession'>,
 	shown: {
 		/** The session the user looks at: the focused window's, which a new session inherits its target from. */
-		readonly focused: () => IHostSession | undefined;
+		readonly focused: () => ISession | undefined;
 		/** The session the main window shows, where the new session opens. */
-		readonly mainWindow: () => IHostSession | undefined;
+		readonly mainWindow: () => ISession | undefined;
 	},
 	sessionsManagementService: ISessionsManagementService,
 	voiceSessionController: IVoiceSessionController,
@@ -341,11 +341,11 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 
 	/**
 	 * The active chat resource, only after its session exists.
-	 * {@link IHostSession.isCreated} distinguishes it from the welcome composer.
+	 * {@link isSessionCreated} distinguishes it from the welcome composer.
 	 */
 	private _createdActiveChatResource(): URI | undefined {
 		const focusedHost = this.focusedSessionHostService.getFocusedHost();
-		return focusedHost.session.get()?.isCreated.get() ? focusedHost.chat.get()?.resource : undefined;
+		return isSessionCreated(focusedHost.session.get()) ? focusedHost.chat.get()?.resource : undefined;
 	}
 
 	/** The chat widget backing the currently active (created) session, if any. */
@@ -395,7 +395,7 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 		super();
 
 		const focused = getFocusedSessionChatSource(focusedSessionHostService);
-		let voiceDraftSession: IHostSession | undefined;
+		let voiceDraftSession: ISession | undefined;
 		let voiceDraftRequest: ISendRequestOptions | undefined;
 		this._register(newSessionComposerService.onWillSendRequest(({ options }) => {
 			const composer = newChatVoiceTargetService.activeComposer.get();
@@ -419,10 +419,10 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 			}
 			if (!hasDraftTarget) {
 				voiceDraftSession = undefined;
-			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+			} else if (!voiceDraftSession && active && !isSessionCreated(active, reader)) {
 				voiceDraftSession = active;
 			}
-			if (!voiceDraftRequest && voiceDraftSession?.isCreated.read(reader)) {
+			if (!voiceDraftRequest && voiceDraftSession && isSessionCreated(voiceDraftSession, reader)) {
 				// Once sent, the draft's chat is its main chat
 				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.mainChat.read(reader).resource);
 				voiceDraftSession = undefined;
@@ -431,7 +431,7 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 				this.voiceSessionController.setActiveSessionShown(undefined);
 				return;
 			}
-			if (!active.isCreated.read(reader)) {
+			if (!isSessionCreated(active, reader)) {
 				this.voiceSessionController.setActiveSessionShown(null);
 				return;
 			}

@@ -715,9 +715,11 @@
 			text-overflow: clip;
 		}
 
+		/* Read-only addresses are not contenteditable, so opt back in to text selection for copying. */
 		&[aria-readonly="true"] {
 			color: var(--vscode-descriptionForeground);
-			cursor: default;
+			user-select: text;
+			-webkit-user-select: text;
 		}
 
 		&:empty::before {

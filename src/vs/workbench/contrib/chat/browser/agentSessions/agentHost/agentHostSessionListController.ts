@@ -147,9 +147,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled-to-real rebind. The untitled entry is left in place and
 			// cleaned up when its compose model disposes; clearing it here would
 			// briefly fire a change while the widget still points at the untitled
-			// resource, flickering the chip back to the first folder.
+			// resource, flickering the chip back to the first folder. Carrying a
+			// folder forward is not a new choice, so the window's default stays as
+			// it is (a folder chosen on the user's behalf must not become it).
 			if (workingDirectory) {
-				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
+				this._newSessionFolderService.setFolder(item.resource, workingDirectory, { updateDefault: false });
 			}
 			// Carry any imported ("Continue in…") conversation snapshot from the
 			// untitled chat-input resource to the freshly-minted real resource so
@@ -180,7 +182,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					?? this._newSessionFolderService.getDefaultFolder()
 					?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 				if (currentDirectory) {
-					this._newSessionFolderService.setFolder(nextResource, currentDirectory);
+					this._newSessionFolderService.setFolder(nextResource, currentDirectory, { updateDefault: false });
 				}
 				this._newSessionFolderService.clear(previousResource);
 				this._importConversationStore.rename(previousResource, nextResource);

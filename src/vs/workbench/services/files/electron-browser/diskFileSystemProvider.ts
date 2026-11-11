@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { Event } from '../../../../base/common/event.js';
 import { isLinux } from '../../../../base/common/platform.js';
-import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange, IFileSystemProviderWithFileAtomicRenameCapability } from '../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange, IFileSystemProviderWithFileAtomicRenameCapability, IFileRealpathOptions } from '../../../../platform/files/common/files.js';
 import { AbstractDiskFileSystemProvider } from '../../../../platform/files/common/diskFileSystemProvider.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -69,8 +69,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.stat(resource);
 	}
 
-	realpath(resource: URI): Promise<string> {
-		return this.provider.realpath(resource);
+	realpath(resource: URI, options?: IFileRealpathOptions): Promise<string> {
+		return this.provider.realpath(resource, options);
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {

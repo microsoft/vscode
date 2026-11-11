@@ -39,22 +39,25 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
-import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
+import { logSidePanelToggle } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
-import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
-import { IHostSession, ISessionsManagementService, IShownChat } from '../../../services/sessions/common/sessionsManagement.js';
-import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
+import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
 const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-toggle-open', Codicon.layoutSidebarRight, localize('agentSecondarySidebarToggleOpenIcon', "Icon for the sessions secondary sidebar when open."));
@@ -172,7 +175,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _workingSetAdoptingReplacement: URI | undefined;
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
 	/** The session the main window shows, from its host. */
-	protected readonly _mainWindowSession: IObservable<IHostSession | undefined>;
+	protected readonly _mainWindowSession: IObservable<ISession | undefined>;
 	/** The chat the main window shows, from its host. */
 	protected readonly _mainWindowChat: IObservable<IChat | undefined>;
 	/** The session and chat the main window shows, together. */
@@ -359,20 +362,21 @@ export abstract class BaseLayoutController extends Disposable {
 		});
 
 		this.multipleSessionsVisibleObs = derived<boolean>(reader => {
-			return this._sessionsService.visibleSessions.read(reader).length > 1;
+			return this._sessionsService.slotPanes.read(reader).length > 1;
 		});
 		this.multipleChatsVisibleObs = this._sessionsPartService.shownChatCount.map(count => count > 1);
 
 		this._register(autorun(reader => {
-			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
-			if (visibleSessions.length <= 1 || this._chatLayoutActive(reader)) {
+			const panes = this._sessionsService.slotPanes.read(reader);
+			if (panes.length <= 1 || this._chatLayoutActive(reader)) {
 				return;
 			}
-			for (const session of visibleSessions) {
+			for (const pane of panes) {
+				const session = pane.session.read(undefined);
 				if (!session) {
 					continue;
 				}
-				const ownerKey = this._ownerKeyFor({ session, chat: session.activeChat.read(undefined) });
+				const ownerKey = this._ownerKeyFor({ session, chat: pane.chat.read(undefined) ?? session.mainChat.read(undefined) });
 				if (!ownerKey) {
 					continue;
 				}
@@ -789,10 +793,10 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					menu: [
 						{
-							id: Menus.TitleBarSessionMenu,
+							id: AgentsWindowMenus.TitleBarSessionMenu,
 							group: 'navigation',
 							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate())
 						},
 						{
 							// Replaces the title bar entry while the Session Activity Bar shows its layout actions.
@@ -1172,7 +1176,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _saveState(): void {
 		const shown = this._shownByMainWindow();
 		const activeSession = shown?.session;
-		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
+		const multipleVisible = this._sessionsService.slotPanes.get().length > 1;
 		const ownerKey = shown && this._ownerKeyFor(shown);
 
 		// [B4] Capture current state for the active session (skip multiple-visible and untitled).
@@ -1286,7 +1290,7 @@ export abstract class BaseLayoutController extends Disposable {
 			// change the visibility of the editor part: the editor area is shared
 			// across the visible sessions and its visibility is controlled by the
 			// user (and by direct editor open/close events outside this path).
-			if (this._sessionsService.visibleSessions.get().length > 1) {
+			if (this._sessionsService.slotPanes.get().length > 1) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {
 					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });

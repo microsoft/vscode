@@ -21,6 +21,8 @@ import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
 import { SessionModelInfo } from './state/protocol/state.js';
 import { isRetryableMissionControlError, MissionControlErrorMetadata } from '../../github/common/missionControl/missionControlError.js';
+import { CLOUD_SANDBOX_TASK_SCHEME } from './agentHostSessionType.js';
+export { CLOUD_SANDBOX_TASK_SCHEME } from './agentHostSessionType.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -63,13 +65,6 @@ export function isCloudSandboxPlaceholderTitle(title: string | undefined, sessio
 	return title !== undefined && title === AgentSession.id(session);
 }
 
-/** Prefix of a sealed token envelope (`copilot-sealed.v1.<key_id>.<b64url>`). */
-export const CLOUD_SANDBOX_SEALED_TOKEN_PREFIX = 'copilot-sealed.v1.';
-
-/** Whether {@link token} is a sealed envelope, and so safe to forward over the relay. */
-export function isCloudSandboxSealedToken(token: string | undefined): boolean {
-	return typeof token === 'string' && token.startsWith(CLOUD_SANDBOX_SEALED_TOKEN_PREFIX);
-}
 /** The Mission Control environment id encoded in a cloud sandbox connection address, if any. */
 export function cloudSandboxEnvironmentId(address: string): string | undefined {
 	return address.startsWith(CLOUD_SANDBOX_ADDRESS_PREFIX)
@@ -179,19 +174,19 @@ export interface ICloudSandboxDraftPreparationService {
 	forget(draftResource: URI): Promise<void>;
 }
 
-/** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
-export interface ICloudSandboxDiscoveredSession {
+/** A cloud work item that can be listed without resolving its execution. */
+export interface ICloudSandboxTask {
 	readonly eventType?: string;
 	/** The creating application's slug from the owning task, not a participating session client. */
 	readonly application?: string;
-	/** Mission Control environment id the session's sandbox is bound to. */
-	readonly environmentId: string;
+	/** Learned execution environment, absent until the task's binding has been resolved. */
+	readonly environmentId?: string;
 	/**
 	 * Session id, used as the native session's raw id. Mission Control creates the session as
 	 * `ahp-session:/<sessionId>` and the host lists it back under the same id, so seeded entries
 	 * reconcile with the host's `listSessions()` on connect.
 	 */
-	readonly sessionId: string;
+	readonly sessionId?: string;
 	/**
 	 * Mission Control task id owning the session. Persisted AHP history is addressed per task, so
 	 * this is what makes a session's conversation readable after its sandbox is gone.
@@ -205,10 +200,28 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly hasRepository?: boolean;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
+	/** Whether the task list reports a queued task, rather than an in-progress execution. */
+	readonly isQueued?: boolean;
 	/** Last reported activity; this does not establish environment availability or session flags. */
 	readonly status?: SessionStatus;
 	/** Mission Control's archive state, independent of the sandbox's AHP session flags. */
 	readonly isArchived?: boolean;
+}
+
+/** A task whose actual session and environment have been resolved. */
+export interface ICloudSandboxDiscoveredSession extends ICloudSandboxTask {
+	readonly environmentId: string;
+	readonly sessionId: string;
+}
+
+export function cloudSandboxTaskResource(taskId: string): URI {
+	return URI.from({ scheme: CLOUD_SANDBOX_TASK_SCHEME, path: `/${taskId}` });
+}
+
+/** Whether a default-titled task has remained queued and unmodified for at least 24 hours. */
+export function isStaleQueuedCloudSandboxTask(task: ICloudSandboxTask, now = Date.now()): boolean {
+	return task.isQueued === true && task.name === 'New remote session'
+		&& task.updatedAt !== undefined && now - Date.parse(task.updatedAt) >= 24 * 60 * 60_000;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */
@@ -340,7 +353,7 @@ export interface ICloudSandboxConnectionRequest {
 	 * uses it to resolve the repository when minting the token.
 	 */
 	readonly sessionId?: string;
-	/** Reports credential HTTP dispatch or a pending response locally; never sent to the server. */
+	/** Reports a credential operation submitted to the shared client or a pending response, not physical HTTP dispatch. */
 	readonly onRequest?: (event: 'issued' | 'waking') => void;
 }
 
@@ -432,15 +445,18 @@ export interface ICloudSandboxApiService {
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
-	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
+	/** List sandbox task summaries without execution reads, or refresh tasks named by feed notifications. */
 	listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult>;
+
+	/** Resolve one task's execution when opening it, reusing a previously learned binding. */
+	resolveSession(taskId: string, token: CancellationToken): Promise<ICloudSandboxDiscoveredSession>;
 
 	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
 	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
 
 	/**
 	 * Create a sandbox task and bound session, optionally consuming a reservation or reusing an online environment.
-	 * The optional callback reports the HTTP dispatch attempt, after local validation and authentication.
+	 * The optional callback reports submission to the typed client after local validation and authentication, not physical HTTP dispatch.
 	 */
 	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession>;
 
@@ -469,24 +485,46 @@ export interface ICloudSandboxApiService {
 export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
 export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
 
+export const cloudSandboxFullScanReasons = ['notFull', 'initial', 'reconciliationDue', 'requestedFull', 'reconnectPolicy', 'accountChange', 'configurationChange', 'noCheckpoint', 'scopeInitialization'] as const;
+export type CloudSandboxFullScanReason = typeof cloudSandboxFullScanReasons[number];
+
+/** Coordinator decisions carried to the existing per-read telemetry event. */
+export interface ICloudSandboxDiscoveryDiagnostics {
+	readonly intentMode?: 'full' | 'incremental';
+	readonly fullScanReason?: CloudSandboxFullScanReason;
+	readonly previousInventoryAgeMs?: number;
+	readonly lastFullAgeMs?: number;
+	readonly queued?: boolean;
+	readonly coalescedRequestCount?: number;
+	readonly coalescedTrigger?: CloudSandboxDiscoveryTrigger | 'multiple';
+}
+
 export interface ICloudSandboxDiscoveryOptions {
 	readonly incremental?: boolean;
 	/** Defaults to including archived inventory. False omits archived discovery, not targeted reads of known tasks. */
 	readonly includeArchived?: boolean;
 	readonly taskIds?: readonly string[];
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
+	readonly diagnostics?: ICloudSandboxDiscoveryDiagnostics;
 }
 
 /** Successful recent-window refreshes permit eviction only within their requested scope; removal IDs report confirmed changes. */
 export type ICloudSandboxDiscoveryResult =
 	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds?: readonly string[] }
 	/** A successful non-archived recent-window refresh; absent cached archives must be retained. */
-	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
+	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
-	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
+	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
+	| {
+		readonly kind: 'partial';
+		readonly sessions: readonly ICloudSandboxTask[];
+		readonly removedTaskIds?: readonly string[];
+		readonly failedTaskIds?: readonly string[];
+		/** The recent inventory window was enumerated; unresolved details are retained for per-task retries. Does not authorize absence pruning. */
+		readonly inventoryComplete?: boolean;
+	}
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 
@@ -514,13 +552,16 @@ export class CloudSandboxRequestError extends Error {
 	readonly code: string | undefined;
 	readonly limitedResource: string | undefined;
 	readonly requestId: string | undefined;
+	/** The service may have applied the mutation before returning the failure. */
+	readonly outcome: 'indeterminate' | undefined;
 
-	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, metadata?: MissionControlErrorMetadata) {
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, metadata?: MissionControlErrorMetadata, outcome?: 'indeterminate') {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
 		this.code = metadata?.code;
 		this.limitedResource = metadata?.limitedResource;
 		this.requestId = metadata?.requestId;
+		this.outcome = outcome;
 	}
 }
 

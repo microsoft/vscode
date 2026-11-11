@@ -23,9 +23,10 @@ import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
-import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
+import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup, supportsPrepareSessionWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, PrepareSessionWorktreeCleanupExtensionMethod, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { supportsAgentHostSideChatWithoutContext, withSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta.js';
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUnknown } from '../../../base/common/validation.js';
@@ -36,10 +37,11 @@ import { AgentHostChannelError, AgentHostChannelErrorCode, reportAgentHostChanne
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import type { Credentials } from '../../request/common/request.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
@@ -75,7 +77,7 @@ import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../common/agentH
 import { compareProtocolVersions } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification, type AhpNotification } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
-import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { isClientTransport, NonReconnectableTransportError, AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
 import { ChannelRecoveryKind, type ChannelFlowControl, type ChannelReceiveLimits } from '../common/state/protocol/common/state.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -83,7 +85,8 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
-import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ILoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ProtocolLivenessMonitor } from '../common/protocolLivenessMonitor.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
@@ -240,6 +243,7 @@ interface IReconnectState {
 	nextAttemptAt: number | undefined;
 	deadline: number | undefined;
 	remainingTimeMs: number | undefined;
+	inFlight: boolean;
 }
 
 /**
@@ -276,7 +280,7 @@ export interface IAgentHostProtocolClientOptions {
 	readonly prepareReconnect?: () => Promise<void>;
 	/** Prepare credentials before initial authentication or restoration; transient failures remain reconnectable. */
 	readonly prepareAuthentication?: () => Promise<void>;
-	/** Resolves required authentication before initialization or transport recovery becomes ready. */
+	/** Resolves required credentials; acquisition failures are retried unless explicitly non-reconnectable. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Resolves existing credentials for advertised resources before protected requests are released. */
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
@@ -288,11 +292,20 @@ export interface IAgentHostProtocolClientOptions {
 	readonly onDispose?: () => void;
 }
 
-/** An initial authentication resolver failed after a successful initialize. */
-export class InitialAuthenticationError extends Error {
+/** Required credentials were rejected or cannot safely be sent to the host. */
+export class InitialAuthenticationError extends NonReconnectableTransportError {
 	constructor(error: unknown) {
-		super(`Initial authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+		super(`Initial authentication failed: ${error instanceof Error ? error.message : String(error)}`, AgentHostTransportFailureReason.AuthenticationFailed);
 		this.name = 'InitialAuthenticationError';
+		this.cause = error;
+	}
+}
+
+/** A credential-encryption prerequisite failed without rejecting the credential or recipient. */
+export class RetryableAuthenticationError extends Error {
+	constructor(error: unknown) {
+		super(getErrorMessage(error), { cause: error });
+		this.name = 'RetryableAuthenticationError';
 	}
 }
 
@@ -512,61 +525,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private readonly _pendingReverseRequests = new WeakMap<IProtocolTransport, number>();
 
-	/**
-	 * Whether a liveness close has been deferred while the client was unable to
-	 * receive traffic from the host.
-	 */
-	private _livenessDeferred = false;
-	private _livenessDeferredSince: number | undefined;
-
 	/** Channels awaiting a post-authentication snapshot. Entries survive interrupted recovery attempts. */
 	private readonly _subscriptionsAwaitingRestore = new Set<string>();
 
 	/** Keeps an interrupted authentication pass pending until a replacement connection finishes it. */
 	private _authenticationRestorePending = false;
 
-	/**
-	 * Timestamp of the most recent data of any kind received from the
-	 * server. Used only for diagnostic logging when the close timer fires.
-	 */
-	private _lastReadTime = Date.now();
-
-	/**
-	 * Liveness watchdog — see {@link _resetLivenessTimers}.
-	 *
-	 * {@link _pingTimer} fires after {@link PING_INTERVAL_MS} of inbound
-	 * silence and sends an application-level `ping` so we have something
-	 * to time out on. {@link _closeTimer} fires after another
-	 * {@link LIVENESS_TIMEOUT_MS} of continued silence and force-closes
-	 * the transport so the renderer's reconnect logic kicks in. If the host
-	 * has an unanswered reverse request or the local event loop has high load,
-	 * both timers re-arm instead. Once the deferral clears, it grants a full
-	 * liveness window before closing.
-	 * Both are reset on any inbound data, so busy connections generate
-	 * no ping traffic at all.
-	 *
-	 * Detects silently-dead transports (e.g. SSH/tunnel after laptop
-	 * sleep + network change) that don't produce a socket close event of
-	 * their own.
-	 */
-	private readonly _pingTimer = this._register(new TimeoutTimer());
+	private readonly _liveness: ProtocolLivenessMonitor;
 	private readonly _relayKeepAliveTimer = this._register(new IntervalTimer());
 	private _relayKeepAlivePending: Promise<unknown> | undefined;
-	private readonly _closeTimer = this._register(new TimeoutTimer());
-
-	/**
-	 * Used to suppress watchdog-triggered closes when our own JS event loop
-	 * has been pegged — in that case the silence is on our side, not the
-	 * remote's, and tearing down the transport would just generate a useless
-	 * reconnect cycle that aborts in-flight requests.
-	 */
-	private readonly _loadEstimator: ILoadEstimator;
 	private readonly _clientInfo: Implementation | undefined;
 	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
 	private readonly _prepareReconnect: (() => Promise<void>) | undefined;
 	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
 	private _isSuspended = false;
+	private _resumeGate: DeferredPromise<void> | undefined;
 	private _firstSessionRequestPending = false;
 	private _firstSessionOpenPending = false;
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
@@ -598,6 +572,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	get connectionState(): AgentHostClientState {
 		return this._state.kind;
+	}
+
+	get connectionError(): ProtocolError | undefined {
+		return this._state.kind === AgentHostClientState.Incompatible || this._state.kind === AgentHostClientState.Closed
+			? this._state.error : undefined;
 	}
 
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
@@ -642,7 +621,19 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 			? identityAgentHostResourceUriMapper
 			: options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
-		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
+		this._liveness = this._register(new ProtocolLivenessMonitor({
+			pingIntervalMs: PING_INTERVAL_MS,
+			timeoutMs: LIVENESS_TIMEOUT_MS,
+			loadEstimator: options?.loadEstimator,
+			canCheck: () => this._canCheckLiveness(),
+			canTimeout: () => this._transport.clientConnectionKind !== AgentHostClientConnectionKind.Local,
+			shouldDefer: () => (this._pendingReverseRequests.get(this._transport) ?? 0) > 0,
+			onPing: () => this._onPingTimer(),
+			onTimeout: silence => this._onLivenessTimeout(silence),
+			onDeferred: duration => this._logService.trace(
+				`[RemoteAgentHostProtocol] Liveness: deferring close for ${duration}ms; ${this._pendingReverseRequests.get(this._transport) ?? 0} reverse request(s) outstanding.`,
+			),
+		}));
 		if (options?.onDidSuspend && options.onDidResume) {
 			this._register(options.onDidSuspend(() => this._suspendReconnectDeadline()));
 			this._register(options.onDidResume(() => this._resumeReconnectDeadline()));
@@ -822,6 +813,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			timeoutHandle: undefined, nextAttemptAt: undefined,
 			deadline: this._isSuspended || this._reconnectPolicy.maxElapsedTimeMs === undefined ? undefined : Date.now() + this._reconnectPolicy.maxElapsedTimeMs,
 			remainingTimeMs: this._isSuspended ? this._reconnectPolicy.maxElapsedTimeMs : undefined,
+			inFlight: false,
 		};
 	}
 
@@ -836,7 +828,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _suspendReconnectDeadline(): void {
+		if (this._isSuspended) {
+			return;
+		}
 		this._isSuspended = true;
+		this._resumeGate = new DeferredPromise<void>();
+		this._diagnostic('power.suspend', '');
+		this._cancelLivenessTimers();
+		this._relayKeepAliveTimer.cancel();
+		if (this._transportFactory && (this._state.kind === AgentHostClientState.Connected || this._state.kind === AgentHostClientState.Connecting)) {
+			this._transportListeners.clear();
+			this._handleTransportClose();
+		}
 		if (this._state.kind === AgentHostClientState.Reconnecting) {
 			const reconnect = this._state.reconnect;
 			if (reconnect.deadline !== undefined) {
@@ -844,11 +847,23 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				reconnect.deadline = undefined;
 				this._reconnectDeadlineTimer.cancel();
 			}
+			if (reconnect.timeoutHandle !== undefined) {
+				clearTimeout(reconnect.timeoutHandle);
+				reconnect.timeoutHandle = undefined;
+				reconnect.nextAttemptAt = undefined;
+				this._onDidScheduleReconnect.fire();
+			}
 		}
 	}
 
 	private _resumeReconnectDeadline(): void {
+		if (!this._isSuspended) {
+			return;
+		}
 		this._isSuspended = false;
+		this._resumeGate?.complete();
+		this._resumeGate = undefined;
+		this._diagnostic('power.resume', '');
 		if (this._state.kind === AgentHostClientState.Reconnecting) {
 			const reconnect = this._state.reconnect;
 			if (reconnect.remainingTimeMs !== undefined) {
@@ -856,6 +871,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				reconnect.remainingTimeMs = undefined;
 				this._armReconnectDeadline(reconnect);
 			}
+			if (reconnect.transportConnected) {
+				this._recordInboundTraffic();
+			}
+			if (!reconnect.inFlight) {
+				this._scheduleReconnect();
+			}
+		} else if (this._state.kind === AgentHostClientState.Connected) {
+			this._recordInboundTraffic();
+			this._startRelayKeepAlive(this._initializeResult.get()?._meta);
 		}
 	}
 
@@ -873,6 +897,19 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (reconnect.deadline !== undefined && Date.now() >= reconnect.deadline) {
 			this._handleReconnectTimeout();
 			return false;
+		}
+		return true;
+	}
+
+	private async _continueReconnectAfterResume(reconnect: IReconnectState, attempt: number, transport?: IProtocolTransport): Promise<boolean> {
+		while (this._resumeGate) {
+			await this._raceClose(this._resumeGate.p, transport);
+		}
+		if (!this._checkReconnectState(reconnect) || reconnect.attempt !== attempt) {
+			return false;
+		}
+		if (transport && (transport !== this._transport || !reconnect.transportConnected)) {
+			throw transportLostError(this._address);
 		}
 		return true;
 	}
@@ -899,7 +936,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		try {
 			if (isClientTransport(this._transport)) {
 				const transport = this._transport;
-				await this._traceConnection('transport.connect', () => this._raceClose(transport.connect()));
+				await this._traceConnection('transport.connect', () => this._raceClose(transport.connect(), this._transportFactory ? transport : undefined));
 			}
 			if (this._state.kind !== AgentHostClientState.Connecting) {
 				throw transportLostError(this._address);
@@ -907,8 +944,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// Arm the watchdog before the handshake, as a reconnect does. A relay can be up and
 			// acknowledging publishes while the host behind it never answers `initialize`; without a
 			// liveness check the handshake would wait on that silence indefinitely.
-			this._lastReadTime = Date.now();
-			this._resetLivenessTimers();
+			this._recordInboundTraffic();
 
 			stage = 'initialize';
 			const result = await this._traceConnection('protocol.initialize', () => this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
@@ -948,7 +984,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
-			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion || error instanceof InitialAuthenticationError) {
+			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+				this._diagnostic('protocol.incompatible', '');
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
 					this._state.outbox.length = 0;
@@ -958,6 +995,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw error;
 			}
 			if (error instanceof NonReconnectableTransportError) {
+				this._diagnostic(error instanceof InitialAuthenticationError ? 'authentication.failed' : 'reconnect.nonReconnectable', '');
 				this._handleFatalClose(protocolError, error.reason);
 				throw error;
 			}
@@ -1002,7 +1040,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._onDidInvalidateTransport.fire(this._transport);
 		this._relayKeepAliveTimer.cancel();
 		if (this._state.kind !== AgentHostClientState.Closed) {
-			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastDataMs=${Date.now() - this._lastReadTime}`);
+			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastDataMs=${Date.now() - this._liveness.lastReadTime}`);
 		}
 		switch (this._state.kind) {
 			case AgentHostClientState.Closed:
@@ -1114,7 +1152,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		const reconnect = this._state.reconnect;
-		if (reconnect.timeoutHandle !== undefined) {
+		if (reconnect.timeoutHandle !== undefined || this._isSuspended) {
 			return;
 		}
 		if (!userInitiated && !this._reconnectPolicy.autoRestore) {
@@ -1150,9 +1188,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		const reconnect = this._state.reconnect;
-		if (!this._checkReconnectState(reconnect)) {
+		if (this._isSuspended || !this._checkReconnectState(reconnect) || reconnect.inFlight) {
 			return;
 		}
+		reconnect.inFlight = true;
 		reconnect.attempt++;
 		const attempt = reconnect.attempt;
 		this._diagnosticAttemptId = generateUuid();
@@ -1161,7 +1200,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		try {
 			if (this._prepareReconnect) {
 				await this._raceClose(this._prepareReconnect());
-				if (!this._checkReconnectState(reconnect) || reconnect.attempt !== attempt) {
+				if (!await this._continueReconnectAfterResume(reconnect, attempt)) {
 					return;
 				}
 			}
@@ -1171,13 +1210,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				const clientTransport = transport;
 				await this._traceConnection('transport.reconnect', () => this._raceClose(clientTransport.connect()));
 			}
-			if (!this._checkReconnectState(reconnect)) {
+			if (!await this._continueReconnectAfterResume(reconnect, attempt)) {
 				return;
 			}
 
 			reconnect.transportConnected = true;
-			this._lastReadTime = Date.now();
-			this._resetLivenessTimers();
+			this._recordInboundTraffic();
 
 			const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(u => u.toString());
 			// Always include the always-live root state alongside getSubscription-managed entries.
@@ -1188,7 +1226,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const { result, freshInitialize, windowSnapshots } = await this._traceConnection('protocol.reconnect', () => this._reconnectOrInitialize(lastSeenServerSeq, subscriptions));
 			this._diagnostic('protocol.reconnect.result', `mode=${freshInitialize ? 'freshInitialize' : result.type}`);
 
-			if (!this._checkReconnectState(reconnect)) {
+			if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 				return;
 			}
 
@@ -1204,7 +1242,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._markSubscriptionsAwaitingRestore(result.snapshots);
 				}
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Reconnecting));
-				if (!this._checkReconnectState(reconnect)) {
+				if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 					return;
 				}
 			}
@@ -1213,7 +1251,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// the reconnect above resolved to a snapshot-less `replay`.
 			if (windowSnapshots.size > 0 || this._subscriptionsAwaitingRestore.size > 0) {
 				await this._traceConnection('protocol.subscriptions', () => this._restoreSubscriptionsAwaitingRestore(windowSnapshots));
-				if (!this._checkReconnectState(reconnect)) {
+				if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 					return;
 				}
 			}
@@ -1231,8 +1269,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const { gate } = reconnect;
 			this._drainAfterReconnect(reconnect.outbox);
 
-			this._lastReadTime = Date.now();
-			this._resetLivenessTimers();
+			this._recordInboundTraffic();
 			this._transitionTo({ kind: AgentHostClientState.Connected });
 			this._startRelayKeepAlive(result._meta ?? this._initializeResult.get()?._meta);
 			gate.complete();
@@ -1250,21 +1287,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			reconnect.transportConnected = false;
 			this._cancelLivenessTimers();
 			this._closeTransportChannels();
+			if (err instanceof ProtocolError && err.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+				this._rejectPendingRequests(err);
+				reconnect.gate.error(err);
+				this._diagnostic('protocol.incompatible', '');
+				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: err });
+				return;
+			}
 			transport?.dispose();
 			if (!this._checkReconnectState(reconnect)) {
 				return;
 			}
 			if (err instanceof NonReconnectableTransportError) {
+				this._diagnostic(err instanceof InitialAuthenticationError ? 'authentication.failed' : 'reconnect.nonReconnectable', '');
 				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
 				this._handleFatalClose(protocolError, err.reason);
-				return;
-			}
-			if (err instanceof InitialAuthenticationError) {
-				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
-				this._cancelLivenessTimers();
-				this._rejectPendingRequests(protocolError);
-				reconnect.gate.error(err);
-				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new
@@ -1273,7 +1310,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const oldGate = this._state.reconnect.gate;
 			this._state.reconnect.gate = this._newReconnectGate();
 			oldGate.error(err);
-			this._scheduleReconnect();
+		} finally {
+			reconnect.inFlight = false;
+			if (this._state.kind === AgentHostClientState.Reconnecting && this._state.reconnect === reconnect) {
+				this._scheduleReconnect();
+			}
 		}
 	}
 
@@ -1443,26 +1484,19 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		let initialAuthenticationKey: string | undefined;
 		if (this._resolveInitialAuthentication) {
-			try {
-				const initialAuthentication = await this._raceClose(this._resolveInitialAuthentication());
-				if (this._state !== state || this._state.kind !== expectedState) {
-					return;
+			const initialAuthentication = await this._raceClose(this._resolveInitialAuthentication(), transport);
+			if (this._state !== state || this._state.kind !== expectedState) {
+				return;
+			}
+			if (initialAuthentication) {
+				const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
+				const key = this._authenticationKey(normalizedParams);
+				if (this._authenticationOperations.get(key) === operations.get(key)) {
+					initialAuthenticationKey = key;
+					this._initialAuthenticationResource = normalizedParams.resource;
+					const expiresAt = getExpirationTime(normalizedParams.expiresIn);
+					this._authentication.set(key, { params: normalizedParams, expiresAt });
 				}
-				if (initialAuthentication) {
-					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
-					const key = this._authenticationKey(normalizedParams);
-					if (this._authenticationOperations.get(key) === operations.get(key)) {
-						initialAuthenticationKey = key;
-						this._initialAuthenticationResource = normalizedParams.resource;
-						const expiresAt = getExpirationTime(normalizedParams.expiresIn);
-						this._authentication.set(key, { params: normalizedParams, expiresAt });
-					}
-				}
-			} catch (error) {
-				if (this._state !== state || isConnectionClosedError(error)) {
-					throw error;
-				}
-				throw new InitialAuthenticationError(error);
 			}
 		}
 		const advertisedAuthenticationKeys = new Set<string>();
@@ -1534,7 +1568,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					throw new InitialAuthenticationError(error);
 				}
 				// Transport loss and host faults do not prove that the credential was rejected.
-				if (isConnectionClosedError(error) || (error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR
+				if (error instanceof RetryableAuthenticationError || isConnectionClosedError(error) || (error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR
 					&& required)) {
 					throw error;
 				}
@@ -2291,6 +2325,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
+	async prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		if (!supportsPrepareSessionWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support preparing worktree cleanup.');
+		}
+		await this._sendExtensionRequest(PrepareSessionWorktreeCleanupExtensionMethod, { session: session.toString() });
+	}
+
 	async sessionWorktreeCleanup(session: URI, retry: boolean, force = false): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
 		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
 			throw new Error('This agent host does not support forced worktree cleanup.');
@@ -2644,6 +2685,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			return { ...params, token };
 		} catch (error) {
+			if (error instanceof RetryableAuthenticationError) {
+				throw error;
+			}
 			throw new AuthenticationEncryptionError(getErrorMessage(error));
 		}
 	}
@@ -2883,6 +2927,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (workspace && !supportsAgentHostCreateChatWorkspace(this._initializeResult.get())) {
 			throw new Error(localize('agentHost.createChatWorkspaceUnsupported', "This agent host can't create a chat in its own workspace."));
 		}
+		const withoutSourceContext = options?.sideChat?.includeSourceContext === false;
+		if (withoutSourceContext && !supportsAgentHostSideChatWithoutContext(this._initializeResult.get())) {
+			throw new Error(localize('agentHost.sideChatWithoutContextUnsupported', "This agent host can't create a side chat without source context. Update the agent host to explain this command."));
+		}
+		let meta = workspace
+			? withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace)
+			: undefined;
+		if (withoutSourceContext) {
+			meta = withSideChatWithoutContext(meta);
+		}
 		const initialMessage = options?.initialMessage && {
 			...options.initialMessage,
 			...(options.initialMessage.model === undefined && options.model !== undefined ? { model: options.model } : {}),
@@ -2908,9 +2962,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 				}
 			} : {}),
-			...(workspace ? {
-				_meta: withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace),
-			} : {}),
+			...(meta ? { _meta: meta } : {}),
 		});
 	}
 
@@ -3369,6 +3421,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// onto a new transport with a stale id — stray response at best, id
 		// collision with a new server-issued reverse RPC at worst.
 		const transport = this._transport;
+		if (method === 'ping') {
+			transport.send({ jsonrpc: '2.0', id, result: null });
+			return;
+		}
 		this._pendingReverseRequests.set(transport, (this._pendingReverseRequests.get(transport) ?? 0) + 1);
 		const sendResponse = (response: JsonRpcResponse) => {
 			try {
@@ -3450,6 +3506,26 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 							throw new Error('Kerberos credential lookup failed');
 						}
 						sendResult({ authorization } satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyKerberosAuthorizationExtensionMethod]['result']);
+						return;
+					}
+					case LookupClientProxyBasicAuthorizationExtensionMethod: {
+						if (!this._clientProxy?.isEnabled()) {
+							throw new Error('This client does not provide proxy credentials for this agent host');
+						}
+						const { proxyUrl, realm, attempt } = lookupClientProxyBasicAuthorizationParamsValidator.validateOrThrow(params);
+						if (!isHttpUrl(proxyUrl)) {
+							throw new Error('Unsupported proxy URL');
+						}
+						if (!Number.isSafeInteger(attempt) || attempt < 1) {
+							throw new Error('Unsupported attempt');
+						}
+						let credentials: Credentials | undefined;
+						try {
+							credentials = await this._clientProxy.lookupBasicAuthorization(proxyUrl, realm, attempt);
+						} catch {
+							throw new Error('Proxy credential lookup failed');
+						}
+						sendResult((credentials ? { username: credentials.username, password: credentials.password } : {}) satisfies IAgentHostExtensionServerCommandMap[typeof LookupClientProxyBasicAuthorizationExtensionMethod]['result']);
 						return;
 					}
 					case ClientArtifactIntegrationExtensionMethod: {
@@ -3915,42 +3991,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _recordInboundTraffic(): void {
-		this._lastReadTime = Date.now();
-		this._resetLivenessTimers();
+		this._liveness.recordInboundTraffic();
 	}
 
-	/**
-	 * Reset the liveness timers. Called at construction for an already-open
-	 * passive transport, after a successful client-transport initialization,
-	 * once on any inbound data (which is itself proof the remote is
-	 * alive), and once after a successful soft reconnect.
-	 *
-	 * Two timers cooperate:
-	 *
-	 * 1. {@link _pingTimer} fires after {@link PING_INTERVAL_MS} of silence
-	 *    and sends an application-level `ping` so the close timer has
-	 *    something to time out on. Tolerates servers that don't implement
-	 *    `ping` — the error response still resets both timers.
-	 *
-	 * 2. {@link _closeTimer} fires after {@link PING_INTERVAL_MS}+
-	 *    {@link LIVENESS_TIMEOUT_MS} of continued silence and force-closes
-	 *    the transport so the renderer's reconnect logic kicks in. Catches
-	 *    silently-dead transports (e.g. SSH/tunnel after laptop sleep +
-	 *    network change) that don't emit a socket close event of their own.
-	 *    It defers while the host awaits a reverse-request response or the
-	 *    local event loop has high load. Once either deferral clears, it grants
-	 *    a fresh full liveness window.
-	 *
-	 * After laptop sleep + wake the JS event loop is paused, so a timer
-	 * armed before sleep fires immediately after wake. That's fine —
-	 * any inbound message processed during the wake catch-up resets it
-	 * before the close handler runs.
-	 *
-	 * Reconnect recovery is supervised once its transport is established, so a
-	 * silent handshake cannot leave subscription requests gated indefinitely.
-	 * An inbound message also clears any deferred liveness state.
-	 */
 	private _startRelayKeepAlive(meta: Record<string, unknown> | undefined): void {
+		if (this._isSuspended) {
+			return;
+		}
 		this._relayKeepAliveTimer.cancel();
 		const window = readRelayKeepAliveTimeout({ _meta: meta });
 		if (!this._isWebPubSubRelay()
@@ -3974,13 +4021,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _resetLivenessTimers(): void {
-		this._cancelLivenessTimers();
-		if (!this._canCheckLiveness()) {
-			return;
-		}
-
-		this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
-		this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
+		this._liveness.reset();
 	}
 
 	private _isWebPubSubRelay(): boolean {
@@ -3989,14 +4030,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _cancelLivenessTimers(): void {
-		this._pingTimer.cancel();
-		this._closeTimer.cancel();
-		this._livenessDeferred = false;
-		this._livenessDeferredSince = undefined;
+		this._liveness.stop();
 	}
 
 	private _canCheckLiveness(): boolean {
-		return this._state.kind !== AgentHostClientState.Incompatible
+		return !this._isSuspended && this._state.kind !== AgentHostClientState.Incompatible
 			&& this._state.kind !== AgentHostClientState.Closed
 			&& (this._state.kind !== AgentHostClientState.Reconnecting || this._state.reconnect.transportConnected);
 	}
@@ -4013,28 +4051,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void this._dispatchRequest<CommandMap['ping']['result']>('ping', { channel: ROOT_STATE_URI }, { bypassReconnectGate: true, bypassInitializeQueue: true }).catch(() => undefined);
 	}
 
-	/** Rechecks deferrals promptly, then force-closes only after a fresh liveness window expires. */
-	private _onCloseTimer(): void {
-		if (!this._canCheckLiveness()) {
-			return;
-		}
-		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.Local) {
-			// The main process reports actual child-process exits explicitly.
-			return;
-		}
-		const pendingReverseRequests = this._pendingReverseRequests.get(this._transport) ?? 0;
-		if (pendingReverseRequests > 0 || this._loadEstimator.hasHighLoad()) {
-			this._deferLivenessCheck(pendingReverseRequests);
-			return;
-		}
-		if (this._livenessDeferred) {
-			this._livenessDeferred = false;
-			this._livenessDeferredSince = undefined;
-			this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
-			this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
-			return;
-		}
-		const silence = Date.now() - this._lastReadTime;
+	private _onLivenessTimeout(silence: number): void {
 		this._logService.info(
 			`[RemoteAgentHostProtocol] Liveness: no data from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
 		);
@@ -4053,20 +4070,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		this._handleClose(connectionTimeoutError(this._address, silence));
-	}
-
-	private _deferLivenessCheck(pendingReverseRequests: number): void {
-		const now = Date.now();
-		if (!this._livenessDeferred) {
-			this._livenessDeferred = true;
-			this._livenessDeferredSince = now;
-		}
-		const deferredSince = this._livenessDeferredSince ?? now;
-		this._logService.trace(
-			`[RemoteAgentHostProtocol] Liveness: deferring close for ${now - deferredSince}ms; ${pendingReverseRequests} reverse request(s) outstanding.`,
-		);
-		this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
-		this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS);
 	}
 
 	/**

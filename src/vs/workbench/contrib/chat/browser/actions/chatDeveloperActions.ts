@@ -16,7 +16,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
@@ -52,7 +51,6 @@ export function registerChatDeveloperActions() {
 	registerAction2(InspectChatModelAction);
 	registerAction2(InspectChatModelReferencesAction);
 	registerAction2(InspectAgentHostSubscriptionsAction);
-	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 	registerAction2(ResetChatPermissionWarningDialogsAction);
 	registerAction2(OpenAgentHostStateFileAction);
 	registerAction2(ManageTrustedCAAction);
@@ -505,24 +503,6 @@ class InspectAgentHostSubscriptionsAction extends Action2 {
 				pinned: true
 			}
 		});
-	}
-}
-
-class ClearRecentlyUsedLanguageModelsAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.clearRecentlyUsedLanguageModels';
-
-	constructor() {
-		super({
-			id: ClearRecentlyUsedLanguageModelsAction.ID,
-			title: localize2('workbench.action.chat.clearRecentlyUsedLanguageModels.label', "Clear Recently Used Language Models"),
-			category: Categories.Developer,
-			f1: true,
-			precondition: ChatContextKeys.enabled
-		});
-	}
-
-	override run(accessor: ServicesAccessor): void {
-		accessor.get(ILanguageModelsService).clearRecentlyUsedList();
 	}
 }
 

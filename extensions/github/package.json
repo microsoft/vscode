@@ -240,14 +240,13 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/graphql": "8.2.0",
-    "@octokit/graphql-schema": "14.4.0",
-    "@octokit/rest": "21.1.0",
-    "tunnel": "^0.0.6",
     "@vscode/extension-telemetry": "^1.0.0"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

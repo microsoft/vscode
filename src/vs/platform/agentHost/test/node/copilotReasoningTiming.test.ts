@@ -243,4 +243,46 @@ suite('CopilotReasoningTiming', () => {
 			await database.close();
 		}
 	});
+
+	test('records and replays reasoning that the provider saves without its streamed trailing whitespace', async () => {
+		const database = store.add(await SessionDatabase.open(':memory:'));
+		try {
+			const writes: Promise<void>[] = [];
+			const timing = store.add(new CopilotReasoningTiming(
+				() => { },
+				(turnId, responseId, parts) => writes.push(database.setAssistantResponseParts(turnId, responseId, parts)),
+			));
+			timing.start('host-turn', 'run', undefined);
+			timing.append('Check the install output.\n\n', undefined);
+			clock.tick(5000);
+			const recorded = timing.completeMessage('message', 'Check the install output.', '', undefined);
+			timing.toolCall('host-turn', 'tool', undefined);
+			// Reasoning that was only whitespace is not the reasoning of a message saved without any.
+			timing.start('host-turn', 'blank', undefined);
+			timing.append('\n\n', undefined);
+			timing.markdown('host-turn', 'answer', 'Done', undefined);
+			const blankRecorded = timing.completeMessage('answer-message', undefined, 'Done', undefined);
+			await Promise.all(writes);
+			const session = URI.parse('ahp-session:/session');
+			const result = await mapSessionEvents(session, database, toSessionEvents([
+				{ type: 'user.message', id: 'user', data: { content: 'Request' } },
+				{ type: 'assistant.message', id: 'message', data: { reasoningText: 'Check the install output.', content: '' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'tool', toolName: 'read_file', arguments: { path: '/test/file.ts' } } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tool', success: true, result: { content: 'Tool result' } } },
+			]), URI.parse('ahp-chat:/chat'), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
+
+			assert.deepStrictEqual({
+				recorded, blankRecorded,
+				parts: result.turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? { kind: part.kind, id: part.toolCall.toolCallId } : part),
+			}, {
+				recorded: true, blankRecorded: false,
+				parts: [
+					{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'Check the install output.\n\n', startedAt: '1970-01-01T00:00:01.000Z', duration: 5000 },
+					{ kind: ResponsePartKind.ToolCall, id: 'tool' },
+				],
+			});
+		} finally {
+			await database.close();
+		}
+	});
 });

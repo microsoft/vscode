@@ -9,10 +9,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ElicitationState, ToolConfirmKind, type IChatCodeCitation, type IChatContentReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, ToolConfirmKind, type IChatCodeCitation, type IChatContentReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { createImportedConversationStats, importedConversationPrimaryFolder, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import type { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { completedToolCallToSerialized, rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('importedTurnsFromChatModel', () => {
@@ -533,6 +534,46 @@ suite('importedTurnsFromChatModel', () => {
 			// A web link is written as-is.
 			'\n\nSimilar code found with 1 license type: [x.ts](https://github.com/owner/repo/blob/main/x.ts) (MIT)\n\n',
 		]);
+	});
+
+	test('continues a conversation in the workspace folder its last terminal command ran in, else the last active one', () => {
+		const folders = [URI.file('/a'), URI.file('/b')];
+		const workspace = {
+			getWorkspaceFolder: (uri: URI) => {
+				const folder = folders.find(candidate => uri.path === candidate.path || uri.path.startsWith(`${candidate.path}/`));
+				return folder ? { uri: folder } : null;
+			},
+		} as unknown as Pick<IWorkspaceContextService, 'getWorkspaceFolder'>;
+		const terminal = (cwd: URI, fields?: object) => ({
+			kind: 'toolInvocationSerialized', toolId: 'run_in_terminal', toolCallId: 'terminal', invocationMessage: 'Running', pastTenseMessage: 'Ran',
+			isComplete: true, ...fields, toolSpecificData: { kind: 'terminal', commandLine: { original: 'ls' }, language: 'sh', cwd, ...(fields as { data?: object } | undefined)?.data },
+		}) as unknown as IChatProgressResponseContent;
+		// A call still in the chat, denied before its command ran.
+		const liveDenied = (cwd: URI) => ({
+			kind: 'toolInvocation', toolId: 'run_in_terminal', toolCallId: 'live', invocationMessage: 'Running',
+			toolSpecificData: { kind: 'terminal', commandLine: { original: 'ls' }, language: 'sh', cwd },
+			state: constObservable({ type: IChatToolInvocation.StateKind.Cancelled, reason: ToolConfirmKind.Denied }),
+		}) as unknown as IChatProgressResponseContent;
+		const choose = (requests: IChatRequestModel[], lastActive?: URI) => importedConversationPrimaryFolder(model(requests), workspace, lastActive)?.path;
+		const ranInA = terminal(URI.file('/a'), { isConfirmed: { type: ToolConfirmKind.UserAction }, data: { terminalCommandState: { exitCode: 0 } } });
+
+		assert.deepStrictEqual({
+			lastTerminal: choose([request('1', response([terminal(URI.file('/a/src'))])), request('2', response([terminal(URI.file('/b'))]))], URI.file('/a/index.ts')),
+			// A directory outside the workspace folders is passed over.
+			outsideWorkspace: choose([request('1', response([terminal(URI.file('/a')), terminal(URI.file('/tmp'))]))]),
+			// A command denied or skipped before it ran is passed over, whether saved or still in the chat.
+			deniedBeforeRunning: choose([request('1', response([ranInA, terminal(URI.file('/b'), { isConfirmed: { type: ToolConfirmKind.Denied, source: 'user' } })]))]),
+			skippedBeforeRunning: choose([request('1', response([ranInA, terminal(URI.file('/b'), { isConfirmed: { type: ToolConfirmKind.Skipped } })]))]),
+			liveDeniedBeforeRunning: choose([request('1', response([ranInA, liveDenied(URI.file('/b'))]))]),
+			// A command whose output was rejected after it ran still counts.
+			rejectedAfterRunning: choose([request('1', response([ranInA, terminal(URI.file('/b'), { isConfirmed: { type: ToolConfirmKind.Denied }, data: { terminalCommandOutput: { text: 'out' } } })]))]),
+			lastActive: choose([request('1', response([markdown('No terminal')]))], URI.file('/b/src/index.ts')),
+			nothing: choose([request('1', response([markdown('No terminal')]))]),
+		}, {
+			lastTerminal: '/b', outsideWorkspace: '/a',
+			deniedBeforeRunning: '/a', skippedBeforeRunning: '/a', liveDeniedBeforeRunning: '/a', rejectedAfterRunning: '/b',
+			lastActive: '/b', nothing: undefined,
+		});
 	});
 
 	test('preserves local reasoning timing when importing into an agent session', () => {

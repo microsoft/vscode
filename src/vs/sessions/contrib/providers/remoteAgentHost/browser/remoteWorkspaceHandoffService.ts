@@ -10,6 +10,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -26,9 +27,9 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { getRemoteName } from '../../../../../platform/remote/common/remoteHosts.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 /** How long to wait for a host's provider after adding the host. */
 const PROVIDER_REGISTRATION_TIMEOUT_MS = 15_000;
@@ -193,7 +194,16 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 	}
 
 	async resolveFolder(folder: IRemoteWorkspaceFolder, token: CancellationToken): Promise<RemoteWorkspaceHandoffResult> {
-		const parsed = parseRemoteMachine(folder.remoteAuthority);
+		const host = await this.resolveHost(folder.remoteAuthority, token);
+		if (host.unavailableReason !== undefined) {
+			return { unavailableReason: host.unavailableReason };
+		}
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- names a folder of a remote agent host that may not be connected yet, as its provider does
+		return { folderUri: toAgentHostUri(URI.from({ scheme: Schemas.file, path: folder.path }), host.connectionAuthority) };
+	}
+
+	async resolveHost(remoteAuthority: string, token: CancellationToken): Promise<RemoteAgentHostHandoffResult> {
+		const parsed = parseRemoteMachine(remoteAuthority);
 		if (!parsed) {
 			return { unavailableReason: localize('remoteWorkspaceHandoff.unsupported', "The Agents Window cannot connect to this kind of remote.") };
 		}
@@ -236,12 +246,16 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 				throw error;
 			}
 			this._logService.error(`[RemoteWorkspaceHandoff] Failed to add ${parsed.kind} host`, error);
-			return { unavailableReason: localize('remoteWorkspaceHandoff.addFailed', "'{0}' could not be added as a remote agent host: {1}", machine ? getMachineLabel(machine) : folder.remoteAuthority, toErrorMessage(error)) };
+			return { unavailableReason: localize('remoteWorkspaceHandoff.addFailed', "'{0}' could not be added as a remote agent host: {1}", machine ? getMachineLabel(machine) : remoteAuthority, toErrorMessage(error)) };
 		}
 		const address = getEntryAddress(entry);
-		void this._connect(address, machine);
-		// eslint-disable-next-line local/code-agent-host-uri-mapping -- names a folder of a remote agent host that may not be connected yet, as its provider does
-		return { folderUri: toAgentHostUri(URI.from({ scheme: Schemas.file, path: folder.path }), agentHostAuthority(address)) };
+		const isTunnel = entry.connection.type === RemoteAgentHostEntryType.Tunnel;
+		return {
+			connectionAuthority: agentHostAuthority(address),
+			connected: this._connect(address, machine),
+			// A tunnel's editor windows reach its standalone agent host, which its gateway may not have selected.
+			sharesEditorWindowAgentHost: () => isTunnel && this._tunnelService.getSelectedServerType(address) !== 'editor',
+		};
 	}
 
 	private async _getDefaultDistro(): Promise<RemoteMachine | undefined> {
@@ -411,21 +425,22 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 		}
 	}
 
-	private async _connect(address: string, machine: RemoteMachine): Promise<void> {
+	/** Connects the host once its provider registers, resolving to whether it is connected. Never rejects. */
+	private async _connect(address: string, machine: RemoteMachine): Promise<boolean> {
 		const token = this._connections.token;
 		const provider = await this._waitForProvider(address, token);
 		if (!provider || token.isCancellationRequested) {
 			if (!provider) {
 				this._logService.warn(`[RemoteWorkspaceHandoff] No provider was registered for ${machine.kind} host '${getMachineLabel(machine)}'`);
 			}
-			return;
+			return false;
 		}
-		// Opening the remote's folder is an explicit choice of this host.
+		// Opening the remote's folder or session is an explicit choice of this host.
 		provider.showInEnvironmentPicker?.();
 		const status = provider.connectionStatus?.get();
 		// A background dial cannot prompt for credentials, so connect on the user's behalf unless the host is usable or recovering.
 		if (!provider.connect || RemoteAgentHostConnectionStatus.isConnected(status) || RemoteAgentHostConnectionStatus.isReconnecting(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) {
-			return;
+			return this._whenSettled(provider, token);
 		}
 		let failure: unknown;
 		try {
@@ -439,13 +454,31 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 		} catch (error) {
 			failure = error;
 		}
-		if (token.isCancellationRequested || isCancellationError(failure) || !this._hasFailed(provider)) {
-			return;
+		if (token.isCancellationRequested || isCancellationError(failure)) {
+			return false;
+		}
+		if (!this._hasFailed(provider)) {
+			return this._whenSettled(provider, token);
 		}
 		this._logService.warn(`[RemoteWorkspaceHandoff] Failed to connect to ${machine.kind} host '${getMachineLabel(machine)}'`, failure);
 		this._notificationService.error(failure
 			? localize('remoteWorkspaceHandoff.connectFailedWithReason', "Failed to connect to {0}: {1}", provider.label, toErrorMessage(failure))
 			: localize('remoteWorkspaceHandoff.connectFailed', "Failed to connect to {0}.", provider.label));
+		return false;
+	}
+
+	/** Whether the host is connected once it is no longer connecting or reconnecting. */
+	private async _whenSettled(provider: IAgentHostSessionsProvider, token: CancellationToken): Promise<boolean> {
+		if (!provider.connectionStatus) {
+			return true;
+		}
+		try {
+			const status = await waitForState(provider.connectionStatus, status => !RemoteAgentHostConnectionStatus.isConnecting(status) && !RemoteAgentHostConnectionStatus.isReconnecting(status), undefined, token);
+			return RemoteAgentHostConnectionStatus.isConnected(status);
+		} catch {
+			// Only cancellation rejects, when the service is disposed.
+			return false;
+		}
 	}
 
 	/** Whether the host is neither usable nor still connecting; incompatible hosts surface their own upgrade notification. */

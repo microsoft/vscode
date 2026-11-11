@@ -86,7 +86,8 @@
 
 			& .quick-input-widget:not(.quick-input-widget-overlay),
 			& .action-widget,
-			& .monaco-hover,
+			& .monaco-resizable-hover,
+			& .monaco-hover:not(.monaco-resizable-hover > .monaco-hover),
 			& .agent-feedback-widget-item,
 			& .monaco-dialog-box,
 			& .notifications-center,
@@ -98,11 +99,21 @@
 				&::before {
 					content: '';
 					position: absolute;
-					inset: 0;
+					/* Centering a content-box copy with the inherited border recreates the host border box. */
+					box-sizing: content-box;
+					left: 50%;
+					top: 50%;
+					width: 100%;
+					height: 100%;
 					z-index: -1;
+					transform: translate(-50%, -50%);
+					border: inherit;
+					border-color: transparent;
 					border-radius: inherit;
+					clip-path: padding-box;
 					pointer-events: none;
 					background-color: var(--modern-ui-glass-background);
+					background-clip: padding-box;
 					backdrop-filter: blur(12px);
 				}
 			}

@@ -8,11 +8,13 @@
 // what changed since (see README.md).
 // Dependency-free, as the jobs download it from the API and run it before they check out.
 //
-//   node image.ts restore --name NAME [--branch main] [--connections 32]
+//   node image.ts restore --name NAME [--branch main] [--connections 32] [--timeout-seconds 240]
 //     Mounts the newest image NAME of a branch at the parent folder of the empty workspace, where
 //     actions/checkout then reuses its .git. Sets the output `used` to 'true' when it did, and warns
 //     instead of failing otherwise, as the job can still install everything. Skips an image whose
-//     commit has other native build inputs (NATIVE_BUILD_INPUTS) than the commit of the job.
+//     commit has other native build inputs (NATIVE_BUILD_INPUTS) than the commit of the job. Gives up
+//     after --timeout-seconds, before the timeout of its step could stop it with the image half
+//     attached, and then leaves the workspace empty, as after any other error.
 //   node image.ts env
 //     Points the pnpm store and the Playwright browsers into the image, for the next steps.
 //   node image.ts seed
@@ -22,7 +24,7 @@
 //
 // `restore` reads the API with the token in GH_TOKEN, which needs `actions: read`.
 
-import { execFile, spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
+import { execFile, spawn, spawnSync, type ChildProcess, type SpawnSyncOptions } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -59,8 +61,6 @@ export const NATIVE_BUILD_INPUTS: { readonly files: readonly string[]; readonly 
 		'pnpm-workspace.yaml',
 		'build/pnpm-workspace.yaml',
 		'remote/pnpm-workspace.yaml',
-		'remote/web/pnpm-workspace.yaml',
-		'extensions/copilot/pnpm-workspace.yaml',
 	],
 	packageJsonFields: {
 		'package.json': ['nativeBuild', 'packageManager'],
@@ -126,6 +126,38 @@ function run(command: string, args: readonly string[], options: SpawnSyncOptions
 	return typeof result.stdout === 'string' ? result.stdout : '';
 }
 
+/**
+ * The exit code of a child process, once it exited: stopping it emits 'error' before it exits, and
+ * a process that didn't start emits only 'error'.
+ */
+function exitCode(child: ChildProcess): Promise<number | null> {
+	return new Promise(resolve => {
+		child.on('error', () => {
+			if (child.pid === undefined) {
+				resolve(null);
+			}
+		});
+		child.on('exit', code => resolve(code));
+	});
+}
+
+/** Runs a command of `restore` that its deadline stops, unlike `run`, which holds back the timer of the deadline */
+async function runUntilDeadline(command: string, args: readonly string[]): Promise<void> {
+	const child = spawn(command, args, { stdio: 'inherit', signal: downloads.signal });
+	let error: Error | undefined;
+	child.on('error', err => error = err);
+	const code = await exitCode(child);
+	downloads.signal.throwIfAborted();
+	if (code !== 0) {
+		throw error ?? new Error(`${command} ${args.join(' ')} exited with ${code}`);
+	}
+}
+
+/** Whether a volume is mounted at a folder, on Linux and macOS */
+export function isMountPoint(folder: string): boolean {
+	return fs.statSync(folder).dev !== fs.statSync(path.dirname(folder)).dev;
+}
+
 function workspace(): string {
 	const folder = process.env.GITHUB_WORKSPACE;
 	if (!folder) {
@@ -152,6 +184,14 @@ function toolFolders(root: string): Record<string, string> {
 
 //#region downloads
 
+/** Aborts the requests of `restore`, the writes of its image and the PowerShell that attaches it, when `restore` runs out of time */
+const downloads = new AbortController();
+
+/** Stops the writes and the commands of a restore that runs out of time, for scripts that mount images themselves */
+export function abortRestore(reason: Error): void {
+	downloads.abort(reason);
+}
+
 function githubHeaders(): Record<string, string> {
 	const token = process.env.GH_TOKEN;
 	if (!token) {
@@ -165,7 +205,7 @@ function repositoryUrl(): string {
 }
 
 async function api<T>(route: string): Promise<T> {
-	const response = await fetch(`${repositoryUrl()}/${route}`, { headers: githubHeaders() });
+	const response = await fetch(`${repositoryUrl()}/${route}`, { headers: githubHeaders(), signal: downloads.signal });
 	if (!response.ok) {
 		throw new Error(`GET ${route}: HTTP ${response.status}`);
 	}
@@ -214,6 +254,7 @@ async function gitObjects(commits: readonly string[], files: readonly string[], 
 		method: 'POST',
 		headers: { ...githubHeaders(), 'Content-Type': 'application/json' },
 		body: JSON.stringify({ query: `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.join(' ')} } }`, variables: { owner, name } }),
+		signal: downloads.signal,
 	});
 	if (!response.ok) {
 		throw new Error(`POST graphql: HTTP ${response.status}`);
@@ -264,7 +305,7 @@ async function checkNativeBuildInputs(imageCommit: string): Promise<void> {
 
 /** The signed URL of an artifact, which expires after a minute */
 async function artifactUrl(id: number): Promise<string> {
-	const response = await fetch(`${repositoryUrl()}/actions/artifacts/${id}/zip`, { headers: githubHeaders(), redirect: 'manual' });
+	const response = await fetch(`${repositoryUrl()}/actions/artifacts/${id}/zip`, { headers: githubHeaders(), redirect: 'manual', signal: downloads.signal });
 	await response.body?.cancel();
 	const location = response.headers.get('location');
 	if (!location) {
@@ -277,7 +318,7 @@ async function fetchRange(url: string, from: number, to: number): Promise<Buffer
 	for (let attempt = 1; ; attempt++) {
 		let status = 0;
 		try {
-			const response = await fetch(url, { headers: { Range: `bytes=${from}-${to}` } });
+			const response = await fetch(url, { headers: { Range: `bytes=${from}-${to}` }, signal: downloads.signal });
 			status = response.status;
 			if (status !== 206) {
 				await response.body?.cancel();
@@ -289,6 +330,7 @@ async function fetchRange(url: string, from: number, to: number): Promise<Buffer
 			}
 			return data;
 		} catch (err) {
+			downloads.signal.throwIfAborted();
 			// An expired URL needs a new one
 			if (status === 403 || attempt === 5) {
 				throw err;
@@ -309,7 +351,7 @@ interface Located {
  * `archive: false`, or else the stored entry of its zip.
  */
 async function locateArtifactData(url: string): Promise<Located> {
-	const response = await fetch(url, { headers: { Range: 'bytes=0-3' } });
+	const response = await fetch(url, { headers: { Range: 'bytes=0-3' }, signal: downloads.signal });
 	const range = response.headers.get('content-range');
 	const head = Buffer.from(await response.arrayBuffer());
 	if (response.status !== 206 || !range) {
@@ -383,9 +425,16 @@ async function locateZipEntry(url: string, total: number): Promise<Located> {
 }
 
 /** Reads ranges of the file of an artifact, and renews the signed URL when it expires */
-interface Source {
+export interface Source {
 	readonly size: number;
 	read(from: number, length: number): Promise<Buffer>;
+}
+
+/** Reads ranges of a packed image on the disk, such as one that a pipeline cache restored */
+export async function openFileSource(file: string): Promise<Source & { close(): Promise<void> }> {
+	const handle = await fs.promises.open(file, 'r');
+	const { size } = await handle.stat();
+	return { size, read: (from, length) => readAll(handle, length, from), close: () => handle.close() };
 }
 
 async function openArtifact(id: number): Promise<Source> {
@@ -567,6 +616,7 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 	let idleSeconds = 0;
 	const worker = async () => {
 		while (next < count) {
+			downloads.signal.throwIfAborted();
 			const index = next++;
 			while (index >= written + window) {
 				await new Promise<void>(resolve => wakeWorkers.push(resolve));
@@ -594,6 +644,8 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 			options.sized();
 		}
 		for (let index = 0; index < count; index++) {
+			// The chunks that are downloaded already, or empty, don't wait for a request that the deadline stops
+			downloads.signal.throwIfAborted();
 			const waited = performance.now();
 			while (!ready.has(index)) {
 				await new Promise<void>(resolve => wakeWriter = resolve);
@@ -667,53 +719,71 @@ function samePath(a: string, b: string): boolean {
 	return process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
 }
 
+/**
+ * Recreates a packed ext4 image in the sparse file `file` and mounts it at `root`, on Linux, and
+ * returns how to unmount it. The loop device attaches the file while the image is written, as
+ * attaching a file waits for the kernel to write its changes to the disk. udev reads the volume when
+ * it appears, before the image is in it, so this drops what udev read before the mount. barrier=0
+ * keeps an fsync in the volume from making the loop device wait for all of the image to reach the
+ * disk, which the kernel writes while the job goes on. noinit_itable leaves the inode tables that
+ * mkfs left to initialize alone, as they are zeros already, instead of writing them during the job.
+ */
+export async function mountLinuxImage(source: Source, file: string, root: string, connections: number): Promise<() => void> {
+	const sized = Promise.withResolvers<void>();
+	const attached = sized.promise.then(async () => {
+		const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
+		log(`attached the image to ${device}`);
+		return device;
+	});
+	// Awaited once the image is written
+	attached.catch(() => { });
+	let loop: string;
+	try {
+		log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
+		loop = await attached;
+		// Bounded by its own timeout
+		spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
+		await runUntilDeadline('sudo', ['blockdev', '--flushbufs', loop]);
+		await runUntilDeadline('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
+	} catch (err) {
+		sized.reject(err);
+		const device = await attached.catch(() => undefined);
+		if (device) {
+			// The deadline may have stopped sudo after the mount
+			if (isMountPoint(root)) {
+				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+			}
+			spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
+		}
+		throw err;
+	}
+	return () => {
+		spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+		spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
+	};
+}
+
 /** Mounts a disk image at the root folder, and returns how to unmount it */
 async function mount(source: Source, root: string, connections: number): Promise<() => void> {
 	const temp = process.env.RUNNER_TEMP ?? os.tmpdir();
 	const ws = workspace();
 	switch (process.platform) {
-		case 'linux': {
-			// An ext4 volume in a sparse file. The loop device attaches the file while the image
-			// downloads, as attaching a file waits for the kernel to write its changes to the disk. udev
-			// reads the volume when it appears, before the image is in it, so the restore drops what udev
-			// read before the mount. barrier=0 keeps an fsync in the volume from making the loop device
-			// wait for all of the image to reach the disk, which the kernel writes while the job goes on.
-			// noinit_itable leaves the inode tables that mkfs left to initialize alone, as they are zeros
-			// already, instead of writing them during the job.
-			const file = path.join(temp, 'workspace-image.ext4');
-			const sized = Promise.withResolvers<void>();
-			const attached = sized.promise.then(async () => {
-				const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
-				log(`attached the image to ${device}`);
-				return device;
-			});
-			// Awaited once the image is written
-			attached.catch(() => { });
-			let loop: string;
-			try {
-				log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
-				loop = await attached;
-				spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
-				run('sudo', ['blockdev', '--flushbufs', loop]);
-				run('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
-			} catch (err) {
-				sized.reject(err);
-				const device = await attached.catch(() => undefined);
-				if (device) {
-					spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
-				}
-				throw err;
-			}
-			return () => {
-				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
-				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
-			};
-		}
+		case 'linux':
+			// An ext4 volume in a sparse file
+			return mountLinuxImage(source, path.join(temp, 'workspace-image.ext4'), root, connections);
 		case 'darwin': {
 			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
 			const file = path.join(temp, 'workspace-image.asif');
 			log(await unpack(source, file, { sparse: true, connections }));
-			run('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
+			try {
+				await runUntilDeadline('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
+			} catch (err) {
+				// The deadline may have stopped diskutil after the mount
+				if (isMountPoint(root)) {
+					spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
+				}
+				throw err;
+			}
 			return () => {
 				spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
 			};
@@ -726,17 +796,38 @@ async function mount(source: Source, root: string, connections: number): Promise
 			const ready = `${file}.ready`;
 			fs.rmSync(file, { force: true });
 			fs.rmSync(ready, { force: true });
-			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
-			const exited = new Promise<number | null>(resolve => {
-				attach.on('error', () => resolve(null));
-				attach.on('exit', code => resolve(code));
-			});
-			let removed = false;
+			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit', signal: downloads.signal });
+			const exited = exitCode(attach);
+			// Leaves the workspace an empty folder on drive C, whatever vhd.ps1 did before it failed or
+			// was stopped: it may have attached the VHDX (for good, beyond its process), and mounted its
+			// volume. Deleting the VHDX also frees the memory that Windows keeps the temporary file in.
+			const release = () => {
+				// Fails when no volume is mounted at the folder
+				if (spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'ignore' }).status === 0) {
+					log(`unmounted the image from ${root}`);
+				}
+				fs.rmSync(ready, { force: true });
+				try {
+					fs.rmSync(file, { force: true });
+				} catch {
+					// Windows keeps an attached VHDX open
+					spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'Dismount-DiskImage -ImagePath $env:WORKSPACE_IMAGE_VHDX | Out-Null'], { stdio: 'inherit', timeout: 30_000, env: { ...process.env, WORKSPACE_IMAGE_VHDX: file } });
+					try {
+						fs.rmSync(file, { force: true });
+						log('detached the image');
+					} catch (err) {
+						log(`could not detach the image: ${err}`);
+					}
+				}
+				fs.mkdirSync(ws, { recursive: true });
+				if (fs.readdirSync(ws).length) {
+					log(`${ws} is not empty`);
+				}
+			};
 			try {
 				log(await unpack(source, file, { sparse: false, temporary: true, connections }));
 				// A volume can only be mounted at an empty folder
 				fs.rmdirSync(ws);
-				removed = true;
 				fs.writeFileSync(ready, '');
 				const code = await exited;
 				if (code !== 0) {
@@ -744,22 +835,18 @@ async function mount(source: Source, root: string, connections: number): Promise
 				}
 			} catch (err) {
 				attach.kill();
-				if (removed) {
-					fs.mkdirSync(ws, { recursive: true });
-				}
+				await exited;
+				release();
 				throw err;
 			}
-			return () => {
-				spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'inherit' });
-				fs.mkdirSync(ws, { recursive: true });
-			};
+			return release;
 		}
 		default:
 			throw new Error(`No workspace images on ${process.platform}`);
 	}
 }
 
-async function restoreImage(args: Args): Promise<void> {
+async function restoreImage(args: Args, checkDeadline: () => void): Promise<void> {
 	const name = required(args, 'name');
 	const branch = args.get('branch') || 'main';
 	const connections = Number(args.get('connections') ?? '32');
@@ -793,6 +880,7 @@ async function restoreImage(args: Args): Promise<void> {
 		if (!fs.existsSync(path.join(ws, '.git'))) {
 			throw new Error('The image holds no .git');
 		}
+		checkDeadline();
 	} catch (err) {
 		unmount();
 		throw err;
@@ -808,12 +896,31 @@ async function restoreImage(args: Args): Promise<void> {
 }
 
 async function restore(args: Args): Promise<void> {
+	const timeoutSeconds = Number(args.get('timeout-seconds') ?? '240');
+	if (!(timeoutSeconds > 0)) {
+		throw new Error('--timeout-seconds must be a positive number');
+	}
+	const timedOut = new Error(`The restore took longer than ${timeoutSeconds} s`);
+	const deadline = performance.now() + timeoutSeconds * 1000;
+	const timer = setTimeout(() => downloads.abort(timedOut), timeoutSeconds * 1000);
 	try {
-		await restoreImage(args);
+		await restoreImage(args, () => {
+			// Synchronous work can hold back the timer past the deadline
+			if (performance.now() >= deadline) {
+				downloads.abort(timedOut);
+			}
+			downloads.signal.throwIfAborted();
+		});
 	} catch (err) {
+		// After the deadline, the errors come from stopping the restore
+		const reason: unknown = downloads.signal.aborted ? downloads.signal.reason : err;
+		// Stops the downloads that are still running
+		downloads.abort();
 		// The job installs everything instead
-		console.log(`::warning title=Workspace image::No workspace image: ${err instanceof Error ? err.message : String(err)}`);
+		console.log(`::warning title=Workspace image::No workspace image: ${reason instanceof Error ? reason.message : String(reason)}`);
 		setOutput('used', 'false');
+	} finally {
+		clearTimeout(timer);
 	}
 }
 

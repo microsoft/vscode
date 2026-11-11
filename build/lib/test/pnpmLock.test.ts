@@ -9,7 +9,7 @@ import path from 'path';
 import { suite, test } from 'node:test';
 import { collectImporterPackages, getLockfileFolder, getSnapshotKey, importerDependencyKinds, listLockfiles, parsePackageKey, parsePnpmLockfile, readLockfileImporter, resolveDependencyVersion } from '../pnpmLock.ts';
 
-const lockfile = parsePnpmLockfile(fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'npm', 'pnpm', 'test', 'fixtures', 'workspace', 'pnpm-lock.fixture.yaml'), 'utf8'));
+const lockfile = parsePnpmLockfile(fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'pnpm', 'pnpm-lock.fixture.yaml'), 'utf8'));
 
 suite('pnpmLock', () => {
 
@@ -82,7 +82,7 @@ suite('pnpmLock', () => {
 
 	test('importers read without a YAML parser match the parsed lockfiles', () => {
 		const lockfiles = [
-			fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'npm', 'pnpm', 'test', 'fixtures', 'workspace', 'pnpm-lock.fixture.yaml'), 'utf8'),
+			fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'pnpm', 'pnpm-lock.fixture.yaml'), 'utf8'),
 			...listLockfiles().map(file => fs.readFileSync(path.join(import.meta.dirname, '..', '..', '..', file), 'utf8')),
 		];
 		for (const content of lockfiles) {
@@ -109,6 +109,6 @@ suite('pnpmLock', () => {
 	});
 
 	test('lockfile folders of projects', () => {
-		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', '.vscode/extensions/vscode-pr-pinger', './.vscode/extensions/vscode-pr-pinger', 'remote', 'build', 'build/rspack', 'build/vite/', 'extensions/copilot', 'extensions/copilot/chat-lib', 'build/npm/gyp', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', '', '', '', '', 'remote', 'build', 'build', 'build', 'extensions/copilot', 'extensions/copilot', 'build/npm/gyp', undefined, undefined, undefined]);
+		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', 'extensions', '.vscode/extensions/vscode-pr-pinger', './.vscode/extensions/vscode-pr-pinger', 'remote', 'remote/web', 'build', 'build/rspack', 'build/vite/', 'extensions/copilot', 'extensions/copilot/chat-lib', 'test/sanity', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', '', '', '', '', '', 'remote', 'remote', 'build', 'build', 'build', '', '', '', undefined, undefined, undefined]);
 	});
 });
