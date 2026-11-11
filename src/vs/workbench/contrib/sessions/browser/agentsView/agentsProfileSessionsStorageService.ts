@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { StorageValue } from '../../../../../base/parts/storage/common/storage.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -13,8 +13,11 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, InMemoryStorageService, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageValueChangeEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AGENTS_WINDOW_PROFILE_ID, IUserDataProfile, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileStorageService } from '../../../../../platform/userDataProfile/common/userDataProfileStorageService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { SessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SessionsViewId } from '../views/sessionsView.js';
 import { AgentsViewStateReadyContext } from './agentsView.js';
 
 /** How long writes of the list wait to go to the Agents window's profile together. */
@@ -24,10 +27,23 @@ const WRITE_DELAY = 100;
 const READ_DELAY = 50;
 
 /**
+ * The keys of the profile state that the sessions list shares with the Agents window: those of the sessions list, of its
+ * view, and of the sessions it shows, such as their groups and comparisons. Other keys of that profile are not read.
+ */
+const SHARED_KEY_PREFIXES = ['sessionsListControl.', 'sessionsViewPane.', 'sessions.'];
+
+function isSharedKey(key: string): boolean {
+	return SHARED_KEY_PREFIXES.some(prefix => key.startsWith(prefix));
+}
+
+/**
  * The storage of the Sessions view of an editor window: the window's storage, except that the profile state of the
  * sessions list, such as its grouping, filters and groups, is that of the Agents window's profile, so that both show the
- * same list. That state loads once, as the service is created, and {@link AgentsViewStateReadyContext} tells when; until then, the profile state reads empty and writes to it are
- * dropped, so that nothing written before it loads replaces what the Agents window has.
+ * same list. That state loads once, as the service is created, which happens as the Sessions view or the chat part first
+ * needs it, and {@link AgentsViewStateReadyContext} tells when; until then, the profile state reads empty and writes to it
+ * are dropped, so that nothing written before it loads replaces what the Agents window has. Only the keys the list shares
+ * are read, and changes of that profile are followed only while the Sessions view or the chat part shows: as one shows
+ * again, the state is read again.
  *
  * Where there is no Agents window, such as on the web, the profile state is the window's own.
  */
@@ -43,6 +59,8 @@ export class AgentsProfileSessionsStorageService extends SessionsStorageService 
 	private readonly pendingWrites = new Map<string, { readonly value: string | undefined; readonly target: StorageTarget }>();
 	private readonly writeScheduler = this.disposables.add(new RunOnceScheduler(() => this.write(), WRITE_DELAY));
 	private readonly readScheduler = this.disposables.add(new RunOnceScheduler(() => this.read(), READ_DELAY));
+	/** Follows the changes of the Agents window's profile, while the list or the chat part shows. */
+	private readonly profileChanges = this.disposables.add(new MutableDisposable());
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -51,6 +69,8 @@ export class AgentsProfileSessionsStorageService extends SessionsStorageService 
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(storageService);
 
@@ -92,12 +112,43 @@ export class AgentsProfileSessionsStorageService extends SessionsStorageService 
 			this.mode = 'window';
 			return;
 		}
-		this.disposables.add(this.userDataProfileStorageService.onDidChange(e => {
-			if (e.valueChanges.some(change => change.profile.id === profile.id)) {
-				this.readScheduler.schedule();
+		this.mode = 'profile';
+
+		this.updateFollowing(false);
+		this.disposables.add(this.viewsService.onDidChangeViewVisibility(e => {
+			if (e.id === SessionsViewId) {
+				this.updateFollowing(true);
 			}
 		}));
-		this.mode = 'profile';
+		this.disposables.add(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.CHAT_PART) {
+				this.updateFollowing(true);
+			}
+		}));
+	}
+
+	/**
+	 * Follows the changes of the shared keys while the list or the chat part shows. With `catchUp`, as it starts to follow
+	 * them again, it reads what changed meanwhile.
+	 */
+	private updateFollowing(catchUp: boolean): void {
+		const profile = this.profile;
+		const shown = this.viewsService.isViewVisible(SessionsViewId) || this.layoutService.isVisible(Parts.CHAT_PART);
+		if (!profile || !shown) {
+			this.profileChanges.clear();
+			return;
+		}
+		if (this.profileChanges.value) {
+			return;
+		}
+		this.profileChanges.value = this.userDataProfileStorageService.onDidChange(e => {
+			if (e.valueChanges.some(change => change.profile.id === profile.id && change.changes.some(c => isSharedKey(c.key)))) {
+				this.readScheduler.schedule();
+			}
+		});
+		if (catchUp) {
+			this.readScheduler.schedule();
+		}
 	}
 
 	private async resolveProfile(): Promise<IUserDataProfile | undefined> {
@@ -124,7 +175,7 @@ export class AgentsProfileSessionsStorageService extends SessionsStorageService 
 		const data = await this.userDataProfileStorageService.readStorageData(profile);
 		const entries: IStorageEntry[] = [];
 		for (const [key, { value, target, scope }] of data) {
-			if ((scope ?? StorageScope.PROFILE) === StorageScope.PROFILE && !this.pendingWrites.has(key) && this.profileState.get(key, StorageScope.PROFILE) !== value) {
+			if ((scope ?? StorageScope.PROFILE) === StorageScope.PROFILE && isSharedKey(key) && !this.pendingWrites.has(key) && this.profileState.get(key, StorageScope.PROFILE) !== value) {
 				entries.push({ key, value, scope: StorageScope.PROFILE, target });
 			}
 		}

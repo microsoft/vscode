@@ -475,9 +475,21 @@ export class SessionsView extends ViewPane {
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
 
-		// Refresh sessions when window gets focus to compensate for missing events
+		// Refresh sessions when window gets focus to compensate for missing events: while the list shows, else as it shows
+		let refreshWhenVisible = false;
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
-			if (hasFocus) {
+			if (!hasFocus) {
+				return;
+			}
+			if (this.isBodyVisible()) {
+				sessionsControl.refresh();
+			} else {
+				refreshWhenVisible = true;
+			}
+		}));
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible && refreshWhenVisible) {
+				refreshWhenVisible = false;
 				sessionsControl.refresh();
 			}
 		}));

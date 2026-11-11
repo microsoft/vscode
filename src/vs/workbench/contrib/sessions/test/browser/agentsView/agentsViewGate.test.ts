@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
@@ -34,6 +34,11 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 
+/** How many items the context menu of a session has: the actions of the sessions list add theirs. */
+function sessionItemMenuItems(): number {
+	return MenuRegistry.getMenuItems(SessionItemContextMenuId).length;
+}
+
 suite('AgentsViewGate', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +63,12 @@ suite('AgentsViewGate', () => {
 	});
 
 	let createdChatParts: number;
+	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
+
+	/** Shows the Sessions view, as the user opens it. */
+	function showSessionsView(): void {
+		viewVisibility.fire({ id: SessionsViewId, visible: true });
+	}
 
 	function createGate(enabled: boolean, remoteAuthority?: string): AgentsViewGate {
 		createdStorageServices = 0;
@@ -73,7 +84,8 @@ suite('AgentsViewGate', () => {
 			}
 		})])));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.AgentsViewEnabled]: enabled }));
-		instantiationService.stub(IViewsService, { onDidChangeViewVisibility: Event.None });
+		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
@@ -102,8 +114,10 @@ suite('AgentsViewGate', () => {
 		assert.deepStrictEqual({ ...registered(), reads }, { container: undefined, view: undefined, reads: [ChatConfiguration.AgentsViewEnabled] });
 	});
 
-	test('registers the Sessions view before the Explorer and starts loading its state while the setting is on', () => {
+	test('registers the Sessions view before the Explorer, without loading its state or registering its actions, while the setting is on', () => {
+		const before = sessionItemMenuItems();
 		const gate = createGate(true);
+		const listActionsBeforeShown = sessionItemMenuItems() - before;
 
 		const { container, view } = registered();
 		assert.deepStrictEqual({
@@ -114,18 +128,31 @@ suite('AgentsViewGate', () => {
 			when: view?.when?.serialize(),
 			createdStorageServices,
 			createdChatParts,
+			listActionsBeforeShown,
 		}, {
 			title: { value: 'Sessions', original: 'Sessions' },
 			icon: Codicon.agent,
 			order: -1,
 			view: SessionsViewId,
 			when: AgentsViewWhen.serialize(),
-			createdStorageServices: 1,
+			createdStorageServices: 0,
 			createdChatParts: 1,
+			listActionsBeforeShown: 0,
 		});
 
 		gate.dispose();
 		assert.deepStrictEqual(registered(), { container: undefined, view: undefined });
+	});
+
+	test('registers the actions of the list once the Sessions view first shows', () => {
+		const before = sessionItemMenuItems();
+		const gate = createGate(true);
+
+		showSessionsView();
+		const afterShown = sessionItemMenuItems() > before;
+		gate.dispose();
+
+		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
 	});
 
 	test('creates no chat part in a remote window', () => {
@@ -136,6 +163,7 @@ suite('AgentsViewGate', () => {
 
 	test('offers no action of the Sessions view that opens the Agents window', () => {
 		createGate(true);
+		showSessionsView();
 
 		const menus = [Menus.SidebarSessionsHeader, Menus.SessionsViewFilter, Menus.SessionItemToolbar, SessionItemContextMenuId, Menus.SessionChatItemContext, Menus.SessionChatItemToolbar, Menus.SessionSectionContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, MenuId.ViewTitle];
 		const commands = menus.flatMap(menu => MenuRegistry.getMenuItems(menu)).filter(isIMenuItem).map(item => item.command.id);

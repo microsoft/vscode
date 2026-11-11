@@ -8,7 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -196,7 +196,14 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 			this._heldChat.hold(chatResource, () => !!this._view.get()?.primaryChatView.get());
 		}
 
-		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
+		// Once it knows its session, only sessions added or removed can change where its chat is: what changes in its session
+		// it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
+		const sessionsChanged = observableSignal(this);
+		this._register(_sessionsManagementService.onDidChangeSessions(e => {
+			if (!this._knownSession || e.added.length || e.removed.length) {
+				sessionsChanged.trigger(undefined);
+			}
+		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
 			this._update(reader);

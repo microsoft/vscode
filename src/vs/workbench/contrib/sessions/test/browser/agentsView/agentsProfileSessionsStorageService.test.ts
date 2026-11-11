@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
@@ -17,7 +17,10 @@ import { AGENTS_WINDOW_PROFILE_ID, IUserDataProfile, IUserDataProfilesService, t
 import { IProfileStorageChanges, IStorageValue, IUserDataProfileStorageService } from '../../../../../../platform/userDataProfile/common/userDataProfileStorageService.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { AgentsProfileSessionsStorageService } from '../../../browser/agentsView/agentsProfileSessionsStorageService.js';
+import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 
 suite('AgentsProfileSessionsStorageService', () => {
 
@@ -30,10 +33,14 @@ suite('AgentsProfileSessionsStorageService', () => {
 		readonly data = new Map<string, IStorageValue>();
 		readonly writes: { readonly items: Record<string, string | undefined>; readonly target: StorageTarget }[] = [];
 		readonly onDidChangeEmitter = disposables.add(new Emitter<IProfileStorageChanges>());
+		reads = 0;
 
 		readonly service = upcastPartial<IUserDataProfileStorageService>({
 			onDidChange: this.onDidChangeEmitter.event,
-			readStorageData: async () => new Map(this.data),
+			readStorageData: async () => {
+				this.reads++;
+				return new Map(this.data);
+			},
 			updateStorageData: async (_profile: IUserDataProfile, items: Map<string, string | undefined | null>, target: StorageTarget) => {
 				this.writes.push({ items: Object.fromEntries([...items].map(([key, value]) => [key, value ?? undefined])), target });
 				for (const [key, value] of items) {
@@ -53,7 +60,21 @@ suite('AgentsProfileSessionsStorageService', () => {
 		}
 	}
 
-	function createService(profileStorage: TestProfileStorage, profiles: readonly IUserDataProfile[] = [agentsProfile]) {
+	/** Whether the Sessions view shows, of which the service follows the changes of the Agents window's profile. */
+	class TestViewVisibility {
+		visible = true;
+		readonly onDidChangeEmitter = disposables.add(new Emitter<{ id: string; visible: boolean }>());
+		readonly viewsService = upcastPartial<IViewsService>({
+			isViewVisible: (id: string) => id === SessionsViewId && this.visible,
+			onDidChangeViewVisibility: this.onDidChangeEmitter.event,
+		});
+		set(visible: boolean): void {
+			this.visible = visible;
+			this.onDidChangeEmitter.fire({ id: SessionsViewId, visible });
+		}
+	}
+
+	function createService(profileStorage: TestProfileStorage, profiles: readonly IUserDataProfile[] = [agentsProfile], view = new TestViewVisibility()) {
 		const windowStorage = disposables.add(new InMemoryStorageService());
 		const service = disposables.add(new AgentsProfileSessionsStorageService(
 			windowStorage,
@@ -62,6 +83,8 @@ suite('AgentsProfileSessionsStorageService', () => {
 			disposables.add(new TestLifecycleService()),
 			new NullLogService(),
 			new MockContextKeyService(),
+			view.viewsService,
+			upcastPartial<IWorkbenchLayoutService>({ isVisible: () => false, onDidChangePartVisibility: Event.None }),
 		));
 		return { service, windowStorage };
 	}
@@ -126,6 +149,40 @@ suite('AgentsProfileSessionsStorageService', () => {
 		assert.deepStrictEqual({ grouping: service.get('sessionsViewPane.grouping', StorageScope.PROFILE), events }, {
 			grouping: 'inbox',
 			events: [{ key: 'sessionsViewPane.grouping', external: true }],
+		});
+	}));
+
+	test('follows changes of the shared keys only while the Sessions view shows, and catches up as it shows again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const profileStorage = new TestProfileStorage();
+		profileStorage.data.set('workbench.other', { value: 'ignored', target: StorageTarget.USER, scope: StorageScope.PROFILE });
+		const view = new TestViewVisibility();
+		const { service } = createService(profileStorage, [agentsProfile], view);
+		await service.whenReady();
+		await timeout(500);
+		const afterLoad = profileStorage.reads;
+
+		profileStorage.change('workbench.layout', 'other');
+		await timeout(500);
+		const afterOtherKey = profileStorage.reads;
+
+		view.set(false);
+		profileStorage.change('sessionsViewPane.grouping', 'inbox');
+		await timeout(500);
+		const whileHidden = { reads: profileStorage.reads, grouping: service.get('sessionsViewPane.grouping', StorageScope.PROFILE) };
+
+		view.set(true);
+		await timeout(500);
+
+		assert.deepStrictEqual({
+			afterOtherKey: afterOtherKey - afterLoad,
+			whileHidden: { reads: whileHidden.reads - afterLoad, grouping: whileHidden.grouping },
+			shownAgain: { reads: profileStorage.reads - afterLoad, grouping: service.get('sessionsViewPane.grouping', StorageScope.PROFILE) },
+			other: service.get('workbench.other', StorageScope.PROFILE),
+		}, {
+			afterOtherKey: 0,
+			whileHidden: { reads: 0, grouping: undefined },
+			shownAgain: { reads: 1, grouping: 'inbox' },
+			other: undefined,
 		});
 	}));
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -18,8 +18,10 @@ import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewle
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation, WindowEnablement } from '../../../../common/views.js';
-import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
@@ -61,16 +63,49 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration(sessionsListConfiguration);
 		this._register(toDisposable(() => configurationRegistry.deregisterConfigurations([sessionsListConfiguration])));
-		this._register(registerSessionsListActions());
-		this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows. The state
+		// the list shares with the Agents window loads as the first of them needs it.
+		this.registerOnFirstShown(instantiationService, () => {
+			this._register(registerSessionsListActions());
+			this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		});
 
 		instantiationService.invokeFunction(accessor => {
-			// Starts loading the state the list shares with the Agents window, so that the view shows once it has
-			accessor.get(ISessionsStorageService);
-
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				this._register(instantiationService.createInstance(AgentsChatPartContribution));
+			}
+		});
+	}
+
+	/** Runs `register` once, as the Sessions view or the chat part, which shows sessions too, first shows. */
+	private registerOnFirstShown(instantiationService: IInstantiationService, register: () => void): void {
+		const { viewsService, layoutService, lifecycleService } = instantiationService.invokeFunction(accessor => ({
+			viewsService: accessor.get(IViewsService),
+			layoutService: accessor.get(IWorkbenchLayoutService),
+			lifecycleService: accessor.get(ILifecycleService),
+		}));
+		const firstShown = this._register(new DisposableStore());
+		const shown = () => {
+			if (!firstShown.isDisposed) {
+				firstShown.dispose();
+				register();
+			}
+		};
+		firstShown.add(viewsService.onDidChangeViewVisibility(e => {
+			if (e.id === SessionsViewId && e.visible) {
+				shown();
+			}
+		}));
+		firstShown.add(layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.CHAT_PART && e.visible) {
+				shown();
+			}
+		}));
+		// Either restores shown with the window, without a change of its visibility
+		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			if (viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
+				shown();
 			}
 		});
 	}
