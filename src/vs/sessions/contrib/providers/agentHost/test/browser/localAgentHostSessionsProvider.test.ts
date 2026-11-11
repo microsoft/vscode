@@ -2129,6 +2129,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
+	test('lists only the sessions of its listing scope, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		const folders = observableValue<readonly URI[]>('folders', [URI.parse('file:///work/repo')]);
+		provider.setListingScope({ folders, repositories: constObservable([]) });
+		await timeout(0);
+		const ids = (sessions: readonly ISession[]) => sessions.map(session => AgentSession.id(session.resource)).sort().join(',');
+		const changes: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
+
+		fireSessionAdded(agentHost, 'here', { workingDirectory: 'file:///work/repo' });
+		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x' });
+		fireSessionAdded(agentHost, 'elsewhere', { workingDirectory: 'file:///other' });
+		await timeout(100);
+		const elsewhere = provider.getAllSessions().find(session => AgentSession.id(session.resource) === 'elsewhere');
+		const scoped = { listed: ids(provider.getSessions()), all: ids(provider.getAllSessions()), found: !!elsewhere && provider.getSessionByResource(elsewhere.resource) === elsewhere };
+		folders.set([URI.parse('file:///other')], undefined);
+		const otherFolder = ids(provider.getSessions());
+
+		assert.deepStrictEqual({ scoped, otherFolder, changes }, {
+			scoped: { listed: 'here,worktree', all: 'elsewhere,here,worktree', found: true },
+			otherFolder: 'elsewhere',
+			changes: [
+				'added=here,worktree removed= changed=',
+				'added=elsewhere removed= changed=here,worktree',
+			],
+		});
+	}));
+
+
 	test('batches session added and removed notifications', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);

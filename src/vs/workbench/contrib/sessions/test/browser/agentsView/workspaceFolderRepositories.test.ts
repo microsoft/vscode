@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, IF
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
-import { readFolderGitRepository, WorkspaceFolderRepositories } from '../../../browser/agentsView/workspaceFolderRepositories.js';
+import { parseGitHubOrigin, readFolderGitRepository, WorkspaceFolderRepositories } from '../../../browser/agentsView/workspaceFolderRepositories.js';
 
 suite('WorkspaceFolderRepositories', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,7 +85,7 @@ suite('WorkspaceFolderRepositories', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
-		const settled = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve(); } };
+		const settled = () => timeout(0);
 		const changeFolders = (next: URI[]) => {
 			folders = next;
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
@@ -110,6 +110,87 @@ suite('WorkspaceFolderRepositories', () => {
 		});
 	});
 
+	test('parses the GitHub repository of the origin remote', () => {
+		const origin = (url: string, remote = 'origin') => parseGitHubOrigin(`[core]\n\tbare = false\n[remote "${remote}"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${remote}/*\n`);
+		assert.deepStrictEqual({
+			https: origin('https://github.com/Microsoft/VSCode.git'),
+			httpsWithoutSuffix: origin('https://github.com/microsoft/vscode'),
+			httpsWithUser: origin('https://user@github.com/microsoft/vscode.git'),
+			scp: origin('git@github.com:microsoft/vscode.git'),
+			ssh: origin('ssh://git@github.com/microsoft/vscode'),
+			quoted: origin('"https://github.com/microsoft/vscode.git"'),
+			comment: origin('https://github.com/microsoft/vscode.git # the main repository'),
+			quotedWithComment: origin('"git@github.com:microsoft/vscode.git" ; a comment'),
+			otherHost: origin('https://gitlab.com/microsoft/vscode.git'),
+			otherRemote: origin('https://github.com/microsoft/vscode.git', 'upstream'),
+		}, {
+			https: 'microsoft/vscode',
+			httpsWithoutSuffix: 'microsoft/vscode',
+			httpsWithUser: 'microsoft/vscode',
+			scp: 'microsoft/vscode',
+			ssh: 'microsoft/vscode',
+			quoted: 'microsoft/vscode',
+			comment: 'microsoft/vscode',
+			quotedWithComment: 'microsoft/vscode',
+			otherHost: undefined,
+			otherRemote: undefined,
+		});
+	});
+
+	test('reads the GitHub origin of each folder\'s repository, of a worktree\'s from its main checkout, once, and again after a failure', async () => {
+		const config = (url: string) => `[remote "origin"]\n\turl = ${url}\n`;
+		const files: Record<string, string | boolean> = {
+			'/work/vscode/.git': true,
+			'/work/vscode/.git/config': config('git@github.com:microsoft/vscode.git'),
+			'/work/owners/scope/.git': 'gitdir: /work/vscode/.git/worktrees/scope',
+			'/work/tools/.git': true,
+			'/work/tools/.git/config': false,
+			'/work/local/.git': true,
+		};
+		const reads: string[] = [];
+		const read = (resource: URI) => {
+			reads.push(resource.path);
+			const entry = files[resource.path];
+			if (entry === false) {
+				throw new FileOperationError('permission denied', FileOperationResult.FILE_PERMISSION_DENIED);
+			}
+			if (entry === undefined) {
+				throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
+			}
+			return entry;
+		};
+		const fileService = upcastPartial<IFileService>({
+			stat: async (resource: URI) => upcastPartial<IFileStatWithMetadata>({ isDirectory: read(resource) === true }),
+			readFile: async (resource: URI) => upcastPartial<IFileContent>({ value: VSBuffer.fromString(String(read(resource))) }),
+		});
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const folders = [URI.file('/work/owners/scope'), URI.file('/work/tools'), URI.file('/work/local')];
+		const warnings: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: (message: string) => { warnings.push(message); } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+		}));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const settled = () => timeout(0);
+		const snapshot = () => ({ repositories: scope.repositories.get().map(uri => uri.path), gitHub: scope.gitHubRepositories.get(), configReads: reads.filter(path => path.endsWith('/config')).sort(), warnings: warnings.length });
+
+		await settled();
+		const initial = snapshot();
+		files['/work/tools/.git/config'] = config('https://github.com/microsoft/vscode-tools');
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		await settled();
+
+		assert.deepStrictEqual({ initial, afterChange: snapshot() }, {
+			// The worktree reads its main checkout's config; a missing config is no GitHub repository; a failed read is logged
+			initial: { repositories: ['/work/vscode', '/work/tools', '/work/local'], gitHub: ['microsoft/vscode'], configReads: ['/work/local/.git/config', '/work/tools/.git/config', '/work/vscode/.git/config'], warnings: 1 },
+			// Only the config that failed is read again
+			afterChange: { repositories: ['/work/vscode', '/work/tools', '/work/local'], gitHub: ['microsoft/vscode', 'microsoft/vscode-tools'], configReads: ['/work/local/.git/config', '/work/tools/.git/config', '/work/tools/.git/config', '/work/vscode/.git/config'], warnings: 1 },
+		});
+	});
+
 	test('drops a replaced folder\'s repository before the read of the folder replacing it settles', async () => {
 		const readOfB = new DeferredPromise<void>();
 		const fileService = upcastPartial<IFileService>({
@@ -130,7 +211,7 @@ suite('WorkspaceFolderRepositories', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
-		const settled = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve(); } };
+		const settled = () => timeout(0);
 		const published = () => repositories.repositories.get().map(uri => uri.path);
 
 		await settled();

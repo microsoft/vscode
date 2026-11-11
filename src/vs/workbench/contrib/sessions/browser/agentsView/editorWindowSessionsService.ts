@@ -163,7 +163,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async moveChatToGrid(sessionId: string, chatResource: URI, _referenceSlotId: string, _direction: SessionGridDirection): Promise<void> {
-		const session = this._sessionsManagementService.getSessions().find(candidate => candidate.sessionId === sessionId);
+		const session = this._sessionsManagementService.getAllSessions().find(candidate => candidate.sessionId === sessionId);
 		if (session) {
 			await this._chatPart.openChat(session, chatResource);
 		}

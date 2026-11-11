@@ -71,7 +71,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionsInScopeFolders, ISessionScope } from '../sessionScope.js';
+import { ISessionScope } from '../sessionScope.js';
 import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -4490,12 +4490,11 @@ interface ISessionsListControlBaseOptions {
 	readonly findWidgetContainer?: HTMLElement;
 	readonly onDidScroll?: () => void;
 	/**
-	 * Folders the host scopes the list to, such as the folders of the window's workspace. While there are any, the list
-	 * shows only the sessions of these folders, in every section and search. See {@link getSessionsInScopeFolders}.
+	 * Whether the sessions providers list only the sessions of a scope, such as of the folders of the window's workspace:
+	 * then the list shows no workspace and no comparison without a listed session, hides none of its workspaces, and says
+	 * so when it shows no session. The providers scope the sessions themselves.
 	 */
-	readonly scopeFolders?: IObservable<readonly URI[]>;
-	/** The repositories the {@link scopeFolders} are checkouts of, such as the main checkout of an open worktree, whose sessions the scope includes too. */
-	readonly scopeRepositories?: IObservable<readonly URI[]>;
+	readonly scoped?: IObservable<boolean>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5233,13 +5232,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (pinnedCanvases) {
 			this._register(runOnChange(pinnedCanvases.entries, () => this.update()));
 		}
-		const scopeFolders = this.options.scopeFolders;
-		if (scopeFolders) {
-			this._register(runOnChange(scopeFolders, () => this.update()));
-		}
-		const scopeRepositories = this.options.scopeRepositories;
-		if (scopeRepositories) {
-			this._register(runOnChange(scopeRepositories, () => this.update()));
+		const scoped = this.options.scoped;
+		if (scoped) {
+			this._register(runOnChange(scoped, () => this.update()));
 		}
 
 		const createTree = (container: HTMLElement, label: string) => treeDisposables.add(treeInstantiationService.createInstance(
@@ -5848,12 +5843,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (inbox) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
-		// A host scope (the window's workspace folders) shows only its sessions, wherever they are placed. Their repositories
-		// are known from every session, including those filtered out above.
+		// The providers list only the sessions of a host scope (the window's workspace folders), but a comparison can have
+		// sessions of other folders, which lookups still find
 		const scope = this.getHostScope();
-		if (scope) {
-			filtered = filtered.filter(scope.includes);
-		}
 		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(scope.includes);
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
@@ -8421,7 +8413,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
 			ids.add(getSessionGroupSectionId(group.id));
 		}
-		for (const session of this._sessionsManagementService.getSessions()) {
+		// Every live session, also those a provider's listing scope hides: their sections keep their order, which the Agents
+		// window shares
+		for (const session of this._sessionsManagementService.getAllSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 			ids.add(`${ENVIRONMENT_SECTION_PREFIX}${session.environment}`);
 			ids.add(getSessionWorktreeSection(session).id);
@@ -8753,10 +8747,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	/** The sessions of the host's scope folders, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scopeFolders}. */
+	/** The sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
 	private getHostScope(): ISessionScope | undefined {
-		const scopeFolders = this.options.scopeFolders?.get() ?? [];
-		return scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders, undefined, this.options.scopeRepositories?.get()) : undefined;
+		if (!this.options.scoped?.get()) {
+			return undefined;
+		}
+		const listed = new Set(this.sessions.map(session => session.sessionId));
+		return { includes: session => listed.has(session.sessionId) };
 	}
 
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
@@ -8764,9 +8761,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				// A scoped list does not show the other sessions, such as those of a workspace of the same name elsewhere.
-				const scope = this.getHostScope();
-				const sessions = getSessions().filter(session => this.isSessionListed(session) && (!scope || scope.includes(session)) && !session.isArchived.get() && !session.isRead.get());
+				const sessions = getSessions().filter(session => this.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});

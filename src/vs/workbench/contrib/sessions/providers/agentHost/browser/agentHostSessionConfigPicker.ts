@@ -1012,7 +1012,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const session = this._session.get();
 		return session?.sessionId === sessionId
 			? this._chat.get()?.resource
-			: provider.getSessions().find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
+			: (provider.getAllSessions?.() ?? provider.getSessions()).find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
 	}
 
 	private _requireChat(provider: IAgentHostSessionsProvider, sessionId: string): URI {
