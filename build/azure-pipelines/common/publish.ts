@@ -11,7 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
-import { getGatingJob, isOptionalMobileStageFailure, runArtifactPublishOperation, warnIfMobileArtifactMissing, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
+import { getGatingJob, isStage, runArtifactPublishOperation, warnIfMobileArtifactMissing, type IGatingJob, type Timeline } from './publishGate.ts';
 import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
@@ -602,15 +602,6 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
-/**
- * Whether the timeline record is the given stage. Stages are matched by their
- * YAML identifier, since the record name is the stage's display name when one
- * is set.
- */
-function isStage(record: TimelineRecord, stage: string): boolean {
-	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
-}
-
 async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
 }
@@ -954,6 +945,7 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
+	if (e('VSCODE_BUILD_STAGE_MOBILE') === 'True') { stages.add('Mobile'); }
 
 	let timeline: Timeline;
 	let artifacts: Artifact[];
@@ -1094,8 +1086,8 @@ async function main() {
 		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
-			if (isOptionalMobileStageFailure(timeline, stage, record.result)) {
-				console.log('##vso[task.logissue type=warning]Only the optional Mobile job did not succeed in the Web stage; continuing the ordinary release.');
+			if (stage === 'Mobile') {
+				console.log(`##vso[task.logissue type=warning]The optional Mobile stage did not succeed (${record.result}); continuing the ordinary release.`);
 				continue;
 			}
 			failed.add(`stage ${stage}`);

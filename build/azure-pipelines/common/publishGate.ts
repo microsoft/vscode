@@ -17,23 +17,18 @@ export interface Timeline {
 
 const mobileArtifactName = 'vscode_web_linux_mobile_archive-unsigned';
 
-/** A mobile timeout must not override required jobs. Names must match web/product-build-web-job.yml. */
-export function isOptionalMobileStageFailure(timeline: Timeline, stage: string, result: string | null): boolean {
-	if (stage !== 'Web' || (result !== 'failed' && result !== 'canceled')) {
-		return false;
-	}
-	const jobs = timeline.records.filter(record => record.type === 'Phase' && record.identifier?.startsWith('Web.'));
-	const mobile = jobs.find(record => record.identifier === 'Web.Mobile');
-	const required = jobs.filter(record => record.identifier !== 'Web.Mobile');
-	return mobile?.state === 'completed'
-		&& ['failed', 'canceled', 'skipped', 'abandoned'].includes(mobile.result ?? '')
-		&& required.some(record => record.identifier === 'Web.Web')
-		&& required.every(record => record.state === 'completed' && (record.result === 'succeeded' || record.result === 'succeededWithIssues'));
+/**
+ * Whether the timeline record is the given stage. Stages are matched by their
+ * YAML identifier, since the record name is the stage's display name when one
+ * is set.
+ */
+export function isStage(record: TimelineRecord, stage: string): boolean {
+	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
 }
 
 export function warnIfMobileArtifactMissing(timeline: Timeline, artifactNames: readonly string[]): void {
-	if (timeline.records.some(record => record.type === 'Phase' && record.identifier === 'Web.Mobile' && record.state === 'completed') && !artifactNames.includes(mobileArtifactName)) {
-		console.log(`##vso[task.logissue type=warning]Mobile was enabled but ${mobileArtifactName} was not produced. Check the Mobile job; continuing the ordinary release.`);
+	if (timeline.records.some(record => isStage(record, 'Mobile') && record.state === 'completed') && !artifactNames.includes(mobileArtifactName)) {
+		console.log(`##vso[task.logissue type=warning]Mobile was enabled but ${mobileArtifactName} was not produced. Check the Mobile stage; continuing the ordinary release.`);
 	}
 }
 

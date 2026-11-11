@@ -98,8 +98,13 @@ behavior; those require separate end-to-end validation.
 
 The existing product pipeline selects this target by default with the
 `🎯 Mobile` checkbox (`VSCODE_BUILD_WEB_MOBILE=true`). It runs in Product builds
-with Web enabled; CI and Web-disabled builds skip mobile automatically.
-Uncheck Mobile to omit it from a Product Web build.
+independently of `🎯 Web`: select Mobile alone for just the mobile bundle, Web
+alone for the ordinary Web bundle, or both for both bundles. Selecting neither
+omits both. CI builds skip both product targets.
+
+Web and Mobile have separate stages that reuse the same build-job template.
+The existing shared Quality, APIScan, and source-security checks still run;
+they are not additional product targets.
 
 Mobile runs in its own optional job, with a separate timeout and workspace,
 so its work cannot consume the ordinary Web job's time or prevent its archive
@@ -110,9 +115,9 @@ archive publication, so failed uploads cannot register a build with missing CDN 
 Only a fully validated and archived package can be published;
 failed registry operations are not recorded as successfully processed and can
 be retried. Ordinary Web and other platform failures still block release.
-If Mobile alone times out or is canceled, the publisher requires successful
-current-attempt phase records for Web and every other required job in that
-stage before allowing the ordinary release. On an otherwise successful publish,
+The publisher waits for the selected stages, but a failed or canceled Mobile
+stage does not override failures or successes of the required stages.
+On an otherwise successful publish,
 an enabled Mobile job that produces no archive emits a warning in Publish.
 Canceling the whole run still stops the release.
 
