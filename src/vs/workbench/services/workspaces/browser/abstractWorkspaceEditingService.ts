@@ -138,6 +138,9 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		const request = ++this.folderLocationRequest;
 
 		const validatePrimary = () => {
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
+			}
 			const currentFolder = this.contextService.getWorkspace().folders[0];
 			if (!currentFolder || !this.uriIdentityService.extUri.isEqual(currentFolder.primaryUri ?? currentFolder.uri, primary)) {
 				throw new Error(localize('folderLocationWrongPrimary', "'{0}' is not the primary location of the workspace folder.", primary.toString()));
@@ -162,8 +165,18 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			validatePrimary(); // the workspace may have changed while resolving
 
 			// A built-in provider vouches for its locations: they inherit the trust of the primary location
-			if (resolved.builtIn && (await this.workspaceTrustManagementService.getUriTrustInfo(primary)).trusted) {
-				await this.workspaceTrustManagementService.setUrisTrust([location], true);
+			if (resolved.builtIn) {
+				const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(primary)).trusted;
+
+				// Nothing may have changed while reading the trust of the primary location
+				if (request !== this.folderLocationRequest) {
+					return; // superseded by a newer invocation
+				}
+				validatePrimary();
+
+				if (primaryTrusted) {
+					await this.workspaceTrustManagementService.setUrisTrust([location], true);
+				}
 			}
 		}
 
