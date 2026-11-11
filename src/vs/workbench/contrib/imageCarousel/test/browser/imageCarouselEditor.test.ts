@@ -32,7 +32,7 @@ import { ICarouselImage, IImageCarouselMarkUp, IImageCarouselMarkUpResult } from
 
 interface ImageCarouselEditorTestAccessor {
 	_flatImages: { readonly image: ICarouselImage }[];
-	_blobUrlCache: Map<string, { readonly url: string; readonly blob: Blob }>;
+	_blobUrlCache: Map<ICarouselImage, { readonly url: string; readonly blob: Blob }>;
 	_blobUrlCacheGeneration: number;
 	_loadBlobUrl(image: ICarouselImage): Promise<string>;
 	_revokeCachedBlobUrls(): void;
@@ -93,6 +93,22 @@ suite('ImageCarouselEditor', () => {
 			});
 		});
 	}
+
+	(isWeb ? test.skip : test)('suggests a name with the extension of the image\'s format, which a markup can change', async () => {
+		const suggested: string[] = [];
+		for (const [name, mimeType] of [['selected', 'image/gif'], ['photo.jpg', 'image/jpeg'], ['photo.jpg', 'image/png']]) {
+			const showSaveDialog = sandbox.stub().resolves(undefined);
+			const editor = Object.assign(Object.create(ImageCarouselEditor.prototype), {
+				_currentIndex: 0,
+				_flatImages: [{ image: { id: 'image', name, mimeType, data: VSBuffer.fromString('image') } }],
+				_fileDialogService: upcastPartial<IFileDialogService>({ defaultFilePath: async () => URI.file('/downloads'), showSaveDialog }),
+				_notificationService: upcastPartial<INotificationService>({ error: sandbox.stub() }),
+			}) as ImageCarouselEditorTestAccessor;
+			await editor.downloadCurrentImage();
+			suggested.push(showSaveDialog.firstCall.args[0].defaultUri.path);
+		}
+		assert.deepStrictEqual(suggested, ['/downloads/selected.gif', '/downloads/photo.jpg', '/downloads/photo.png']);
+	});
 
 	(isWeb ? test.skip : test)('reports download failures', async () => {
 		const error = sandbox.stub();
@@ -219,6 +235,28 @@ suite('ImageCarouselEditor', () => {
 				// The preview shows, and downloads, what the markup changed.
 				after: { slideshow: '', markUp: false, isMarkingUp: false, image: { data: 'marked', mimeType: 'image/jpeg', uri: undefined } },
 			});
+		});
+
+		(isWeb ? test.skip : test)('keeps the changes of a markup to its own image, also when another image has the same id', async () => {
+			const { editor } = createEditor();
+			const { markUp, result } = createMarkUp(VSBuffer.fromString('marked'));
+			// The same file, attached to a request and to the input, has the same id in both sections.
+			const id = URI.file('/same.png').toString();
+			await editor.setInput(store.add(new ImageCarouselEditorInput({
+				id: 'collection', title: 'Images', sections: [
+					{ title: 'Request', images: [{ id, name: 'same.png', mimeType: 'image/png', data: VSBuffer.fromString('sent') }] },
+					{ title: 'Input', images: [{ id, name: 'same.png', mimeType: 'image/png', data: VSBuffer.fromString('attached'), markUp }] },
+				]
+			}, 1)), undefined, {}, CancellationToken.None);
+			editor.markUpCurrentImage();
+			editor.finishMarkUp();
+			await result.p;
+			const accessor = editor as unknown as ImageCarouselEditorTestAccessor;
+			const shown = await Promise.all(accessor._flatImages.map(async ({ image }) => {
+				await accessor._loadBlobUrl(image);
+				return accessor._blobUrlCache.get(image)?.blob.text();
+			}));
+			assert.deepStrictEqual(shown, ['sent', 'marked']);
 		});
 
 		(isWeb ? test.skip : test)('opens only the markup when asked to, and closes once it ends or its editor goes away', async () => {

@@ -11,7 +11,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../base/common/mime.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { extname } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -58,6 +58,19 @@ interface ICachedImageBlob {
 }
 
 /**
+ * The name to save an image as: its own, with the extension of its format unless it already has that one. A markup can
+ * turn an image into a PNG, such as a JPEG whose name still ends in `.jpg`.
+ */
+function getDownloadName({ name, mimeType }: ICarouselImage): string {
+	const extension = getExtensionForMimeType(mimeType);
+	const nameMimeType = getMediaMime(name);
+	if (!extension || nameMimeType === getMediaMime(`image${extension}`)) {
+		return name;
+	}
+	return (nameMimeType ? name.slice(0, -extname(name).length) : name) + extension;
+}
+
+/**
  * The markup of the image at a global index.
  */
 interface IActiveMarkUp {
@@ -75,7 +88,8 @@ export class ImageCarouselEditor extends EditorPane implements IImageViewerEdito
 	private _flatImages: IFlatImageEntry[] = [];
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
-	private readonly _blobUrlCache = new Map<string, ICachedImageBlob>();
+	/** Keyed by image rather than by id: entries can show images with the same id, and a markup replaces one entry's image. */
+	private readonly _blobUrlCache = new Map<ICarouselImage, ICachedImageBlob>();
 	private _blobUrlCacheGeneration = 0;
 	private _toolbar: WorkbenchToolBar | undefined;
 	/** Whether the toolbar offers to mark up the current image, so that it only rerenders when that changes. */
@@ -649,10 +663,10 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		if (!entry) {
 			return;
 		}
-		const cached = this._blobUrlCache.get(entry.image.id);
+		const cached = this._blobUrlCache.get(entry.image);
 		if (cached) {
 			URL.revokeObjectURL(cached.url);
-			this._blobUrlCache.delete(entry.image.id);
+			this._blobUrlCache.delete(entry.image);
 		}
 		// Without its original resource, downloading saves what the preview shows.
 		const image: ICarouselImage = { ...entry.image, data, mimeType, uri: undefined };
@@ -671,7 +685,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 	}
 
 	private async _loadBlob(image: ICarouselImage): Promise<ICachedImageBlob | undefined> {
-		const cached = this._blobUrlCache.get(image.id);
+		const cached = this._blobUrlCache.get(image);
 		if (cached) {
 			return cached;
 		}
@@ -692,14 +706,14 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		}
 
 		// Reuse the blob of a concurrent load that finished first
-		const concurrentlyLoaded = this._blobUrlCache.get(image.id);
+		const concurrentlyLoaded = this._blobUrlCache.get(image);
 		if (concurrentlyLoaded) {
 			return concurrentlyLoaded;
 		}
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
 		const loaded = { url: URL.createObjectURL(blob), blob };
-		this._blobUrlCache.set(image.id, loaded);
+		this._blobUrlCache.set(image, loaded);
 		return loaded;
 	}
 
@@ -728,7 +742,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			if (!source) {
 				throw new Error(localize('imageCarousel.missingImageData', "The image has no data to download."));
 			}
-			const name = extname(image.name) ? image.name : image.name + (getExtensionForMimeType(image.mimeType) ?? '');
+			const name = getDownloadName(image);
 			await downloadFile(source, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
 		} catch (error) {
 			this._notificationService.error(localize('imageCarousel.downloadError', "Failed to download {0}: {1}", image.name, toErrorMessage(error)));
