@@ -315,6 +315,17 @@
 			}
 		},
 		{
+			"scope": [
+				"markup.bold markup.italic",
+				"markup.italic markup.bold",
+				"markup.bold punctuation.definition.italic",
+				"markup.italic punctuation.definition.bold"
+			],
+			"settings": {
+				"fontStyle": "bold italic"
+			}
+		},
+		{
 			"scope": "markup.strikethrough",
 			"settings": {
 				"fontStyle": "strikethrough"
