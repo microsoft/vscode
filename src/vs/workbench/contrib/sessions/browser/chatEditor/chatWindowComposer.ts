@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -166,6 +167,11 @@ export interface IChatWindowComposerInit {
 	/** The custom group of the sessions list that the sessions it sends join. */
 	readonly groupId?: string;
 	readonly input?: IComposerInputState;
+	/**
+	 * The folders of the window it opens in, such as an editor window's, the only ones it creates sessions in besides the
+	 * folder of its {@link target}. None restrict it, as in a window without folders.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
 }
 
 /**
@@ -209,6 +215,8 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	/** The custom group of the sessions list that the sessions it sends join. */
 	readonly groupId: string | undefined;
 
+	readonly allowedFolders: IObservable<readonly URI[]> | undefined;
+
 	constructor(
 		readonly resource: URI,
 		init: IChatWindowComposerInit,
@@ -219,6 +227,12 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	) {
 		super();
 		this.groupId = init.groupId;
+		const windowFolders = init.allowedFolders;
+		const targetFolder = init.target?.folderUri;
+		this.allowedFolders = windowFolders && derived(this, reader => {
+			const folders = windowFolders.read(reader);
+			return folders.length && targetFolder && !folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, targetFolder)) ? [...folders, targetFolder] : folders;
+		});
 		this._requestedTarget.set(init.target, undefined);
 		this.input = new ComposerInputSnapshot(init.input);
 		this.slot = this._register(_sessionsManagementService.createNewSessionSlot({ readoptOnFailure: session => this._isRequested(session) }));
@@ -448,7 +462,7 @@ export class ChatWindowComposers extends Disposable {
 	 * longer follows. It stays stored until the chat it restores as opens in a window ({@link didOpen}), so that a window
 	 * that fails to open loses nothing.
 	 */
-	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>): Promise<RestoredChatWindowComposer | undefined> {
+	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>, allowedFolders?: IObservable<readonly URI[]>): Promise<RestoredChatWindowComposer | undefined> {
 		const key = resource.toString();
 		const stored = this._stored.get(key);
 		if (!stored || this._live.has(key) || this._restoring.has(key)) {
@@ -470,7 +484,7 @@ export class ChatWindowComposers extends Disposable {
 		}
 		const input = stored.attempt?.input ?? stored.input;
 		this._restoredAs.set(key, key);
-		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input } }, openStartedSession) };
+		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input }, allowedFolders }, openStartedSession) };
 	}
 
 	/** The session that a foreground send of the stored composer of `resource` went out with, if any. */

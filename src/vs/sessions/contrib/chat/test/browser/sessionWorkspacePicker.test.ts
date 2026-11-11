@@ -8774,3 +8774,52 @@ suite('WorkspacePicker - a composer outside the main window', () => {
 		});
 	});
 });
+
+suite('WorkspacePicker - Allowed folders', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** A picker of an editor window's composer, which offers only the window's folders. */
+	function createPicker(folders: readonly string[]) {
+		const providersService = store.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL })]);
+		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', folders.map(folder => URI.file(folder)));
+		let shows = 0;
+		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
+		const snapshot = () => {
+			picker.showPicker();
+			return {
+				items: picker.getItems().map(item => item.item?.folderUri?.path ?? item.label ?? item.kind),
+				opens: shows,
+				readOnly: trigger.getAttribute('aria-disabled'),
+				ariaLabel: trigger.getAttribute('aria-label'),
+			};
+		};
+		return { picker, allowedFolders, snapshot };
+	}
+
+	test('offers only the window\'s folders: read-only for one folder, such as a worktree, and a choice for several', () => {
+		const { picker, allowedFolders, snapshot } = createPicker(['/local/vscode.worktrees/feature']);
+		picker.setSelectedWorkspace(URI.file('/local/vscode.worktrees/feature'), { fireEvent: false });
+		const worktreeWindow = snapshot();
+		allowedFolders.set([URI.file('/local/vscode.worktrees/feature'), URI.file('/local/tools')], undefined);
+		const multiRoot = snapshot();
+
+		assert.deepStrictEqual({ worktreeWindow, multiRoot }, {
+			worktreeWindow: { items: ['/local/vscode.worktrees/feature'], opens: 0, readOnly: 'true', ariaLabel: 'New session in this window\'s folder local/vscode.worktrees/feature' },
+			multiRoot: { items: ['/local/vscode.worktrees/feature', '/local/tools'], opens: 1, readOnly: 'false', ariaLabel: 'New session in local/vscode.worktrees/feature' },
+		});
+	});
+
+	test('selects no folder outside the window\'s folders', () => {
+		const { picker } = createPicker(['/local/vscode', '/local/tools']);
+		picker.setSelectedWorkspace(URI.file('/local/tools'), { fireEvent: false });
+		picker.setSelectedWorkspace(URI.file('/local/elsewhere'), { fireEvent: false });
+
+		assert.strictEqual(picker.selectedFolderUri?.path, '/local/tools');
+	});
+});

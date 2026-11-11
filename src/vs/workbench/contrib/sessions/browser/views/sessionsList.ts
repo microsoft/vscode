@@ -539,7 +539,12 @@ function isSessionGroupingSection(sectionId: string): boolean {
 
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 function getSessionSectionType(sectionId: string): string {
-	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId.startsWith(WORKTREE_SECTION_PREFIX) ? 'worktree' : sectionId;
+	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId === WORKTREE_OTHER_SECTION_ID ? 'worktreeOther' : sectionId.startsWith(WORKTREE_SECTION_PREFIX) ? 'worktree' : sectionId;
+}
+
+/** The folder of a section of {@link SessionsGrouping.Worktree}, its main checkout or worktree; none for its Other section. */
+export function getWorktreeSectionFolder(sectionId: string): URI | undefined {
+	return sectionId.startsWith(WORKTREE_SECTION_PREFIX) && sectionId !== WORKTREE_OTHER_SECTION_ID ? URI.parse(sectionId.slice(WORKTREE_SECTION_PREFIX.length)) : undefined;
 }
 
 /**

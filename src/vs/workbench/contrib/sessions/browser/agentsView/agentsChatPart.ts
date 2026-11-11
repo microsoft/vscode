@@ -24,6 +24,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
@@ -412,8 +413,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
+		this._windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
 
 		this.activeChat = derived(this, reader => {
 			const input = this._activeInput.read(reader);
@@ -455,6 +458,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}));
 	}
 
+	/** The folders of the window, the only ones its composers create sessions in, besides the folder each aims at. */
+	private readonly _windowFolders: IObservable<readonly URI[]>;
+
 	private get composers(): ChatWindowComposers {
 		if (!this._composers) {
 			this._composers = this._register(this._instantiationService.createInstance(ChatWindowComposers, (resource: URI) => this._waitForSession(resource)));
@@ -476,7 +482,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
-		const composer = this.composers.create(resource, { target }, session => this.openChat(session, undefined));
+		const composer = this.composers.create(resource, { target, allowedFolders: this._windowFolders }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
 	}
 
@@ -573,7 +579,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			}
 			if (isChatWindowComposerResource(resource)) {
 				claimed.push(resource);
-				const restored = await this.composers.restore(resource, session => this.openChat(session, undefined));
+				const restored = await this.composers.restore(resource, session => this.openChat(session, undefined), this._windowFolders);
 				if (restored?.kind === 'composer') {
 					chats.push(this._addChat(resource, restored.composer));
 				} else if (restored?.kind === 'session') {
@@ -762,8 +768,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 }
 
-/** The folder a composer of the chat part aims at: the window's first, as the Agents window's composer would pick it. */
-export function getAgentsChatPartComposerTarget(workspaceContextService: IWorkspaceContextService): INewSessionTarget | undefined {
-	const folder = workspaceContextService.getWorkspace().folders.at(0);
+/**
+ * The folder a composer of the chat part aims at: the window's folder of the active editor, else the window's first. Its
+ * composers create sessions only in the window's folders (see `IChatWindowComposerInit.allowedFolders`).
+ */
+export function getAgentsChatPartComposerTarget(workspaceContextService: IWorkspaceContextService, editorService: IEditorService): INewSessionTarget | undefined {
+	const activeResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const folder = (activeResource && workspaceContextService.getWorkspaceFolder(activeResource)) ?? workspaceContextService.getWorkspace().folders.at(0);
 	return folder ? { folderUri: folder.uri } : undefined;
 }

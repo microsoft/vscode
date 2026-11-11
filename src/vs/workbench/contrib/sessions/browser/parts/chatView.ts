@@ -102,6 +102,11 @@ export interface INewSessionDraftHost {
 	 * starts its next draft from the selection of a background send.
 	 */
 	setRequestedTarget?(target: INewSessionTarget, reason: 'user' | 'background'): void;
+	/**
+	 * The only folders the composer can create its sessions in, such as an editor window's folders: its workspace picker
+	 * offers no other. Unset, it offers any workspace.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**

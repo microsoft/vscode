@@ -16,6 +16,11 @@ import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { InAgentsChatPartContext } from './agentsView.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
+import { INewSessionTarget } from '../parts/chatView.js';
+import { getWorktreeSectionFolder, ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 /** Whether the chat part of the editor window shows. */
 export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat part beside the editor area shows."));
@@ -41,7 +46,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
-			await chatPart.openComposer(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService)));
+			await chatPart.openComposer(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
 		}
 	}));
 
@@ -102,10 +107,77 @@ export function registerAgentsChatPartActions(): IDisposable {
 			if (layoutService.isVisible(Parts.CHAT_PART)) {
 				layoutService.setPartHidden(true, Parts.CHAT_PART);
 			} else {
-				await chatPart.show(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService)));
+				await chatPart.show(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
 			}
 		}
 	}));
 
 	return store;
+}
+
+/**
+ * Registers the actions of the Sessions list of an editor window that start a new session in the chat part, until the
+ * returned disposable is disposed: in the worktree of a section of the Worktree grouping, and in the folder of a session.
+ */
+export function registerAgentsViewNewSessionActions(): IDisposable {
+	const store = new DisposableStore();
+
+	// A new session in the folder or worktree of a section of the Worktree grouping: not of its Other section
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.agentsView.newSessionInWorktree',
+				title: localize2('agentsView.newSessionInWorktree', "New Session"),
+				icon: Codicon.plus,
+				precondition: ChatContextKeys.enabled,
+				menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
+					id,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'worktree')),
+				})),
+			});
+		}
+		async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
+			const folderUri = section && getWorktreeSectionFolder(section.id);
+			if (!folderUri) {
+				return;
+			}
+			// As its latest session, such as with the same agent
+			const latest = [...section.sessions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0);
+			await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, latest), { newComposer: true });
+		}
+	}));
+
+	// A new session in the folder or worktree of a session
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.agentsView.newSessionInSameFolder',
+				title: localize2('agentsView.newSessionInSameFolder', "New Session in Same Folder"),
+				precondition: ChatContextKeys.enabled,
+				menu: [{ id: SessionItemContextMenuId, group: '0_new', order: 0, when: ChatContextKeys.enabled }],
+			});
+		}
+		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+			const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
+			const folderUri = session && getSessionFolder(session);
+			if (session && folderUri) {
+				await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, session), { newComposer: true });
+			}
+		}
+	}));
+
+	return store;
+}
+
+/** The folder a session works in: its worktree or its folder. */
+function getSessionFolder(session: ISession): URI | undefined {
+	const folder = getSessionPresentationWorkspace(session, undefined)?.folders[0];
+	return folder?.workingDirectory ?? folder?.root;
+}
+
+/** A new session in `folderUri`, with the agent of `like`, such as the session it starts from. */
+function getNewSessionTarget(folderUri: URI, like: ISession | undefined): INewSessionTarget {
+	return like ? { folderUri, providerId: like.providerId, sessionTypeId: like.sessionType } : { folderUri };
 }

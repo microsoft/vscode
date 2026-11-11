@@ -415,6 +415,7 @@ export class NewChatWidget extends Disposable {
 			},
 			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
+			allowedFolders: this._draftHost?.allowedFolders,
 		}));
 		this._register(this._workspacePicker.onDidChangeSelection(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._register(this._workspacePicker.onDidChangeDevContainerAvailability(() => this._environmentWorkspaceChanged.trigger(undefined)));
