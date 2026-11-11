@@ -58,12 +58,12 @@ suite('Copilot Entra authentication transport', () => {
 			override readonly id = 'copilotcli';
 			override getProtectedResources() { return bridge.getProtectedResources(); }
 			override async authenticate() { return false; }
-			override validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) { bridge.validateAuthentication(params, connection); }
-			override handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) { return bridge.authenticate(params, connection); }
+			override validateAuthentication(params: AuthenticateParams) { bridge.validateAuthentication(params); }
+			override handleAuthenticationToken(params: AuthenticateParams) { return bridge.authenticate(params); }
 		}();
 		const service = new class extends mock<IAgentService>() {
 			override readonly onMcpNotification = Event.None;
-			override authenticate(...args: Parameters<IAgentService['authenticate']>) { return authentication.authenticate(args[0], [provider], args[1], args[2]); }
+			override authenticate(...args: Parameters<IAgentService['authenticate']>) { return authentication.authenticate(args[0], [provider], args[1]); }
 			override addSubscriber() { }
 			override unsubscribe() { }
 			override async subscribe(resource: URI) {
@@ -150,14 +150,6 @@ suite('Copilot Entra authentication transport', () => {
 				token: 'synthetic-graph-credential', expiresIn: 3600,
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'transport-selected-account' }),
 			});
-			const nonOwner = new TestProtocolClient(server.boundPort);
-			store.add(toDisposable(() => nonOwner.close()));
-			await nonOwner.connect();
-			await nonOwner.call('initialize', { channel: ROOT_STATE_URI, clientId: 'entra-non-owner', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] });
-			await assert.rejects(nonOwner.call('authenticate', {
-				channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: '',
-			}), /own.*Microsoft/i);
-			nonOwner.close();
 			const result = await completeWithoutCredential();
 			assert.ok(result, 'Missing resource credentials must complete without waiting for a negative AHP reply');
 			await client.waitForNotification(n => n.method === 'auth/required' && JSON.stringify(n.params).includes(copilotEntraEmuAudience));
@@ -168,17 +160,23 @@ suite('Copilot Entra authentication transport', () => {
 				kind: 'identity', accountId: 'transport-selected-account',
 			});
 			// No synthetic resource token is sent to Microsoft or GitHub.
-			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, token: '' });
+			// Like GitHub, any connected client can withdraw the credential.
+			const otherClient = new TestProtocolClient(server.boundPort);
+			store.add(toDisposable(() => otherClient.close()));
+			await otherClient.connect();
+			await otherClient.call('initialize', { channel: ROOT_STATE_URI, clientId: 'entra-other-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] });
+			await otherClient.call('authenticate', { channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, token: '' });
+			otherClient.close();
 			assert.ok(result instanceof Error || result.result.status !== 'completed', 'Unavailable credentials must not report a completed login');
 			assert.ok(stopping);
 			assert.deepStrictEqual(await stopping, [], 'Withdrawing authority must stop the runtime connection');
 			assert.deepStrictEqual({
 				resource: required?.resource.resource,
-				identityRevoked: bridge.authenticationRequired.get(),
+				readvertised: [bridge.authenticationRequired.get()?.resource.resource, bridge.authenticationRequired.get()?.reason],
 				graphToken: authentication.getAuthToken({ resource: copilotEntraDiscoveryResource }),
 			}, {
 				resource: 'https://github.com/login/oauth/access_token',
-				identityRevoked: undefined,
+				readvertised: [copilotEntraDiscoveryResource, 'expired'],
 				graphToken: undefined,
 			});
 			session = undefined;

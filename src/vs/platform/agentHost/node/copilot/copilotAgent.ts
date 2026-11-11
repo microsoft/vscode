@@ -1541,11 +1541,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._configurationService.copilotM365EnabledAtStartup) {
 			this._entraAuthentication = this._register(this._instantiationService.createInstance(CopilotEntraAuthentication));
 			this._register(this._entraAuthentication.onDidRevoke(() => {
-				this._clearLegacySessions({
-					errorType: 'authentication',
-					message: localize('copilotAgent.microsoftAuthenticationWithdrawn', "Microsoft authentication was withdrawn. Sign in again to continue."),
-				});
-				void this._stopClient().catch(error => this._logService.error('[Copilot] Failed to stop runtime after Microsoft authority was withdrawn', error));
+				void this._requestClientRestart('Microsoft authentication cleared').catch(error => this._logService.error('[Copilot] Failed to restart runtime after Microsoft authentication was cleared', error));
 			}));
 		}
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
@@ -2519,12 +2515,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._allLiveSessions().filter(session => !this._usesScopedClient(session) && (session.hasActiveTurn || session.hasActiveSubagents)).length;
 	}
 
-	private _clearLegacySessions(error?: ErrorInfo): void {
+	private _clearLegacySessions(): void {
 		for (const [sessionId, entry] of this._chatEntriesBySdkId) {
 			if (!this._usesScopedClient(entry.chatSession)) {
-				if (error) {
-					entry.chatSession.failActiveTurn(error);
-				}
 				this._chatEntriesBySdkId.deleteAndDispose(sessionId);
 			}
 		}
@@ -2640,8 +2633,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		];
 	}
 
-	validateAuthentication(params: AuthenticateParams, connectionToken?: CancellationToken): void {
-		this._entraAuthentication?.validateAuthentication(params, connectionToken);
+	validateAuthentication(params: AuthenticateParams): void {
+		this._entraAuthentication?.validateAuthentication(params);
 	}
 
 	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {
@@ -3749,7 +3742,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
-		const authenticated = this._automationAuthenticationReady.read(reader) && this.authenticationRequired.read(reader) === undefined;
+		const authenticated = this._automationAuthenticationReady.read(reader) && this._authenticationRequired.read(reader) === undefined;
 		if (authenticated) {
 			return true;
 		}
@@ -3902,8 +3895,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async handleAuthenticationToken(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
-		if (await this._entraAuthentication?.authenticate(params, connectionToken)) {
+	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
+		if (await this._entraAuthentication?.authenticate(params)) {
 			if (!params.token) {
 				await this._clientStopping;
 			}

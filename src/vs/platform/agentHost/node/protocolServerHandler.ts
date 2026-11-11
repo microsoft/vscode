@@ -12,7 +12,7 @@ import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationE
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
-import { cancelOnDispose, type CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
@@ -474,7 +474,6 @@ const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
-	readonly authenticationLifetime: CancellationToken;
 	artifactIntegrations?: ArtifactIntegrationServer;
 	clientArtifactIntegrations?: ClientArtifactIntegrationEndpoint;
 	authenticationScope?: IAgentHostAuthenticationScope;
@@ -1066,7 +1065,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
-			authenticationLifetime: cancelOnDispose(initializationDisposables),
 			legacyChatUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
@@ -1412,7 +1410,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
-			authenticationLifetime: cancelOnDispose(initializationDisposables),
 			legacyChatUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
@@ -2627,7 +2624,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				checkAuthorization();
 				return {};
 			}
-			const result = await this._agentService.authenticate(authentication, undefined, _client.authenticationLifetime);
+			const result = await this._agentService.authenticate(authentication);
 			checkAuthorization();
 			const relayAuthentication = _client.transport.relayAuthentication;
 			const relayIdentityAuthenticated = relayAuthentication?.authenticated === true && params.resource === relayAuthentication.resource;

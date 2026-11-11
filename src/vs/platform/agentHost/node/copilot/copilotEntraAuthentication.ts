@@ -21,7 +21,6 @@ import { IAgentHostAuthenticationService, type IAgentHostAuthCredential } from '
 interface IEntraAuthority {
 	readonly accountId: string;
 	readonly username?: string;
-	readonly connection: CancellationToken;
 }
 
 interface IEntraTokenChallenge {
@@ -61,11 +60,11 @@ export class CopilotEntraAuthentication extends Disposable {
 		}));
 		if (this._authenticationService.onDidAuthenticate) {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
-				if (request.resource === copilotEntraDiscoveryResource && request.connectionToken && !this._authority.get()
+				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()
 					&& this._requirements.get().some(requirement => requirement.resource.resource === copilotEntraDiscoveryResource)) {
 					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: discoveryResource.scopes_supported })?.account;
 					if (account?.providerId === 'microsoft') {
-						this._authority.set({ accountId: account.accountId, connection: request.connectionToken, ...(account.label !== undefined ? { username: account.label } : {}) }, undefined);
+						this._authority.set({ accountId: account.accountId, ...(account.label !== undefined ? { username: account.label } : {}) }, undefined);
 					}
 				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
@@ -84,11 +83,11 @@ export class CopilotEntraAuthentication extends Disposable {
 		];
 	}
 
-	async authenticate(params: AuthenticateParams, connection?: CancellationToken): Promise<boolean> {
+	async authenticate(params: AuthenticateParams): Promise<boolean> {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return false;
 		}
-		this.validateAuthentication(params, connection);
+		this.validateAuthentication(params);
 		if (!params.token) {
 			this.revoke();
 			return true;
@@ -96,20 +95,15 @@ export class CopilotEntraAuthentication extends Disposable {
 		return true;
 	}
 
-	validateAuthentication(params: AuthenticateParams, connection?: CancellationToken): void {
+	validateAuthentication(params: AuthenticateParams): void {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return;
 		}
-		if (!connection || connection.isCancellationRequested || this._store.isDisposed) {
+		if (this._store.isDisposed) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
 		if (params.token) {
 			this.validateCredential(params);
-			return;
-		}
-		const authority = this._authority.get();
-		if (authority && authority.connection !== connection) {
-			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Only the connection that owns Microsoft authentication can withdraw it.');
 		}
 	}
 
@@ -128,11 +122,13 @@ export class CopilotEntraAuthentication extends Disposable {
 	}
 
 	private revoke(): void {
-		const hadAuthority = this._authority.get() !== undefined;
-		this.clearAuthority();
-		if (hadAuthority) {
-			this._onDidRevoke.fire();
+		if (!this._authority.get()) {
+			return;
 		}
+		this.clearAuthority();
+		// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it.
+		this.requireCredential(discoveryResource, AuthRequiredReason.Expired);
+		this._onDidRevoke.fire();
 	}
 
 	private clearAuthority(): void {

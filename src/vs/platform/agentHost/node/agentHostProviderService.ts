@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises } from '../../../base/common/async.js';
-import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { observableValue, type IObservable, type ISettableObservable } from '../../../base/common/observable.js';
@@ -48,7 +47,7 @@ export interface IAgentHostProviderService {
 	/** Records the agent of a chat whose agent differs from its session's. A chat's agent never changes. */
 	associateChat(chat: URI | string, provider: AgentProvider): void;
 	releaseChat(chat: URI | string): void;
-	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, connectionToken?: CancellationToken): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -181,8 +180,8 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._chatToProvider.delete(typeof chat === 'string' ? chat : chat.toString());
 	}
 
-	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, connectionToken?: CancellationToken): Promise<AuthenticateResult> {
-		return this._authenticationController.authenticate(params, this._providers.values(), scope, connectionToken);
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		return this._authenticationController.authenticate(params, this._providers.values(), scope);
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

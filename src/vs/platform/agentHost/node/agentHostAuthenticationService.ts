@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -26,10 +25,6 @@ export interface IAgentHostAuthTokenChangeEvent {
 	readonly token: string | undefined;
 }
 
-interface IAgentHostAuthenticationEvent extends IAgentHostAuthTokenRequest {
-	readonly connectionToken?: CancellationToken;
-}
-
 export interface IAgentHostAuthCredential {
 	readonly token: string;
 	readonly scopes: readonly string[];
@@ -44,7 +39,7 @@ export interface IAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
 	/** Accepted authentication, including same-token reauthorization when the source supports it. */
-	readonly onDidAuthenticate?: Event<IAgentHostAuthenticationEvent>;
+	readonly onDidAuthenticate?: Event<IAgentHostAuthTokenRequest>;
 	readonly onDidChangeSessionCredentials?: Event<void>;
 	readonly useLocalCredentials?: boolean;
 	getSharedCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined;
@@ -69,7 +64,7 @@ export interface IAgentHostAuthenticationService {
 
 export interface IAgentHostAuthenticationController {
 	readonly _serviceBrand: undefined;
-	authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope, connectionToken?: CancellationToken): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 	replay(provider: IAgent): Promise<void>;
 }
 
@@ -108,7 +103,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	readonly onDidChangeSessionCredentials = this._onDidChangeSessionCredentials.event;
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
-	private readonly _onDidAuthenticate = this._register(new Emitter<IAgentHostAuthenticationEvent>());
+	private readonly _onDidAuthenticate = this._register(new Emitter<IAgentHostAuthTokenRequest>());
 	/** Accepted authentication or revocation, including reauthorization of an unchanged token. */
 	readonly onDidAuthenticate = this._onDidAuthenticate.event;
 
@@ -145,7 +140,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}));
 	}
 
-	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope, connectionToken?: CancellationToken): Promise<AuthenticateResult> {
+	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
 		const providerList = [...providers];
 		if (scope) {
 			const resources = [
@@ -171,7 +166,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			return { authenticated };
 		}
 		for (const provider of providerList) {
-			provider.validateAuthentication?.(params, connectionToken);
+			provider.validateAuthentication?.(params);
 		}
 		const scopes = normalizeAuthenticationScopes(params.scopes);
 		const key = this._key(params.resource, scopes, params.target);
@@ -181,7 +176,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		// Wake replayers only after the replacement request is visible.
 		previousRequest?.completed.complete();
 		try {
-			return await this._authenticate(params, providerList, scopes, key, request, connectionToken);
+			return await this._authenticate(params, providerList, scopes, key, request);
 		} finally {
 			if (this._authenticationRequests.get(key) === request) {
 				this._authenticationRequests.delete(key);
@@ -190,7 +185,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 	}
 
-	private async _authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scopes: readonly string[], key: string, request: IAuthenticationRequest, connectionToken?: CancellationToken): Promise<AuthenticateResult> {
+	private async _authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scopes: readonly string[], key: string, request: IAuthenticationRequest): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
 		const expiresAt = getExpirationTime(params.expiresIn);
 		const providerList = [...providers];
@@ -223,7 +218,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 		const sessionResourceHandlers = providerList.filter(p => p.handleAuthenticationToken);
 		const sessionResourceSettled = await Promise.allSettled(
-			sessionResourceHandlers.map(p => p.handleAuthenticationToken ? p.handleAuthenticationToken(params, connectionToken) : Promise.resolve(false)),
+			sessionResourceHandlers.map(p => p.handleAuthenticationToken ? p.handleAuthenticationToken(params) : Promise.resolve(false)),
 		);
 		for (let i = 0; i < sessionResourceSettled.length; i++) {
 			const result = sessionResourceSettled[i];
@@ -238,7 +233,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			}
 		}
 		for (const provider of providerList) {
-			provider.validateAuthentication?.(params, connectionToken);
+			provider.validateAuthentication?.(params);
 		}
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };
@@ -265,7 +260,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		if (authenticated || previousToken !== token) {
-			this._onDidAuthenticate.fire({ resource: params.resource, scopes, connectionToken });
+			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
 		}
 		return { authenticated };
 	}

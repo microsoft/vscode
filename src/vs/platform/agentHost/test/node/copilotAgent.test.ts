@@ -5163,19 +5163,19 @@ suite('CopilotAgent', () => {
 	}
 
 	for (const withdrawal of ['signOut', 'disconnect'] as const) {
-		test(`Microsoft ${withdrawal} ${withdrawal === 'signOut' ? 'settles shared-runtime turns immediately' : 'retains accepted credentials and running shared-runtime turns'}`, async () => {
+		test(`Microsoft ${withdrawal} ${withdrawal === 'signOut' ? 'lets running shared-runtime turns finish before the runtime restarts' : 'retains accepted credentials and accepts a delivery that completes afterwards'}`, async () => {
 			const client = new TestCopilotClient([]);
 			const { agent, authenticationService, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
 			afterTest(() => disposeAgent(agent));
 			const initialResources = agent.getProtectedResources();
-			const connection = disposables.add(new CancellationTokenSource());
+			let connected = true;
 			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService));
 			const registration = disposables.add(connections.registerSource({
 				hasSeenClient: () => true,
-				isClientConnected: () => !connection.token.isCancellationRequested,
+				isClientConnected: () => connected,
 				isLocalClient: () => true,
 				usesLegacyChatUris: () => false,
-				getConnectedClientTransportCounts: () => connection.token.isCancellationRequested ? new Map() : new Map([['client', 1]]),
+				getConnectedClientTransportCounts: () => connected ? new Map([['client', 1]]) : new Map(),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async () => false,
 			}));
@@ -5187,7 +5187,7 @@ suite('CopilotAgent', () => {
 			await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
-			}, [agent], undefined, connection.token);
+			}, [agent]);
 			assert.deepStrictEqual(await provider({ kind: 'identity', clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' }, { isCancellationRequested: false, onCancellationRequested: Event.None }), { kind: 'identity', accountId: 'selected' });
 			const resourcesDuringAuthority = {
 				microsoftOptional: agent.getProtectedResources().some(resource => resource.resource === copilotEntraDiscoveryResource && resource.required === false),
@@ -5199,13 +5199,14 @@ suite('CopilotAgent', () => {
 			};
 			await provider(request, { isCancellationRequested: false, onCancellationRequested: Event.None });
 			const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
-			await authenticationService.authenticate({
+			const deliver = () => authenticationService.authenticate({
 				resource, scopes: request.scopes, token: 'synthetic-resource', expiresIn: 3600,
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
-			}, [agent], undefined, connection.token);
+			}, [agent]);
 
 			const settled: string[] = [];
 			const disposed: string[] = [];
+			const turns = { shared: true };
 			for (const [id, scoped, workingDirectory] of [
 				['shared', false, undefined],
 				['scoped', true, undefined],
@@ -5214,31 +5215,54 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, id, {
 					usesScopedGitHubCredentials: scoped,
 					workingDirectory,
-					hasActiveTurn: true,
+					get hasActiveTurn() { return id !== 'shared' || turns.shared; },
 					failActiveTurn: () => { settled.push(id); return `${id}-turn`; },
 					dispose: () => { disposed.push(id); },
 				});
 			}
+			let duringTurn: { stops: number; disposed: string[] } | undefined;
 			if (withdrawal === 'signOut') {
-				await authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, [agent], undefined, connection.token);
+				await deliver();
+				await authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, [agent]);
+				duringTurn = { stops: client.stopCallCount, disposed: [...disposed] };
+				turns.shared = false;
+				(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
 				await client.waitForCalls(() => client.stopCallCount === 1);
 			} else {
-				connection.cancel();
+				connected = false;
 				registration.dispose();
+				await deliver();
 			}
 			assert.deepStrictEqual({
-				settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()], resourcesDuringAuthority,
+				duringTurn, settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()], resourcesDuringAuthority,
 				stops: client.stopCallCount, connected: connections.getConnectionCounts('').connectedClientCount,
 				credential: await provider(request, { isCancellationRequested: false, onCancellationRequested: Event.None }),
+				readvertised: agent.authenticationRequired.get()?.resource.resource,
 			}, {
-				settled: withdrawal === 'signOut' ? ['shared'] : [], disposed: withdrawal === 'signOut' ? ['shared'] : [],
+				duringTurn: withdrawal === 'signOut' ? { stops: 0, disposed: [] } : undefined,
+				settled: [], disposed: withdrawal === 'signOut' ? ['shared'] : [],
 				remaining: withdrawal === 'signOut' ? ['scoped', 'virtual'] : ['shared', 'scoped', 'virtual'],
 				resourcesDuringAuthority: { microsoftOptional: true, github: initialResources },
 				stops: withdrawal === 'signOut' ? 1 : 0, connected: withdrawal === 'signOut' ? 1 : 0,
 				credential: withdrawal === 'signOut' ? { kind: 'unavailable' } : { kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource' },
+				readvertised: withdrawal === 'signOut' ? copilotEntraDiscoveryResource : undefined,
 			});
 		});
 	}
+
+	test('a pending Microsoft requirement does not block automation that has GitHub credentials', async () => {
+		const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([], []), rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+		afterTest(() => disposeAgent(agent));
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'automation-token');
+		await agent.listChatsToMigrate();
+		const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
+		assert.ok(provider);
+		await provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
+		assert.deepStrictEqual({
+			pending: agent.authenticationRequired.get()?.resource.resource,
+			ready: agent.isReadyForAutomation(undefined),
+		}, { pending: copilotEntraDiscoveryResource, ready: true });
+	});
 
 	for (const credentials of ['github', 'microsoft', 'both', 'neither'] as const) {
 		test(`enabled account alternatives preserve credential-specific operations (${credentials})`, async () => {
@@ -5255,18 +5279,17 @@ suite('CopilotAgent', () => {
 			await tokenProvider(identityRequest, cancellation);
 			const hasGitHub = credentials === 'github' || credentials === 'both';
 			const hasMicrosoft = credentials === 'microsoft' || credentials === 'both';
-			const connection = disposables.add(new CancellationTokenSource());
 			if (hasGitHub) {
 				await authenticationService.authenticate({
 					resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 					scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, token: 'github-credential',
-				}, [agent], undefined, connection.token);
+				}, [agent]);
 			}
 			if (hasMicrosoft) {
 				await authenticationService.authenticate({
 					resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
 					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected-microsoft' }),
-				}, [agent], undefined, connection.token);
+				}, [agent]);
 			}
 			const microsoftRequest = {
 				kind: 'token' as const, clientId: copilotEntraClientId, accountId: 'selected-microsoft', reason: 'renewal' as const,
@@ -5277,7 +5300,7 @@ suite('CopilotAgent', () => {
 				await authenticationService.authenticate({
 					resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: microsoftRequest.scopes, token: 'microsoft-resource',
 					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected-microsoft' }),
-				}, [agent], undefined, connection.token);
+				}, [agent]);
 			}
 			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
 				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1',

@@ -706,7 +706,7 @@ Applies only when the host started with `copilotM365EnabledAtStartup` on. Easy t
 - **GitHub and Microsoft are advertised as optional.** A user needs one of them, not both, so each is `required: false`. That only stops a client from blocking on one of them; a session still cannot run without a credential.
 - **The host is bound to one Microsoft account.** It compares account IDs, never display names, and rejects a token for a different account instead of switching.
 - **The SDK's token callback never waits.** It returns the stored token or `unavailable`, which means "no token right now", not "this user has no access".
-- **A client disconnecting is not a sign-out.** Tokens the host accepted survive the last client leaving; only the connection that supplied them can withdraw them.
+- **A client disconnecting is not a sign-out.** Tokens the host accepted survive the last client leaving. As with GitHub, any client can withdraw them: the host then advertises the missing credential so a client that is still signed in can re-supply it, and restarts the runtime once running turns finish.
 - **Clients may re-send a challenged token.** The host refuses the token the runtime most recently rejected for a resource, but it does not remember earlier ones.
 
 ### Codex (`node/codex/codexAgent.ts`)

@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { Barrier, DeferredPromise, disposableTimeout, raceTimeout, retry, Sequencer, timeout } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -1635,11 +1635,11 @@ suite('AgentService (node dispatcher)', () => {
 					override getProtectedResources(reader?: IReader) {
 						return [...super.getProtectedResources().map(resource => ({ ...resource, required: false })), ...microsoft.getProtectedResources(reader)];
 					}
-					validateAuthentication(params: AuthenticateParams, connection?: CancellationToken) {
-						microsoft.validateAuthentication(params, connection);
+					validateAuthentication(params: AuthenticateParams) {
+						microsoft.validateAuthentication(params);
 					}
-					handleAuthenticationToken(params: AuthenticateParams, connection?: CancellationToken) {
-						return microsoft.authenticate(params, connection);
+					handleAuthenticationToken(params: AuthenticateParams) {
+						return microsoft.authenticate(params);
 					}
 					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 						getMessages: async (chat, context) => {
@@ -1659,7 +1659,6 @@ suite('AgentService (node dispatcher)', () => {
 					new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 					undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
 				));
-				const owner = disposables.add(new CancellationTokenSource());
 				const microsoft = disposables.add(new CopilotEntraAuthentication(getTestAgentServiceComposition(scopedService).authenticationService));
 				const provider = disposables.add(new ScopedAgent('copilot'));
 				registerTestAgentProvider(scopedService, provider);
@@ -1670,7 +1669,7 @@ suite('AgentService (node dispatcher)', () => {
 					await scopedService.authenticate({
 						resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
 						_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'microsoft' }),
-					}, undefined, owner.token);
+					});
 				}
 				const previous = source();
 				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);

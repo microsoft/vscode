@@ -12075,23 +12075,24 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(resp.result, {});
 	});
 
-	test('authenticate supplies a host-owned lifetime and cancels it when the transport disconnects', async () => {
-		const authenticate = sinon.spy(agentService, 'authenticate');
+	test('authenticate still in flight when its transport disconnects is delivered without transport state', async () => {
+		const delivered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const authenticate = sinon.stub(agentService, 'authenticate').callsFake(async () => {
+			started.complete();
+			await release.p;
+			delivered.complete();
+			return { authenticated: true };
+		});
 		disposables.add(toDisposable(() => authenticate.restore()));
-		const transport = connectClient('credential-owner');
-		const response = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'authenticate', {
-			resource: 'https://api.github.com',
-			token: 'synthetic-credential',
-			connectionToken: { isCancellationRequested: false },
-		}));
-		await response;
-		const lifetime = authenticate.firstCall.args[2];
-		assert.ok(lifetime);
-		const cancelled = new Promise<void>(resolve => disposables.add(lifetime.onCancellationRequested(resolve)));
+		const transport = connectClient('credential-sender');
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'synthetic-credential' }));
+		await started.p;
 		transport.simulateClose();
-		await cancelled;
-		assert.strictEqual(lifetime.isCancellationRequested, true);
+		release.complete();
+		await delivered.p;
+		assert.deepStrictEqual(authenticate.firstCall.args, [{ resource: 'https://api.github.com', token: 'synthetic-credential' }]);
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {

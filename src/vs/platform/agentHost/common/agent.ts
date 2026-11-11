@@ -2343,13 +2343,13 @@ export interface IAgent {
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
 
 	/** Reject unauthorized delivery before providers or the canonical credential store are mutated. */
-	validateAuthentication?(params: AuthenticateParams, connectionToken?: CancellationToken): void;
+	validateAuthentication?(params: AuthenticateParams): void;
 
 	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
 	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;
 
-	/** Optional token consumer for provider-owned resources; the connection token is host-owned and is absent on replay. */
-	handleAuthenticationToken?(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean>;
+	/** Optional token consumer for provider-owned resources such as MCP servers. */
+	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
