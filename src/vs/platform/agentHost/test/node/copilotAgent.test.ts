@@ -5264,6 +5264,27 @@ suite('CopilotAgent', () => {
 		}, { pending: copilotEntraDiscoveryResource, ready: true });
 	});
 
+	test('a GitHub challenge is published while a Microsoft requirement is pending', async () => {
+		const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([], []), rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+		afterTest(() => disposeAgent(agent));
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+		await agent.listChatsToMigrate();
+		const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
+		assert.ok(provider);
+		await provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
+		const published: string[] = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement) {
+				published.push(requirement.resource.resource);
+			}
+		}));
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, '');
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'replacement-token');
+		// The Microsoft requirement is published again once the GitHub one clears.
+		assert.deepStrictEqual(published, [copilotEntraDiscoveryResource, GITHUB_COPILOT_PROTECTED_RESOURCE.resource, copilotEntraDiscoveryResource]);
+	});
+
 	for (const credentials of ['github', 'microsoft', 'both', 'neither'] as const) {
 		test(`enabled account alternatives preserve credential-specific operations (${credentials})`, async () => {
 			const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);

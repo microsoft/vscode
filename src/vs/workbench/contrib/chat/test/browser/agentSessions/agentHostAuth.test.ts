@@ -2272,6 +2272,51 @@ suite('authenticateProtectedResources', () => {
 		assert.strictEqual(await instantiation.invokeFunction(resolveProtectedResourceAuthentication, protectedResource, '[test]'), undefined);
 	});
 
+	test('a scope-less resource resolves the default account after its session is replaced', async () => {
+		const refreshed: AuthenticationSession = { id: 'a-refreshed', scopes: ['read'], accessToken: 'a-refreshed-token', account: { id: 'account-a', label: 'A' } };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async () => [refreshed],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		instantiation.stub(IDefaultAccountService, {
+			// The default account still points at the replaced session until it reconciles.
+			currentDefaultAccount: { sessionId: 'a-replaced', accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } },
+		});
+		const request = await instantiation.invokeFunction(resolveProtectedResourceAuthentication, { ...protectedResource, scopes_supported: [] }, '[test]');
+		assert.strictEqual(request?.token, refreshed.accessToken);
+	});
+
+	test('a failed scoped acquisition does not prevent a later authorization server from resolving', async () => {
+		const account = { id: 'selected-account', label: 'Selected' };
+		const identity: AuthenticationSession = { id: 'selected-session', account, scopes: [], accessToken: 'account-list-placeholder' };
+		const servers = ['https://failing.example.com/', 'https://working.example.com/'];
+		const scopedServers: (string | undefined)[] = [];
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async (_provider, scopes, options) => {
+				if (scopes === undefined) {
+					return [identity];
+				}
+				const server = options?.authorizationServer?.toString();
+				scopedServers.push(server);
+				if (server === servers[0]) {
+					throw new Error('acquisition failed');
+				}
+				return [{ ...identity, scopes, accessToken: 'scoped-credential' }];
+			},
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		instantiation.stub(IDefaultAccountService, {
+			currentDefaultAccount: {
+				sessionId: identity.id, accountName: account.label, enterprise: false,
+				authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+			},
+		});
+		const request = await instantiation.invokeFunction(resolveProtectedResourceAuthentication, { ...protectedResource, authorization_servers: servers }, '[test]');
+		assert.deepStrictEqual({ token: request?.token, scopedServers }, { token: 'scoped-credential', scopedServers: servers });
+	});
+
 	test('provider-level protected resource authentication does not include an MCP target', async () => {
 		const authentication = createMockAuthService({
 			getOrActivateProviderIdForServer: async () => 'example-provider',

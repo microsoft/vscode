@@ -1209,7 +1209,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
 	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
-		this._entraAuthentication?.authenticationRequired.read(reader) ?? this._authenticationRequired.read(reader));
+		// One requirement is published at a time. GitHub's goes first, so a pending Microsoft one cannot hide it.
+		this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents

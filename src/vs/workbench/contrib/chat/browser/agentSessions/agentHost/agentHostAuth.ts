@@ -595,7 +595,8 @@ async function resolveAuthenticationSessionForResource(
 		}
 		const selection = selectAuthenticationSession(
 			// With a default account, its preference picks the account, so a rejected session only excludes itself.
-			allSessions.filter(session => scopes.length > 0 && (!session.authorizationServer || isEqual(session.authorizationServer, serverUri))
+			// When no scopes are requested, a session without scopes is an account placeholder rather than a credential.
+			allSessions.filter(session => (scopes.length > 0 || session.scopes.length > 0) && (!session.authorizationServer || isEqual(session.authorizationServer, serverUri))
 				&& (usesDefaultAccount
 					? rejectedSession === null || !rejectedSession.tokenHashes.has(authenticationTokenHash(session.accessToken))
 					: isAuthenticationSessionCandidate(session, rejectedSession))),
@@ -612,9 +613,17 @@ async function resolveAuthenticationSessionForResource(
 		if (preferredIdentity) {
 			// Without scopes a provider may list accounts with no usable token, so request this account's scoped token.
 			const account = preferredIdentity.account;
-			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
-				account, authorizationServer: serverUri, silent: true,
-			}, true);
+			let sessions: readonly AuthenticationSession[];
+			try {
+				sessions = await authenticationService.getSessions(providerId, [...scopes], {
+					account, authorizationServer: serverUri, silent: true,
+				}, true);
+			} catch (error) {
+				hasUnavailableProvider = true;
+				hasLoadingProvider ||= !authenticationService.isAuthenticationProviderRegistered(providerId);
+				logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
+				continue;
+			}
 			throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
 			const acquired = selectAuthenticationSession(sessions.filter(session => session.account.id === account.id
 				&& (!session.authorizationServer || isEqual(session.authorizationServer, serverUri))
