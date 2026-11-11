@@ -17,7 +17,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { derived, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -52,7 +52,7 @@ import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources, type AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
-import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
+import type { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -773,6 +773,7 @@ suite('aiCustomizationManagementEditor', () => {
 		harnessService: {
 			activeSessionResource: ISettableObservable<URI>;
 			activeHarness: ISettableObservable<string>;
+			availableHarnesses: ISettableObservable<readonly IHarnessDescriptor[]>;
 			getActiveDescriptor: ICustomizationHarnessService['getActiveDescriptor'];
 			findHarnessById: ICustomizationHarnessService['findHarnessById'];
 		};
@@ -929,6 +930,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}) as IConfigurationValue<Readonly<T>>,
 			inspectValues,
 			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
+			onDidChangeConfiguration: Event.None,
 		} as unknown as IConfigurationService & {
 			setValue(key: string, value: unknown): void;
 			inspectValues: MutableConfigurationInspection;
@@ -998,12 +1000,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
+			availableHarnesses: observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', []),
 			getActiveDescriptor: () => ({
 				id: 'agent-host-copilotcli',
 				label: 'Copilot',
 				icon: Codicon.copilot,
 			}),
-			findHarnessById: () => undefined,
+			findHarnessById: id => editor.harnessService.availableHarnesses.get().find(harness => harness.id === id),
 		};
 		editor.hoverService = hoverService ?? { ...NullHoverService };
 		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
@@ -1408,6 +1411,42 @@ suite('aiCustomizationManagementEditor', () => {
 			shown: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'Suggestions to review.' }],
 			cleared: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: undefined }],
 			updated: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'More suggestions to review.' }],
+		});
+	});
+
+	test('restores the badges of built-in sections that the harness shows again and does not read them while hidden', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const section = AICustomizationManagementSection.Skills;
+		const harnessId = editor.harnessService.activeHarness.get();
+		let reads = 0;
+		const badge = derived(() => {
+			reads++;
+			return 'Skills to review.';
+		});
+		store.add(aiCustomizationManagementSectionRegistry.registerBadge(section, () => badge));
+		editor.harnessService.availableHarnesses.set([{ id: harnessId, label: 'Copilot', icon: Codicon.copilot, hiddenSections: [section] }], undefined);
+		const sections: { id: AICustomizationManagementSection; badge?: string }[] = [];
+		Object.assign(editor.workspaceService, { managementSections: [AICustomizationManagementSection.Agents, section] });
+		Object.assign(editor, {
+			allSections: [
+				{ id: AICustomizationManagementSection.Agents, label: 'Agents', description: '', count: 0 },
+				{ id: section, label: 'Skills', description: '', count: 3 },
+			],
+			sections,
+			showWelcomePage() { editor.selectedSection = undefined; },
+		});
+		const readBadges = () => sections.map(item => ({ id: item.id, badge: item.badge }));
+
+		editor.registerSectionBadges();
+		editor.rebuildVisibleSections();
+		const hidden = { sections: readBadges(), reads };
+		editor.harnessService.availableHarnesses.set([{ id: harnessId, label: 'Copilot', icon: Codicon.copilot }], undefined);
+		editor.rebuildVisibleSections();
+
+		assert.deepStrictEqual({ hidden, shown: readBadges() }, {
+			hidden: { sections: [{ id: AICustomizationManagementSection.Agents, badge: undefined }], reads: 0 },
+			shown: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'Skills to review.' }],
 		});
 	});
 

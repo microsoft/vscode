@@ -24,7 +24,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -52,6 +52,7 @@ import { basename, dirname, getComparisonKey, isEqual } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
+import { observeVisibleSectionBadges } from './aiCustomizationSectionBadges.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
@@ -811,12 +812,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		for (const s of this.allSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			if (aiCustomizationManagementSectionRegistry.isVisible(s.id, activeId, this.harnessService, this.configurationService)) {
+				s.badge = this.sectionBadges.get(s.id);
 				this.sections.push(contribution ? {
 					...s,
 					label: contribution.label,
 					description: contribution.description,
 					separatorBefore: contribution.separatorBefore,
-					badge: this.sectionBadges.get(s.id),
 				} : s);
 			}
 		}
@@ -3642,20 +3643,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Shows the badges that sections register on their navigation entries.
+	 * Shows the badges that sections register on their navigation entries while the sections are visible.
 	 */
 	private registerSectionBadges(): void {
-		// Resolve the badge observables once per harness so that badge changes only re-read them.
-		const sectionBadges = derived(this, reader => {
-			const activeHarness = this.harnessService.activeHarness.read(reader);
-			return this.workspaceService.managementSections.map(section => {
-				const getBadge = aiCustomizationManagementSectionRegistry.getBadge(section, activeHarness);
-				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
-			});
+		const visibleBadges = observeVisibleSectionBadges({
+			instantiationService: this.instantiationService,
+			harnessService: this.harnessService,
+			workspaceService: this.workspaceService,
+			configurationService: this.configurationService,
 		});
 		this.editorDisposables.add(autorun(reader => {
-			for (const { section, badge } of sectionBadges.read(reader)) {
-				this.updateSectionBadge(section, badge?.read(reader));
+			const badges = new Map(visibleBadges.read(reader).map(({ section, badge }) => [section, badge]));
+			for (const section of this.workspaceService.managementSections) {
+				this.updateSectionBadge(section, badges.get(section));
 			}
 		}));
 	}
