@@ -352,7 +352,16 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'project' | 'plugin';
-export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+/**
+ * `dormant` is enabled and settled like `running`: the runtime advertises the
+ * extension's declared tools and canvases and starts the extension on first use.
+ */
+export type AgentExtensionStatus = 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** Whether an extension is enabled and settled, so its advertised tools and canvases are authoritative even before it starts. */
+export function isAgentExtensionEnabledAndSettled(status: AgentExtensionStatus): boolean {
+	return status === 'running' || status === 'dormant';
+}
 
 /** One executable extension discovered from the provider's persisted or session-effective inventory. */
 export interface IAgentExtensionInfo {
@@ -360,7 +369,7 @@ export interface IAgentExtensionInfo {
 	readonly name: string;
 	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
-	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `dormant`, `failed`, or `starting`. */
 	readonly status: AgentExtensionStatus;
 	readonly pluginName?: string;
 }

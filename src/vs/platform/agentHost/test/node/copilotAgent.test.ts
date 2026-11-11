@@ -2589,6 +2589,8 @@ suite('CopilotAgent', () => {
 				{ id: 'plugin:failed', name: 'Failed', source: 'plugin', status: 'failed' },
 				{ id: 'plugin:starting', name: 'Starting', source: 'plugin', status: 'running' },
 				{ id: 'plugin:starting', name: 'Starting', source: 'plugin', status: 'starting' },
+				{ id: 'plugin:lazy', name: 'Lazy', source: 'plugin', status: 'dormant' },
+				{ id: 'plugin:lazy', name: 'Lazy', source: 'plugin', status: 'running' },
 			],
 		});
 		afterTest(() => disposeAgent(agent));
@@ -2604,6 +2606,7 @@ suite('CopilotAgent', () => {
 				['user:preview', 'unknown', undefined, undefined],
 				['plugin:failed', 'failed', undefined, undefined],
 				['plugin:starting', 'starting', undefined, undefined],
+				['plugin:lazy', 'running', undefined, undefined],
 			],
 		});
 	});
@@ -2611,6 +2614,7 @@ suite('CopilotAgent', () => {
 	for (const scenario of [
 		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your canvas extension settings/ },
 		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true, expectedError: undefined },
+		{ name: 'dormant target and unrelated failure', enabled: true, statuses: ['dormant'], succeeds: true, expectedError: undefined },
 		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false, expectedError: /After disabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' couldn't be stopped/ },
 		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'other' failed to start. This chat may not match your canvas extension settings/ },
 		{ name: 'target failed', enabled: true, statuses: ['failed'], succeeds: false, expectedError: /After enabling 'preview', this chat couldn't finish updating canvas extensions because 'preview' failed to start/ },
