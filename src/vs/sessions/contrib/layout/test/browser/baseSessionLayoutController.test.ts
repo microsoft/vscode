@@ -523,6 +523,53 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`, `session-working-set:${sessionB.resource.toString()}`]);
 	});
 
+	test('[B2] closing every file of a restored session while the empty-file placeholder remains saves the empty set when switching away', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		const placeholder = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
+		harness.activeGroupEditors = [placeholder];
+		harness.visibleEditorsList = [placeholder];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(editor => editor.resource?.path), []);
+	});
+
+	test('a stash whose handoff fails while its session is focused again is applied to the main part', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		const whileLeased = harness.activeGroupEditors.map(editor => editor.resource?.path);
+		handle?.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileLeased, afterFailure: harness.activeGroupEditors.map(editor => editor.resource?.path) }, { whileLeased: [], afterFailure: ['/repo/util.ts'] });
+	});
+
 	test('takes the editors of a session whose working set is saved, which stay saved until the taker has them', async () => {
 		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
 

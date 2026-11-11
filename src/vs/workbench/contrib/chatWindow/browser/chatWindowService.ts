@@ -1281,7 +1281,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	private async _openEditors(editors: IChatWindowEditors | undefined, part: IContentPart): Promise<void> {
 		const inputs = editors?.editors ?? [];
 		const active = editors?.activeEditor ?? inputs.at(-1);
-		await part.activeGroup.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })));
+		const group = part.activeGroup;
+		await group.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })));
+		const shown = active && group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.matches(active));
+		if (shown && group.activeEditor !== shown) {
+			await group.openEditor(shown, { pinned: true, preserveFocus: true });
+		}
 	}
 
 	private _findGroup(editor: EditorInput): IEditorGroup | undefined {

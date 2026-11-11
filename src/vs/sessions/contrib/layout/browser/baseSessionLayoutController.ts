@@ -162,6 +162,8 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
 	private readonly _stashLeases = new Set<{ key: URI | undefined }>();
+	private readonly _unappliedWorkingSets = new ResourceSet();
+	private _currentWorkingSetTarget: IEditorWorkingSetTarget | undefined;
 	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
 	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
@@ -542,6 +544,7 @@ export abstract class BaseLayoutController extends Disposable {
 		});
 		let currentWorkingSetTarget = activeSessionForWorkingSet.get();
 		this._settledEditorWorkingSetKey = activeEditorWorkingSetTarget.get().key;
+		this._currentWorkingSetTarget = activeEditorWorkingSetTarget.get();
 		this._editorWorkingSetService.setCurrentOwner(activeEditorWorkingSetTarget.get().owner);
 
 		// Working sets are always active: browser editors dock in the shared grid
@@ -574,6 +577,7 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 
 		this._register(runOnChange(activeEditorWorkingSetTarget, (current, previous) => {
+			this._currentWorkingSetTarget = current;
 			const shouldApply = !!previous.shown || (!!current.key && this._workingSets.has(current.key));
 			if (!shouldApply) {
 				const previousPending = this._pendingEditorWorkingSetRestore;
@@ -914,6 +918,9 @@ export abstract class BaseLayoutController extends Disposable {
 			const previousAtNewKey = this._workingSets.get(newKey);
 			this._workingSets.set(newKey, workingSet);
 			this._workingSets.delete(oldKey);
+			if (this._unappliedWorkingSets.delete(oldKey)) {
+				this._unappliedWorkingSets.add(newKey);
+			}
 			if (previousAtNewKey && previousAtNewKey.id !== workingSet.id) {
 				this._releaseWorkingSetReference(previousAtNewKey);
 			}
@@ -1074,6 +1081,7 @@ export abstract class BaseLayoutController extends Disposable {
 			const resource = URI.parse(entry.sessionResource);
 			if (entry.editorWorkingSet) {
 				this._workingSets.set(resource, entry.editorWorkingSet);
+				this._unappliedWorkingSets.add(resource);
 			}
 			if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
 				this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
@@ -1168,6 +1176,7 @@ export abstract class BaseLayoutController extends Disposable {
 					const resource = URI.parse(entry.sessionResource);
 					if (entry.editorWorkingSet) {
 						this._workingSets.set(resource, entry.editorWorkingSet);
+						this._unappliedWorkingSets.add(resource);
 					}
 					if (entry.auxiliaryBarState) {
 						this._viewStateBySession.set(resource, {
@@ -1293,6 +1302,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(owner)) {
 				return;
 			}
+			if (sessionResource) {
+				this._unappliedWorkingSets.delete(sessionResource);
+			}
 			if (workingSet === 'empty' && sessionResource && isEqual(sessionResource, this._workingSetAdoptingReplacement)) {
 				this._workingSetAdoptingReplacement = undefined;
 				return;
@@ -1408,7 +1420,8 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _saveWorkingSet(sessionResource: URI): void {
 		const mainEditors = this._editorGroupsService.mainPart.groups.flatMap(group => group.editors);
-		if (this._workingSets.has(sessionResource) && mainEditors.length > 0 && mainEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
+		const editorsInOtherWindows = this._editorService.visibleEditors.some(editor => !mainEditors.includes(editor));
+		if (this._workingSets.has(sessionResource) && (this._unappliedWorkingSets.has(sessionResource) || editorsInOtherWindows) && mainEditors.length > 0 && mainEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
 			return;
 		}
 		this._deleteWorkingSet(sessionResource);
@@ -1422,6 +1435,7 @@ export abstract class BaseLayoutController extends Disposable {
 			const workingSetName = `session-working-set:${sessionResource.toString()}`;
 			const workingSet = this._editorGroupsService.saveWorkingSet(workingSetName);
 			this._workingSets.set(sessionResource, workingSet);
+			this._unappliedWorkingSets.add(sessionResource);
 		}
 	}
 
@@ -1456,14 +1470,32 @@ export abstract class BaseLayoutController extends Disposable {
 				}
 				settled = true;
 				this._stashLeases.delete(lease);
-				resolved.editors.forEach(editor => editor.dispose());
+				resolved.dispose();
 				if (!lease.key || this._workingSets.has(lease.key)) {
 					this._releaseWorkingSetReference(workingSet);
 				} else {
 					this._workingSets.set(lease.key, workingSet);
+					this._reapplyRolledBackWorkingSet(lease.key);
 				}
 			}
 		};
+	}
+
+	private _reapplyRolledBackWorkingSet(key: URI): void {
+		const target = this._currentWorkingSetTarget;
+		if (!target?.owner || !isEqual(target.key, key)) {
+			return;
+		}
+		const mainEditors = this._editorGroupsService.mainPart.groups.flatMap(group => group.editors);
+		if (mainEditors.some(editor => !(editor instanceof EmptyFileEditorInput))) {
+			return;
+		}
+		this._applyPendingEditorWorkingSetRestore({
+			key,
+			owner: target.owner,
+			isInitialRestore: false,
+			restore: this._editorWorkingSetService.beginRestore(target.owner),
+		});
 	}
 
 	private _forgetStashLeases(key: URI): void {

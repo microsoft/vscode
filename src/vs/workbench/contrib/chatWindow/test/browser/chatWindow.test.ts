@@ -108,8 +108,8 @@ suite('Chat window', () => {
 			return undefined;
 		}
 		override async openEditors(editors: { editor: EditorInput; options?: { inactive?: boolean } }[]) {
-			for (const { editor, options } of editors) {
-				await this.openEditor(editor, options);
+			for (const [index, { editor, options }] of editors.entries()) {
+				await this.openEditor(editor, index ? { ...options, inactive: true } : options);
 			}
 			return undefined;
 		}
@@ -785,7 +785,7 @@ suite('Chat window', () => {
 	});
 
 	test('a chat opened in a window with editors resolved for it, such as those stashed for its session, opens them in the window\'s main part once the window takes the chat, with the active one active and one the window shows already not twice; not when the window does not take the chat', async () => {
-		const opened = async (when?: 'file in window' | 'not taken' | 'refused') => {
+		const opened = async (when?: 'file in window' | 'not taken' | 'refused' | 'second active') => {
 			const { service, windows: [target] } = createService(['a']);
 			const file = editor();
 			const notes = editor();
@@ -799,7 +799,7 @@ suite('Chat window', () => {
 			if (when === 'not taken') {
 				Reflect.set(target.window.content, 'resolveChat', async () => undefined);
 			}
-			await service.open(URI.parse('test:/c'), { window: target.window, editors: { editors: [file, notes], activeEditor: file } });
+			await service.open(URI.parse('test:/c'), { window: target.window, editors: { editors: [file, notes], activeEditor: when === 'second active' ? notes : file } });
 			const name = (input: EditorInput) => input === file ? 'file' : 'notes';
 			return { editors: target.main.group.testEditors.map(name), active: target.main.group.activeEditor && name(target.main.group.activeEditor) };
 		};
@@ -809,11 +809,13 @@ suite('Chat window', () => {
 			fileInWindow: await opened('file in window'),
 			notTaken: await opened('not taken'),
 			refused: await opened('refused'),
+			secondActive: await opened('second active'),
 		}, {
 			taken: { editors: ['file', 'notes'], active: 'file' },
 			fileInWindow: { editors: ['file', 'notes'], active: 'file' },
 			notTaken: { editors: [], active: null },
 			refused: { editors: [], active: null },
+			secondActive: { editors: ['file', 'notes'], active: 'notes' },
 		});
 	});
 

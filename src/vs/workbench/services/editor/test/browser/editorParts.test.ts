@@ -417,6 +417,53 @@ suite('Editor Parts', () => {
 		parts.deleteWorkingSet(workingSet);
 	});
 
+	test('resolving a working set whose editors only partly deserialize gives nothing', async () => {
+		const { parts } = await createServices();
+		disposables.add(registerTestSerializer());
+		const kept = disposables.add(new TestFileEditorInput(URI.file('/kept.txt'), 'testTypeId'));
+		const lost = disposables.add(new TestFileEditorInput(URI.file('/lost.txt'), 'lostTypeId'));
+		const lostRegistration = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('lostTypeId', class implements IEditorSerializer {
+			canSerialize(): boolean { return true; }
+			serialize(editor: EditorInput): string { return (editor as TestFileEditorInput).resource.toString(); }
+			deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput { return instantiationService.createInstance(TestFileEditorInput, URI.parse(serializedEditor), 'lostTypeId'); }
+		});
+		await parts.testMainPart.activeGroup.openEditor(kept, { pinned: true });
+		await parts.testMainPart.activeGroup.openEditor(lost, { pinned: true });
+		const workingSet = parts.saveWorkingSet('test');
+		await parts.testMainPart.activeGroup.closeAllEditors();
+		lostRegistration.dispose();
+
+		assert.strictEqual(parts.resolveWorkingSet(workingSet), undefined);
+
+		parts.deleteWorkingSet(workingSet);
+	});
+
+	test('disposing a resolved working set keeps the editors another group shows', async () => {
+		const { parts } = await createServices();
+		const shown = disposables.add(new TestFileEditorInput(URI.file('/shown.txt'), 'testTypeId'));
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testTypeId', class implements IEditorSerializer {
+			canSerialize(): boolean { return true; }
+			serialize(editor: EditorInput): string { return (editor as TestFileEditorInput).resource.toString(); }
+			deserialize(_instantiationService: IInstantiationService, serializedEditor: string): EditorInput { return serializedEditor === shown.resource.toString() ? shown : new TestFileEditorInput(URI.parse(serializedEditor), 'testTypeId'); }
+		}));
+		const own = disposables.add(new TestFileEditorInput(URI.file('/own.txt'), 'testTypeId'));
+		const group = parts.testMainPart.activeGroup;
+		await group.openEditor(shown, { pinned: true });
+		await group.openEditor(own, { pinned: true });
+		const workingSet = parts.saveWorkingSet('test');
+		await group.closeEditor(own);
+
+		const resolved = parts.resolveWorkingSet(workingSet);
+		resolved?.dispose();
+
+		assert.deepStrictEqual({
+			shownDisposed: shown.isDisposed(),
+			resolvedOthersDisposed: resolved?.editors.filter(editor => editor !== shown).map(editor => editor.isDisposed()),
+		}, { shownDisposed: false, resolvedOthersDisposed: [true] });
+
+		parts.deleteWorkingSet(workingSet);
+	});
+
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
 		const { instantiationService, parts } = await createServices();
 		const partA = createOwnedPart(instantiationService, parts);

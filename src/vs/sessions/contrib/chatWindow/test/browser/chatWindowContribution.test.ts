@@ -56,9 +56,11 @@ import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/commo
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
-import { ISessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
+import { ISessionEditorWorkingSetRestoreState, ISessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+
+const noEditorWorkingSetOwner = constObservable<ISessionEditorWorkingSetRestoreState>({ owner: undefined, restoring: false, applying: false });
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -367,7 +369,7 @@ suite('Chat window contribution', () => {
 			}));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
-			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined }));
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined, restoreState: noEditorWorkingSetOwner }));
 			let whileOpening: number | undefined;
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				open: async () => {
@@ -402,6 +404,7 @@ suite('Chat window contribution', () => {
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			const mainGroups = [upcastPartial<IEditorGroup>({ id: 1 })];
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: mainGroups }) }));
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined, restoreState: noEditorWorkingSetOwner }));
 			let moveFrom: readonly IEditorGroup[] | undefined;
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[] } }) => {
@@ -414,6 +417,36 @@ suite('Chat window contribution', () => {
 		};
 
 		assert.strictEqual(await run(), 1);
+	});
+
+	test('with a working set per chat, opening another chat of the session the main window shows takes that chat\'s stash and leaves the shown chat\'s editors', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		stubSessionsHostLayout(instantiationService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+		const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
+		const pane = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', resource: URI.parse('test:/alpha'), activeChat: constObservable(chat('a')) as ITestSessionWithChat['activeChat'] });
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			gridShown: constObservable([pane]),
+			slotPanes: testGridPanes(constObservable([pane])),
+			mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(pane),
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ id: 1 })] }) }));
+		const saved = [upcastPartial<EditorInput>({ typeId: 'saved' })];
+		instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({
+			restoreState: constObservable<ISessionEditorWorkingSetRestoreState>({ owner: { sessionResource: pane.resource, chatResource: chat('a').resource }, restoring: false, applying: false }),
+			takeEditorsFor: () => ({ editors: saved, activeEditor: saved[0], accept: () => { }, dispose: () => { } }),
+		}));
+		let opened: { moveFrom: number | undefined; takesSaved: boolean } | undefined;
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[]; editors?: readonly EditorInput[] } }) => {
+				opened = { moveFrom: options?.editors?.moveFrom?.length, takesSaved: options?.editors?.editors === saved };
+				return undefined;
+			},
+		}));
+		await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, upcastPartial<ISession>({ sessionId: 'alpha', resource: pane.resource }), chat('b').resource));
+
+		assert.deepStrictEqual(opened, { moveFrom: 0, takesSaved: true });
 	});
 
 	test('a session another pane shows takes the editors it has saved along, which stay saved unless the window has them, and the main window\'s editors stay', async () => {
@@ -434,6 +467,7 @@ suite('Chat window contribution', () => {
 			const saved = [upcastPartial<EditorInput>({ typeId: 'saved' })];
 			const events: string[] = [];
 			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({
+				restoreState: noEditorWorkingSetOwner,
 				takeEditorsFor: (session: ISession) => session.sessionId === 'alpha' ? { editors: saved, activeEditor: saved[0], accept: () => events.push('accepted'), dispose: () => events.push('disposed') } : undefined,
 			}));
 			let opened: { moveFrom: number | undefined; editors: readonly EditorInput[] | undefined } | undefined;
@@ -466,6 +500,7 @@ suite('Chat window contribution', () => {
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+		instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined, restoreState: noEditorWorkingSetOwner }));
 		const opened: { resource: string; exactChat: boolean | undefined }[] = [];
 		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 			open: async (resource: URI, options?: { exactChat?: boolean }) => {

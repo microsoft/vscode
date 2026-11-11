@@ -805,11 +805,12 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 		const editors: EditorInput[] = [];
 		let activeEditor: EditorInput | undefined;
+		let complete = true;
 		const canonicalOf = (editor: EditorInput): EditorInput => {
 			const existing = editors.find(candidate => candidate.matches(editor));
 			if (existing) {
 				if (existing !== editor) {
-					editor.dispose();
+					this.disposeUnshownEditors([editor]);
 				}
 				return existing;
 			}
@@ -827,8 +828,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			}
 			const model = this.instantiationService.createInstance(EditorGroupModel, deepClone(node.data));
 			try {
+				const groupEditors = model.getEditors(EditorsOrder.SEQUENTIAL);
+				complete &&= groupEditors.length === node.data.editors.length;
 				const groupActiveEditor = model.activeEditor ?? undefined;
-				for (const editor of model.getEditors(EditorsOrder.SEQUENTIAL)) {
+				for (const editor of groupEditors) {
 					const canonical = canonicalOf(editor);
 					if (node.data.id === state.main.activeGroup && editor === groupActiveEditor) {
 						activeEditor = canonical;
@@ -841,11 +844,24 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		try {
 			collect(state.main.serializedGrid.root);
 		} catch (error) {
-			editors.forEach(editor => editor.dispose());
+			this.disposeUnshownEditors(editors);
 			throw error;
 		}
 
-		return { editors, activeEditor };
+		if (!complete) {
+			this.disposeUnshownEditors(editors);
+			return undefined;
+		}
+
+		return { editors, activeEditor, dispose: () => this.disposeUnshownEditors(editors) };
+	}
+
+	private disposeUnshownEditors(editors: readonly EditorInput[]): void {
+		for (const editor of editors) {
+			if (!this.groups.some(group => group.contains(editor, { strictEquals: true }))) {
+				editor.dispose();
+			}
+		}
 	}
 
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void {
