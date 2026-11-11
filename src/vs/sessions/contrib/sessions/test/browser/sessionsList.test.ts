@@ -4056,7 +4056,7 @@ suite('Sessions - SessionsList', () => {
 				createFolderSession('nested', 'sub', { root: 'file:///repo/sub' }),
 				// An Agent Host worktree reports the checkout as its root and repository.
 				createFolderSession('worktree', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }),
-				// A session that reports its worktree as its repository joins only through its own folder.
+				// A session that reports its worktree as its repository still joins its repository by the worktree's path.
 				createFolderSession('ownWorktree', 'y', { root: 'file:///repo.worktrees/y', repository: 'file:///repo.worktrees/y', worktree: 'file:///repo.worktrees/y' }),
 				createFolderSession('other', 'other', { root: 'file:///other', repository: 'file:///other' }),
 				createFolderSession('remote', 'repo', { root: 'vscode-agent-host://host/repo', repository: 'vscode-agent-host://host/repo' }),
@@ -4074,10 +4074,10 @@ suite('Sessions - SessionsList', () => {
 				multiRoot: scoped('file:///repo', 'file:///other'),
 				empty: scoped(),
 			}, {
-				checkout: ['checkout', 'nested', 'worktree'],
-				worktree: ['checkout', 'worktree'],
-				ownWorktree: ['ownWorktree'],
-				multiRoot: ['checkout', 'nested', 'worktree', 'other'],
+				checkout: ['checkout', 'nested', 'worktree', 'ownWorktree'],
+				worktree: ['checkout', 'worktree', 'ownWorktree'],
+				ownWorktree: ['checkout', 'worktree', 'ownWorktree'],
+				multiRoot: ['checkout', 'nested', 'worktree', 'ownWorktree', 'other'],
 				empty: [],
 			});
 		});
