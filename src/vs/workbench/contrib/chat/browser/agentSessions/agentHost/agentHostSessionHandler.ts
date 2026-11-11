@@ -179,7 +179,7 @@ import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnS
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
-import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
+import { autoAuthenticateMcpServer, agentHostMcpServerId, getStaleSelectedModelId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 import { ICanvasOwner } from '../../../../../common/canvasReference.js';
 export { toolDataToDefinition };
@@ -7178,7 +7178,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _ensureRequiredAuthentication(model: ModelSelection | undefined): Promise<ProtectedResourceMetadata[]> {
 		const agentInfo = this._getRootState()?.agents.find(a => a.provider === this._config.provider);
 		const protectedResources = agentInfo?.protectedResources ?? [];
-
+		const staleModelId = getStaleSelectedModelId(agentInfo, model);
+		if (staleModelId !== undefined) {
+			throw new Error(localize('agentHost.selectedModelUnavailable', "The selected model '{0}' is no longer available. Choose a different model in the model picker and try again.", staleModelId));
+		}
 		if (modelRequiresAgentAuthentication(agentInfo, model) && this._config.resolveAuthentication) {
 			const authenticated = await this._config.resolveAuthentication(protectedResources);
 			if (!authenticated) {
