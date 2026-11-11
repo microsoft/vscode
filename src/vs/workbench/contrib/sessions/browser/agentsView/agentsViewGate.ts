@@ -51,7 +51,7 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scopeFolders: this.workspaceFolders };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scopeFolders: this.workspaceFolders, allowWorktreeGrouping: true };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }

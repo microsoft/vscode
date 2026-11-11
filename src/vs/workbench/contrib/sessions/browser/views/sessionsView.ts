@@ -97,6 +97,18 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
+/** Whether the Sessions view offers {@link SessionsGrouping.Worktree}, as the Agents view of an editor window does. */
+export const SessionsViewWorktreeGroupingContext = new RawContextKey<boolean>('sessionsViewPane.worktreeGrouping', false);
+
+/**
+ * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
+ * {@link SessionsGrouping.Worktree} is offered only by views that allow it, so a view that does not, such as the Agents
+ * window's, which shares the stored grouping, keeps its default.
+ */
+export function getStoredSessionsGrouping(stored: string | undefined, allowWorktreeGrouping: boolean): SessionsGrouping | undefined {
+	const grouping = Object.values(SessionsGrouping).find(value => value === stored);
+	return grouping === SessionsGrouping.Worktree && !allowWorktreeGrouping ? undefined : grouping;
+}
 
 export interface ISessionsHeaderElements {
 	readonly row: HTMLElement;
@@ -172,6 +184,9 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 
 	/** Folders the list is scoped to, such as the folders of an editor window's workspace. See the `scopeFolders` option of the sessions list. */
 	readonly scopeFolders?: IObservable<readonly URI[]>;
+
+	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
+	readonly allowWorktreeGrouping?: boolean;
 }
 
 export class SessionsView extends ViewPane {
@@ -212,6 +227,7 @@ export class SessionsView extends ViewPane {
 
 	private readonly headerInTitle: boolean;
 	private readonly hideCustomizations: boolean;
+	private readonly allowWorktreeGrouping: boolean;
 	private readonly scopeFolders: IObservable<readonly URI[]> | undefined;
 
 	constructor(
@@ -251,10 +267,8 @@ export class SessionsView extends ViewPane {
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedGrouping && Object.values(SessionsGrouping).includes(storedGrouping as SessionsGrouping)) {
-			this.currentGrouping = storedGrouping as SessionsGrouping;
-		}
+		this.allowWorktreeGrouping = !!options.allowWorktreeGrouping;
+		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.allowWorktreeGrouping);
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -265,6 +279,7 @@ export class SessionsView extends ViewPane {
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
+		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(this.allowWorktreeGrouping);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

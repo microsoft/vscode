@@ -90,7 +90,7 @@ import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../.
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -3445,6 +3445,91 @@ suite('Sessions - SessionsList', () => {
 				expanded: { 'workspace:https://github.com/contoso/app': true, 'repository:contoso/app': true },
 				groupAfterRerun: undefined,
 			});
+		});
+	});
+
+	suite('groupByWorktree', () => {
+
+		function createWorktreeSession(id: string, folder: { readonly workingDirectory: string; readonly repository?: string; readonly branch?: string } | undefined, updatedHoursAgo: number, options?: ITestSessionOptions): ISession {
+			const { session } = createTestSession(id, { ...options, updatedAt: new Date(Date.now() - updatedHoursAgo * 3_600_000) });
+			if (!folder) {
+				return session;
+			}
+			const workingDirectory = URI.parse(folder.workingDirectory);
+			const repository = folder.repository ? URI.parse(folder.repository) : undefined;
+			return {
+				...session,
+				workspace: constObservable({
+					...session.workspace.get()!,
+					uri: repository ?? workingDirectory,
+					folders: [{
+						root: repository ?? workingDirectory,
+						workingDirectory,
+						name: id,
+						description: undefined,
+						gitRepository: repository ? {
+							uri: repository,
+							workTreeUri: workingDirectory,
+							branchName: folder.branch,
+							baseBranchName: undefined,
+							gitHubInfo: constObservable(undefined),
+						} : undefined,
+					}],
+				}),
+			};
+		}
+
+		function worktreeSessions(): ISession[] {
+			return [
+				createWorktreeSession('feature-a', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo', branch: 'feature-a' }, 3),
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo', branch: 'main' }, 4),
+				createWorktreeSession('cloud', undefined, 0),
+				createWorktreeSession('feature-b', { workingDirectory: 'file:///work/repo.worktrees/b', repository: 'file:///work/repo' }, 2),
+				createWorktreeSession('feature-a-2', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo', branch: 'feature-a' }, 1),
+				createWorktreeSession('plain', { workingDirectory: 'file:///other' }, 5),
+			];
+		}
+
+		test('lists the main checkouts first, then the worktrees by latest activity, then the sessions without a local folder', () => {
+			assert.deepStrictEqual(groupByWorktree(worktreeSessions()).map(section => ({ id: section.id, label: section.label, hover: section.hover, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'worktree:file:///work/repo', label: 'repo (main)', hover: URI.parse('file:///work/repo').fsPath, sessions: ['checkout'] },
+				{ id: 'worktree:file:///other', label: 'other', hover: URI.parse('file:///other').fsPath, sessions: ['plain'] },
+				{ id: 'worktree:file:///work/repo.worktrees/a', label: 'a (feature-a)', hover: URI.parse('file:///work/repo.worktrees/a').fsPath, sessions: ['feature-a', 'feature-a-2'] },
+				{ id: 'worktree:file:///work/repo.worktrees/b', label: 'b', hover: URI.parse('file:///work/repo.worktrees/b').fsPath, sessions: ['feature-b'] },
+				{ id: 'worktree:other', label: 'Other', hover: undefined, sessions: ['cloud'] },
+			]);
+		});
+
+		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
+			const harness = createListHarness(disposables, worktreeSessions());
+			const container = harness.createContainer(400, 1400);
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const visible = () => list.getVisibleSessions().map(session => session.sessionId);
+			const order = visible();
+			const worktreeA = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-section-label')?.textContent === 'a (feature-a)');
+			list.openFind();
+			try {
+				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+				assert.ok(findInput);
+				findInput.value = 'feature-a';
+				findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				assert.deepStrictEqual({ order, ariaLabel: worktreeA?.getAttribute('aria-label'), found: visible() }, {
+					order: ['checkout', 'plain', 'feature-a-2', 'feature-a', 'feature-b', 'cloud'],
+					ariaLabel: `a (feature-a), ${URI.parse('file:///work/repo.worktrees/a').fsPath}, 2`,
+					found: ['feature-a-2', 'feature-a'],
+				});
+			} finally {
+				list.closeFind();
+				// Closing find disposes its widget after its hide animation.
+				await timeout(350);
+			}
 		});
 	});
 

@@ -35,7 +35,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from '../views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -137,6 +137,7 @@ const GroupedBySectionContext = ContextKeyExpr.or(
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
+	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
 );
 
 
@@ -1133,6 +1134,23 @@ function createSessionsListActions(): DisposableStore {
 			const viewsService = accessor.get(IViewsService);
 			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 			view?.setGrouping(SessionsGrouping.Date);
+		}
+	}));
+
+	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsViewPane.groupByWorktree',
+				title: localize2('groupByWorktree', "Worktree"),
+				category: SessionsCategories.Sessions,
+				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
+				precondition: SessionsViewWorktreeGroupingContext,
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: SessionsViewWorktreeGroupingContext }],
+			});
+		}
+		override run(accessor: ServicesAccessor) {
+			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			view?.setGrouping(SessionsGrouping.Worktree);
 		}
 	}));
 

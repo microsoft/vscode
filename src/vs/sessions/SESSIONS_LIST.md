@@ -82,6 +82,10 @@ User-created groups and the date sections share a user-managed order below the f
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
 
+### Worktree grouping
+
+Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, which shares the stored choice, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
+
 ### Inbox grouping
 
 Inbox is an opt-in presentation of the same catalog, classified into Inbox, Working, Ready to merge, On hold, and Cleared, with archived inventory in Archived. Desktop and phone use one scrolling tree. Pinned precedes the always-expanded Inbox; empty secondary categories are omitted. All categories, including On hold, list sessions directly without workspace or environment subgroups. Nested chats and comparison containers retain their structure. Selection, explicit reveal, search, and programmatic snapshots cover the whole scoped tree; passive selection restoration must not expand a user-collapsed category. Category expansion is persisted by its existing identity.
