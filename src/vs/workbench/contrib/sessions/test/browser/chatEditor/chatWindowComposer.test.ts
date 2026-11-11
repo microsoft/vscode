@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { INotification, INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { IAction } from '../../../../../base/common/actions.js';
-import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
-import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { parse, stringify } from '../../../../../base/common/marshalling.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ICreateNewSessionSlotOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
-import { IDynamicVariable } from '../../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
-import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
-import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, ChatWindowComposerBackgroundSends, ChatWindowComposerModel, ChatWindowComposers, getChatWindowComposerTarget } from '../../browser/chatWindowComposer.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotification, INotificationHandle, INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { parse, stringify } from '../../../../../../base/common/marshalling.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../common/sessionsProvider.js';
+import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
+import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ICreateNewSessionSlotOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
+import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
+import { IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
+import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, ChatWindowComposerBackgroundSends, ChatWindowComposerModel, ChatWindowComposers, getChatWindowComposerTarget } from '../../../browser/chatEditor/chatWindowComposer.js';
 
 suite('Chat window composer', () => {
 

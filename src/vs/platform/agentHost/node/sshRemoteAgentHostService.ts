@@ -56,6 +56,8 @@ import {
 	type AgentHostServerType,
 	type IAgentHostEndpointMetadata,
 	isSameAgentHostEndpointIdentity,
+	isShareableAgentHostEndpoint,
+	selectAgentHostEndpoint,
 } from '../common/agentHostEndpointRegistry.js';
 import {
 	buildAgentHostBaseCommand,
@@ -393,17 +395,17 @@ function startRemoteAgentHost(
 	client: SSHClient,
 	logService: ILogService,
 	cliBin: string | undefined,
-	cliDataDir: string | undefined,
+	serverDataFolderName: string | undefined,
 	commandOverride?: string,
 	telemetryLevel = TelemetryConfiguration.OFF,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		if (!commandOverride && (!cliBin || !cliDataDir)) {
-			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
+		if (!commandOverride && (!cliBin || !serverDataFolderName)) {
+			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+serverDataFolderName pair or a commandOverride`));
 			return;
 		}
 		const validatedTelemetryLevel = validateAgentHostTelemetryLevel(telemetryLevel);
-		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!, validatedTelemetryLevel);
+		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, serverDataFolderName!, validatedTelemetryLevel);
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
@@ -954,10 +956,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				userDataPath = initial.userDataPath;
 				const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
 				const editors = live.filter(e => e.type === 'editor');
-				const standalones = live.filter(e => e.type === 'standalone');
+				const standalones = live.filter(e => isShareableAgentHostEndpoint(e, this._quality));
 
 				const spawnDedicated = async (): Promise<IAgentHostEndpointMetadata> => {
-					const spawnCommand = buildAgentHostSpawnCommand(cliBin, cliDataDir, userDataPath, this._effectiveTelemetryLevel);
+					const spawnCommand = buildAgentHostSpawnCommand(cliBin, this._serverDataFolderName, userDataPath, this._effectiveTelemetryLevel);
 					reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 					this._logService.info(`${LOG_PREFIX} Spawning dedicated standalone agent host: ${spawnCommand}`);
 					// Fire-and-forget: the spawned process is self-managed via
@@ -981,11 +983,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// paths below and the silent/background reconnect policy —
 				// neither ever opens the picker.
 				const selectDedicated = async (): Promise<{ chosen: IAgentHostEndpointMetadata; lifecycle: SSHAgentHostLifecycle }> => {
-					if (standalones.length === 0) {
-						return { chosen: await spawnDedicated(), lifecycle: 'managed' };
-					}
-					const [deterministic] = [...standalones].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
-					return { chosen: deterministic, lifecycle: 'external' };
+					const chosen = selectAgentHostEndpoint(live, this._quality, 'dedicated');
+					return chosen ? { chosen, lifecycle: 'external' } : { chosen: await spawnDedicated(), lifecycle: 'managed' };
 				};
 
 				// Selection policy (requirement 2): with no editor entries,
@@ -1021,11 +1020,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// and persist a fresh choice.
 				const selectEndpoint = async (): Promise<{ chosen: IAgentHostEndpointMetadata; lifecycle: SSHAgentHostLifecycle }> => {
 					if (config.preferredAgentLocation === 'editor') {
-						if (editors.length > 0) {
-							const [deterministic] = [...editors].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
-							return { chosen: deterministic, lifecycle: 'external' };
-						}
-						return selectDedicated();
+						const chosen = selectAgentHostEndpoint(live, this._quality, 'editor');
+						return chosen ? { chosen, lifecycle: 'external' } : { chosen: await spawnDedicated(), lifecycle: 'managed' };
 					}
 					if (config.preferredAgentLocation === 'dedicated') {
 						return selectDedicated();
@@ -2300,9 +2296,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	protected _startRemoteAgentHost(
-		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string, telemetryLevel?: TelemetryConfiguration,
+		client: SSHClient, cliBin: string | undefined, serverDataFolderName: string | undefined, commandOverride?: string, telemetryLevel?: TelemetryConfiguration,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride, telemetryLevel);
+		return startRemoteAgentHost(client, this._logService, cliBin, serverDataFolderName, commandOverride, telemetryLevel);
 	}
 
 	protected async _createWebSocketRelay(

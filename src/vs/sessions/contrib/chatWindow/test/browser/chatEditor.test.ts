@@ -25,7 +25,7 @@ import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/
 import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { CHAT_MODEL_HOLD_TIMEOUT } from '../../../chatWindow/browser/chatWindowOpening.js';
+import { CHAT_MODEL_HOLD_TIMEOUT } from '../../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow, IChatWindowOpenOptions, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -46,8 +46,9 @@ import { Verbosity } from '../../../../../workbench/common/editor.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
-import { IChatEditorComposer } from '../../browser/chatEditorContent.js';
+import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
+import { IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
+import { ChatWindowSessionDropTarget } from '../../browser/chatWindowSessionDropTarget.js';
 
 suite('Session chat view editor', () => {
 
@@ -276,6 +277,8 @@ suite('Session chat view editor', () => {
 			active: constObservable(true),
 			attach: () => Disposable.None,
 			view: constObservable(undefined),
+			// As a chat window's chat does
+			createDropTarget: (element, chat) => instantiationService.createInstance(ChatWindowSessionDropTarget, element, chat),
 		};
 		const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
 		mainWindow.document.body.appendChild(view.element);

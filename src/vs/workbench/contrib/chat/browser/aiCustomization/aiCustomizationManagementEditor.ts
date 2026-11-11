@@ -627,6 +627,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.workspaceService.activeProjectLabel.read(reader);
+			this.workspaceService.activeTargetLabels?.read(reader);
 			this.updateTargetLabelPresentation();
 			if (this.viewMode === 'editor') {
 				this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
@@ -792,11 +793,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateTargetLabelPresentation(): void {
-		const harnessLabel = this.getActiveHarnessLabel();
-		const workspaceLabel = this.workspaceService.activeProjectLabel.get();
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		const harnessLabel = targetLabels?.harness ?? this.getActiveHarnessLabel();
+		const workspaceLabel = targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get();
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 		if (this.input instanceof AICustomizationManagementEditorInput) {
-			this.input.setTargetLabels(harnessLabel, workspaceLabel);
+			this.input.setTargetLabels(harnessLabel, workspaceLabel, targetLabels?.environment);
 		}
 	}
 
@@ -4179,7 +4181,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		await super.setInput(input, options, context, token);
-		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		input.setTargetLabels(
+			targetLabels?.harness ?? this.getActiveHarnessLabel(),
+			targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get(),
+			targetLabels?.environment,
+		);
 		if (!token.isCancellationRequested) {
 			this.initializeContributedSectionWidgets();
 			if (this.selectedSection && this.isContributedSectionEnabled(this.selectedSection)) {

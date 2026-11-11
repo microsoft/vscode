@@ -18,6 +18,8 @@ import { writeSync } from 'fs';
 import * as inspector from 'inspector';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, IAgentHostEndpointMetadata } from '../common/agentHostEndpointRegistry.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -519,8 +521,7 @@ async function startAgentHost(): Promise<void> {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
 
-	// The configured bridge listener remains separate: tunnel forwarding pipes
-	// raw WebSocket streams and cannot carry the local endpoint's bearer token.
+	// Parent-configured WebSocket ingress also serves standalone clients.
 	const configuredWebSocketServerStart = startWebSocketServer(
 		agentService,
 		stateManager,
@@ -685,7 +686,28 @@ async function startWebSocketServer(
 	// port is only known after this point — emitting the requested port
 	// would print `localhost:0` and break the CLI's readiness parser.
 	await wsServer.whenListening;
-	const listenTarget = socketPath ?? `${host}:${wsServer.boundPort ?? port}`;
+	const registryUserDataPath = process.env['VSCODE_AGENT_HOST_REGISTRY_USER_DATA_PATH'];
+	const boundPort = wsServer.boundPort;
+	if (registryUserDataPath && !socketPath && connectionToken && boundPort !== undefined && !disposables.isDisposed) {
+		const metadata: IAgentHostEndpointMetadata = {
+			schemaVersion: AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			type: 'standalone',
+			pid: process.pid,
+			instanceId: generateUuid(),
+			endpoint: { type: 'tcp', host, port: boundPort },
+			connectionToken,
+			quality: product.quality,
+			protocolVersion: PROTOCOL_VERSION,
+		};
+		try {
+			await publishLocalAgentHostEndpointMetadata(registryUserDataPath, metadata, logService);
+			disposables.add(toDisposable(() => cleanupLocalAgentHostEndpointMetadataSync(registryUserDataPath, metadata, logService)));
+		} catch (error) {
+			cleanupLocalAgentHostEndpointMetadataSync(registryUserDataPath, metadata, logService);
+			logService.error('[AgentHost] Failed to publish standalone protocol endpoint; continuing without discovery', error);
+		}
+	}
+	const listenTarget = socketPath ?? `${host}:${boundPort ?? port}`;
 	logService.info(`[AgentHost] WebSocket server listening on ${listenTarget}`);
 	// Do not change this line. The CLI looks for this in the output.
 	console.log(`Agent host server listening on ${listenTarget}`);

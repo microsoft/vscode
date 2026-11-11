@@ -523,6 +523,9 @@ export class SessionInputBannerModel extends Disposable {
 
 	private _acceptComments(state: IBaseBannerState): void {
 		this.target?.validate();
+		if (this.target) {
+			return;
+		}
 		for (const commentId of state.commentIds) {
 			this.feedbackService.acceptFeedback(state.sessionResource, commentId);
 		}
