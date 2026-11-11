@@ -192,7 +192,12 @@ async function openSession(app: Application, session: { readonly command: string
 		await app.workbench.quickaccess.runCommand(session.command);
 		await app.workbench.chat.waitForChatEditor(600);
 	} else {
-		// Wait for Local, not the default Agent Host session that can bind while the command is still activating.
+		// Wait for the command to bind a new local session to the view, not
+		// just any session. The view can open first with its default Agent Host
+		// Copilot session while the command still waits for the local chat
+		// command to register, as when this test is the first of the suite in
+		// a cold window. A prompt sent then goes to that session and never gets
+		// the local reply.
 		const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
 		await app.workbench.quickaccess.runCommand(session.command);
 		await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);

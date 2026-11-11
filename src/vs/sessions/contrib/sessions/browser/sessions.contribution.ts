@@ -93,6 +93,7 @@ export const sessionsConfiguration = {
 			description: localize('sessions.list.inlineActions', "Show Fix Checks, Address Comments, or their combined action below eligible sessions and chats in the Sessions list. Actions run in the background. This does not enable Agent Merge or change action permissions."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
 		},
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
@@ -114,7 +115,7 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: localize('sessions.list.inboxEnabled', "Enables Inbox Mode in the Sessions list Grouping menu. Disabling it temporarily shows workspace grouping without clearing saved Inbox triage or grouping choices."),
+			description: localize('sessions.list.inboxEnabled', "Uses Inbox Mode as the default Sessions list grouping when no grouping has been chosen. Inbox Mode is always available in the Grouping menu. Explicit grouping choices are preserved."),
 			default: false,
 		},
 		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {

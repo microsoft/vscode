@@ -4188,7 +4188,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return {
 				provider: this.id,
 				id: modelRouterModelId(file.name),
-				name: file.name,
+				name: file.router?.displayName ?? file.name,
 				supportsVision: true,
 				_meta: {
 					...createModelRouterModelMeta(file.router?.description ?? localize('modelRouter.rowInvalid', "This router has errors, so chats using it keep their current model. Ask /model-router to fix it."), file.uri),

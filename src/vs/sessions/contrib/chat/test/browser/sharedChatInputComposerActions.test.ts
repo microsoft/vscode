@@ -18,8 +18,10 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SendInBackgroundAction } from '../../browser/sharedChatInputComposer.contribution.js';
 
 suite('Send in Background', () => {
@@ -32,7 +34,7 @@ suite('Send in Background', () => {
 				item.command === SEND_IN_BACKGROUND_COMMAND_ID && item.keybinding?.getHashCode() === keybinding.getHashCode());
 			const when = rule?.when;
 			assert.ok(when);
-			const values: Record<string, boolean> = {
+			const values: Record<string, boolean | string> = {
 				[IsSessionsWindowContext.key]: true,
 				[ChatContextKeys.enabled.key]: true,
 				[ChatContextKeys.inChatInput.key]: true,
@@ -40,9 +42,10 @@ suite('Send in Background', () => {
 				[ChatContextKeys.inputHasSendableContent.key]: true,
 				[ChatContextKeys.inputBlocked.key]: false,
 				[ChatContextKeys.chatSessionOptionsValid.key]: true,
-				[`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: true,
+				[SessionsViewGroupingContext.key]: SessionsGrouping.Inbox,
+				[`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: false,
 			};
-			const matches = (overrides: Record<string, boolean> = {}) => {
+			const matches = (overrides: Record<string, boolean | string> = {}) => {
 				const context: IContext = { getValue: <T>(key: string) => ({ ...values, ...overrides })[key] as T | undefined };
 				return when.evaluate(context);
 			};
@@ -55,11 +58,11 @@ suite('Send in Background', () => {
 				empty: matches({ [ChatContextKeys.inputHasSendableContent.key]: false }),
 				blocked: matches({ [ChatContextKeys.inputBlocked.key]: true }),
 				invalidOptions: matches({ [ChatContextKeys.chatSessionOptionsValid.key]: false }),
-				inboxDisabled: matches({ [`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: false }),
+				workspaceGrouping: matches({ [SessionsViewGroupingContext.key]: SessionsGrouping.Workspace, [`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: true }),
 			}, {
 				composer: true, regularWindow: false, aiDisabled: false, toolbar: false,
 				existingChat: false, empty: false, blocked: false, invalidOptions: false,
-				inboxDisabled: modifier === KeyMod.Alt,
+				workspaceGrouping: modifier === KeyMod.Alt,
 			});
 		});
 	}

@@ -690,6 +690,8 @@ export interface IChatAutoModeResolutionPart {
 	preference?: string;
 	/** The thinking effort the router chose for this turn. */
 	effort?: string;
+	/** The context window a host-side model router asked for, in tokens. */
+	contextSize?: number;
 	/** Display name of the model the router moved off on this turn. */
 	switchedFrom?: string;
 	/** The router had no confident pick and used its first route. */

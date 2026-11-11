@@ -22,7 +22,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
-import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
+import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst, isBooleanQuestion } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -58,17 +58,6 @@ const ANSWERS_VISIBLE_THRESHOLD = 24;
 const ANSWERS_REVEAL_CONTEXT = 32;
 /** How far the scroll body moves for one arrow key press. */
 const BODY_SCROLL_LINE_HEIGHT = 20;
-
-/**
- * Whether the question is a yes/no choice, the shape MCP elicitation and the agent host emit for boolean fields.
- */
-function isBooleanQuestion(question: IChatQuestion): boolean {
-	const options = question.options;
-	return question.type === 'singleSelect'
-		&& options?.length === 2
-		&& options.some(opt => opt.value === 'true')
-		&& options.some(opt => opt.value === 'false');
-}
 
 /**
  * The title renders as one line of inline markdown, so a leading block marker must not start a block:
@@ -173,12 +162,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private _headerActionsContainer: HTMLElement | undefined;
 	private _closeButtonContainer: HTMLElement | undefined;
 	private _footerRow: HTMLElement | undefined;
-	private _footerRightContainer: HTMLElement | undefined;
 	private _stepIndicator: HTMLElement | undefined;
 	private _primaryButton: Button | undefined;
 	private _primaryState: 'nav' | 'action' | undefined;
 	private _primaryAnimations: Animation[] = [];
-	private _showingBooleanButtons = false;
 	private _collapseButton: Button | undefined;
 	private _maximizeButton: Button | undefined;
 	private _bodyScrollable: DomScrollableElement | undefined;
@@ -195,9 +182,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number; optionIndices: number[] }> = new Map();
 	private readonly _multiSelectCheckboxes: Map<string, { checkboxes: Checkbox[]; optionIndices: number[] }> = new Map();
 	private readonly _freeformAnswerEditors: Map<string, ChatQuestionAnswerEditor> = new Map();
+	/** Custom answer text that a selected option overrides, kept so it survives navigating between questions. */
+	private readonly _ignoredFreeformValues = new Map<string, string>();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 	private readonly _questionRenderStore = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _footerPrimaryStore = this._register(new DisposableStore());
 
 	/**
 	 * Disposable store for interactive UI components (header, nav buttons, etc.)
@@ -370,10 +358,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				// Escape closes the suggest widget; leave it to the editor.
 				return;
 			}
-			if (answerEditor && isBooleanQuestion(this.carousel.questions[this._currentIndex])) {
-				// Handled below by leaving the custom answer first.
-				return;
-			}
 			e.preventDefault();
 			e.stopPropagation();
 			this.toggleMaximized();
@@ -390,12 +374,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				// Escape closes the suggest widget; leave it to the editor.
 				return;
 			}
-			if (event.keyCode === KeyCode.Escape && answerEditor && isBooleanQuestion(this.carousel.questions[this._currentIndex])) {
-				// Leaves the custom answer of a boolean question without dismissing the carousel or discarding the text.
-				e.preventDefault();
-				e.stopPropagation();
-				this.domNode.focus();
-			} else if (event.keyCode === KeyCode.Escape && this.carousel.allowSkip) {
+			if (event.keyCode === KeyCode.Escape && this.carousel.allowSkip) {
 				e.preventDefault();
 				e.stopPropagation();
 				this.ignore();
@@ -690,7 +669,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._singleSelectItems.clear();
 		this._multiSelectCheckboxes.clear();
 		this._freeformAnswerEditors.clear();
-		this._footerPrimaryStore.clear();
 		this._focusAnswer = undefined;
 
 		// Clear references to disposed elements
@@ -708,7 +686,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._bodyScrollable = undefined;
 		this._answersContainer = undefined;
 		this._footerRow = undefined;
-		this._footerRightContainer = undefined;
 		this._stepIndicator = undefined;
 	}
 
@@ -1055,7 +1032,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._questionContainer.appendChild(this._validationMessageElement);
 
 		// Render footer before observing so the scroll body is measured against its final available height.
-		this.renderFooter(question);
+		this.renderFooter();
 		// Track whether the body is pinned to the bottom so it stays there when an answer editor grows.
 		let wasAtBottom = false;
 		const isAtBottom = () => {
@@ -1117,9 +1094,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	/**
 	 * Renders or updates the persistent footer: navigation arrows and step indicator on the left,
-	 * the primary action (arrow/Next/Submit or Yes/No) on the right.
+	 * the primary action (arrow/Next/Submit) on the right.
 	 */
-	private renderFooter(question: IChatQuestion): void {
+	private renderFooter(): void {
 		if (!this._footerRow) {
 			const interactiveStore = this._interactiveUIStore.value;
 			if (!interactiveStore) {
@@ -1162,91 +1139,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			this._footerRow.appendChild(leftControls);
 
-			this._footerRightContainer = dom.append(this._footerRow, dom.$('.chat-question-footer-right'));
+			const rightControls = dom.append(this._footerRow, dom.$('.chat-question-footer-right'));
+			this.renderPrimaryButton(rightControls, interactiveStore);
 			this.domNode.append(this._footerRow);
 		}
 
-		this.renderFooterPrimary(question);
-		this.updateFooterState();
-	}
-
-	/**
-	 * Whether the footer answers the question with Yes/No buttons, which a boolean
-	 * question stops doing once the user types a custom answer.
-	 */
-	private shouldShowBooleanButtons(question: IChatQuestion): boolean {
-		return isBooleanQuestion(question) && !this._freeformAnswerEditors.get(question.id)?.value;
-	}
-
-	/**
-	 * Renders the primary footer controls for the given question: Yes/No buttons for
-	 * boolean questions, otherwise a single button that scrolls to the answers, or
-	 * advances to the next question or submits once they are in view.
-	 */
-	private renderFooterPrimary(question: IChatQuestion, animate = false): void {
-		const container = this._footerRightContainer;
-		if (!container) {
-			return;
-		}
-
-		// Re-rendering drops the focused control, so remember where focus was to restore it.
-		const focusedIndex = dom.isAncestorOfActiveElement(container)
-			? Array.from(container.children).findIndex(child => dom.isAncestorOfActiveElement(child))
-			: -1;
-
-		this.cancelPrimaryAnimations();
-		this._footerPrimaryStore.clear();
-		dom.clearNode(container);
-		this._primaryButton = undefined;
 		this._primaryState = undefined;
-		this._showingBooleanButtons = this.shouldShowBooleanButtons(question);
-
-		if (this._showingBooleanButtons) {
-			this.renderBooleanButtons(container, question, this._footerPrimaryStore);
-		} else {
-			this.renderPrimaryButton(container, this._footerPrimaryStore);
-		}
-
-		if (focusedIndex >= 0) {
-			const focusTarget = container.children[Math.min(focusedIndex, container.children.length - 1)];
-			if (dom.isHTMLElement(focusTarget)) {
-				focusTarget.focus();
-			} else {
-				this.domNode.focus();
-			}
-		}
-
-		if (animate && !this._accessibilityService.isMotionReduced()) {
-			for (const child of container.children) {
-				this._primaryAnimations.push(child.animate(
-					[{ transform: 'translateY(4px)', opacity: 0 }, { transform: 'none', opacity: 1 }],
-					{ duration: 160, easing: 'ease-out' }
-				));
-			}
-		}
-	}
-
-	private renderBooleanButtons(container: HTMLElement, question: IChatQuestion, store: DisposableStore): void {
-		const recorded = this._answers.get(question.id);
-		const recordedValue = typeof recorded === 'object' ? (recorded as IChatSingleSelectAnswer).selectedValue : recorded;
-		const defaultOption = typeof question.defaultValue === 'string'
-			? question.options?.find(opt => opt.id === question.defaultValue || opt.value === question.defaultValue)
-			: undefined;
-		const primaryValue = recordedValue ?? defaultOption?.value ?? 'true';
-
-		const entries = [
-			{ value: 'false', label: localize('chat.questionCarousel.no', "No") },
-			{ value: 'true', label: localize('chat.questionCarousel.yes', "Yes") },
-		];
-		for (const { value, label } of entries) {
-			const button = store.add(new Button(container, { ...defaultButtonStyles, small: true, secondary: value !== primaryValue }));
-			button.label = label;
-			store.add(button.onDidClick(() => {
-				this._answers.set(question.id, { selectedValue: value, freeformValue: undefined } satisfies IChatSingleSelectAnswer);
-				this.persistDraftState();
-				this.handleNextOrSubmit();
-			}));
-		}
+		this.updatePrimaryState();
+		this.updateFooterState();
 	}
 
 	private renderPrimaryButton(container: HTMLElement, store: DisposableStore): void {
@@ -1261,7 +1161,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}));
 		store.add(toDisposable(() => this.cancelPrimaryAnimations()));
 		this._primaryButton = button;
-		this.updatePrimaryState();
 	}
 
 	private getPrimaryActionLabel(): string {
@@ -1390,9 +1289,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				this.carousel.questions.length
 			);
 		}
-		if (question && this._footerRightContainer && this.shouldShowBooleanButtons(question) !== this._showingBooleanButtons) {
-			this.renderFooterPrimary(question, true);
-		}
 	}
 
 	private getLabelWithKeybinding(label: string, actionId: string): string {
@@ -1403,13 +1299,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderInput(container: HTMLElement, question: IChatQuestion): void {
-		if (isBooleanQuestion(question)) {
-			// Answered with the footer Yes/No buttons, with an optional custom answer unless free-form input is disallowed.
-			if (question.allowFreeformInput !== false) {
-				this.renderBooleanFreeform(container, question);
-			}
-			return;
-		}
 		switch (question.type) {
 			case 'text':
 				this.renderTextInput(container, question);
@@ -1426,11 +1315,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Creates an answer editor in the container, tied to the lifetime of the rendered question.
 	 */
-	private createAnswerEditor(container: HTMLElement, placeholder: string, initialValue: string | undefined, overrides?: { readonly idlePlaceholder: string; readonly ariaLabel: string }): ChatQuestionAnswerEditor {
+	private createAnswerEditor(container: HTMLElement, placeholder: string, initialValue: string | undefined): ChatQuestionAnswerEditor {
 		const editor = this._inputBoxes.add(this._instantiationService.createInstance(ChatQuestionAnswerEditor, container, {
 			placeholder,
-			idlePlaceholder: overrides?.idlePlaceholder,
-			ariaLabel: overrides?.ariaLabel ?? placeholder,
+			ariaLabel: placeholder,
 			initialValue,
 			sessionResource: this._options.sessionResource ?? this._context?.element?.sessionResource,
 			overflowWidgetsDomNode: this._options.editorOverflowWidgetsDomNode,
@@ -1438,29 +1326,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._inputBoxes.add(editor.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._inputBoxes.add(editor.onDidPressEnter(() => this.handleNextOrSubmit()));
 		return editor;
-	}
-
-	/**
-	 * Renders the custom answer editor of a boolean question. While idle it is a borderless "Something else…" row
-	 * that takes on the input style once focused or filled in, so nothing shifts when the user starts typing.
-	 */
-	private renderBooleanFreeform(container: HTMLElement, question: IChatQuestion): void {
-		const previousAnswer = this._answers.get(question.id);
-		const previousFreeform = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { selectedValue: true })
-			? (previousAnswer as IChatSingleSelectAnswer).freeformValue
-			: undefined;
-
-		const freeformEditor = this.createAnswerEditor(container, localize('chat.questionCarousel.describeAnswer', "Describe your answer"), previousFreeform, {
-			idlePlaceholder: localize('chat.questionCarousel.somethingElse', "Something else…"),
-			ariaLabel: localize('chat.questionCarousel.somethingElseLabel', "Something else"),
-		});
-		this._inputBoxes.add(freeformEditor.onDidChangeValue(() => this.saveCurrentAnswer()));
-		this._freeformAnswerEditors.set(question.id, freeformEditor);
-		this._focusAnswer = () => freeformEditor.focus();
-
-		if (previousFreeform && this._shouldAutoFocus()) {
-			this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(container), () => freeformEditor.focus()));
-		}
 	}
 
 	private renderTextInput(container: HTMLElement, question: IChatQuestion): void {
@@ -1483,6 +1348,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
+		const booleanQuestion = isBooleanQuestion(question);
 		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		container.appendChild(selectContainer);
@@ -1531,9 +1397,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const listItems: HTMLElement[] = [];
 		orderedOptions.forEach(({ option }, index) => {
+			const optionLabel = booleanQuestion
+				? (option.value === 'true' ? localize('chat.questionCarousel.yes', "Yes") : localize('chat.questionCarousel.no', "No"))
+				: option.label;
 			const listItem = dom.$('.chat-question-list-item');
 			listbox.addOption(listItem, `option-${question.id}`);
-			listItem.setAttribute('aria-label', localize('chat.questionCarousel.optionLabel', "Option {0}: {1}", index + 1, option.label));
+			listItem.setAttribute('aria-label', localize('chat.questionCarousel.optionLabel', "Option {0}: {1}", index + 1, optionLabel));
 
 			const number = dom.$('.chat-question-list-number');
 			number.textContent = `${index + 1}`;
@@ -1544,36 +1413,32 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// Label with optional description (format: "Title - Description")
 			const label = dom.$('.chat-question-list-label');
-			const separatorIndex = option.label.indexOf(' - ');
+			const separatorIndex = optionLabel.indexOf(' - ');
 			if (separatorIndex !== -1) {
 				listItem.classList.add('has-description');
 				const titleSpan = dom.$('span.chat-question-list-label-title');
-				titleSpan.textContent = option.label.substring(0, separatorIndex);
+				titleSpan.textContent = optionLabel.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
 				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = option.label.substring(separatorIndex + 3);
+				descSpan.textContent = optionLabel.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
-				label.textContent = option.label;
+				label.textContent = optionLabel;
 			}
 			listItem.appendChild(label);
 			listItem.appendChild(indicator);
 
-			// if we select an option, clear text and go to next question
+			// Selecting an option answers with it, ignoring any custom answer, and goes to the next question
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
 				updateSelection(index);
-				const freeform = this._freeformAnswerEditors.get(question.id);
-				if (freeform) {
-					freeform.value = '';
-				}
 				this.handleNextOrSubmit();
 			}));
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {
-				content: option.label,
+				content: optionLabel,
 				position: { hoverPosition: HoverPosition.BELOW },
 				appearance: { showPointer: true }
 			}));
@@ -1582,7 +1447,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			listItems.push(listItem);
 		});
 
-		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) });
+		const selectionData = { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) };
+		this._singleSelectItems.set(question.id, selectionData);
 
 		// Paints the initial row and points `aria-activedescendant` at it. Deliberately not
 		// `updateSelection`, which would commit an answer the user has not given yet.
@@ -1598,8 +1464,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			freeformContainer.appendChild(freeformNumber);
 			container.appendChild(freeformContainer);
 
-			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform);
+			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform ?? this._ignoredFreeformValues.get(question.id));
 			freeformEditor = capturedFreeform;
+			// The saved answer leaves out text that a selected option overrides, so keep it here when the question is unrendered.
+			this._inputBoxes.add(toDisposable(() => {
+				if (selectionData.selectedIndex >= 0 && capturedFreeform.value) {
+					this._ignoredFreeformValues.set(question.id, capturedFreeform.value);
+				} else {
+					this._ignoredFreeformValues.delete(question.id);
+				}
+			}));
 
 			// clear when we start typing in freeform
 			this._inputBoxes.add(capturedFreeform.onDidChangeValue(value => {
@@ -1607,6 +1481,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					updateSelection(-1);
 				} else {
 					this.saveCurrentAnswer();
+				}
+			}));
+
+			// Up from the start of the custom answer selects the last option instead, keeping the text
+			this._inputBoxes.add(capturedFreeform.onDidPressUpAtStart(() => {
+				if (listItems.length) {
+					updateSelection(listItems.length - 1);
+					listbox.focus();
 				}
 			}));
 
@@ -1622,7 +1504,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 			let newIndex = data.selectedIndex;
 
-			if (event.keyCode === KeyCode.DownArrow) {
+			if (event.keyCode === KeyCode.DownArrow && freeformEditor && data.selectedIndex === listItems.length - 1) {
+				// Down from the last option moves on to the custom answer
+				e.preventDefault();
+				updateSelection(-1);
+				freeformEditor.focus();
+				return;
+			} else if (event.keyCode === KeyCode.DownArrow) {
 				e.preventDefault();
 				newIndex = listbox.clampedIndex(data.selectedIndex + 1);
 			} else if (event.keyCode === KeyCode.UpArrow) {
@@ -1794,6 +1682,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const capturedFreeform = this.createAnswerEditor(freeformContainer, localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'), previousFreeform);
 			freeformEditor = capturedFreeform;
 			this._inputBoxes.add(capturedFreeform.onDidChangeValue(() => this.saveCurrentAnswer()));
+			// Up from the start of the custom answer moves to the last option, keeping the custom answer
+			this._inputBoxes.add(capturedFreeform.onDidPressUpAtStart(() => {
+				if (listItems.length) {
+					focusedIndex = listItems.length - 1;
+					listItems[focusedIndex].focus();
+				}
+			}));
 
 			this._freeformAnswerEditors.set(question.id, capturedFreeform);
 		}
@@ -1807,7 +1702,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				return;
 			}
 
-			if (event.keyCode === KeyCode.DownArrow) {
+			if (event.keyCode === KeyCode.DownArrow && freeformEditor && focusedIndex === listItems.length - 1) {
+				// Down from the last option moves on to the custom answer
+				e.preventDefault();
+				freeformEditor.focus();
+			} else if (event.keyCode === KeyCode.DownArrow) {
 				e.preventDefault();
 				focusedIndex = Math.min(focusedIndex + 1, listItems.length - 1);
 				listItems[focusedIndex].focus();
@@ -1868,39 +1767,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 
 			case 'singleSelect': {
-				if (isBooleanQuestion(question)) {
-					// Yes/No is recorded by the footer buttons; only a custom answer is read from the editor.
-					const customAnswer = this._freeformAnswerEditors.get(question.id)?.value;
-					if (customAnswer) {
-						return { selectedValue: undefined, freeformValue: customAnswer } satisfies IChatSingleSelectAnswer;
-					}
-					const recorded = this._answers.get(question.id);
-					if (recorded === undefined) {
-						// The footer highlights the default, so it counts as the answer until the user picks.
-						return this.getDefaultAnswerForQuestion(question);
-					}
-					// A custom answer that was cleared is no longer an answer.
-					return typeof recorded === 'object' && recorded !== null && hasKey(recorded, { selectedValue: true }) && (recorded as IChatSingleSelectAnswer).freeformValue
-						? undefined
-						: recorded;
-				}
+				// A selected option wins over the custom answer, which typing in it deselects; the text is kept but ignored.
 				const data = this._singleSelectItems.get(question.id);
 				let selectedValue: string | undefined = undefined;
 				if (data && data.selectedIndex >= 0) {
 					const originalIndex = data.optionIndices[data.selectedIndex];
 					selectedValue = originalIndex !== undefined ? question.options?.[originalIndex]?.value : undefined;
 				}
+
+				const freeformValue = this._freeformAnswerEditors.get(question.id)?.value || undefined;
+				if (selectedValue === undefined && freeformValue) {
+					return { selectedValue: undefined, freeformValue } satisfies IChatSingleSelectAnswer;
+				}
 				// Find default option if nothing selected (defaultValue is the option id)
 				if (selectedValue === undefined && typeof question.defaultValue === 'string') {
 					const defaultOption = question.options?.find(opt => opt.id === question.defaultValue);
 					selectedValue = defaultOption?.value;
-				}
-
-				// For single-select: if freeform is provided, use ONLY freeform (ignore selection)
-				const freeformValue = this._freeformAnswerEditors.get(question.id)?.value || undefined;
-				if (freeformValue) {
-					// Freeform takes priority - ignore selectedValue
-					return { selectedValue: undefined, freeformValue } satisfies IChatSingleSelectAnswer;
 				}
 				if (selectedValue !== undefined) {
 					return { selectedValue, freeformValue: undefined } satisfies IChatSingleSelectAnswer;

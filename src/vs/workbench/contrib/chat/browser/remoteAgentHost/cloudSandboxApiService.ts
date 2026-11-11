@@ -434,6 +434,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				});
 			}
 			this._telemetry.reportRequest('mintIdentityToken', 'networkError');
+			if (error instanceof GitHubRequestError && error.kind === 'network') {
+				throw new CloudSandboxNetworkError(localize('cloudSandbox.identityNetworkFailed', "The sandbox identity-token request failed because of a network error."));
+			}
 			throw new Error(localize('cloudSandbox.identityClientFailed', "The sandbox identity-token request failed or returned an invalid response."));
 		} finally {
 			store.dispose();

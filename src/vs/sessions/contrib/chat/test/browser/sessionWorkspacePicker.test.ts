@@ -1430,6 +1430,53 @@ suite('WorkspacePicker - Environment', () => {
 		}
 	}
 
+	for (const remote of [false, true]) {
+		test(`keeps repository and context actions available in ${remote ? 'remote' : 'local'} environments when Cloud has no creatable types`, async () => {
+			const providers = disposables.add(new MockSessionsProvidersService());
+			const execution = createMockProvider(remote ? 'remote' : 'local-agent-host');
+			const folder = remote ? URI.parse('vscode-agent-host://host/project') : URI.file('/agent-host/project');
+			const environment: ISessionCreationEnvironment = {
+				id: execution.id, kind: remote ? 'remote' : 'local', label: remote ? 'Remote' : 'This Computer',
+				icon: Codicon.remote, providerIds: [execution.id],
+			};
+			const repositoryRoot = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+			const repository = { ...createMockProvider('github').resolveWorkspace(repositoryRoot)!, group: SESSION_WORKSPACE_GROUP_GITHUB };
+			const actions = ['Work in Repository...', 'Issue...', 'Pull Request...'].map((label, index) => ({
+				...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, label),
+				attachesContext: index > 0,
+				run: async () => ({ ...repository, label }),
+			}));
+			providers.setProviders([
+				{ ...execution, supportsLocalWorkspaces: !remote, cloneRepository: async () => execution.resolveWorkspace(folder)! },
+				{ ...createMockProvider('github', { browseActions: actions }), supportsLocalWorkspaces: true, sessionTypes: [] },
+			]);
+			const canSelect: (string | undefined)[] = [];
+			const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+				environment: constObservable(environment), restoreFromSessions: false, configuration: {},
+				commandService: { executeCommand: async <T>() => folder.fsPath as T },
+				canSelectWorkspace: async (_uri, providerId) => { canSelect.push(providerId); return true; },
+			});
+			assert.ok(picker instanceof DispatchingWorkspacePicker);
+			const browseActions = picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label);
+			const attached: string[] = [];
+			disposables.add(picker.onDidSelectContext(context => attached.push(context.label)));
+			const accepted: boolean[] = [];
+			for (const action of actions) {
+				accepted.push(await picker.dispatchItem({ browseAction: action }));
+			}
+			assert.deepStrictEqual({
+				browseActions, accepted, attached, canSelect,
+				folder: picker.selectedFolderUri?.toString(),
+				provider: picker.selectedResolved?.providerId,
+			}, {
+				browseActions: [...(remote ? [] : ['Open Folder...']), 'Work in Repository', 'Issue', 'Pull Request'],
+				accepted: [true, true, true], attached: ['Issue...', 'Pull Request...'],
+				canSelect: [execution.id, 'github', 'github'],
+				folder: folder.toString(), provider: execution.id,
+			});
+		});
+	}
+
 	test('reports failed container checks separately from unsupported folders', async () => {
 		const expectedError = new Error('container detection failed');
 		const errors: Error[] = [];

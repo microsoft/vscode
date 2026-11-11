@@ -12,6 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 import { isVisibleOnboardingTarget, registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -20,6 +21,7 @@ import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenar
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { isModeConsideredBuiltIn } from '../widget/input/modePickerActionItem.js';
 
 export const AGENT_PICKER_SPOTLIGHT_ID = 'chat.onboarding.agentPickerInAttachContext';
 
@@ -29,6 +31,7 @@ export class AgentPickerSpotlight extends Disposable {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		const enabled = observableConfigValue(ChatConfiguration.AgentsPickerInAttachContextMenu, false, configurationService);
@@ -54,13 +57,21 @@ export class AgentPickerSpotlight extends Disposable {
 				return widget.domNode.ownerDocument === mainWindow.document && widget.visible && widget.inputPart.isAgentPickerInAttachContextMenu;
 			});
 		});
-		this._register(registerAgentPickerSpotlight(eligibleChats));
+		this._register(registerAgentPickerSpotlight(eligibleChats, productService));
 	}
 }
 
-/** Shares the tip and shown-once state between the editor and Agents-window picker owners. */
-export function registerAgentPickerSpotlight(eligibleChats: IObservable<readonly IChatWidget[]>): IDisposable {
+/** Shares the tip and shown-once state for composers with custom agents in either window. */
+export function registerAgentPickerSpotlight(chats: IObservable<readonly IChatWidget[]>, productService: IProductService): IDisposable {
 	const store = new DisposableStore();
+	const modesChanged = derived(store, reader => observableSignalFromEvent(store, Event.any(
+		...chats.read(reader).map(widget => widget.inputPart.currentChatModesObs.read(reader).onDidChange),
+	)));
+	const eligibleChats = derived(store, reader => {
+		modesChanged.read(reader).read(reader);
+		return chats.read(reader).filter(widget => widget.inputPart.currentChatModesObs.read(reader).custom
+			.some(mode => !isModeConsideredBuiltIn(mode, productService)));
+	});
 	const targetReady = observableValue(store, false);
 	store.add(registerOnboardingTargetProvider(AGENT_PICKER_SPOTLIGHT_ID, scope => {
 		const widget = eligibleChats.get().find(widget => {

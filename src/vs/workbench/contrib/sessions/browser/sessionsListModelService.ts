@@ -370,7 +370,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (state) {
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
-		return attention?.isHistoricalCompletion ? { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds } : undefined;
+		if (attention?.isHistoricalCompletion) {
+			const unreadToday = !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
+			if (!unreadToday) {
+				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
+			}
+		}
+		return undefined;
 	}
 
 	setInboxState(sessions: readonly ISession[], action: SessionInboxAction): () => void {

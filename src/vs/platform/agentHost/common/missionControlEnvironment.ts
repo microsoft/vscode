@@ -28,7 +28,12 @@ export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experi
 export const MissionControlUseLocalCredentialsConfigKey = 'missionControlUseLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
 export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
+export const MissionControlOwnerMismatchErrorCode = 'MissionControlOwnerMismatch';
 export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';
+
+export class MissionControlOwnerMismatchError extends Error {
+	readonly code = MissionControlOwnerMismatchErrorCode;
+}
 
 export function isGitHubEnvironmentBackend(backend: AgentHostRemoteConnectionsBackend): boolean {
 	return backend === 'githubEnvironment' || backend === 'missionControl';
@@ -43,6 +48,7 @@ export interface IMissionControlSharingService {
 	/** Machine-local name override used when registering this environment. */
 	readonly environmentName: IObservable<string | undefined>;
 	setEnvironmentName(name: string): Promise<void>;
+	/** Enabling waits for the latest configuration and bounded transient retries; disabling cancels pending enablement. */
 	setEnabled(enabled: boolean): Promise<void>;
 	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
 	setProjectFolders(folders: readonly URI[]): void;

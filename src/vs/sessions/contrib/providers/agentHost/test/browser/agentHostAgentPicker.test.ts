@@ -25,13 +25,13 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { IChatContextPickService } from '../../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatMode, IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode, IChatModes } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { INewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
-import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestProductService, TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -72,8 +72,10 @@ suite('agentHostAgentPicker', () => {
 			const button = dom.append(root, dom.$('button'));
 			button.style.cssText = 'width: 28px; height: 28px;';
 			disposables.add(toDisposable(() => root.remove()));
+			const modes = observableValue('modes', upcastPartial<IChatModes>({ custom: [], onDidChange: Event.None }));
 			const input = upcastPartial<ChatInputPart>({
 				currentModeObs: derived(reader => ({ ...ChatMode.Agent, isBuiltin: true, id: mode.read(reader)?.id ?? ChatMode.Agent.id })),
+				currentChatModesObs: modes,
 				attachContextButtonElement: button,
 				onDidChangeAttachContextButton: Event.None,
 				onDidActivateAttachContext: Event.None,
@@ -100,10 +102,16 @@ suite('agentHostAgentPicker', () => {
 				new TestExperimentTriggerTelemetryService(),
 				upcastPartial<INewSessionComposerService>({}),
 				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+				TestProductService,
 			));
 			const scenario = onboardingScenarioRegistry.getScenario(AGENT_PICKER_SPOTLIGHT_ID)!;
 			const ready = () => scenario.trigger.kind === 'observable' && scenario.trigger.signal.get();
 			const frame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(button), resolve)));
+			await frame();
+			const noCustomAgents = ready();
+			modes.set(upcastPartial<IChatModes>({
+				custom: [{ ...ChatMode.Agent, id: alpha.uri, isBuiltin: false }], onDidChange: Event.None,
+			}), undefined);
 			await frame();
 			const defaultAgent = ready();
 			mode.set({ id: alpha.uri, kind: 'agent' }, undefined);
@@ -115,8 +123,8 @@ suite('agentHostAgentPicker', () => {
 			const mobile = ready();
 			phone.set(false);
 			await frame();
-			assert.deepStrictEqual({ defaultAgent, customAgent, returnedToDefault, mobile, desktop: ready() }, {
-				defaultAgent: true, customAgent: false, returnedToDefault: true, mobile: false, desktop: true,
+			assert.deepStrictEqual({ noCustomAgents, defaultAgent, customAgent, returnedToDefault, mobile, desktop: ready() }, {
+				noCustomAgents: false, defaultAgent: true, customAgent: false, returnedToDefault: true, mobile: false, desktop: true,
 			});
 		});
 	}
@@ -344,6 +352,7 @@ suite('agentHostAgentPicker', () => {
 					new TestExperimentTriggerTelemetryService(),
 					upcastPartial<INewSessionComposerService>({ notifyUserAgentSelection: ({ sessionId, agent }) => userSelections.push(`${sessionId} ${agent?.uri ?? 'default'}`) }),
 					upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
+					TestProductService,
 				));
 				const snapshot = () => ({
 					mode: activeSession.get()?.mode.get()?.id,

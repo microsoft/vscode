@@ -18852,9 +18852,15 @@ suite('CopilotAgent', () => {
 		test('a session reported as changed after its validation is retried instead of retired', async () => {
 			const started = new DeferredPromise<void>();
 			const release = new DeferredPromise<void>();
+			let waiting = 0;
 			const gitService = new class extends TestAgentHostGitService {
 				override async getRepositoryRoot(workingDirectory?: URI): Promise<URI | undefined> {
-					started.complete();
+					// Each session has its own working directory, so both wait here, past their preparation. Otherwise a
+					// session still preparing when the change is reported reads its files then, before the first one's
+					// validation, and the first one is rightly published.
+					if (++waiting === 2) {
+						started.complete();
+					}
 					await release.p;
 					return workingDirectory;
 				}
@@ -18882,10 +18888,12 @@ suite('CopilotAgent', () => {
 			try {
 				for (const directory of [validated, revalidating]) {
 					const id = basename(directory.fsPath);
+					const workingDirectory = URI.joinPath(context.userHome, 'work', id);
 					await fs.mkdir(directory.fsPath);
+					await fs.mkdir(workingDirectory.fsPath, { recursive: true });
 					await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
 					await writeExtensionHostMarker(context.userHome, id, { origin: 'vscode' });
-					sessions.push(sdkSession(id, context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
+					sessions.push(sdkSession(id, workingDirectory.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
 				}
 				const initial = context.agent.startChatDiscovery();
 				await started.p;
@@ -22979,7 +22987,7 @@ suite('CopilotAgent', () => {
 				clientToken: undefined,
 				configToken: 'connector-session-token',
 				hasTokenProvider: false,
-				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, MCP_SKILLS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, MCP_SKILLS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 			});
 		});
 

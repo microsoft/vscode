@@ -275,7 +275,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`, testDirectory);
 		preserveAgentHostE2ELogs(directory, directory, destination, title);
 		writeFileSync(join(destination, 'prompt-contexts.json'), JSON.stringify(modelTraffic.map(({ probe, instructions, environment, ancestorInstructions, workspaceSkill }) =>
-			({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
+		({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
 	}
 
 	async function createScope(token: string): Promise<AgentHostAuthenticationScope> {

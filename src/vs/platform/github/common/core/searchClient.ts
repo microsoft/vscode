@@ -80,6 +80,8 @@ const parseRepositorySearch = parse.object<SearchPage<RepositorySearchItem>>({
 		...repositoryIdentitySchema,
 		owner: parse.nullable(parseAccount),
 		default_branch: parse.string,
+		clone_url: parse.nonEmptyString,
+		ssh_url: parse.nonEmptyString,
 		language: parse.nullable(parse.string),
 		stargazers_count: parse.nonNegativeInteger,
 		score: parse.finiteNumber,
