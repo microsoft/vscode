@@ -17,11 +17,17 @@ import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegist
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Mutable } from '../../../../base/common/types.js';
 
+/**
+ * Listing this in `product.json#extensionEnabledApiProposals` lets the extension
+ * use every API proposal it declares in its `package.json`.
+ */
+const anyApiProposal = '*';
+
 export class ExtensionsProposedApi {
 
 	private readonly _envEnablesProposedApiForAll: boolean;
 	private readonly _envEnabledExtensions: Set<string>;
-	private readonly _productEnabledExtensions: Map<string, string[]>;
+	private readonly _productEnabledExtensions: Map<string, string[] | typeof anyApiProposal>;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -36,13 +42,17 @@ export class ExtensionsProposedApi {
 			(_environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
 			(this._envEnabledExtensions.size === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
-		this._productEnabledExtensions = new Map<string, ApiProposalName[]>();
+		this._productEnabledExtensions = new Map();
 
 
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
 			for (const [k, value] of Object.entries(productService.extensionEnabledApiProposals)) {
 				const key = ExtensionIdentifier.toKey(k);
+				if (value.includes(anyApiProposal)) {
+					this._productEnabledExtensions.set(key, anyApiProposal);
+					continue;
+				}
 				const proposalNames = value.filter(name => {
 					if (!allApiProposals[<ApiProposalName>name]) {
 						_logService.warn(`Via 'product.json#extensionEnabledApiProposals' extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
@@ -77,12 +87,17 @@ export class ExtensionsProposedApi {
 		}
 
 
-		if (this._productEnabledExtensions.has(key)) {
+		const productEnabledProposals = this._productEnabledExtensions.get(key);
+
+		if (productEnabledProposals === anyApiProposal) {
+			// product.json allows any proposal, so the extension uses what it declares
+			return;
+		}
+
+		if (productEnabledProposals) {
 			// NOTE that proposals that are listed in product.json override whatever is declared in the extension
 			// itself. This is needed for us to know what proposals are used "in the wild". Merging product.json-proposals
 			// and extension-proposals would break that.
-
-			const productEnabledProposals = this._productEnabledExtensions.get(key)!;
 
 			// check for difference between product.json-declaration and package.json-declaration
 			const productSet = new Set(productEnabledProposals);

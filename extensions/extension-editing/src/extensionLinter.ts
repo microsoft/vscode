@@ -161,7 +161,7 @@ export class ExtensionLinter {
 				if (publisher?.type === 'string' && name?.type === 'string' && enabledApiProposals?.type === 'array') {
 					const extensionId = `${getNodeValue(publisher)}.${getNodeValue(name)}`;
 					const effectiveProposalNames = extensionEnabledApiProposals[extensionId];
-					if (Array.isArray(effectiveProposalNames) && enabledApiProposals.children) {
+					if (Array.isArray(effectiveProposalNames) && !effectiveProposalNames.includes('*') && enabledApiProposals.children) {
 						for (const child of enabledApiProposals.children) {
 							const proposalName = child.type === 'string' ? getNodeValue(child) : undefined;
 							if (typeof proposalName === 'string' && !effectiveProposalNames.includes(proposalName.split('@')[0])) {
