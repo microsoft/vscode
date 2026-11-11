@@ -4113,6 +4113,36 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('disabling a shared automation warns that the change affects other users', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({ ownership: 'repository' });
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.disable');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		dialogService.confirmResult = { confirmed: true };
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual({
+			confirmations: dialogService.confirmations,
+			updateCalls: automationService.guardedUpdateCalls,
+		}, {
+			confirmations: [{
+				type: 'warning',
+				message: 'Disable automation "Daily review"?',
+				detail: 'WARNING: This is a shared automation, this will disable it for everyone in this repository.',
+				primaryButton: 'Disable',
+			}, {
+				type: 'warning',
+				message: 'Disable automation "Daily review"?',
+				detail: 'WARNING: This is a shared automation, this will disable it for everyone in this repository.',
+				primaryButton: 'Disable',
+			}],
+			updateCalls: [{ id: source.id, patch: { enabled: false }, expected: source }],
+		});
+	});
+
 	test('disable conflicts are logged and reported to the user', async () => {
 		const { automationService, dialogService, instantiationService, logService } = setup();
 		const source = automation();
@@ -4213,6 +4243,30 @@ suite('AutomationsCardsWidget', () => {
 			deleteCalls: [source.id],
 			automations: [],
 			runs: [],
+		});
+	});
+
+	test('deleting a shared automation warns that the change affects other users', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({ ownership: 'repository' });
+		automationService.setAutomations([source]);
+		dialogService.confirmResult = { confirmed: true };
+		const command = CommandsRegistry.getCommand('sessions.automations.delete');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual({
+			confirmation: dialogService.confirmations[0],
+			deleteCalls: automationService.deleteCalls,
+		}, {
+			confirmation: {
+				type: 'warning',
+				message: 'Delete automation "Daily review"?',
+				detail: 'WARNING: This is a shared automation, this will delete it for everyone in this repository.\n\nThis will permanently delete the automation and its run history.',
+				primaryButton: 'Delete',
+			},
+			deleteCalls: [source.id],
 		});
 	});
 
