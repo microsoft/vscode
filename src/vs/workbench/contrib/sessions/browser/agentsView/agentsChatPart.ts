@@ -45,6 +45,7 @@ import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
+import { IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsView.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
@@ -181,6 +182,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _part: IContentPart | undefined;
 	private readonly _partStore = this._register(new DisposableStore());
 	private readonly _chats = this._register(new DisposableMap<EditorInput, AgentsChatPartChat>());
+	/** Set while tabs change other than as the user picks one: as chats restore, open or close. Only a picked tab moves the window's folder. */
+	private _restoringChats = false;
+	private _openingChat = false;
+	private _closingTabs = 0;
 	private _composers: ChatWindowComposers | undefined;
 	private readonly _window: IChatEditorWindow;
 	private _restored = false;
@@ -201,6 +206,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentsViewFolderLocationService private readonly _folderLocationService: IAgentsViewFolderLocationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -260,6 +266,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const resource = chatResource ?? session.mainChat.get().resource;
 		const chat = this._findChat(resource) ?? this._addChat(resource, undefined);
 		await this._open(chat, options);
+		if (!this._restoringChats) {
+			// Opening a session moves the window's folder to where it works, when that is one of the folder's locations
+			void this._folderLocationService.switchToSession(session);
+		}
 	}
 
 	async openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> {
@@ -355,6 +365,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	private async _restoreChats(): Promise<void> {
+		this._restoringChats = true;
+		try {
+			await this._doRestoreChats();
+		} finally {
+			this._restoringChats = false;
+		}
+	}
+
+	private async _doRestoreChats(): Promise<void> {
 		const stored = this._readStored();
 		const claimed: URI[] = [];
 		const chats: AgentsChatPartChat[] = [];
@@ -411,7 +430,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._layoutService.setPartHidden(false, Parts.CHAT_PART);
 		const group = this._groupOf(chat.input)
 			?? (options?.sideBySide && !part.activeGroup.isEmpty ? part.addGroup(part.activeGroup, GroupDirection.RIGHT) : part.activeGroup);
-		await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
+		this._openingChat = true;
+		try {
+			await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
+		} finally {
+			this._openingChat = false;
+		}
 		this.composers.didOpen([chat.chat.get()]);
 	}
 
@@ -483,17 +507,39 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// The active tab is the window's active chat
 		const groupListeners = this._partStore.add(new DisposableMap<IEditorGroup>());
 		const updateActive = () => this._activeInput.set(part.activeGroup.activeEditor ?? undefined, undefined);
-		const trackGroup = (group: IEditorGroup) => groupListeners.set(group, Event.any(group.onDidActiveEditorChange, group.onDidCloseEditor)(() => {
-			updateActive();
-			this._hideIfEmpty();
-		}));
+		const trackGroup = (group: IEditorGroup) => {
+			const listeners = new DisposableStore();
+			listeners.add(Event.any(group.onDidActiveEditorChange, group.onDidCloseEditor)(() => {
+				updateActive();
+				this._hideIfEmpty();
+			}));
+			// A tab that becomes active as another closes was not picked
+			listeners.add(group.onWillCloseEditor(() => this._closingTabs++));
+			listeners.add(group.onDidCloseEditor(() => queueMicrotask(() => this._closingTabs = Math.max(0, this._closingTabs - 1))));
+			listeners.add(group.onDidActiveEditorChange(() => this._onDidPickTab(group)));
+			groupListeners.set(group, listeners);
+		};
 		part.groups.forEach(trackGroup);
 		this._partStore.add(part.onDidAddGroup(trackGroup));
 		this._partStore.add(part.onDidRemoveGroup(group => groupListeners.deleteAndDispose(group)));
-		this._partStore.add(part.onDidChangeActiveGroup(updateActive));
+		this._partStore.add(part.onDidChangeActiveGroup(group => {
+			updateActive();
+			this._onDidPickTab(group);
+		}));
 		updateActive();
 
 		return part;
+	}
+
+	/** A tab the user picked shows its session: the window's folder moves to where that session works, as opening it does. */
+	private _onDidPickTab(group: IEditorGroup): void {
+		if (this._restoringChats || this._openingChat || this._closingTabs > 0 || !group.activeEditor) {
+			return;
+		}
+		const session = this._chats.get(group.activeEditor)?.shown.get()?.session;
+		if (session) {
+			void this._folderLocationService.switchToSession(session);
+		}
 	}
 
 	/** Closing the last chat closes the chat part, which gives the editor area its width back. */
