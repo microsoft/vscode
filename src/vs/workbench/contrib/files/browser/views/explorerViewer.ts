@@ -11,6 +11,7 @@ import { IProgressService, ProgressLocation, } from '../../../../../platform/pro
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -819,6 +820,13 @@ export interface IFileTemplateData {
 	currentContext?: ExplorerItem;
 }
 
+/**
+ * The label of an Explorer root: while its folder is at an alternate location, the location is appended to the name.
+ */
+export function getExplorerRootLabel(name: string, primaryUri: URI | undefined, locationLabel: string | undefined): string {
+	return primaryUri && locationLabel ? localize('explorerRootAtLocation', "{0} ({1})", name, locationLabel) : name;
+}
+
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
@@ -839,6 +847,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -907,7 +916,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+			this.renderStat(stat, stat.isRoot ? getExplorerRootLabel(stat.name, this.contextService.getWorkspaceFolder(stat.resource)?.primaryUri, this.folderLocationService.currentLocation?.label) : stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
