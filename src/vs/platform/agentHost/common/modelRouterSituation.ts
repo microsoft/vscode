@@ -35,12 +35,16 @@ export interface IModelRouterSituation {
 }
 
 function attachmentKind(attachment: MessageAttachment): string {
+	// Selected lines are counted for selections, whatever else the attachment is called.
+	if ((attachment.type === MessageAttachmentKind.Resource || attachment.type === MessageAttachmentKind.EmbeddedResource) && attachment.selection) {
+		return 'selection';
+	}
 	if (attachment.displayKind) {
 		return attachment.displayKind;
 	}
 	switch (attachment.type) {
-		case MessageAttachmentKind.EmbeddedResource: return attachment.contentType.startsWith('image/') ? 'image' : attachment.selection ? 'selection' : 'document';
-		case MessageAttachmentKind.Resource: return attachment.contentType?.startsWith('image/') ? 'image' : attachment.selection ? 'selection' : 'document';
+		case MessageAttachmentKind.EmbeddedResource: return attachment.contentType.startsWith('image/') ? 'image' : 'document';
+		case MessageAttachmentKind.Resource: return attachment.contentType?.startsWith('image/') ? 'image' : 'document';
 		case MessageAttachmentKind.Annotations: return 'set of review comments';
 		case MessageAttachmentKind.Chat: return 'chat transcript';
 		default: return 'attachment';

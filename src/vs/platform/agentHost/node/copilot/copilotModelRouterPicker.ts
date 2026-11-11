@@ -15,6 +15,9 @@ const DECISION_TIMEOUT_MS = 5000;
 export const modelRouterRequestLimits = {
 	prompt: 32 * 1024,
 	recentTurn: 8 * 1024,
+	/** Facts about the request: each one line of at most this many characters, and at most this many of them. */
+	situationLine: 400,
+	situationLines: 8,
 	/** The whole request; the runtime rejects more than 256 KiB. */
 	request: 200 * 1024,
 } as const;
@@ -98,7 +101,9 @@ export function truncateToEscapedBytes(text: string, maxBytes: number): string {
 
 export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest): IAgentDecisionsRequest {
 	const { followUp } = request;
-	let situation = request.situation?.length ? request.situation : undefined;
+	// Each fact stays one bounded line, so none can pose as another or crowd out the message.
+	const facts = (request.situation ?? []).map(line => line.replace(/\s+/g, ' ').trim().slice(0, modelRouterRequestLimits.situationLine)).filter(line => line).slice(0, modelRouterRequestLimits.situationLines);
+	let situation = facts.length ? facts : undefined;
 	const routes = request.candidates.map(candidate => `${candidate.name}: ${describeRoute(candidate)}`).join('\n');
 	const guidance = request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : '';
 	const options = rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}${candidate.facts ? ` (${candidate.facts})` : ''}. Use for: ${describeRoute(candidate)}` }));
@@ -133,7 +138,7 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 	});
 	let built = build();
 	// The caps above keep requests well under the limit; this only guards against long route text.
-	// The facts about the request go before any of the user's message does.
+	// When it is still too large, the facts about the request are dropped before the user's message is cut.
 	while (escapedBytes(built) > modelRouterRequestLimits.request && (recentTurns.length || situation || prompt.length)) {
 		if (recentTurns.length) {
 			recentTurns = recentTurns.slice(1);

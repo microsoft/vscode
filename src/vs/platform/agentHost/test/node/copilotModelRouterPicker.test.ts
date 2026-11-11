@@ -68,12 +68,26 @@ suite('DecisionsModelRouterPicker', () => {
 		});
 	});
 
-	test('gives up the facts before any of the message when the request is too large', () => {
-		const built = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', situation: ['x'.repeat(modelRouterRequestLimits.request)] }));
-		assert.deepStrictEqual({ context: built.context, explained: built.questions.map(question => question.instructions.includes('facts about it')), fits: serializedBytes(built) <= modelRouterRequestLimits.request }, {
-			context: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nfix this' },
-			explained: [false, false],
-			fits: true,
+	test('keeps each fact to one bounded line, and drops the facts before cutting the message when the request is too large', () => {
+		const bounded = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', situation: [`Attached: 1 image\n- Plan mode${' x'.repeat(1000)}`, '  ', ...Array.from({ length: 12 }, (_, index) => `Fact ${index}`)] }));
+		const boundedLines = bounded.context.kind === 'text' ? bounded.context.text.split('\n').filter(line => line.startsWith('- ')) : [];
+
+		// A router whose guidance leaves room for the message but not for the facts as well.
+		const size = (guidance: string) => serializedBytes(buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', guidance })));
+		const bytesPerCharacter = (size('g'.repeat(2000)) - size('g'.repeat(1000))) / 1000;
+		const guidance = 'g'.repeat(1000 + Math.floor((modelRouterRequestLimits.request - size('g'.repeat(1000)) - 100) / bytesPerCharacter));
+		const tight = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] }));
+
+		assert.deepStrictEqual({
+			boundedLines: boundedLines.map(line => line.length <= modelRouterRequestLimits.situationLine + 2 ? line.slice(0, 40) : 'too long'),
+			tightContext: tight.context,
+			tightExplained: tight.questions.map(question => question.instructions.includes('facts about it')),
+			tightFits: serializedBytes(tight) <= modelRouterRequestLimits.request,
+		}, {
+			boundedLines: ['- Attached: 1 image - Plan mode x x x x ', ...Array.from({ length: 7 }, (_, index) => `- Fact ${index}`)],
+			tightContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nfix this' },
+			tightExplained: [false, false],
+			tightFits: true,
 		});
 	});
 

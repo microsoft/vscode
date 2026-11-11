@@ -20,7 +20,8 @@ suite('modelRouterSituation', () => {
 			{ type: MessageAttachmentKind.Resource, label: 'cart.js', uri: 'file:///repo/src/cart.js', displayKind: 'document' },
 			{ type: MessageAttachmentKind.Resource, label: 'checkout.js', uri: 'file:///repo/src/checkout.js' },
 			{ type: MessageAttachmentKind.Resource, label: 'cart.js:10-49', uri: 'file:///repo/src/cart.js', selection: selection(10, 49) },
-			{ type: MessageAttachmentKind.Resource, label: 'pay.js:1-2', uri: 'file:///repo/src/pay.js', displayKind: 'selection', selection: selection(1, 2) },
+			// Called a document by its client, and still a selection for its lines.
+			{ type: MessageAttachmentKind.Resource, label: 'pay.js:1-2', uri: 'file:///repo/src/pay.js', displayKind: 'document', selection: selection(1, 2) },
 			// Whole lines end at the start of the next line, which is not selected.
 			{ type: MessageAttachmentKind.Resource, label: 'pay.js:1-2', uri: 'file:///repo/src/pay.js', selection: selection(0, 2, 0) },
 			{ type: MessageAttachmentKind.Resource, label: 'pay.js:6-8', uri: 'file:///repo/src/pay.js', selection: selection(5, 8, 0) },
