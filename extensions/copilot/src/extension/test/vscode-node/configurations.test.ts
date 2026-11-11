@@ -24,8 +24,11 @@ suite('Configuration Defaults', () => {
 			_serviceBrand: undefined,
 			copilotToken: undefined,
 			onDidStoreUpdate: Event.None,
+			onDidChangeTokenData: Event.None,
 			githubEnterpriseUri: undefined,
-			onDidChangeGitHubEnterpriseUri: Event.None
+			onDidChangeGitHubEnterpriseUri: Event.None,
+			authenticationState: 'unknown',
+			onDidChangeAuthenticationState: Event.None
 		});
 	});
 

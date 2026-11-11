@@ -96,7 +96,7 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../..
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationsSortMode } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -213,8 +213,8 @@ export interface ISessionsListFixtureHeader {
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
-	/** Shows the Customizations navigation row's badge for extensions that can be enabled in the Agents window. */
-	readonly customizationExtensionSuggestionsAvailable?: boolean;
+	/** Describes the Customizations navigation row's badge, which shows none unless given. */
+	readonly customizationsBadge?: string;
 }
 
 /** Everything a sessions list fixture renders. */
@@ -818,14 +818,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override readonly activeCustomView = constObservable(undefined);
 				override hideCustomView(): void { }
 			}());
-			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
-				override readonly notifications = constObservable([]);
+			reg.defineInstance(ISessionAttentionService, new class extends mock<ISessionAttentionService>() {
 				override readonly sessionAttention = constObservable(new Map(state.sessions.flatMap(spec => spec.inboxAttention ? [[spec.id, { ...spec.inboxAttention, notificationIds: [], isHistoricalCompletion: false }] as const] : [])));
 				override acquireSessionAttention() { return Disposable.None; }
-				override readonly attentionCount = constObservable(0);
-				override readonly isLoading = constObservable(false);
-				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
-				override setSortMode(): void { }
 			}());
 		},
 	});
@@ -941,7 +936,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
+		customizationsBadge: constObservable(header?.customizationsBadge),
 		navigationContainer,
 		findWidgetContainer,
 		onSessionOpen: () => { },

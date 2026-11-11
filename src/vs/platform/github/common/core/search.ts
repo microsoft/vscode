@@ -24,6 +24,10 @@ export interface RepositorySearchItem extends Omit<RepositoryIdentity, 'owner'> 
 	readonly owner: Account | null;
 	/** Default branch name. */
 	readonly default_branch: string;
+	/** HTTPS clone URL. */
+	readonly clone_url: string;
+	/** SSH clone URL. */
+	readonly ssh_url: string;
 	/** Primary language, or null. */
 	readonly language: string | null;
 	/** Star count. */

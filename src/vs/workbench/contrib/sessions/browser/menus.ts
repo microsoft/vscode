@@ -18,6 +18,8 @@ export function getNewSessionRepositoryConfigGroup(order: number, actionId: stri
  * Menu IDs for the Agent Sessions workbench layout.
  */
 export const Menus = {
+	MobileSessionsDrawerHeader: new MenuId('SessionsMobileSessionsDrawerHeader'),
+	NewSessionPlace: new MenuId('SessionsNewSessionPlace'),
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),

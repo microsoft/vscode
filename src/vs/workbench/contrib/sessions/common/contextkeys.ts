@@ -114,6 +114,13 @@ export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessi
  */
 export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
 
+/**
+ * Whether artifact integrations apply to the active session: they are enabled
+ * and its provider supports them. Pull request actions that a recorded pull
+ * request artifact offers, such as Fix Checks or Merge, are then left to it.
+ */
+export const SessionArtifactIntegrationsEnabledContext = new RawContextKey<boolean>('sessionArtifactIntegrationsEnabled', false, localize('sessionArtifactIntegrationsEnabled', "Whether artifact integrations are enabled and supported for the active session"));
+
 //#endregion
 
 //#region < --- Welcome --- >

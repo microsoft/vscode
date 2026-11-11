@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { AbstractChatView, IChatViewOptions } from './parts/chatView.js';
 
 export const IChatViewFactory = createDecorator<IChatViewFactory>('chatViewFactory');
@@ -20,6 +21,9 @@ export interface IChatViewFactory {
 
 	/** Entry-owned metrics for chat inputs composed outside a chat view, such as automation prompts. */
 	readonly inputEditorOptions: IChatViewOptions['inputEditorOptions'];
+
+	/** Paints the optional background behind a session grid. The grid owns the returned presentation. */
+	createChatBackground?(container: HTMLElement, instantiationService: IInstantiationService): IDisposable;
 
 	/**
 	 * Creates a "new chat" view that lets the user pick a workspace and

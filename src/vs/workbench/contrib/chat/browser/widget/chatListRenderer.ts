@@ -1090,6 +1090,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.updateStickyProgressContent();
 	}
 
+	/** Whether the list shows a session chat, which behaves as in the Agents window, in whatever window shows it. */
+	private get isSessionsChat(): boolean {
+		return this.environmentService.isSessionsWindow || !!this.rendererOptions.isSessionsChat;
+	}
+
 	get templateId(): string {
 		return ChatListItemRenderer.ID;
 	}
@@ -1490,13 +1495,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			: undefined;
 		const subagentTitle = tool.subAgentInvocationId ? subagentData?.description ?? localize('confirmationSubagent', "Subagent") : undefined;
 		const revealSubagent = () => {
-			if (this.environmentService.isSessionsWindow && subagentData?.chatResource) {
+			if (this.isSessionsChat && subagentData?.chatResource) {
 				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource: subagentData.chatResource });
 			} else {
 				widget.reveal(response);
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow && subagentTitle
+		const revealSubagentLabel = this.isSessionsChat && subagentTitle
 			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 		const context: IChatContentPartRenderContext = {
@@ -2091,8 +2096,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseIdentity = isResponseVM(element) ? this.rendererOptions.responseIdentity : undefined;
 		templateData.username.textContent = responseIdentity?.label ?? element.username;
 		const hideChatUserIdentity = responseIdentity
-			? this.environmentService.isSessionsWindow
-			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
+			? this.isSessionsChat
+			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.isSessionsChat, isSystemInitiatedRequest);
 		templateData.username.classList.toggle('hidden', hideChatUserIdentity);
 		templateData.avatarContainer.classList.toggle('hidden', hideChatUserIdentity);
 
@@ -4208,12 +4213,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const details = document.createElement('details');
 		details.classList.add('completed-response-disclosure');
+		// Conversation progress discloses the steps like one of its sections, with the chevron leading the label.
+		const leadingChevron = templateData.renderedProgressVerbosity === ChatProgressVerbosity.Conversation;
+		details.classList.toggle('completed-response-conversation', leadingChevron);
 		const summary = details.appendChild(document.createElement('summary'));
 		summary.classList.add('completed-response-summary', 'chat-used-context-label');
 		const button = summary.appendChild($('span.monaco-button.monaco-text-button.monaco-icon-button'));
-		const label = button.appendChild($('span.monaco-button-mdlabel'));
-		const chevron = button.appendChild($('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
+		const label = $('span.monaco-button-mdlabel');
+		const chevron = $('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' });
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
+		button.append(...(leadingChevron ? [chevron, label] : [label, chevron]));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
 		templateData.completedResponseDisclosureDisposables.add(this.hoverService.setupDelayedHover(label, { content: disclosureLabel }));
@@ -4228,14 +4237,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (hasChanges) {
 					if (!diffButton.value) {
 						diffButton.value = this.instantiationService.createInstance(ChatEditStatsButton, summary, localize('chat.completedResponse.changes.title', "Response File Changes"), 'chat-edit-stats');
-						summary.appendChild(chevron);
+						if (!leadingChevron) {
+							summary.appendChild(chevron);
+						}
 					}
 					diffButton.value.setDiff(diff);
 					summary.setAttribute('aria-label', localize('chat.completedResponse.withEdits', "{0}, {1} lines added, {2} lines deleted", disclosureLabel, diff.added, diff.removed));
 				} else {
 					const restoreFocus = diffButton.value?.element.contains(dom.getActiveElement());
 					diffButton.clear();
-					button.appendChild(chevron);
+					if (!leadingChevron) {
+						button.appendChild(chevron);
+					}
 					summary.removeAttribute('aria-label');
 					if (restoreFocus) {
 						summary.focus({ preventScroll: true });
@@ -4888,13 +4901,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
 			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
 			const chatResource = currentSubagentPart.getChatResource();
-			if (this.environmentService.isSessionsWindow && chatResource) {
+			if (this.isSessionsChat && chatResource) {
 				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
 			} else {
 				currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow
+		const revealSubagentLabel = this.isSessionsChat
 			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 

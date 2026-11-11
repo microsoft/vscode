@@ -779,8 +779,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		return dom.$('div.chat-attached-context-pill', {}, iconElement);
 	};
 	const supportsVision = modelSupportsVision(currentLanguageModel);
+	const isUnsupported = (!supportsVision && !!currentLanguageModel) || omittedState === OmittedState.Full;
+	const isLimitExceeded = omittedState === OmittedState.ImageLimitExceeded;
+	// The icon is the placeholder until the thumbnail is ready, so it only warns when no preview
+	// follows. Without a known model, as for a tool result, nothing is wrong with the image.
+	const showsPreview = !isUnsupported && !isLimitExceeded;
 	const warningIcon = useCompactWarningIcon ? Codicon.warningCompact : Codicon.warning;
-	const pillIcon = createPillIcon(supportsVision ? Codicon.fileMediaCompact : warningIcon);
+	const pillIcon = createPillIcon(supportsVision || showsPreview ? Codicon.fileMediaCompact : warningIcon);
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
 	element.appendChild(pillIcon);
 	element.appendChild(textLabel);
@@ -795,14 +800,14 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	hoverElement.setAttribute('aria-label', ariaLabel);
 
-	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
+	if (isUnsupported) {
 		element.classList.add('warning');
 		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
 		}));
-	} else if (omittedState === OmittedState.ImageLimitExceeded) {
+	} else if (isLimitExceeded) {
 		element.classList.add('warning');
 		const maxImagesPerRequest = getImageAttachmentLimit(currentLanguageModel?.metadata);
 		hoverElement.textContent = maxImagesPerRequest !== undefined

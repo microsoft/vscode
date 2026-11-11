@@ -267,7 +267,7 @@ export class SearchEditorInput extends EditorInput {
 
 	async setMatchRanges(ranges: Range[]) {
 		this.oldDecorationsIDs = (await this.resolveModels()).resultsModel.deltaDecorations(this.oldDecorationsIDs, ranges.map(range =>
-			({ range, options: { description: 'search-editor-find-match', className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		({ range, options: { description: 'search-editor-find-match', className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	}
 
 	override async revert(group: GroupIdentifier, options?: IRevertOptions) {

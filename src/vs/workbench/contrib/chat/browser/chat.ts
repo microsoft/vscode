@@ -260,6 +260,8 @@ export interface IChatListItemRendererOptions {
 	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
 	readonly backgroundActivityPillSections?: IChatBackgroundActivityPillSections;
 	readonly contentHorizontalPadding?: number;
+	/** Whether the list shows a session chat, which behaves as in the Agents window, in whatever window. */
+	readonly isSessionsChat?: boolean;
 	/** Collapses the first request under this label without changing its message or attachments. */
 	readonly firstRequestSummary?: string;
 	/**

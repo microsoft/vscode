@@ -432,8 +432,9 @@ jobs:
         env:
           DEBUG: "*browser*"
 
+      # The node.js integration tests never launch an extension host, so they don't use these extensions
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node') || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           pnpm run gulp \

@@ -63,6 +63,8 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		getChatConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxPaths: () => undefined,
+		setSessionSandboxPaths: () => { },
 		getSessionSandboxEnabled: () => undefined,
 		getChatSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
