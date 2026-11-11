@@ -75,7 +75,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHConfigIncludePaths, parseSSHGOutput } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
@@ -1456,8 +1456,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				continue;
 			}
 
-			const rawValue = stripSSHComment(includeMatch[1]);
-			const patterns = rawValue.split(/\s+/).filter(Boolean);
+			const patterns = parseSSHConfigIncludePaths(includeMatch[1]);
+			if (!patterns) {
+				this._logService.warn(`${LOG_PREFIX} Skipping invalid SSH Include directive in ${configDir}`);
+				continue;
+			}
 
 			for (const rawPattern of patterns) {
 				const pattern = rawPattern.replace(/^~/, os.homedir());
