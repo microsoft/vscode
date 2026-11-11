@@ -5502,8 +5502,10 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('inbox lists held sessions directly without changing their custom membership', () => {
-			const a = buildTestSession({ id: 'a', title: 'A', workspace: 'Alpha' }).session;
-			const b = buildTestSession({ id: 'b', title: 'B', workspace: 'Beta' }).session;
+			// One clock read, so the Created order comes from the sessions rather than whether the millisecond ticked between them.
+			const now = Date.now();
+			const a = buildTestSession({ id: 'a', title: 'A', workspace: 'Alpha' }, now).session;
+			const b = buildTestSession({ id: 'b', title: 'B', workspace: 'Beta', createdMinutesAgo: 1 }, now).session;
 			const harness = createListHarness(disposables, [a, b], { groups: [{ id: 'saved', name: 'Saved', createdAt: 1 }], memberships: new Map([['a', 'saved']]) });
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
