@@ -112,9 +112,9 @@ failed registry operations are not recorded as successfully processed and can
 be retried. Ordinary Web and other platform failures still block release.
 If Mobile alone times out or is canceled, the publisher requires successful
 current-attempt phase records for Web and every other required job in that
-stage before allowing the ordinary release. An enabled Mobile job that produces
-no archive also emits a warning in Publish. Canceling the whole run still stops
-the release.
+stage before allowing the ordinary release. On an otherwise successful publish,
+an enabled Mobile job that produces no archive emits a warning in Publish.
+Canceling the whole run still stops the release.
 
 The Mobile job creates `vscode-web-mobile.tar.gz`, with a `vscode-web-mobile/`
 top-level directory, and registers its archive as platform `web-mobile` through

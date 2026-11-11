@@ -17,7 +17,7 @@ export interface Timeline {
 
 const mobileArtifactName = 'vscode_web_linux_mobile_archive-unsigned';
 
-/** A mobile timeout must not override successful required jobs in the Web stage. */
+/** A mobile timeout must not override required jobs. Names must match web/product-build-web-job.yml. */
 export function isOptionalMobileStageFailure(timeline: Timeline, stage: string, result: string | null): boolean {
 	if (stage !== 'Web' || (result !== 'failed' && result !== 'canceled')) {
 		return false;
