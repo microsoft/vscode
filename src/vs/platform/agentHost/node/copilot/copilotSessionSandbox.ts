@@ -190,17 +190,25 @@ export class CopilotSessionSandbox extends Disposable {
 				if (!result.success) {
 					throw new Error(localize('copilot.permission.grant.rejected', "The SDK did not grant sandbox access for this request."));
 				}
-				if (sessionScope) {
-					const target = this._target();
-					void this._sessionPaths.grant(this._options.ownerSession, grant).catch(error => {
-						this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to persist session sandbox path access`);
-						this._configurationService.reportChatSandboxConflict(target, localize(
+				const target = this._target();
+				const os = this._options.platform === 'win32' ? OperatingSystem.Windows : this._options.platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+				const persistence = sessionScope
+					? this._sessionPaths.grant(this._options.ownerSession, grant)
+					: this._sessionPaths.removeReadonlyPaths(this._options.ownerSession, grant.removedReadonlyPaths ?? [], os);
+				void persistence.catch(error => {
+					this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to persist session sandbox path access`);
+					this._configurationService.reportChatSandboxConflict(target, sessionScope
+						? localize(
 							'copilot.permission.grant.sessionSaveFailed',
 							"Sandbox access was granted for this session, but could not be saved. You may need to approve it again when resuming the session. {0}",
 							getErrorMessage(error),
+						)
+						: localize(
+							'copilot.permission.grant.sessionCleanupFailed',
+							"Sandbox access was granted, but the removal of this session's previous read-only access could not be saved. You may need to approve it again when resuming the session. {0}",
+							getErrorMessage(error),
 						));
-					});
-				}
+				});
 				return { kind: 'no-result' };
 			});
 		} catch (error) {

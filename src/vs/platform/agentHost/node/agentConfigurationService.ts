@@ -310,7 +310,7 @@ export interface IAgentConfigurationService {
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
 	/** Personal filesystem edits loaded from the owning session's durable metadata. */
 	getSessionSandboxPaths(session: ProtocolURI): ISessionSandboxPaths | undefined;
-	/** Publishes a loaded or persisted edit to all live chats, without writing client configuration. */
+	/** Publishes a loaded or runtime-approved edit to all live chats, without writing client configuration. */
 	setSessionSandboxPaths(session: ProtocolURI, paths: ISessionSandboxPaths): void;
 	/**
 	 * The applied enablement of the session's own sandbox selection: the default
@@ -1091,7 +1091,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	setSessionSandboxPaths(session: ProtocolURI, paths: ISessionSandboxPaths): void {
-		const value = paths.readonlyPaths.length || paths.readwritePaths.length || paths.removedReadonlyPaths.length ? paths : undefined;
+		// Retain a cleared live delta so another chat cannot reload stale paths after a failed save.
+		const value = paths.readonlyPaths.length || paths.readwritePaths.length || paths.removedReadonlyPaths.length || this._sessionSandboxPaths.has(session) ? paths : undefined;
 		if (equals(this._sessionSandboxPaths.get(session), value)) {
 			return;
 		}

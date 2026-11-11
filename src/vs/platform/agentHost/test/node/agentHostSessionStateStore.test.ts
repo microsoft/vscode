@@ -11,6 +11,7 @@ import type { Database } from '@vscode/sqlite3';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -129,6 +130,62 @@ suite('AgentHostSessionStateStore', () => {
 			live: configuration.getSessionSandboxPaths(session.toString()),
 			stored: (await sessionStore.readWithoutImport(session, [SESSION_SANDBOX_PATHS_KEY])).get(SESSION_SANDBOX_PATHS_KEY),
 		}, { live: { readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [] }, stored: '{}' });
+	});
+
+	test('sandbox User upgrades persist only exact session read-only removals across resume', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		await service.grant(session, { path: 'C:/outside', access: 'read' });
+		await service.grant(session, { path: 'C:/outside/child', access: 'read' });
+		await service.grant(session, { path: 'C:/keep', access: 'readWrite', removedReadonlyPaths: ['C:/keep'] });
+		await service.removeReadonlyPaths(session, ['C:\\outside', 'C:\\not-in-session'], OperatingSystem.Windows);
+		const restored = sandboxPaths(session, createStore());
+		await restored.service.load(session);
+		const expected = { readonlyPaths: ['C:/outside/child'], readwritePaths: ['C:/keep'], removedReadonlyPaths: ['C:/keep'] };
+		assert.deepStrictEqual({
+			live: configuration.getSessionSandboxPaths(session.toString()),
+			restored: restored.configuration.getSessionSandboxPaths(session.toString()),
+		}, { live: expected, restored: expected });
+	});
+
+	test('sandbox User cleanup keeps an empty live delta after save failure and serializes a later grant', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		await service.grant(session, { path: '/outside', access: 'read' });
+		const writing = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const update = sinon.stub(sessionStore, 'update').callsFake(async () => {
+			update.restore();
+			writing.complete();
+			await release.p;
+			throw new Error('disk full');
+		});
+		const failed = assert.rejects(service.removeReadonlyPaths(session, ['/outside'], OperatingSystem.Linux), /disk full/);
+		await writing.p;
+		try {
+			await service.load(session);
+		} finally {
+			release.complete();
+		}
+		await failed;
+		await service.load(session);
+		const live = configuration.getSessionSandboxPaths(session.toString());
+		const stale = sandboxPaths(session, createStore());
+		await stale.service.load(session);
+		await service.grant(session, { path: '/next', access: 'read' });
+		const restored = sandboxPaths(session, createStore());
+		await restored.service.load(session);
+		assert.deepStrictEqual({
+			live,
+			unsavedResume: stale.configuration.getSessionSandboxPaths(session.toString()),
+			nextResume: restored.configuration.getSessionSandboxPaths(session.toString()),
+		}, {
+			live: { readonlyPaths: [], readwritePaths: [], removedReadonlyPaths: [] },
+			unsavedResume: { readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [] },
+			nextResume: { readonlyPaths: ['/next'], readwritePaths: [], removedReadonlyPaths: [] },
+		});
 	});
 
 	test('sandbox session paths loaded concurrently do not replace a runtime-approved grant', async () => {
