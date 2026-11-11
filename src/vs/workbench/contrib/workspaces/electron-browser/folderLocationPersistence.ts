@@ -89,7 +89,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		if (resolved) {
 			this.folderLocationService.setCurrentLocation(resolved);
 		} else {
-			await this.returnToPrimary(persisted, primary, location);
+			await this.returnToPrimary(persisted, primary, location, token);
 		}
 	}
 
@@ -136,16 +136,23 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		}
 	}
 
-	private async returnToPrimary(persisted: IWindowFolderLocation, primary: URI, location: URI): Promise<void> {
+	private async returnToPrimary(persisted: IWindowFolderLocation, primary: URI, location: URI, token: CancellationToken): Promise<void> {
 		try {
 
 			// Does nothing while a newer switch is in flight: that one is authoritative
 			await this.workspaceEditingService.setFolderLocation(primary, undefined, { ifIdle: true });
 		} catch (error) {
+			if (token.isCancellationRequested) {
+				return;
+			}
 			if (this.isAtAlternate(location)) {
 				this.logService.error('Failed to return the folder to its primary location', error);
 			}
 			return; // otherwise the workspace changed, nothing to return from
+		}
+
+		if (token.isCancellationRequested) {
+			return;
 		}
 
 		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;

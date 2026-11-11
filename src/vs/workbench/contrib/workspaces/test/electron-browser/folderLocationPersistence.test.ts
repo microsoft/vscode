@@ -44,7 +44,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		const errors: string[] = [];
 		const returns: [URI, URI | undefined][] = [];
 		const onDidChangeProviders = ds.add(new Emitter<void>());
-		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
+		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let providerAvailable = !!options.providerAvailable;
 		let folderUri = options.folderUri ?? alternate;
@@ -207,6 +207,30 @@ suite('FolderLocationPersistenceContribution', () => {
 		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
 
 		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors.length }, { persisted: [], notifications: [], errors: 1 });
+	}));
+
+	test('disposing while the return is pending has no side effects once it succeeds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const returning = new DeferredPromise<void>();
+		const fixture = createFixture({ persisted, setFolderLocation: async (p, l) => { await returning.p; fixture.moveFolderTo(l ?? p); } });
+
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+		fixture.contribution.dispose();
+		returning.complete();
+		await timeout(1);
+
+		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
+	}));
+
+	test('disposing while the return is pending has no side effects once it is rejected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const returning = new DeferredPromise<void>();
+		const fixture = createFixture({ persisted, setFolderLocation: async () => returning.p });
+
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+		fixture.contribution.dispose();
+		returning.error(new Error('failed'));
+		await timeout(1);
+
+		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
 	}));
 
 	test('a return rejected because the workspace changed is neither logged nor announced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
