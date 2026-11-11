@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { localize } from '../../../../nls.js';
 import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -62,8 +63,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@ILogService logService: ILogService,
+		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService);
 
 		this.registerListeners();
 	}

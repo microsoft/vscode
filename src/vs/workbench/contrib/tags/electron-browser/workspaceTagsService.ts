@@ -551,7 +551,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = await createHash(workspace.folders[0].uri);
+				workspaceId = await createHash(workspace.folders[0].primaryUri ?? workspace.folders[0].uri);
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
