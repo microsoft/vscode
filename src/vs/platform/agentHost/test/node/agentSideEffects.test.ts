@@ -3992,15 +3992,33 @@ suite('AgentSideEffects', () => {
 				assert.deepStrictEqual(agent.changeModelCalls, [], 'an agent that cannot route keeps its model');
 
 				routeWith(async request => ({ selection: request.selection, notices: [] }));
-				sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } as ChatAction, 'client-1');
-				sideEffects.handleAction(defaultChatUri, {
+				const complete = { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } as ChatAction;
+				const next: ChatAction = {
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-2',
 					startedAt: '2025-01-01T00:00:01.000Z',
 					message: { text: 'again', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
-				}, 'client-1');
+				};
+				for (const action of [complete, next]) {
+					stateManager.dispatchServerAction(defaultChatUri, action);
+					sideEffects.handleAction(defaultChatUri, action, 'client-1');
+				}
 				await new Promise(r => setTimeout(r, 10));
 				assert.deepStrictEqual(agent.changeModelCalls, [], 'a resolution that returns the router id is ignored');
+			});
+
+			test('does not route a turn that is no longer the chat\'s active turn', async () => {
+				setupSession();
+				const requests = routeWith(async () => ({ selection: { id: 'model-b' }, notices: [] }));
+				// The turn's preparation finished after another turn took its place: state never made it the active turn.
+				sideEffects.handleAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-stale',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
+				}, 'client-1');
+				await new Promise(r => setTimeout(r, 10));
+				assert.deepStrictEqual({ requests, models: agent.changeModelCalls }, { requests: [], models: [] });
 			});
 
 			test('a failed resolution keeps the chat\'s model and still sends the turn', async () => {

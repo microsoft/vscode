@@ -2413,6 +2413,10 @@ export class AgentSideEffects extends Disposable {
 			this._logService.info(`[AgentSideEffects] Chat ${turnChannel} keeps its model: ${agent.id} does not route ${selection.id} here`);
 			return undefined;
 		}
+		// A turn that was cancelled or replaced while it was being prepared has nothing to route.
+		if (this._cancelledTurnIds.get(turnChannel)?.has(turnId) || this._stateManager.getChatState(turnChannel)?.activeTurn?.id !== turnId) {
+			return undefined;
+		}
 		let resolution;
 		try {
 			resolution = await agent.resolveTurnModel(chatUri, { turnId, selection, text, previousTurns: this._stateManager.getChatState(turnChannel)?.turns ?? [], ...(customAgent ? { agent: customAgent } : {}) }, context, CancellationToken.None);
