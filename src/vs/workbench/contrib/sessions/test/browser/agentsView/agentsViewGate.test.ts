@@ -28,6 +28,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/c
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { CHAT_OPEN_ACTION_ID } from '../../../../chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
@@ -112,6 +113,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		contextKeyService = new MockContextKeyService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: Event.None }));
 		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ start: () => { }, switchToSession: async () => { } }));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ setChatViewHostDelegate: () => { delegates++; return toDisposable(() => delegates--); } }));
 		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
