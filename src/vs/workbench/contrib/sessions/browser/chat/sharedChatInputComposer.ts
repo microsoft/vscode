@@ -12,6 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -78,6 +79,7 @@ import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onbo
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../mobile/mobileChipLaneScroll.js';
 import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;
@@ -85,6 +87,8 @@ const COMPOSER_LAYOUT_HEIGHT = 200;
 const COMPOSER_INPUT_MAX_HEIGHT = COMPOSER_LAYOUT_HEIGHT + 50 + 72;
 /** Progress stays hidden for operations that finish faster than this, so quick changes do not flicker. */
 const BUSY_INDICATOR_DELAY_MS = 500;
+/** How long a send waits for the session to get ready to send, such as while its provider starts. */
+const SEND_READINESS_TIMEOUT_MS = 15_000;
 
 export type ComposerBusyState = '' | 'initializing' | 'sending';
 
@@ -229,6 +233,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionHost parentHost: ISessionHost,
 		@ISessionHostService sessionHostService: ISessionHostService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
@@ -1004,6 +1009,23 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		return this.submit();
 	}
 
+	/** Whether the session gets ready to send in time, such as once its draft and model are set up. */
+	private async _whenCanSendRequest(): Promise<boolean> {
+		const store = new DisposableStore();
+		try {
+			return await new Promise<boolean>(resolve => {
+				store.add(disposableTimeout(() => resolve(false), SEND_READINESS_TIMEOUT_MS));
+				store.add(autorun(reader => {
+					if (this._canSendRequest.read(reader)) {
+						resolve(true);
+					}
+				}));
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
 		const widget = this._widget;
 		const query = rawQuery.trim();
@@ -1021,7 +1043,21 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return this._runClientSlashCommand(slashCommand, attachments);
 		}
 		if (!this._canSendRequest.get()) {
-			return false;
+			// A request sent as the composer opens, such as by Run Prompt, can come before its session is set up to send
+			this._sending.set(true, undefined);
+			let ready = false;
+			try {
+				ready = await this._whenCanSendRequest();
+			} finally {
+				this._sending.set(false, undefined);
+			}
+			if (this._widget !== widget) {
+				return false;
+			}
+			if (!ready) {
+				this.notificationService.error(localize('sharedChatInputComposer.notReady', "The request could not be sent because the new session is not ready. Try sending it again."));
+				return false;
+			}
 		}
 		const targetWindow = dom.getWindow(widget.domNode);
 		const hadFocus = widget.input.hasFocus();

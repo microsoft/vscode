@@ -1927,31 +1927,24 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 
 	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, shows the session instead
 	const widgetService = accessor.get(IChatWidgetService);
-	const chatViewHostDelegate = widgetService.chatViewHostDelegate;
-	if (openOptions.position === ChatSessionPosition.Sidebar && chatViewHostDelegate) {
+	const chatViewHostDelegate = openOptions.position === ChatSessionPosition.Sidebar ? widgetService.chatViewHostDelegate : undefined;
+	if (chatViewHostDelegate) {
 		if (openOptions.type === AgentSessionProviders.Local) {
 			// It shows sessions, not local chat
 			accessor.get(INotificationService).info(localize('chatSessions.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
 			return undefined;
 		}
-		if (!chatSendOptions?.importConversation?.turns.length) {
+		if (!chatSendOptions) {
 			openOptions.beforeOpen?.();
-			if (openOptions.sessionResource && !chatSendOptions && await widgetService.openSession(openOptions.sessionResource)) {
-				return { resource: openOptions.sessionResource, sendOutcome: 'none' };
+			if (openOptions.sessionResource) {
+				return await chatViewHostDelegate.openSession(openOptions.sessionResource, false) ? { resource: openOptions.sessionResource, sendOutcome: 'none' } : undefined;
 			}
-			// A new session of the type, which its composer creates as it sends the initial request
-			const widget = await chatViewHostDelegate.newSession(openOptions.type, false);
-			if (widget && chatSendOptions) {
-				for (const entry of chatSendOptions.attachedContext ?? []) {
-					widget.attachmentModel.addContext(entry);
-				}
-				await widget.acceptInput(chatSendOptions.prompt);
-			}
+			// A new session of the type, which its composer creates as the user sends
+			await chatViewHostDelegate.newSession(openOptions.type, false);
 			return undefined;
 		}
-		// A copied conversation seeds the session as it is created for its resource, which a composer has not yet: it opens
-		// in an editor instead, which carries it, as the initial request and its tools
-		openOptions = { ...openOptions, position: ChatSessionPosition.Editor };
+		// With an initial request, the session is created and sent to as for any other position (with its options, tools and
+		// any copied conversation), and shown once it runs, by what replaces the Chat view
 	}
 
 	// Determine resource to open
@@ -1975,10 +1968,19 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	// sessions list suppressed across the whole transition so it never flashes.
 	let sessionsListSuppression: IDisposable | undefined;
 	let transitionProgress: DeferredPromise<void> | undefined;
+	// Holds the session's model while it is sent to before what replaces the Chat view shows it
+	let chatViewHostModel: IDisposable | undefined;
 	try {
 		openOptions.beforeOpen?.();
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
+				if (chatViewHostDelegate) {
+					chatViewHostModel = await chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'openChatSessionAndSend#chatViewHost', 'explicitOverride');
+					if (!chatViewHostModel) {
+						throw new Error(`Unable to load the '${openOptions.type}' chat session`);
+					}
+					break;
+				}
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				openOptions.beforeOpen?.();
 				if (chatSendOptions?.importConversation) {
@@ -2038,6 +2040,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		}
 	} catch (e) {
 		activeClientService?.clearSessionTools(sessionResource);
+		chatViewHostModel?.dispose();
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
 		if (openOptions.beforeOpen && isCancellationError(e)) {
@@ -2069,6 +2072,9 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
+						if (chatViewHostDelegate) {
+							break;
+						}
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 						await view.loadSession(newSessionResource);
 						break;
@@ -2101,6 +2107,16 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	// working indicator.
 	sessionsListSuppression?.dispose();
 	transitionProgress?.complete();
+	if (chatViewHostDelegate) {
+		try {
+			// A session that did not run is not listed, so there is nothing to show
+			if (sendOutcome === 'sent' || sendOutcome === 'queued') {
+				await chatViewHostDelegate.openSession(openedSessionResource, false);
+			}
+		} finally {
+			chatViewHostModel?.dispose();
+		}
+	}
 	return { resource: openedSessionResource, sendOutcome };
 }
 

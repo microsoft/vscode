@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
@@ -47,7 +47,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -57,6 +57,7 @@ suite('SharedChatInputComposer', () => {
 		const inputTransitions: { enabled: boolean; preserveFocus: boolean }[] = [];
 		let draftModelState: object | undefined;
 		const requests: { query: string; attachments: string[]; background: boolean }[] = [];
+		const errors: string[] = [];
 		const attemptIds: (string | undefined)[] = [];
 		let storageWrites = 0;
 		const storageService = options.storageService ?? store.add(new InMemoryStorageService());
@@ -113,7 +114,7 @@ suite('SharedChatInputComposer', () => {
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: store.add(new MutableDisposable()),
-			_canSendRequest: constObservable(options.canSendRequest ?? true),
+			_canSendRequest: typeof options.canSendRequest === 'object' ? options.canSendRequest : constObservable(options.canSendRequest ?? true),
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
 				session: constObservable(undefined),
@@ -137,10 +138,11 @@ suite('SharedChatInputComposer', () => {
 			},
 			storageService,
 			logService: new NullLogService(),
+			notificationService: { error: (message: string) => { errors.push(message); } },
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, widget, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, widget, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
 
 	for (const preserveInputFocusOnSend of [false, true]) {
@@ -572,11 +574,28 @@ suite('SharedChatInputComposer', () => {
 		}
 	});
 
-	test('does not send while the host blocks sending', async () => {
+	test('a send that comes before the session is ready to send, such as by Run Prompt as the composer opens, waits for it, and sends', () => runWithFakedTimers({}, async () => {
+		const canSendRequest = observableValue('canSendRequest', false);
+		const { composer, state } = createComposer({ canSendRequest });
+		const sending = composer.submit(true);
+		await timeout(1000);
+		const whileWaiting = { requests: state().requests.length, duplicate: await composer.submit(true) };
+		canSendRequest.set(true, undefined);
+		const sent = await sending;
+		assert.deepStrictEqual({ whileWaiting, sent, requests: state().requests.map(request => request.query), errors: state().errors }, {
+			whileWaiting: { requests: 0, duplicate: false },
+			sent: true,
+			requests: ['Build it'],
+			errors: [],
+		});
+	}));
+
+	test('a send whose session does not get ready in time is not sent, keeps its input and says so', () => runWithFakedTimers({}, async () => {
 		const { composer, state } = createComposer({ canSendRequest: false });
 		const sent = await composer.submit(true);
-		assert.deepStrictEqual({ sent, requests: state().requests }, { sent: false, requests: [] });
-	});
+		const { requests, errors, input } = state();
+		assert.deepStrictEqual({ sent, requests, errors: errors.length, input: input.text }, { sent: false, requests: [], errors: 1, input: 'Build it' });
+	}));
 
 	for (const background of [false, true]) {
 		test(`runs client-side commands in the input instead of sending them (${background ? 'background' : 'regular'} submit)`, async () => {
