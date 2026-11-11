@@ -1458,7 +1458,6 @@ export class ChatView extends AbstractChatView {
 		if (persistentContentContainer.nextSibling !== bannersNode) {
 			inputPartElement.insertBefore(bannersNode, persistentContentContainer.nextSibling);
 		}
-		this._banners.updateAnimationWindow();
 		if (bannersNode.nextSibling !== comparisonResultNode) {
 			inputPartElement.insertBefore(comparisonResultNode, bannersNode.nextSibling);
 		}

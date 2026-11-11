@@ -83,7 +83,6 @@ export class SessionInputBannerWidget extends Disposable {
 	private readonly _showWorkingAnimation = this._register(new MutableDisposable());
 	private readonly _workingBorderAnimations = this._register(new MutableDisposable());
 	private readonly _content = this._register(new MutableDisposable<DisposableStore>());
-	private _animationWindow: Window | undefined;
 
 	private _runningPrimaryAction = false;
 	private _disposed = false;
@@ -113,24 +112,6 @@ export class SessionInputBannerWidget extends Disposable {
 			}
 		}, true));
 		this.setBanners(Array.isArray(banner) ? banner : [banner]);
-	}
-
-	/** Refreshes visibility tracking after mounting or moving the banner to another window. */
-	updateAnimationWindow(): void {
-		if (this._disposed || !this.domNode.isConnected) {
-			return;
-		}
-		const targetWindow = dom.getWindow(this.domNode);
-		if (this._animationWindow === targetWindow) {
-			return;
-		}
-		this._workingBorderAnimations.clear();
-		this._animationWindow = targetWindow;
-		this._workingBorderAnimations.value = pauseCSSAnimationsWhenHidden(this.domNode, {
-			pausedClass: 'session-input-banner-anim-paused',
-			subtree: true,
-			animationNames: new Set(['session-input-banner-working-border-spin']),
-		});
 	}
 
 	setBanners(banners: readonly ISessionInputBanner[]): void {
@@ -407,26 +388,41 @@ export class SessionInputBannerWidget extends Disposable {
 	}
 
 	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {
-		this.domNode.setAttribute('aria-busy', 'true');
-		this._showWorkingAnimation.value = disposableTimeout(() => {
-			this.updateAnimationWindow();
-			this.domNode.classList.add('working');
-		}, SHOW_WORKING_DELAY_MS);
+		this._setBusy(true);
+		this._showWorkingAnimation.value = disposableTimeout(() => this.domNode.classList.add('working'), SHOW_WORKING_DELAY_MS);
 		try {
 			return await waitUntilReady();
 		} finally {
 			this._showWorkingAnimation.clear();
 			this.domNode.classList.remove('working');
-			this.domNode.setAttribute('aria-busy', 'false');
+			this._setBusy(false);
 		}
 	}
 
 	setWorking(working: boolean): void {
-		this.updateAnimationWindow();
 		this._working = working;
 		this.domNode.classList.toggle('working', working);
-		this.domNode.setAttribute('aria-busy', String(working));
+		this._setBusy(working);
 		this._setPrimaryButtonsEnabled(!working);
+	}
+
+	/**
+	 * While busy, pauses the working border when it is outside the viewport or its document is hidden.
+	 * Visibility tracking binds to the window the banner is mounted in, so it starts here rather than at
+	 * construction, when the banner is still detached and may later be mounted in an auxiliary window.
+	 * It is registered once per busy period, because the helper keeps one registration per element.
+	 */
+	private _setBusy(busy: boolean): void {
+		this.domNode.setAttribute('aria-busy', String(busy));
+		if (!busy) {
+			this._workingBorderAnimations.clear();
+		} else if (!this._workingBorderAnimations.value && !this._disposed && this.domNode.isConnected) {
+			this._workingBorderAnimations.value = pauseCSSAnimationsWhenHidden(this.domNode, {
+				pausedClass: 'session-input-banner-anim-paused',
+				subtree: true,
+				animationNames: new Set(['session-input-banner-working-border-spin']),
+			});
+		}
 	}
 
 	private _setPrimaryButtonsEnabled(enabled: boolean): void {

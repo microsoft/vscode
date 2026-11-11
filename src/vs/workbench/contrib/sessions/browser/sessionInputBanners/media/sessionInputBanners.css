@@ -261,6 +261,7 @@
 	z-index: 1;
 }
 
+/* Paused while the banner is outside the viewport or its document is hidden. */
 .session-input-banner.working.session-input-banner-anim-paused::before,
 .session-input-banner.working.session-input-banner-anim-paused::after {
 	animation-play-state: paused;
