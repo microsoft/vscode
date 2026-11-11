@@ -733,7 +733,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState | 'empty'): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState | 'empty', options?: { preserveFocus?: boolean }): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
@@ -749,7 +749,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				await group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
-			const closed = (part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close(options); // will move remaining editors to main part
 			if (!closed) {
 				return false; // this indicates that closing was vetoed
 			}
@@ -818,7 +818,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// editors around that need confirmation by moving them into the main part.
 		// Also, in rare cases, the auxiliary part may not be able to apply the state
 		// for certain editors that cannot move to the main part.
-		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary);
+		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary, options);
 		if (!applied) {
 			return false;
 		}

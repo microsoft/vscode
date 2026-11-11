@@ -127,6 +127,11 @@ export interface IMergeGroupOptions {
 	 * they are in the source group.
 	 */
 	readonly preserveExistingIndex?: boolean;
+
+	/**
+	 * Set this to not move focus to the moved editors.
+	 */
+	readonly preserveFocus?: boolean;
 }
 
 export interface ICloseEditorOptions {
@@ -481,6 +486,12 @@ export interface IEditorGroupsContainer {
 export interface IEditorPart extends IEditorGroupsContainer {
 
 	/**
+	 * Whether the part is owned by someone else than the editor parts service,
+	 * in which case it is not part of working sets.
+	 */
+	readonly isTransient?: boolean;
+
+	/**
 	 * An event for when the editor part receives focus.
 	 */
 	readonly onDidFocus: Event<void>;
@@ -538,9 +549,12 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	 * dirty editors of all groups back to the main editor
 	 * part.
 	 *
+	 * @param options `preserveFocus` keeps the focus where it is instead of
+	 * moving it to the group that received the editors.
+	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(): boolean;
+	close(options?: { preserveFocus?: boolean }): boolean;
 }
 
 /**
