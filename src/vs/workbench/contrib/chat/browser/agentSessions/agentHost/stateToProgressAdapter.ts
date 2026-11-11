@@ -936,9 +936,11 @@ export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string,
 		if (routed) {
 			return routed.router === routerName && routed.firstTurnOnly === true;
 		}
-		// A turn since that pick that selected a model by hand, or another router.
+		// A turn since that pick that selected a model by hand, or another router. A restored turn
+		// that asked for a router and got no pick has the model it ran on as its selection, so the
+		// router it asked for is read from its usage, as the host does.
 		const requested = turns[i].message.model?.id;
-		if (requested && modelRouterNameFromModelId(requested) !== routerName) {
+		if (requested && (modelRouterNameFromModelId(requested) ?? readUsageInfoMeta(turns[i].usage).modelRouterUnrouted) !== routerName) {
 			return false;
 		}
 	}
