@@ -222,21 +222,10 @@ zone.js/dist/**
 @xterm/xterm-addon-*/out-test/**
 
 # @github/copilot - strip unneeded binaries and files
-@github/copilot/sdk/index.js
-@github/copilot/prebuilds/**
-@github/copilot/clipboard/**
-@github/copilot/ripgrep/**
-@github/copilot/pvrecorder/**
-@github/copilot/foundry-local-sdk/**
-@github/copilot/mxc-bin/**
-@github/copilot/sharp/**
-@github/copilot/**/keytar.node
+# Agent Host uses the runtime bundled with @github/copilot-sdk.
+@github/copilot/**
 
-# os-theme is pulled in by @github/copilot but the CLI does not use its native addon.
-# See https://github.com/microsoft/vscode-engineering/issues/3087.
-@os-theme/**
-
-# @github/copilot platform binaries - not needed
+# Standalone Copilot CLI platform packages are not product dependencies.
 @github/copilot-darwin-arm64/**
 @github/copilot-darwin-x64/**
 @github/copilot-linux-arm64/**
@@ -246,7 +235,7 @@ zone.js/dist/**
 @github/copilot-win32-arm64/**
 @github/copilot-win32-x64/**
 
-# @github/copilot-sdk platform packages - VS Code uses the SDK's stdio transport.
+# The selected SDK platform package is re-added during packaging.
 @github/copilot-sdk-darwin-arm64/**
 @github/copilot-sdk-darwin-x64/**
 @github/copilot-sdk-linux-arm64/**
@@ -267,8 +256,7 @@ zone.js/dist/**
 @vscode/os-proxy-resolver-win32-arm64-msvc/**
 @vscode/os-proxy-resolver-win32-x64-msvc/**
 
-# @github/copilot-sdk - strip the nested @github/copilot CLI runtime
-# The SDK only needs its own dist/ files; the CLI is resolved via cliPath at runtime
+# Do not allow an SDK canary to restore the standalone CLI transitively.
 @github/copilot-sdk/node_modules/@github/copilot/**
 @github/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
 @github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**

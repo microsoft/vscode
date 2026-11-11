@@ -5,7 +5,7 @@
 
 import { isOpenAIModel } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { PromptRegistry } from '../promptRegistry';
-import { Gpt56PromptResolver as LatestOpenAIPromptResolver } from './gpt56Prompt';
+import { Gpt6PromptResolver as LatestOpenAIPromptResolver } from './gpt6Prompt';
 
 // Promote the entire prompt bundle by changing the resolver imported above.
 PromptRegistry.registerFallbackPrompt(LatestOpenAIPromptResolver, isOpenAIModel);

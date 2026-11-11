@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorGroupModel, ISerializedEditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, EditorsOrder, GroupModelChangeKind } from '../../../../common/editor.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
+import { EditorsOrder, GroupModelChangeKind } from '../../../../common/editor.js';
 import { TestLifecycleService } from '../../workbenchTestServices.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -21,7 +19,6 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { TestContextService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../../common/editor/filteredEditorGroupModel.js';
 
@@ -51,8 +48,8 @@ suite('FilteredEditorGroupModel', () => {
 		return inst;
 	}
 
-	function createEditorGroupModel(serialized?: ISerializedEditorGroupModel): EditorGroupModel {
-		const group = disposables.add(inst().createInstance(EditorGroupModel, serialized));
+	function createEditorGroupModel(): EditorGroupModel {
+		const group = disposables.add(inst().createInstance(EditorGroupModel, undefined));
 
 		disposables.add(toDisposable(() => {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -87,63 +84,8 @@ suite('FilteredEditorGroupModel', () => {
 		}
 	}
 
-	class NonSerializableTestEditorInput extends EditorInput {
-
-		readonly resource = undefined;
-
-		constructor(public id: string) {
-			super();
-		}
-		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		override async resolve(): Promise<IDisposable | null> { return null; }
-
-		override matches(other: NonSerializableTestEditorInput): boolean {
-			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
-		}
-	}
-
-	class TestFileEditorInput extends EditorInput implements IFileEditorInput {
-
-		readonly preferredResource;
-
-		constructor(public id: string, public resource: URI) {
-			super();
-			this.preferredResource = this.resource;
-		}
-		override get typeId() { return 'testFileEditorInputForGroups'; }
-		override get editorId() { return this.id; }
-		override async resolve(): Promise<IDisposable | null> { return null; }
-		setPreferredName(name: string): void { }
-		setPreferredDescription(description: string): void { }
-		setPreferredResource(resource: URI): void { }
-		async setEncoding(encoding: string) { }
-		getEncoding() { return undefined; }
-		setPreferredEncoding(encoding: string) { }
-		setForceOpenAsBinary(): void { }
-		setPreferredContents(contents: string): void { }
-		setLanguageId(languageId: string) { }
-		setPreferredLanguageId(languageId: string) { }
-		isResolved(): boolean { return false; }
-
-		override matches(other: TestFileEditorInput): boolean {
-			if (super.matches(other)) {
-				return true;
-			}
-
-			if (other instanceof TestFileEditorInput) {
-				return isEqual(other.resource, this.resource);
-			}
-
-			return false;
-		}
-	}
-
-	function input(id = String(index++), nonSerializable?: boolean, resource?: URI): EditorInput {
-		if (resource) {
-			return disposables.add(new TestFileEditorInput(id, resource));
-		}
-
-		return nonSerializable ? disposables.add(new NonSerializableTestEditorInput(id)) : disposables.add(new TestEditorInput(id));
+	function input(id = String(index++)): EditorInput {
+		return disposables.add(new TestEditorInput(id));
 	}
 
 	function closeAllEditors(group: EditorGroupModel): void {
@@ -152,51 +94,7 @@ suite('FilteredEditorGroupModel', () => {
 		}
 	}
 
-	interface ISerializedTestInput {
-		id: string;
-	}
-
-	class TestEditorInputSerializer implements IEditorSerializer {
-
-		static disableSerialize = false;
-		static disableDeserialize = false;
-
-		canSerialize(editorInput: EditorInput): boolean {
-			return true;
-		}
-
-		serialize(editorInput: EditorInput): string | undefined {
-			if (TestEditorInputSerializer.disableSerialize) {
-				return undefined;
-			}
-
-			const testEditorInput = <TestEditorInput>editorInput;
-			const testInput: ISerializedTestInput = {
-				id: testEditorInput.id
-			};
-
-			return JSON.stringify(testInput);
-		}
-
-		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-			if (TestEditorInputSerializer.disableDeserialize) {
-				return undefined;
-			}
-
-			const testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
-
-			return disposables.add(new TestEditorInput(testInput.id));
-		}
-	}
-
 	const disposables = new DisposableStore();
-
-	setup(() => {
-		TestEditorInputSerializer.disableSerialize = false;
-		TestEditorInputSerializer.disableDeserialize = false;
-
-		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testEditorInputForGroups', TestEditorInputSerializer));
-	});
 
 	teardown(() => {
 		disposables.clear();

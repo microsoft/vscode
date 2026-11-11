@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker, Terminal } from '@xterm/xterm';
-import { deepEqual, deepStrictEqual } from 'assert';
+import { deepEqual, deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
@@ -64,5 +64,21 @@ suite('PartialCommandDetectionCapability', () => {
 		await writeP(xterm, 'pwd');
 		onDidExecuteTextEmitter.fire();
 		deepEqual(addEvents.length, 2);
+	});
+
+	test('should clear all commands including scrollback', async () => {
+		await writeP(xterm, 'ab');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n\r\n');
+		await writeP(xterm, 'cd');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n');
+		deepStrictEqual(capability.commands.map(e => e.line), [0, 2]);
+		await writeP(xterm, 'line\r\n'.repeat(xterm.rows));
+		strictEqual(xterm.buffer.active.baseY > 0, true);
+
+		capability.clearCommands();
+
+		deepStrictEqual(capability.commands, []);
 	});
 });

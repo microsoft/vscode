@@ -10,6 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS } from '../../node/copilot/prompts/progressUpdatesInstructions.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -37,7 +38,7 @@ suite('AgentHostPromptRegistry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
-	const UNCONDITIONAL_TOOL_INSTRUCTIONS = LARGE_OUTPUT_LINE;
+	const UNCONDITIONAL_TOOL_INSTRUCTIONS = `${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`;
 
 	const withUniversalAgentHostInstructions = (config: SystemMessageConfig): SystemMessageConfig => {
 		const configWithToolInstructions = config.mode === 'replace'
@@ -200,6 +201,101 @@ suite('AgentHostPromptRegistry', () => {
 		});
 	});
 
+	suite('OpenAI contributor (registered via allPrompts)', () => {
+		const guidance = '\n' + [
+			'Do not automatically reread edited files or review the full diff after a successful edit.',
+			'When a check fails, tool output is ambiguous, or a concrete correctness question remains, inspect only the relevant code or diff hunks.',
+			'Still perform required validation, and honor explicit requests for a broader review.',
+		].join('\n');
+
+		for (const id of [
+			'gpt-3.5-turbo', 'gpt-4o', 'gpt-4.1', 'gpt-5', 'gpt-5-mini', 'gpt-5-codex',
+			'gpt-5.1', 'gpt-5.2', 'gpt-5.3-codex', 'gpt-5.4', 'gpt-5.5',
+			'gpt-5.6-sol', 'gpt-5.6-sol-high', 'gpt-5.6-sol-2026-09-22', 'gpt-5.6-luna', 'gpt-5.6-terra',
+			'gpt-6', 'gpt-6-astra', 'gpt-6-astra-high', 'gpt-6-astra-2026-09-22', 'gpt-6-codex', 'gpt-7-preview',
+			'o1', 'o1-preview', 'o3', 'o3-mini', 'o4-mini', 'openai', 'GPT-6', 'OpenAI',
+		]) {
+			test(`${id} appends only targeted review guidance without a setting`, () => {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions({
+						mode: 'customize',
+						sections: {
+							identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+							code_change_rules: { action: 'append', content: guidance },
+						},
+					})
+				);
+			});
+		}
+
+		test('does not affect unrelated models or prefix collisions', () => {
+			for (const id of ['claude-opus-4-8', 'claude-sonnet-5', 'gemini-3-pro', 'grok-code-fast-1', 'gptcustom', 'o1custom', 'o3custom', 'openai-compatible', 'unknown']) {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				);
+			}
+			assert.deepStrictEqual(
+				agentHostPromptRegistry.resolveSystemMessageConfig(undefined, context()),
+				withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			);
+		});
+
+		test('routes custom OpenAI model IDs through the existing family override', () => {
+			const overrides = { 'preview-model-x': { family: 'gpt-6' } };
+			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
+			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
+				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
+				context()
+			);
+			assert.ok(result.mode === 'customize');
+			assert.deepStrictEqual(result.sections?.code_change_rules, { action: 'append', content: guidance });
+		});
+
+		test('preserves tool-gated, tool-search and workspaceless layers', () => {
+			const model = { id: 'gpt-5.6-sol' };
+			const tools = [BrowserChatToolReferenceName.OpenBrowserPage, CLIENT_TOOL_SEARCH_REFERENCE_NAME];
+			const baseline = new AgentHostPromptRegistry().resolveSystemMessageConfig(model, context({}, tools, true, true));
+			const enabled = agentHostPromptRegistry.resolveSystemMessageConfig(model, context({}, tools, true, true));
+			assert.ok(enabled.mode === 'customize');
+			const { code_change_rules, ...sections } = enabled.sections ?? {};
+			assert.deepStrictEqual(code_change_rules, { action: 'append', content: guidance });
+			assert.deepStrictEqual({ ...enabled, sections }, baseline);
+		});
+	});
+
+	suite('progress updates (experiment-gated)', () => {
+		const enabled = { [CopilotCliConfigKey.ProgressUpdatesPrompt]: true };
+		const hasProgressUpdates = (config: SystemMessageConfig) => config.content?.includes(AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS) === true;
+
+		test('appends the guidance before the file-link contract for GPT and Auto launches only when enabled', () => {
+			const models: (ModelSelection | undefined)[] = [{ id: 'gpt-6-luna' }, { id: 'o3' }, { id: 'auto' }, undefined, { id: 'claude-sonnet-5' }, { id: 'gemini-3-pro' }];
+			assert.deepStrictEqual(models.map(model => ({
+				model: model?.id ?? 'none',
+				enabled: hasProgressUpdates(agentHostPromptRegistry.resolveSystemMessageConfig(model, context(enabled))),
+				disabled: hasProgressUpdates(agentHostPromptRegistry.resolveSystemMessageConfig(model, context())),
+			})), [
+				{ model: 'gpt-6-luna', enabled: true, disabled: false },
+				{ model: 'o3', enabled: true, disabled: false },
+				{ model: 'auto', enabled: true, disabled: false },
+				{ model: 'none', enabled: true, disabled: false },
+				{ model: 'claude-sonnet-5', enabled: false, disabled: false },
+				{ model: 'gemini-3-pro', enabled: false, disabled: false },
+			]);
+		});
+
+		test('only appends to the trailing content, after the workspaceless guidance and before the file-link contract', () => {
+			const model = { id: 'gpt-6-luna' };
+			const baseline = agentHostPromptRegistry.resolveSystemMessageConfig(model, context({}, [], true));
+			const withUpdates = agentHostPromptRegistry.resolveSystemMessageConfig(model, context(enabled, [], true));
+			assert.deepStrictEqual(withUpdates, {
+				...baseline,
+				content: `${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+			});
+		});
+	});
+
 	suite('model capability overrides (family alias)', () => {
 		// Mirrors the launcher's composition in `_buildSessionConfig`: the
 		// resolved family becomes the effective model id handed to the registry.
@@ -306,26 +402,6 @@ suite('AgentHostPromptRegistry', () => {
 		test('layers the unconditional tool instructions onto the default config', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'])), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
-		});
-
-		test('layers the subagent model guidance only when its setting is enabled', () => {
-			const registry = new AgentHostPromptRegistry();
-			assert.deepStrictEqual(
-				[
-					registry.resolveSystemMessageConfig({ id: 'm' }, context({ [CopilotCliConfigKey.SubagentModelGuidance]: true })),
-					registry.resolveSystemMessageConfig({ id: 'm' }, context({ [CopilotCliConfigKey.SubagentModelGuidance]: false })),
-				],
-				[
-					withUniversalAgentHostInstructions({
-						mode: 'customize',
-						sections: {
-							identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
-							tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}` },
-						},
-					}),
-					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE),
-				]
-			);
 		});
 
 		test('layers the browser tool_instructions onto the default config when browser tools are present', () => {

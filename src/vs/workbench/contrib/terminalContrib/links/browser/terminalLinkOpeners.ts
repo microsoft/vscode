@@ -18,6 +18,7 @@ import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.j
 import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { getWindowMainPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -30,7 +31,21 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
+	}
+
+	/**
+	 * The group a file opens in: the active one, unless that is in a part other than the main part of its window, such as a
+	 * part that holds terminals beside a window's main part, where it opens in the main part instead.
+	 */
+	private _getTargetGroup(): IEditorGroup | undefined {
+		const activePart = this._editorGroupsService.getPart(this._editorGroupsService.activeGroup);
+		if (activePart === this._editorGroupsService.activeModalEditorPart) {
+			return undefined;
+		}
+		const mainPart = getWindowMainPart(this._editorGroupsService, activePart.windowId);
+		return mainPart !== activePart ? mainPart.activeGroup : undefined;
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
@@ -50,7 +65,20 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
-		});
+		}, this._getRevealGroup(link.uri, this._getTargetGroup()));
+	}
+
+	/**
+	 * The group of `target`'s window that shows `resource` already, as the editor service would reveal it without a target,
+	 * else `target`.
+	 */
+	private _getRevealGroup(resource: URI, target: IEditorGroup | undefined): IEditorGroup | number | undefined {
+		if (!target) {
+			return undefined;
+		}
+		const windowId = this._editorGroupsService.getPart(target).windowId;
+		const opened = this._editorService.findEditors(resource).find(({ groupId }) => this._editorGroupsService.getGroup(groupId)?.windowId === windowId);
+		return opened?.groupId ?? target;
 	}
 }
 

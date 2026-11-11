@@ -65,13 +65,41 @@ export function isStringInSample(value: string, samplePercentage: number): boole
 	return (stringHash(value, 0) >>> 0) % 100 < samplePercentage;
 }
 
+/** Precomputes the affine transform of {@link stringHash} for a fixed string and int32 accumulators. */
+export class ConstantStringHash {
+
+	private readonly multiplier: number;
+	private readonly addend: number;
+
+	constructor(value: string) {
+		let multiplier = 31; // accounts for the seed step of `stringHash`
+		for (let i = 0; i < value.length; i++) {
+			multiplier = Math.imul(multiplier, 31);
+		}
+
+		this.multiplier = multiplier;
+		this.addend = stringHash(value, 0);
+	}
+
+	/** Equivalent to `stringHash(value, hashVal)` for int32 `hashVal`. */
+	apply(hashVal: number): number {
+		return (Math.imul(hashVal, this.multiplier) + this.addend) | 0;
+	}
+}
+
+/** Seed mixed in by {@link arrayHash} before hashing the array elements. */
+export const ARRAY_HASH_SEED = 104579;
+
+/** Seed mixed in by {@link objectHash} before hashing the object entries. */
+export const OBJECT_HASH_SEED = 181387;
+
 function arrayHash(arr: unknown[], initialHashVal: number): number {
-	initialHashVal = numberHash(104579, initialHashVal);
+	initialHashVal = numberHash(ARRAY_HASH_SEED, initialHashVal);
 	return arr.reduce<number>((hashVal, item) => doHash(item, hashVal), initialHashVal);
 }
 
 function objectHash(obj: object, initialHashVal: number): number {
-	initialHashVal = numberHash(181387, initialHashVal);
+	initialHashVal = numberHash(OBJECT_HASH_SEED, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);
 		return doHash((obj as Record<string, unknown>)[key], hashVal);

@@ -16,6 +16,7 @@ import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Command } from '../../../../../editor/common/languages.js';
+import type { MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -155,6 +156,8 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	/** Original actor when resending an Agent Host pending message. */
+	agentHostMessageOrigin?: MessageOrigin;
 	/** Provider-specific request metadata, separate from the prompt. */
 	metadata?: Record<string, unknown>;
 	userSelectedModelId?: string;

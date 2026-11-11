@@ -11,9 +11,9 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
+import { getGatingJob, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
+import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
-import cp from 'child_process';
-import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, ContainerSASPermissions, generateBlobSASQueryParameters } from '@azure/storage-blob';
@@ -277,40 +277,6 @@ function getCertificateBuffer(input: string) {
 function getThumbprint(input: string, algorithm: string): Buffer {
 	const buffer = getCertificateBuffer(input);
 	return crypto.createHash(algorithm).update(buffer).digest();
-}
-
-function getKeyFromPFX(pfx: string): string {
-	const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-	const pemKeyPath = path.join(os.tmpdir(), 'key.pem');
-
-	try {
-		const pfxCertificate = Buffer.from(pfx, 'base64');
-		fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-		cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nocerts -nodes -out "${pemKeyPath}" -passin pass:`);
-		const raw = fs.readFileSync(pemKeyPath, 'utf-8');
-		const result = raw.match(/-----BEGIN PRIVATE KEY-----[\s\S]+?-----END PRIVATE KEY-----/g)![0];
-		return result;
-	} finally {
-		fs.rmSync(pfxCertificatePath, { force: true });
-		fs.rmSync(pemKeyPath, { force: true });
-	}
-}
-
-function getCertificatesFromPFX(pfx: string): string[] {
-	const pfxCertificatePath = path.join(os.tmpdir(), 'cert.pfx');
-	const pemCertificatePath = path.join(os.tmpdir(), 'cert.pem');
-
-	try {
-		const pfxCertificate = Buffer.from(pfx, 'base64');
-		fs.writeFileSync(pfxCertificatePath, pfxCertificate);
-		cp.execSync(`openssl pkcs12 -in "${pfxCertificatePath}" -nokeys -out "${pemCertificatePath}" -passin pass:`);
-		const raw = fs.readFileSync(pemCertificatePath, 'utf-8');
-		const matches = raw.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
-		return matches ? matches.reverse() : [];
-	} finally {
-		fs.rmSync(pfxCertificatePath, { force: true });
-		fs.rmSync(pemCertificatePath, { force: true });
-	}
 }
 
 class ESRPReleaseService {
@@ -636,13 +602,13 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
-interface Timeline {
-	readonly records: {
-		readonly name: string;
-		readonly type: string;
-		readonly state: string;
-		readonly result: string;
-	}[];
+/**
+ * Whether the timeline record is the given stage. Stages are matched by their
+ * YAML identifier, since the record name is the stage's display name when one
+ * is set.
+ */
+function isStage(record: TimelineRecord, stage: string): boolean {
+	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
@@ -716,7 +682,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+export function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -765,6 +731,9 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'web':
 							if (arch === 'standalone') {
 								return 'web-standalone';
+							}
+							if (arch === 'mobile') {
+								return 'web-mobile';
 							}
 							return `server-linux-${arch}-web`;
 						default:
@@ -973,23 +942,35 @@ async function main() {
 	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
-	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
+	if (e('VSCODE_BUILD_STAGE_WINDOWS_ARM64') === 'True') { stages.add('WindowsARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_X64') === 'True') { stages.add('LinuxX64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARM64') === 'True') { stages.add('LinuxARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARMHF') === 'True') { stages.add('LinuxARMHF'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
-	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_X64') === 'True') { stages.add('macOSX64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
 	let timeline: Timeline;
 	let artifacts: Artifact[];
+	let gatingJobs = new Map<string, IGatingJob | undefined>();
+	let artifactsBlocked: string[] = [];
+	const gateMessages = new Map<string, string>();
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
 		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
-		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
+		const stagesCompleted = new Set<string>([...stages].filter(stage => timeline.records.some(r => isStage(r, stage) && r.state === 'completed')));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+		gatingJobs = new Map(artifacts
+			.filter(a => !done.has(a.name) && !processing.has(a.name))
+			.map(a => [a.name, getGatingJob(timeline, a.name)]));
+		artifactsBlocked = [...gatingJobs].filter(([, job]) => job?.state === 'failed').map(([name]) => name);
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length) {
 			break;
 		} else if (stagesInProgress.length > 0) {
 			console.log('Stages in progress:', stagesInProgress.join(', '));
@@ -1000,11 +981,26 @@ async function main() {
 		}
 
 		for (const artifact of artifacts) {
-			if (done.has(artifact.name) || processing.has(artifact.name)) {
+			if (!gatingJobs.has(artifact.name)) {
+				continue;
+			}
+
+			const gatingJob = gatingJobs.get(artifact.name);
+
+			if (gatingJob?.state === 'pending' || gatingJob?.state === 'failed') {
+				const message = gatingJob.state === 'pending' ? `Waiting for job ${gatingJob.name} to succeed` : `Not published, since job ${gatingJob.name} did not succeed`;
+				if (gateMessages.get(artifact.name) !== message) {
+					console.log(`[${artifact.name}] ${message}`);
+					gateMessages.set(artifact.name, message);
+				}
 				continue;
 			}
 
 			console.log(`[${artifact.name}] Found new artifact`);
+
+			if (gatingJob) {
+				console.log(`[${artifact.name}] ${gatingJob.state === 'succeeded' ? `Job ${gatingJob.name} succeeded` : `Job ${gatingJob.name} is not part of this run`}`);
+			}
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
@@ -1047,7 +1043,7 @@ async function main() {
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
 	const artifactsInProgress = operations.filter(o => processing.has(o.name));
 
@@ -1070,20 +1066,28 @@ async function main() {
 		throw new Error('Some artifacts failed to publish');
 	}
 
-	// Also fail the job if any of the stages did not succeed
-	let shouldFail = false;
+	// Also fail the job if any of the stages did not succeed, or if any of the
+	// artifacts was not published because its gating job did not succeed
+	const failed = new Set<string>();
+
+	for (const name of artifactsBlocked) {
+		failed.add(`job ${gatingJobs.get(name)!.name}`);
+		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
+	}
 
 	for (const stage of stages) {
-		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
-			shouldFail = true;
+			failed.add(`stage ${stage}`);
 			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
 	}
 
-	if (shouldFail) {
-		throw new Error('Some stages did not succeed');
+	if (failed.size > 0) {
+		// Retrying only the failed stage doesn't rerun this job, since it doesn't depend on any stage
+		console.log(`##vso[task.logissue type=error]Publishing is incomplete because ${[...failed].join(', ')} did not succeed. To publish the remaining artifacts, use "Rerun failed jobs" on the run, which also reruns Publish. If you retry only the failed stage, retry the Publish stage as well once it succeeds.`);
+		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);

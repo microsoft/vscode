@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .external-session-banner-chat-fixture {
+	--session-view-content-horizontal-padding: var(--vscode-spacing-size240);
+
 	display: flex;
 	flex-direction: column;
 	width: 100%;
@@ -19,7 +21,7 @@
 	flex-direction: column;
 	gap: var(--vscode-spacing-size160);
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size320);
+	padding: var(--session-view-content-horizontal-padding);
 }
 
 .external-session-banner-chat-request,
@@ -43,7 +45,7 @@
 
 .external-session-banner-chat-input {
 	box-sizing: border-box;
-	width: calc(100% - var(--vscode-spacing-size320) - var(--vscode-spacing-size320));
+	width: calc(100% - var(--session-view-content-horizontal-padding) - var(--session-view-content-horizontal-padding));
 	margin: 0 auto var(--vscode-spacing-size120);
 	padding: var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border));

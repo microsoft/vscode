@@ -82,6 +82,15 @@ const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFi
 
 type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 
+interface IStoredAgentSessionsFilter {
+	providers: string[];
+	states: AgentSessionStatus[];
+	archived: boolean;
+	read: boolean;
+	automation: boolean;
+	repositoryGroupCapped: boolean;
+}
+
 function shouldForceHiddenAgentStatus(configurationService: IConfigurationService, contextKeyService: IContextKeyService): boolean {
 	// Hide all agent distractions while in Zen mode
 	if (contextKeyService.getContextKeyValue<boolean>(InEditorZenModeContext.key) === true) {
@@ -515,14 +524,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const isCompactMode = true;
 		pill.classList.toggle('compact-mode', isCompactMode);
 
-		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
+		// Left icon container (sparkle by default, attention icon+count when attention needed, search on hover)
 		const leftIcon = $('span.agent-status-left-icon');
 		if (hasAttentionNeeded) {
-			// Show report icon + count when sessions need attention
-			const reportIcon = renderIcon(Codicon.report);
+			// Show attention icon + count when sessions need attention
+			const attentionIcon = renderIcon(Codicon.reportQuestion);
 			const countSpan = $('span.agent-status-attention-count');
 			countSpan.textContent = String(attentionNeededSessions.length);
-			reset(leftIcon, reportIcon, countSpan);
+			reset(leftIcon, attentionIcon, countSpan);
 			leftIcon.classList.add('has-attention');
 		} else {
 			reset(leftIcon, renderIcon(Codicon.searchSparkle));
@@ -860,8 +869,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
 		sparkleContainer.tabIndex = 0;
 
-		// Get menu actions for dropdown with proper group separators
-		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
+		// Resolve menu actions lazily when the dropdown opens so that enablement (preconditions)
+		// and visibility reflect the current context rather than the state at render time
+		const menuActionsProvider = {
+			getActions: (): IAction[] => Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions))
+		};
 
 		const primaryActionId = TOGGLE_CHAT_ACTION_ID;
 		const primaryActionTitle = localize('toggleChat', "Toggle Chat");
@@ -886,7 +898,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			DropdownWithPrimaryActionViewItem,
 			primaryAction,
 			dropdownAction,
-			menuActions,
+			menuActionsProvider,
 			'agent-status-sparkle-dropdown',
 			{ skipTelemetry: true, menuClassName: WORKBENCH_MENU_MOTION_CLASS, closeAnimation: workbenchMenuCloseAnimation }
 		);
@@ -992,7 +1004,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			needsInputSection.setAttribute('role', 'button');
 			needsInputSection.tabIndex = 0;
 			const needsInputIcon = $('span.agent-status-icon');
-			reset(needsInputIcon, renderIcon(Codicon.report));
+			reset(needsInputIcon, renderIcon(Codicon.reportQuestion));
 			needsInputSection.appendChild(needsInputIcon);
 			const needsInputCount = $('span.agent-status-text');
 			needsInputCount.textContent = String(attentionNeededSessions.length);
@@ -1012,8 +1024,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}));
 
 			const needsInputTooltip = attentionNeededSessions.length === 1
-				? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
-				: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length);
+				? localize('needsInputSessionsTooltip1', "{0} session needs attention", attentionNeededSessions.length)
+				: localize('needsInputSessionsTooltip', "{0} sessions need attention", attentionNeededSessions.length);
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, needsInputSection, needsInputTooltip));
 		}
 
@@ -1110,13 +1122,21 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Get the stored filter object from storage.
 	 */
-	private _getStoredFilter(): { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean } | undefined {
+	private _getStoredFilter(): IStoredAgentSessionsFilter | undefined {
 		const filterStr = this.storageService.get(FILTER_STORAGE_KEY, StorageScope.PROFILE);
 		if (!filterStr) {
 			return undefined;
 		}
 		try {
-			return JSON.parse(filterStr);
+			const filter = JSON.parse(filterStr) as Partial<IStoredAgentSessionsFilter>;
+			return {
+				providers: filter.providers ?? [],
+				states: filter.states ?? [],
+				archived: filter.archived ?? true,
+				read: filter.read ?? false,
+				automation: filter.automation ?? true,
+				repositoryGroupCapped: filter.repositoryGroupCapped ?? true,
+			};
 		} catch {
 			return undefined;
 		}
@@ -1125,7 +1145,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Store a filter object to storage.
 	 */
-	private _storeFilter(filter: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean }): void {
+	private _storeFilter(filter: IStoredAgentSessionsFilter): void {
 		this.storageService.store(FILTER_STORAGE_KEY, JSON.stringify(filter), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
@@ -1137,7 +1157,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			providers: [],
 			states: [],
 			archived: true,
-			read: false
+			read: false,
+			automation: true,
+			repositoryGroupCapped: true,
 		});
 	}
 
@@ -1193,6 +1215,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const currentFilter = this._getStoredFilter();
 		// Preserve existing provider filters (session type filters like Local, Background, etc.)
 		const preservedProviders = currentFilter?.providers ?? [];
+		const preservedAutomation = currentFilter?.automation ?? true;
+		const preservedRepositoryGroupCapped = currentFilter?.repositoryGroupCapped ?? true;
 
 		// Log telemetry for filter button clicks
 		const isToggleOff = (filterType === 'unread' && isFilteredToUnread)
@@ -1215,7 +1239,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					providers: preservedProviders,
 					states: [],
 					archived: true,
-					read: true
+					read: true,
+					automation: preservedAutomation,
+					repositoryGroupCapped: preservedRepositoryGroupCapped,
 				});
 			} else if (filterType === 'inProgress') {
 				// Exclude Completed, Failed, and NeedsInput — show only InProgress
@@ -1223,7 +1249,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					providers: preservedProviders,
 					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed, AgentSessionStatus.NeedsInput],
 					archived: true,
-					read: false
+					read: false,
+					automation: preservedAutomation,
+					repositoryGroupCapped: preservedRepositoryGroupCapped,
 				});
 			} else {
 				// Exclude Completed, Failed, and InProgress — show only NeedsInput
@@ -1231,7 +1259,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					providers: preservedProviders,
 					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed, AgentSessionStatus.InProgress],
 					archived: true,
-					read: false
+					read: false,
+					automation: preservedAutomation,
+					repositoryGroupCapped: preservedRepositoryGroupCapped,
 				});
 			}
 			this._badgeFilterAppliedByThisWindow = filterType;

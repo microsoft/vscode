@@ -24,7 +24,7 @@ export function isUnstartedSubagent(part: IChatProgress): boolean {
 	return !needsInput(part);
 }
 
-/** Appends subagent entries when their children start without reserving earlier positions in the stream. */
+/** Publishes subagents when they start or become openable settled chats, without reserving earlier stream positions. */
 export class AgentHostSubagentProgress extends Disposable {
 	private readonly pending = this._register(new DisposableMap<IChatToolInvocation>());
 
@@ -43,8 +43,10 @@ export class AgentHostSubagentProgress extends Disposable {
 				let published = false;
 				tracker.value = autorun(reader => {
 					part.state.read(reader);
-					const hasStarted = part.toolSpecificData?.kind === 'subagent' && part.toolSpecificData.hasStarted === true;
-					if (!published && (hasStarted || needsInput(part))) {
+					const data = part.toolSpecificData;
+					const hasStarted = data?.kind === 'subagent' && data.hasStarted === true;
+					const isSettledAndOpenable = data?.kind === 'subagent' && data.hasStarted === undefined && data.isChatAvailable === true && data.isActive === false;
+					if (!published && (hasStarted || isSettledAndOpenable || needsInput(part))) {
 						published = true;
 						this.sink([part]);
 						queueMicrotask(() => this.pending.deleteAndDispose(part));

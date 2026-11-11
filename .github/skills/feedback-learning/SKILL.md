@@ -22,8 +22,7 @@ Preserve reusable knowledge in the smallest authoritative artifact. A correction
    - Which paths or subsystem does it affect?
 
 2. **Search before writing**
-   - Check applicable instructions, skills, design documents, tests, and scoped
-     learning files.
+   - Check applicable instructions, skills, design documents, tests, and scoped learning files.
    - Update an existing rule instead of adding a duplicate.
 
 3. **Classify the feedback**
@@ -39,18 +38,14 @@ Preserve reusable knowledge in the smallest authoritative artifact. A correction
 
 4. **Generalize carefully**
    - Preserve the principle, not the incident chronology.
-   - Do not include temporary symbol names, line numbers, or implementation
-     details unless they define the durable contract.
-   - Do not turn a single rejected implementation into a universal prohibition
-     without broader evidence.
+   - Do not include temporary symbol names, line numbers, or implementation details unless they define the durable contract.
+   - Do not turn a single rejected implementation into a universal prohibition without broader evidence.
 
 5. **Record once**
    - Design documents and tests are authoritative.
-   - A learning inbox entry is temporary. When promoted, remove the inbox entry
-     in the same change.
+   - A learning inbox entry is temporary. When promoted, remove the inbox entry in the same change.
    - Never copy the same rule into a skill, instruction, and design document.
-   - Before adding an inbox entry, compact the target file using the maintenance
-     rules below.
+   - Before adding an inbox entry, compact the target file using the maintenance rules below.
 
 6. **Validate**
    - Confirm the destination applies to the affected path.

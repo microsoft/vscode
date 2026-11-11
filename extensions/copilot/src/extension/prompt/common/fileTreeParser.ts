@@ -83,11 +83,11 @@ export function listFilesInResponseFileTree(tree: vscode.ChatResponseFileTree[])
 }
 
 function calculateDepth(inputString: string): number {
-	let depth = (inputString.match(/│   /g) || []).length;
+	let depth = (inputString.match(/\u2502   /g) || []).length;
 	depth += (inputString.match(/\|   /g) || []).length;
 	depth += (inputString.match(/    /g) || []).length;
-	depth += (inputString.match(/├── /g) || []).length;
-	depth += (inputString.match(/└── /g) || []).length;
+	depth += (inputString.match(/\u251c\u2500\u2500 /g) || []).length;
+	depth += (inputString.match(/\u2514\u2500\u2500 /g) || []).length;
 
 	return depth;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 
@@ -15,11 +16,11 @@ export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
 /** `advanceOnly` consumes target activation instead of running the target's action. */
 export type SpotlightTargetClickBehavior = boolean | 'advanceOnly';
 
-/** Behavior when a spotlight target is not rendered when its step is reached. */
+/** Behavior when a spotlight target is not rendered when its step is reached. Waiting skips the step on timeout unless `onTimeout` is `abort`. */
 export type SpotlightMissingTargetBehavior =
 	| { readonly kind: 'skip' }
 	| { readonly kind: 'abort' }
-	| { readonly kind: 'wait'; readonly timeoutMs: number };
+	| { readonly kind: 'wait'; readonly timeoutMs: number; readonly onTimeout?: 'skip' | 'abort' };
 
 /**
  * A single step in a spotlight tour. Steps are pure data; the spotlight
@@ -43,8 +44,30 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Replaces {@link title} and {@link description} when the target already has a selected value as the step shows. */
+	readonly selectedContent?: {
+		readonly title: string;
+		readonly description: string | IMarkdownString;
+	};
+
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
+
+	/** Localized label of the button that ends the tour, replacing End Tour. Keeps the button on the last step. */
+	readonly endTourLabel?: string;
+
+	/**
+	 * Explicit action offered instead of Next or Done. Only runs on a button
+	 * click; unless `advance` is set, advancing still requires target selection
+	 * or `advanceWhen`. The token is cancelled when the step ends or its target
+	 * is replaced.
+	 */
+	readonly primaryAction?: {
+		readonly label: string;
+		readonly run: (token: CancellationToken) => Promise<void> | void;
+		/** Advances once `run` completes, for actions that do not select the target. */
+		readonly advance?: boolean;
+	};
 
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
@@ -55,8 +78,11 @@ export interface ISpotlightStep {
 	/** Defaults to waiting two seconds before skipping; `abort` ends the run immediately if the target is missing. */
 	readonly missingTarget?: SpotlightMissingTargetBehavior;
 
-	/** Opens or expands the target through its owner before the step begins. */
-	readonly openTarget?: boolean;
+	/** Opens the target through its owner; `ifUnselected` only opens controls without a selected value. */
+	readonly openTarget?: boolean | 'ifUnselected';
+
+	/** Skips the step when its target already has a selected value, such as a preselected workspace. */
+	readonly skipIfSelected?: boolean;
 
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
@@ -64,7 +90,10 @@ export interface ISpotlightStep {
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 
-	/** Overrides hiding Next when advancing on target clicks. `advanceWhen` always hides Next. */
+	/** Advances when the target reports a selection, without hiding Next. */
+	readonly advanceOnTargetSelection?: boolean;
+
+	/** Overrides hiding Next when advancing on target clicks. `primaryAction` always stays visible. */
 	readonly hideNext?: boolean;
 
 	/** Hides Next and advances once this context expression becomes satisfied. */
@@ -78,6 +107,9 @@ export interface ISpotlightStep {
 	 * that hosts the target. Awaited before the target is resolved.
 	 */
 	readonly onBeforeShow?: () => Promise<void> | void;
+
+	/** Called after the spotlight is visible, for presentation-only effects. */
+	readonly onDidShow?: () => void;
 }
 
 /**
@@ -85,4 +117,7 @@ export interface ISpotlightStep {
  */
 export interface ISpotlightPayload {
 	readonly steps: readonly ISpotlightStep[];
+
+	/** Resolves experiment-selected steps when the tour runs, replacing the default steps. */
+	readonly resolveSteps?: () => Promise<readonly ISpotlightStep[]>;
 }

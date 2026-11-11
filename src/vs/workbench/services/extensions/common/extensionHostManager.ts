@@ -261,6 +261,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		let mainProxyIdentifiers: ProxyIdentifier<any>[] = [];
 		const extHostContext: IInternalExtHostContext = {
 			remoteAuthority: this._extensionHost.remoteAuthority,
+			remoteOS: this._extensionHost.remoteOS,
 			extensionHostKind: this.kind,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): Proxied<T> => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),

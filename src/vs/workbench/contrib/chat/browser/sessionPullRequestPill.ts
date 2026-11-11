@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toAction, type IAction } from '../../../../base/common/actions.js';
 import { derived, IObservable, isObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
+import { getChatPillEntries, getChatPillEntryHoverActions, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon, type ChatPullRequestState } from '../../../common/chatPullRequest.js';
-import type { ISessionChatPillVisibilityService } from '../common/sessionChatPills.js';
+import { type ISessionChatPillVisibilityService, SessionChatPillKind } from '../common/sessionChatPills.js';
 import type { IStandardChatInputPillSections } from './chatInputPills.js';
+import { getSessionChatPillFilterActions } from './sessionChatPillOptions.js';
 
 export interface IChatPullRequestPillEntry extends IChatPillEntry {
 	readonly pullRequestState?: ChatPullRequestState;
-	/** Offered in the dropdown toolbar, or the context menu for a single visible entry. */
-	readonly removeAction?: IAction;
 }
 
 export interface IChatPullRequestPillSection extends IChatPillSection {
@@ -34,16 +32,7 @@ export function createSessionPullRequestPillData(
 			...section,
 			entries: section.entries.filter(entry => visibility.isVisible(entry.pullRequestState, reader)),
 		})).filter(section => section.entries.length > 0);
-		if (getChatPillEntries(visibleSections).length <= 1) {
-			return visibleSections;
-		}
-		return visibleSections.map(section => ({
-			...section,
-			entries: section.entries.map(entry => entry.removeAction ? {
-				...entry,
-				toolbarActions: [...entry.toolbarActions ?? [], entry.removeAction],
-			} : entry),
-		}));
+		return visibleSections;
 	});
 	return {
 		sections: filteredSections,
@@ -54,26 +43,13 @@ export function createSessionPullRequestPillData(
 			}
 			return getHighestPriorityPullRequestIcon(getChatPillEntries(filteredSections.read(reader)).map(entry => entry.icon)) ?? computePullRequestIcon('open');
 		}),
-		getContextMenuActions: () => {
-			const showAll = visibility.showAll.get();
-			return [
-				toAction({
-					id: 'chatInputPills.pullRequests.showAll',
-					label: localize('chatInputPills.pullRequests.showAll', "Show All"),
-					checked: showAll,
-					run: () => visibility.setShowAll(true),
-				}),
-				toAction({
-					id: 'chatInputPills.pullRequests.showOpen',
-					label: localize('chatInputPills.pullRequests.showOpen', "Show Open/Draft"),
-					checked: !showAll,
-					run: () => visibility.setShowAll(false),
-				}),
-			];
-		},
+		getContextMenuActions: () => getSessionChatPillFilterActions(SessionChatPillKind.PullRequests, visibility, {
+			id: 'showOpen',
+			label: localize('chatInputPills.pullRequests.showOpen', "Show Open/Draft"),
+		}),
 		getContextMenuPrimaryActions: () => {
 			const entries = filteredSections.get().flatMap(section => section.entries);
-			return entries.length === 1 && entries[0].removeAction ? [entries[0].removeAction] : [];
+			return entries.length === 1 ? getChatPillEntryHoverActions(entries[0]) : [];
 		},
 	} satisfies IStandardChatInputPillSections;
 }

@@ -17,6 +17,7 @@ import { IEditorProgressService } from '../../../../../platform/progress/common/
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 interface IDiffEditorFixtureOptions {
+	readonly variant: 'default' | 'compact';
 	readonly compactMode: boolean;
 	readonly renderSideBySide: boolean;
 }
@@ -151,6 +152,7 @@ export function createWorkspaceSyncCoordinator(): WorkspaceSyncCoordinator {
 
 const fixtureOptions = {
 	inputControls: {
+		variant: { placement: 'sidebar', label: 'Variant' },
 		compactMode: { placement: 'sidebar', label: 'Compact Mode' },
 		renderSideBySide: { placement: 'sidebar', label: 'Side by Side' },
 	},
@@ -160,6 +162,7 @@ const fixtureOptions = {
 
 function createInputSchema(defaults: IDiffEditorFixtureOptions) {
 	return z.object({
+		variant: z.enum(['default', 'compact']).default(defaults.variant).describe('Select the unchanged-region disclosure presentation.'),
 		compactMode: z.boolean().default(defaults.compactMode).describe('Use the diff editor compact presentation.'),
 		renderSideBySide: z.boolean().default(defaults.renderSideBySide).describe('Render original and modified editors side by side.'),
 	});
@@ -171,9 +174,11 @@ function fixture(defaults: IDiffEditorFixtureOptions) {
 		...fixtureOptions,
 		inputSchema,
 		expectedVisualDescriptions: [
-			defaults.compactMode
-				? 'The native compact diff presentation uses thin collapsed markers for internal unchanged regions.'
-				: 'The native regular diff presentation shows expandable controls for unchanged regions.',
+			defaults.variant === 'compact'
+				? 'Quiet unchanged-region disclosures have a centered label, subtle lines, and a gutter icon.'
+				: defaults.compactMode
+					? 'The legacy compact mode uses thin collapsed markers for internal unchanged regions.'
+					: 'The native regular diff presentation shows expandable controls for unchanged regions.',
 			defaults.renderSideBySide
 				? 'Original and modified TypeScript are shown side by side.'
 				: 'Original and modified TypeScript are shown in one inline editor.',
@@ -229,7 +234,7 @@ async function renderDiffEditor(context: ComponentFixtureContext, inputSchema: R
 		DiffEditorWidget,
 		container,
 		options,
-		{}
+		{ variant: input.variant }
 	));
 	const viewModel = disposableStackStore.add(RefCounted.create(widget.createViewModel({ original, modified })));
 	widget.setDiffModel(viewModel);
@@ -241,9 +246,11 @@ async function renderDiffEditor(context: ComponentFixtureContext, inputSchema: R
 
 export default defineThemedFixtureGroup({ path: 'editor/diffEditor' }, {
 	HiddenUnchangedRegions: defineThemedFixtureGroup({
-		RegularSideBySide: fixture({ compactMode: false, renderSideBySide: true }),
-		CompactSideBySide: fixture({ compactMode: true, renderSideBySide: true }),
-		RegularInline: fixture({ compactMode: false, renderSideBySide: false }),
-		CompactInline: fixture({ compactMode: true, renderSideBySide: false }),
+		RegularSideBySide: fixture({ variant: 'default', compactMode: false, renderSideBySide: true }),
+		CompactSideBySide: fixture({ variant: 'compact', compactMode: false, renderSideBySide: true }),
+		RegularInline: fixture({ variant: 'default', compactMode: false, renderSideBySide: false }),
+		CompactInline: fixture({ variant: 'compact', compactMode: false, renderSideBySide: false }),
+		LegacyCompactSideBySide: fixture({ variant: 'default', compactMode: true, renderSideBySide: true }),
+		LegacyCompactInline: fixture({ variant: 'default', compactMode: true, renderSideBySide: false }),
 	}),
 });

@@ -17,6 +17,7 @@ export const enum McpCommandIds {
 	InstallFromActivation = 'workbench.mcp.installFromActivation',
 	ListServer = 'workbench.mcp.listServer',
 	AgentHostServerOptions = 'workbench.mcp.agentHostServerOptions',
+	AuthenticateAgentHostServer = 'workbench.mcp.authenticateAgentHostServer',
 	OpenRemoteUserMcp = 'workbench.mcp.openRemoteUserMcpJson',
 	OpenUserMcp = 'workbench.mcp.openUserMcpJson',
 	OpenWorkspaceFolderMcp = 'workbench.mcp.openWorkspaceFolderMcpJson',

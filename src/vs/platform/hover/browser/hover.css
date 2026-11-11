@@ -132,10 +132,6 @@
 	background: var(--vscode-textCodeBlock-background);
 }
 
-.monaco-hover.workbench-hover .hover-row .actions {
-	background: var(--vscode-editorHoverWidget-statusBarBackground);
-}
-
 .monaco-hover.workbench-hover.right-aligned {
 	/* The context view service wraps strangely when it's right up against the edge without this */
 	left: 1px;

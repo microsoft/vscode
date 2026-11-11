@@ -12,6 +12,7 @@ import { dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostEndpointIdentity, IAgentHostEndpointMetadata, getAgentHostEndpointIdentityHashInput } from '../../common/agentHostEndpointRegistry.js';
 import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry } from '../../node/localAgentHostMetadata.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
 suite('Local Agent Host Endpoint Metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -77,6 +78,10 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			tokenLength: 43,
 			isScoped: true,
 		});
+	});
+
+	test('advertises the built-in protocol version', () => {
+		assert.strictEqual(createLocalAgentHostEndpointMetadata(userDataPath).protocolVersion, PROTOCOL_VERSION);
 	});
 
 	if (process.platform !== 'win32') {

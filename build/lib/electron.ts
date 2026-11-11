@@ -126,6 +126,20 @@ function feedPackageName(fileName: string): string | undefined {
 	return fileName.replace(/\.zip$/, '');
 }
 
+const electronChecksumFile = path.join(root, 'build', 'checksums', 'electron.txt');
+
+// Without a feed, the archives come from electron's GitHub releases. `@electron/get` validates even an
+// archive it finds in its cache against a `SHASUMS256.txt` that it downloads again every time, so a
+// GitHub error for that one file makes it download the cached archive again, or fails the build.
+// Serve that file from the checksums pinned in this repository instead: `@vscode/gulp-electron`
+// validates the archive against the same file afterwards.
+const githubAssetResolver = async ({ url, fileName }: { url: string; fileName: string }): Promise<Response> => {
+	if (fileName === 'SHASUMS256.txt') {
+		return new Response(await fs.promises.readFile(electronChecksumFile));
+	}
+	return fetch(url);
+};
+
 const electronAssetResolver = electronFeed
 	? async ({ fileName }: { url: string; fileName: string }): Promise<Response> => {
 		const name = feedPackageName(fileName);
@@ -138,7 +152,7 @@ const electronAssetResolver = electronFeed
 		const body = Readable.toWeb(fs.createReadStream(filePath)) as ReadableStream<Uint8Array>;
 		return new Response(body, { status: 200, headers: { 'Content-Length': String(size) } });
 	}
-	: undefined;
+	: githubAssetResolver;
 
 export const config = {
 	version: electronVersion,
@@ -241,7 +255,7 @@ export const config = {
 	token: process.env['GITHUB_TOKEN'],
 	repo: electronAssetResolver,
 	validateChecksum: true,
-	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
+	checksumFile: electronChecksumFile,
 	createVersionedResources: useVersionedUpdate,
 	productVersionString: versionedResourcesFolder,
 };

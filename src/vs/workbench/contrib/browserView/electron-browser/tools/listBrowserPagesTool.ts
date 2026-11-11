@@ -43,7 +43,8 @@ export class ListBrowserPagesTool implements IToolImpl {
 			this.agentNetworkFilterService,
 			{
 				activeSessionId,
-				canPromptUser: activeSessionId !== undefined,
+				sandboxSessionId: invocation.context?.sandboxNetworkRestrictions?.sandboxEnabled ? activeSessionId : undefined,
+				canPromptUser: activeSessionId !== undefined && !invocation.context?.sandboxNetworkRestrictions?.sandboxEnabled,
 			},
 		);
 		return {

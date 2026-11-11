@@ -13,6 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService, NullLoggerService } from '../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest } from '../../common/agent.js';
+import type { IAgentHostProcessExitDiagnostics, IAgentHostProcessExitEvent } from '../../common/agentHostProcessExit.js';
+import { AgentHostOTelPolicyState, buildAgentHostOTelEnv, IAgentHostOTelSettings } from '../../common/agentService.js';
 import { AgentHostProcessManager } from '../../node/agentHostService.js';
 
 class TestChannel implements IChannel {
@@ -34,7 +36,7 @@ class TestAgentHostStarter implements IAgentHostStarter {
 	readonly onWillShutdown = this._onWillShutdown.event;
 	private readonly _onDidStart = new Emitter<number>();
 
-	private readonly _exitEmitters: Emitter<{ code: number; signal: string }>[] = [];
+	private readonly _exitEmitters: Emitter<IAgentHostProcessExitEvent>[] = [];
 	private readonly _channel = new TestChannel();
 	readonly connectionStores: DisposableStore[] = [];
 	startCount = 0;
@@ -59,7 +61,7 @@ class TestAgentHostStarter implements IAgentHostStarter {
 			this._startError = undefined;
 			throw error;
 		}
-		const exitEmitter = new Emitter<{ code: number; signal: string }>();
+		const exitEmitter = new Emitter<IAgentHostProcessExitEvent>();
 		this._exitEmitters.push(exitEmitter);
 		const store = new DisposableStore();
 		store.add(exitEmitter);
@@ -100,8 +102,8 @@ class TestAgentHostStarter implements IAgentHostStarter {
 		await Event.toPromise(Event.filter(this._onDidStart.event, count => count >= startCount));
 	}
 
-	fireProcessExit(code: number): void {
-		this._exitEmitters.at(-1)?.fire({ code, signal: 'unknown' });
+	fireProcessExit(code: number, diagnostics?: IAgentHostProcessExitDiagnostics): void {
+		this._exitEmitters.at(-1)?.fire({ code, signal: 'unknown', diagnostics });
 	}
 
 	failNextStart(error: Error): void {
@@ -223,6 +225,47 @@ suite('AgentHostProcessManager', () => {
 		});
 	});
 
+	test('reports collected exit diagnostics with the unexpected exit', async () => {
+		const { starter, telemetryService } = await createManager('linux');
+
+		starter.fireProcessExit(1, {
+			reason: 'abnormal-exit',
+			uptimeMs: 1500,
+			fatalSignature: 'startupFailure',
+			exitPath: 'processExit',
+			exitCaller: 'agentHostMain',
+			startupFailure: { name: 'Error', code: 'SQLITE_BUSY', msg: 'database is locked', callstack: 'Error: database is locked' },
+			workingSetMb: 120,
+			peakWorkingSetMb: 140,
+			memorySampleAgeMs: 900,
+		});
+		await starter.waitForStartCount(2);
+
+		assert.deepStrictEqual(telemetryService.errorEvents, [{
+			eventName: 'agentHost.processError',
+			data: {
+				hostLaunchKind: 'vscode_main_process',
+				kind: 'unexpectedExit',
+				code: 1,
+				restartCount: 0,
+				willRestart: true,
+				isError: true,
+				exitReason: 'abnormal-exit',
+				uptimeMs: 1500,
+				fatalSignature: 'startupFailure',
+				exitPath: 'processExit',
+				exitCaller: 'agentHostMain',
+				msg: 'database is locked',
+				callstack: 'Error: database is locked',
+				errorName: 'Error',
+				errorCode: 'SQLITE_BUSY',
+				workingSetMb: 120,
+				peakWorkingSetMb: 140,
+				memorySampleAgeMs: 900,
+			},
+		}]);
+	});
+
 	test('explicit restart disposes the current process and resets crash recovery', async () => {
 		const { manager, starter, telemetryService } = await createManager();
 
@@ -264,6 +307,49 @@ suite('AgentHostProcessManager', () => {
 			shutdownCount: 1,
 			connectionStoresDisposed: [true, false],
 			errorEvents: [],
+		});
+	});
+
+	test('coalesces settled OTel updates into one replacement with the latest environment', async () => {
+		const policyState = new AgentHostOTelPolicyState();
+		const endpoints: (string | undefined)[] = [];
+		const starter = new class extends TestAgentHostStarter {
+			override async start(): Promise<IAgentHostConnection> {
+				endpoints.push(buildAgentHostOTelEnv({}, {}, policyState.policy).OTEL_EXPORTER_OTLP_ENDPOINT);
+				policyState.didStart();
+				return super.start();
+			}
+		};
+		const manager = disposables.add(new AgentHostProcessManager(
+			starter, 'linux', new NullLogService(), disposables.add(new NullLoggerService()), new TestTelemetryService(),
+		));
+		const update = (policy: IAgentHostOTelSettings, ready: boolean) => {
+			if (policyState.update(policy, starter.startCount > 0, ready)) {
+				starter.requestRestart();
+			}
+		};
+		update({ enabled: true, otlpEndpoint: 'https://initial.example' }, true);
+		await starter.requestConnection();
+		update({ enabled: false, otlpEndpoint: '' }, false);
+		update({ enabled: true, otlpEndpoint: 'https://initial.example' }, true);
+		const beforeChange = starter.startCount;
+
+		const shutdown = starter.blockShutdown();
+		update({ enabled: true, otlpEndpoint: 'https://changed.example' }, true);
+		update({ enabled: true, otlpEndpoint: 'https://latest.example' }, true);
+		update({ enabled: false, otlpEndpoint: '' }, false);
+		await shutdown.complete();
+		await manager.start();
+		update({ enabled: true, otlpEndpoint: 'https://latest.example' }, true);
+		assert.deepStrictEqual({
+			beforeChange,
+			starts: starter.startCount,
+			shutdowns: starter.shutdownCount,
+			disposed: starter.connectionStores.map(store => store.isDisposed),
+			endpoints,
+		}, {
+			beforeChange: 1, starts: 2, shutdowns: 1, disposed: [true, false],
+			endpoints: ['https://initial.example', 'https://latest.example'],
 		});
 	});
 

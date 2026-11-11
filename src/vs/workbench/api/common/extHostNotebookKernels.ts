@@ -170,7 +170,7 @@ export class ExtHostNotebookKernels extends Disposable implements ExtHostNoteboo
 			const myToken = ++tokenPool;
 			Promise.resolve().then(() => {
 				if (myToken === tokenPool) {
-					this._proxy.$updateKernel(handle, data);
+					this._proxy.$updateKernel(handle, { ...data, supportedLanguages: data.supportedLanguages ?? [] });
 				}
 			});
 		};

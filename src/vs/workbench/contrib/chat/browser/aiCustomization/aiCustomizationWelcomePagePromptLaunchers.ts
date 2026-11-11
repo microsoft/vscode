@@ -57,6 +57,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 	private readonly categoryDescriptions: IPromptLaunchersCategoryDescription[] = [
 		{
+			id: AICustomizationManagementSection.Marketplace,
+			label: localize('customizationMarketplace', "Marketplace"),
+			icon: Codicon.search,
+			description: localize('customizationMarketplaceDesc', "Discover skills, MCP servers, and plugins for your agents. Review their sources before installing."),
+		},
+		{
 			id: AICustomizationManagementSection.Agents,
 			label: localize('agents', "Agents"),
 			icon: agentIcon,
@@ -95,6 +101,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			label: localize('plugins', "Plugins"),
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
+		},
+		{
+			id: AICustomizationManagementSection.Canvases,
+			label: localize('copilotCanvases', "Canvases"),
+			icon: Codicon.preview,
+			description: localize('copilotCanvasesDesc', "Review interactive canvases declared for Copilot chats visible in this window."),
 		},
 		{
 			id: AICustomizationManagementSection.Tools,
@@ -191,9 +203,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				}
 				let query: string;
 				if (this.workspaceService.isSessionsWindow) {
-					query = `Generate agent customizations. ${value}`;
+					query = localize('generateCustomizations.request', "Generate agent customizations. {0}", value);
 				} else {
-					query = `/init ${value}`;
+					query = value;
 				}
 
 				// Show confirmation immediately — before prefillChat so it's visible
@@ -212,7 +224,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				this.sentLabel.setAttribute('aria-live', 'polite');
 				this.sentLabel.textContent = localize('sentToChat', "Sent to chat \u2713");
 
-				this.callbacks.prefillChat(query, { isPartialQuery: false, newChat: true });
+				this.callbacks.prefillChat(query, { isPartialQuery: false, newChat: true, generateCustomizations: !this.workspaceService.isSessionsWindow });
 			};
 
 			this._register(DOM.addDisposableListener(submitBtn, 'click', e => { e.stopPropagation(); submit(); }));

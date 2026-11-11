@@ -37,6 +37,7 @@ import { ManagementConnection } from './remoteExtensionManagement.js';
 import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from './serverConnectionToken.js';
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { IServerLifetimeService } from './serverLifetimeService.js';
+import { getRemoteResourceResponseHeaders } from './remoteResourceResponse.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
 const require = createRequire(import.meta.url);
@@ -51,21 +52,14 @@ function parseRequestUrl(requestUrl: string): URL | undefined {
 	}
 }
 
-function getRemoteResourceResponseHeaders(): Record<string, string> {
-	return {
-		'Content-Security-Policy': `default-src 'none'; sandbox`,
-		'X-Content-Type-Options': 'nosniff',
-	};
-}
-
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class signer {
 		sign(arg: string): string;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class validator {
 		createNewMessage(arg: string): string;
 		validate(arg: string): 'ok' | 'error';
@@ -181,7 +175,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				return serveError(req, res, 400, `Bad request.`);
 			}
 
-			const responseHeaders = getRemoteResourceResponseHeaders();
+			const requestOrigin = req.headers['origin'];
+			const responseHeaders = getRemoteResourceResponseHeaders(requestOrigin, origin => this._webEndpointOriginChecker.matches(origin));
 			if (this._environmentService.isBuilt) {
 				if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !platform.isLinux)
 					|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !platform.isLinux)
@@ -190,12 +185,6 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				}
 			}
 
-			// Allow cross origin requests from the web worker extension host
-			responseHeaders['Vary'] = 'Origin';
-			const requestOrigin = req.headers['origin'];
-			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
-				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
-			}
 			return serveFile(filePath, CacheControl.ETAG, this._logService, req, res, responseHeaders);
 		}
 

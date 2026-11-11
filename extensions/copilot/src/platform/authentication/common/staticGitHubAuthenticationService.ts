@@ -20,6 +20,7 @@ export class StaticGitHubAuthenticationService extends BaseAuthenticationService
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(logService, tokenStore, tokenManager, configurationService);
+		tokenStore.authenticationState = 'signedIn';
 
 		const that = this;
 		this._anyGitHubSession = tokenProvider ? {
