@@ -6,7 +6,7 @@
 import { $ } from '../../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
@@ -118,8 +118,6 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 	readonly chat: ISettableObservable<URI>;
 	readonly input: ChatEditorInput;
 
-	private readonly _onDidEnd = this._register(new Emitter<void>());
-	readonly onDidEnd = this._onDidEnd.event;
 	private _ended = false;
 	private _disposed = false;
 
@@ -241,7 +239,8 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 	private _end(): void {
 		if (!this._ended) {
 			this._ended = true;
-			this._onDidEnd.fire();
+			// It closes its tab, and with it, itself
+			this._close(this);
 		}
 	}
 
@@ -405,6 +404,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	async openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> {
+		// A new session in the active tab while it is a composer that has not sent its session yet, as a chat window does
+		const active = this._activeInput.get();
+		const activeChat = active && this._chats.get(active);
+		if (activeChat?.isComposer && !options?.sideBySide) {
+			return this._open(activeChat, options);
+		}
 		const resource = createChatWindowComposerResource();
 		const composer = this.composers.create(resource, { target }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
@@ -531,7 +536,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			canMoveTo: group => !!this._part?.groups.some(candidate => candidate.id === group),
 		});
 		Event.once(chat.input.onWillDispose)(() => this._chats.deleteAndDispose(chat.input));
-		Event.once(chat.onDidEnd)(() => this._closeChat(chat));
 		return chat;
 	}
 
