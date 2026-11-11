@@ -16,6 +16,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsViewAvailable } from './agentsView.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 /** How long it waits for the widget of a chat it shows to be created. */
 const WAIT_TIMEOUT = 5_000;
@@ -35,6 +36,7 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) { }
 
 	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */
@@ -88,7 +90,7 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 	}
 
 	private _composerTarget(): INewSessionTarget | undefined {
-		return getAgentsChatPartComposerTarget(this._workspaceContextService);
+		return getAgentsChatPartComposerTarget(this._workspaceContextService, this._editorService);
 	}
 
 	/** The widget of the chat of `resource`, once the chat part's view of the chat creates it. */
