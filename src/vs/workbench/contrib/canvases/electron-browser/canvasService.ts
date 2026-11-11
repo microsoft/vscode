@@ -7,14 +7,16 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignal, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { GroupModelChangeKind } from '../../../common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -22,7 +24,8 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
-import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService, ICanvasModelResolution, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 interface ICanvasPresentation {
 	readonly reference: ICanvasReference;
@@ -35,6 +38,7 @@ interface ICanvasPresentation {
 	requestId: string | undefined;
 	canvas: ICanvas | undefined;
 	model: IBrowserViewModel | undefined;
+	/** The live source `model` presents, or `undefined` once its provider became unavailable. */
 	modelSource: URI | undefined;
 	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
 	modelDisposeListener: IDisposable | undefined;
@@ -63,6 +67,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly pendingRequests = new Map<string, string>();
 	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean; readonly preserveFocus: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
+	/** The editor closes {@link closeInput} awaits, by canvas: until one completes, its canvas does not open again. */
+	private readonly pendingCloses = new Map<string, Promise<void>>();
 	private readonly workingSetSuspensions = new Set<CanvasInput>();
 	private readonly dismissedChanged = observableSignal(this);
 	private readonly presentationsChanged = observableSignal(this);
@@ -143,7 +149,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 				knownOwners.add(canvasOwnerKey(context.owner));
 				const visible = enabled && contextService.isOwnerVisible(context.owner, reader);
-				const workingSetPresented = !restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner));
+				const workingSetPresented = (!restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner)))
+					|| contextService.presentsOutsideWorkingSets?.(context.owner, reader) === true;
 				const requests = context.openRequests?.read(reader);
 				for (const canvas of canvases) {
 					const reference: ICanvasReference = { ...context.owner, canvas: canvas.resource };
@@ -174,7 +181,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
 						continue;
 					}
-					if (modalActive && request?.pending) {
+					if ((modalActive || context.background === true) && request?.pending) {
+						continue;
+					}
+					if (!existingInput && this.pendingCloses.has(key)) {
+						// Its editor is still closing, which a new one would reveal instead of opening; it opens once that closed.
 						continue;
 					}
 					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
@@ -188,7 +199,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					const restoreFallback = presentation?.admitted === true && !presentation.opened;
-					void this.openInput(key, input, restoreFallback, restoreFallback || modalActive && !freshRequest)
+					void this.openInput(key, input, restoreFallback, restoreFallback || (modalActive || context.background === true) && !freshRequest, context.background === true)
 						.catch(error => this.reportError('Failed to reveal canvas', error));
 				}
 			}
@@ -220,6 +231,28 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 			}
 		}));
+		// A group outside the main window presents the canvases of the chats its window shows: once a chat leaves the
+		// window, its canvases there close, rather than show an error, to show again beside the chat where it shows next.
+		// Not suspended for a working set to restore: that restores into the main window, wherever the chat shows next. A
+		// canvas another surface shows, such as a pinned canvas page, keeps its model there.
+		// Also as a canvas opens in another group, such as one the user moved it to.
+		const canvasOpened = observableSignalFromEvent(this, Event.filter(this.editorService.onDidEditorsChange, ({ event }) => event.kind === GroupModelChangeKind.EDITOR_OPEN && event.editor instanceof CanvasInput));
+		this._register(autorun(reader => {
+			this.presentationsChanged.read(reader);
+			canvasOpened.read(reader);
+			for (const [key, input] of this.inputs) {
+				if (this.opening.has(input)) {
+					continue;
+				}
+				const presentable = this.editorService.findEditors(input.resource).every(({ editor, groupId }) => {
+					const group = editor === input ? this.editorGroupsService.getGroup(groupId) : undefined;
+					return !group || canPresentCanvasInGroup(input.reference, group, this.editorGroupsService, contextService, reader);
+				});
+				if (!presentable) {
+					void this.closeInput(key, input, false, true).catch(error => this.reportError('Failed to close canvas', error));
+				}
+			}
+		}));
 	}
 
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean {
@@ -234,8 +267,21 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	async revealCanvas(reference: ICanvasReference): Promise<void> {
-		if (this.workingSetState.get().restoring && !await this.waitForWorkingSetRestore()) {
-			return;
+		const key = getCanvasReferenceKey(reference);
+		// After a working-set restore, and once an editor of the canvas that is closing closed, which a new one would reveal
+		// instead of opening; what to reveal is resolved after both.
+		while (true) {
+			if (this.workingSetState.get().restoring && !await this.waitForWorkingSetRestore()) {
+				return;
+			}
+			const pendingClose = this.pendingCloses.get(key);
+			if (!pendingClose) {
+				break;
+			}
+			await pendingClose;
+			if (this._store.isDisposed) {
+				return;
+			}
 		}
 		const context = this.isOwnerPresentable(reference)
 			? this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference))
@@ -244,7 +290,6 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (!canvas) {
 			return;
 		}
-		const key = getCanvasReferenceKey(reference);
 		this.deleteDismissed(key);
 		if (canvas.source === undefined) {
 			return;
@@ -300,11 +345,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
 			throw new CancellationError();
 		}
+		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
+			return { model: await presentation.modelPromise.value, reused: true };
+		}
 		if (presentation.model && isEqual(presentation.modelSource, source)) {
 			return { model: presentation.model, reused: true };
 		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return { model: await presentation.modelPromise.value, reused: true };
+		if (presentation.model) {
+			return { model: await this.navigatePresentationModel(presentation, presentation.model, source), reused: false };
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
@@ -337,6 +385,48 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return { model: await value, reused: false };
 	}
 
+	/** Loads a new source into the retained page, so it is replaced in place without detaching its view or moving focus. */
+	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI): Promise<IBrowserViewModel> {
+		const generation = ++presentation.modelGeneration;
+		// The page leaves its previous source even if this navigation is superseded, so returning to that source must load it again.
+		presentation.modelSource = undefined;
+		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		const url = source.toString(true);
+		const network = model.network;
+		const loaded = network ? this.loadOnRemoteNetwork(model, network, url, isCurrent) : model.loadURL(url);
+		const value = loaded.then(() => {
+			if (!isCurrent()) {
+				throw new CancellationError();
+			}
+			presentation.modelSource = source;
+			return model;
+		}).finally(() => {
+			if (presentation.modelPromise?.value === value) {
+				presentation.modelPromise = undefined;
+			}
+		});
+		presentation.modelPromise = { source, value };
+		return value;
+	}
+
+	/**
+	 * Loads a URL into a retained page on a remote network once that network's proxy is ready, as a new page does. The
+	 * proxy may be restarting, or may have failed to start, while the canvas provider was away. A network the window
+	 * cannot reach rejects like a failed load; the page never falls back to the local network.
+	 */
+	private async loadOnRemoteNetwork(model: IBrowserViewModel, network: IBrowserViewNetwork, url: string, isCurrent: () => boolean): Promise<void> {
+		// A host that cannot proxy browsers holds nothing; the page keeps the network configuration it was created with.
+		const hold = await this.browserViewService.acquireNetwork(network);
+		try {
+			if (!isCurrent()) {
+				throw new CancellationError();
+			}
+			await model.loadURL(url);
+		} finally {
+			hold.dispose();
+		}
+	}
+
 	private async waitForWorkingSetRestore(): Promise<boolean> {
 		while (this.workingSetState.get().restoring) {
 			this.restoreSettled ??= new DeferredPromise<boolean>();
@@ -347,7 +437,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return true;
 	}
 
-	private openInput(key: string, input: CanvasInput, restoreFallback = false, preserveFocus = restoreFallback): Promise<void> {
+	private openInput(key: string, input: CanvasInput, restoreFallback = false, preserveFocus = restoreFallback, background = false): Promise<void> {
 		const pending = this.opening.get(input);
 		if (pending) {
 			if (!preserveFocus && pending.preserveFocus) {
@@ -355,7 +445,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			return pending.value;
 		}
-		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus).finally(() => {
+		const opening = this.doOpenInput(key, input, restoreFallback, preserveFocus, background).finally(() => {
 			this.opening.delete(input);
 			this.presentationsChanged.trigger(undefined);
 		});
@@ -363,7 +453,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return opening;
 	}
 
-	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean, preserveFocus: boolean): Promise<void> {
+	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean, preserveFocus: boolean, background: boolean): Promise<void> {
 		const canvas = input.canvas.get();
 		if (!canvas) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
@@ -379,7 +469,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 				? {
 					pinned: true,
 					preserveFocus: true,
-					inactive: !presentation.restoreActive,
+					// A background context never takes the active tab, whichever tab the canvas was before its editor closed.
+					inactive: background || !presentation.restoreActive,
 					activation: EditorActivation.PRESERVE,
 				}
 				: preserveFocus
@@ -629,12 +720,20 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 	}
 
-	private async closeInput(key: string, input: CanvasInput, suspend = false): Promise<void> {
+	/**
+	 * Closes the editor of `input` without recording a dismissal. With `suspend`, an admitted presentation stays for its
+	 * working set to restore. With `retainElsewhere`, a presentation another surface shows, such as a pinned canvas page,
+	 * keeps its model there, as when the user closes the editor.
+	 */
+	private async closeInput(key: string, input: CanvasInput, suspend = false, retainElsewhere = false): Promise<void> {
 		if (this.programmaticCloses.has(input) || this.inputs.get(key) !== input) {
 			return;
 		}
 		this.workingSetSuspensions.delete(input);
 		this.programmaticCloses.add(input);
+		const closed = new DeferredPromise<void>();
+		// Before the presentation changes below, which reconcile it
+		this.pendingCloses.set(key, closed.p);
 		this.inputs.deleteAndLeak(key);
 		const lifetime = this.inputLifetimes.deleteAndLeak(key);
 		this.deleteDismissed(key);
@@ -642,6 +741,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (suspend && presentation?.admitted) {
 			presentation.opened = false;
 			this.presentationsChanged.trigger(undefined);
+		} else if (retainElsewhere && presentation && this.contextService.isPresentedElsewhere?.(input.reference) === true) {
+			this.retainExternally(presentation);
 		} else {
 			this.deletePresentation(key);
 			this.requests.delete(key);
@@ -653,6 +754,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 			input.dispose();
 			lifetime?.dispose();
 			this.programmaticCloses.delete(input);
+			if (this.pendingCloses.get(key) === closed.p) {
+				this.pendingCloses.delete(key);
+			}
+			closed.complete();
+			if (!this._store.isDisposed) {
+				// Its canvas may show again meanwhile, such as beside its chat in another window.
+				this.presentationsChanged.trigger(undefined);
+			}
 		}
 	}
 
@@ -694,10 +803,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private setPresentationCanvas(presentation: ICanvasPresentation, canvas: ICanvas): void {
-		const disposeModel = !canvas.source || presentation.modelSource && !isEqual(presentation.modelSource, canvas.source);
 		presentation.canvas = canvas;
-		if (disposeModel) {
-			this.disposePresentationModel(presentation);
+		if (!canvas.source) {
+			// Keep the last page while the provider is unavailable; the next source loads into it in place.
+			presentation.modelSource = undefined;
+			presentation.modelPromise = undefined;
+			presentation.modelGeneration++;
 		}
 	}
 

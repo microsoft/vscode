@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { load } from 'js-yaml';
 import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from '../../azure-pipelines/web/cdnConfiguration.ts';
-import { mobilePreviewDirectory, mobilePreviewManifestName } from '../../next/mobilePreview.ts';
+import { mobileDirectory, mobileManifestName } from '../../next/mobile.ts';
 
 const commit = '0123456789abcdef0123456789abcdef01234567';
 
@@ -23,9 +23,9 @@ test('normal publication keeps its existing source, commit directory and file in
 
 test('mobile publication cannot enter the normal web preload directory', () => {
 	assert.deepStrictEqual(getWebCdnConfiguration(['--mobile'], 'insider', commit), {
-		source: mobilePreviewDirectory,
+		source: mobileDirectory,
 		prefix: `agents/mobile/insider/${commit}/`,
-		patterns: ['out/**', 'node_modules/**', 'extensions/**', mobilePreviewManifestName],
+		patterns: ['out/**', 'node_modules/**', 'extensions/**', mobileManifestName],
 		mobile: true,
 	});
 	for (const [quality, revision] of [['dev', commit], ['stable', undefined], ['stable', '../other']]) {
@@ -37,8 +37,8 @@ test('mobile publication cannot enter the normal web preload directory', () => {
 test('mobile CDN publication verifies the pipeline commit and quality without a second release ID', async t => {
 	const directory = await mkdtemp(join(tmpdir(), 'mobile-cdn-'));
 	t.after(() => rm(directory, { recursive: true, force: true }));
-	await writeFile(join(directory, mobilePreviewManifestName), JSON.stringify({
-		schemaVersion: 2, kind: 'sessions-mobile-preview', build: { commit, quality: 'insider' },
+	await writeFile(join(directory, mobileManifestName), JSON.stringify({
+		schemaVersion: 2, kind: 'sessions-mobile', build: { commit, quality: 'insider' },
 	}));
 	await validateMobileWebCdnIdentity(directory, 'insider', commit);
 	await assert.rejects(validateMobileWebCdnIdentity(directory, 'stable', commit), /VSCODE_QUALITY/);
@@ -69,12 +69,47 @@ test('the existing Web job builds a normal archive before publication and guards
 	const pipeline = load(source) as { parameters: { name: string; default: boolean }[]; jobs: { templateContext: { outputs: object[] } }[] };
 	assert.equal(pipeline.parameters.find(parameter => parameter.name === 'VSCODE_BUILD_WEB_MOBILE')?.default, false);
 	assert.ok(JSON.stringify(pipeline.jobs[0].templateContext.outputs).includes('vscode_web_linux_mobile_archive-unsigned'));
-	assert.ok(source.includes('pnpm run test-mobile-preview'));
+	assert.match(source, /^\s*pnpm run test-mobile\s*$/m);
 	assert.ok(source.includes('node --test build/lib/test/mobileWebPublication.test.ts'));
-	assert.ok(source.includes('pnpm run bundle-mobile-preview'));
-	assert.ok(source.includes('--transform=\'s,^out-mobile-preview,vscode-web-mobile,\''));
-	assert.ok(source.includes('out-mobile-preview/mobile-preview.json'));
+	assert.match(source, /^\s*pnpm run bundle-mobile\s*$/m);
+	assert.ok(source.includes('--transform=\'s,^out-mobile,vscode-web-mobile,\''));
+	assert.ok(source.includes('out-mobile/mobile.json'));
 	assert.ok(source.includes('condition: and(succeeded(), eq(variables[\'VSCODE_PUBLISH\'], \'True\'))'));
 	assert.ok(source.indexOf('Build and validate mobile web archive') < source.indexOf('node build/azure-pipelines/upload-cdn.ts --mobile'));
-	assert.ok(!source.includes('publish-mobile-preview'));
+	assert.ok(!source.includes('publish-mobile'));
+});
+
+test('mobile archive retries reuse the standard artifact check without changing the ordinary archive guard', async () => {
+	const mobileCondition = '${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}';
+	type Step = { script?: string; env?: { SYSTEM_ACCESSTOKEN?: string }; [mobileCondition]?: Step[] };
+	const source = await readFile(new URL('../../azure-pipelines/web/product-build-web.yml', import.meta.url), 'utf8');
+	const pipeline = load(source) as {
+		jobs: {
+			templateContext: {
+				outputs: { artifactName?: string; condition?: string; [mobileCondition]?: { artifactName: string; condition: string }[] }[];
+			};
+			steps: Step[];
+		}[];
+	};
+	const job = pipeline.jobs[0];
+	const mobileSteps = job.steps.flatMap(step => step[mobileCondition] ?? []);
+	const mobileCheck = mobileSteps.find(step => step.script?.includes('common/checkForArtifact.ts'));
+	const ordinaryCheck = job.steps.find(step => step.script?.includes('common/checkForArtifact.ts'));
+	assert.deepStrictEqual({
+		outputs: job.templateContext.outputs.flatMap(output => output[mobileCondition] ?? [])
+			.map(({ artifactName, condition }) => ({ artifactName, condition })),
+		mobileCheck: mobileCheck?.script?.trim().split(/\s+/),
+		token: mobileCheck?.env?.SYSTEM_ACCESSTOKEN,
+		ordinaryCheck: ordinaryCheck?.script?.trim().split(/\s+/),
+		ordinaryCondition: job.templateContext.outputs.find(output => output.artifactName === 'vscode_web_linux_standalone_archive-unsigned')?.condition,
+	}, {
+		outputs: [{
+			artifactName: 'vscode_web_linux_mobile_archive-unsigned',
+			condition: "and(succeeded(), ne(variables['WEB_MOBILE_ARCHIVE_PUBLISHED'], 'true'))",
+		}],
+		mobileCheck: ['node', 'build/azure-pipelines/common/checkForArtifact.ts', 'WEB_MOBILE_ARCHIVE_PUBLISHED', 'vscode_web_linux_mobile_archive-unsigned'],
+		token: '$(System.AccessToken)',
+		ordinaryCheck: ['node', 'build/azure-pipelines/common/checkForArtifact.ts', 'WEB_ARCHIVE_PUBLISHED', 'vscode_web_linux_standalone_archive-unsigned'],
+		ordinaryCondition: "and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))",
+	});
 });

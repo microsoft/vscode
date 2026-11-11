@@ -43,8 +43,8 @@ import { CloudSandboxAgentHostService } from '../../../../../../workbench/contri
 import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
-import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
-import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
+import { MissionControlAgentHostContribution } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
+import { IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthenticationState {
@@ -649,6 +649,7 @@ suite('Remote agent host provider ownership', () => {
 			override readonly hosts = observableValue(this, [
 				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
 			]);
+			override readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 		}();
 		owner._profileService = new class extends mock<IUserDataProfileService>() {
 			override readonly currentProfile = new class extends mock<IUserDataProfile>() {

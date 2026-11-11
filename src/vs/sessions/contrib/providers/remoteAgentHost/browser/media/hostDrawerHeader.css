@@ -67,7 +67,7 @@
 }
 
 .host-drawer-header-tile .codicon {
-	font-size: 20px;
+	font-size: var(--vscode-codiconFontSize);
 }
 
 .host-drawer-header-tile.place {

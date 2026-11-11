@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { SessionsLayoutPolicy } from '../layoutPolicy.js';
 import { IWorkbenchOptions, Workbench } from '../workbench.js';
 import { MobileWorkbench as BaseMobileWorkbench } from '../mobileWorkbench.js';
-import { ExperimentalMobileTitlebarPart } from './experimentalMobileTitlebarPart.js';
+import { MobileTitlebarPart } from './mobileTitlebarPart.js';
 
 /**
  * CSS class that marks the main container of the mobile workbench. Mobile-only
@@ -42,8 +42,8 @@ export class MobileWorkbench extends BaseMobileWorkbench {
 		return new SessionsLayoutPolicy('phone');
 	}
 
-	protected override createMobileTitlebarPart(instantiationService: IInstantiationService): ExperimentalMobileTitlebarPart {
-		return instantiationService.createInstance(ExperimentalMobileTitlebarPart, this.mainContainer);
+	protected override createMobileTitlebarPart(instantiationService: IInstantiationService): MobileTitlebarPart {
+		return instantiationService.createInstance(MobileTitlebarPart, this.mainContainer);
 	}
 
 	override getLayoutClasses(): string[] {

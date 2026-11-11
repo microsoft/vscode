@@ -1069,14 +1069,9 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
-			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
-			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch
-			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
-			|| (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()))) {
+		const rebindReason = this._getRebindReason();
+		if (rebindReason) {
+			this._logService.info(`[Claude] session ${this.sessionId}: rebinding before turn ${turnId} for changed ${rebindReason}`);
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
@@ -1127,6 +1122,37 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	}
 
 	/**
+	 * Returns the first state that differs from what the running Claude
+	 * process was launched with, or `undefined` when the session can keep
+	 * its process for the next turn. Checks stop at the first difference.
+	 */
+	private _getRebindReason(): string | undefined {
+		if (this.toolDiff.hasDifference) {
+			return 'client tools';
+		}
+		if (this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))) {
+			return 'client customizations';
+		}
+		if (this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision) {
+			return 'MCP enablement';
+		}
+		if (this._pendingResumeSessionAt !== undefined) {
+			return 'resume point';
+		}
+		if (!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			return 'additional directories';
+		}
+		if (this._pendingTransportSwitch) {
+			return 'transport switch';
+		}
+		// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
+		if (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get())) {
+			return 'owner';
+		}
+		return undefined;
+	}
+
+	/**
 	 * Single yield-restart that covers both client-tool and
 	 * customization divergence in one trip. Drains the parked
 	 * client-tool MCP handlers (same as the original tool-only
@@ -1144,17 +1170,14 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		this._onDidCustomizationsChange.fire();
 	}
 
-	/**
-	 * Cancel the in-flight SDK turn. Mirrors the production reference;
-	 * see {@link ClaudeSdkPipeline.abort}. Also denies any parked
-	 * permission / user-input requests so the SDK's `canUseTool`
-	 * callback (and any interactive tool waiting on user input) unwinds
-	 * with a deny / cancel result instead of leaving stale UI behind.
-	 */
-	abort(): void {
-		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
-		this._requirePipeline().abort();
+	/** Cancels the SDK turn before releasing any remaining permission or input requests. */
+	async abort(): Promise<void> {
+		try {
+			await this._requirePipeline().abort();
+		} finally {
+			this._pendingPermissions.denyAll(false);
+			this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
+		}
 	}
 
 	/**

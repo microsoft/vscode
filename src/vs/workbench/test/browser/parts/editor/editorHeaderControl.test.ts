@@ -59,8 +59,9 @@ suite('EditorHeaderControl', () => {
 			override relayout() { heights.push(control.height); }
 		}();
 		const container = $('.title');
-		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace));
+		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace, options.showHeaderFor));
 		return {
+			container,
 			control,
 			heights,
 			hasActions,
@@ -75,6 +76,17 @@ suite('EditorHeaderControl', () => {
 			},
 		};
 	}
+
+	test('positions the header beside left-docked content and clears the offset when docking changes', () => {
+		const header = createHeader({ showHeader: true, reserveHeaderSpace: () => true });
+		header.activate(store.add(new TestHeaderEditorInput()));
+		const states = [[340, 260], [440, 300], [600, 0]].map(([width, left]) => {
+			header.control.layout(width, left);
+			const style = header.container.querySelector<HTMLElement>('.editor-group-header')!.style;
+			return { width: style.width, left: style.marginLeft };
+		});
+		assert.deepStrictEqual(states, [{ width: '340px', left: '260px' }, { width: '440px', left: '300px' }, { width: '600px', left: '' }]);
+	});
 
 	for (const tabHeight of ['default', 'compact'] as const) {
 		test(`reserves header height across tab and delayed menu changes (${tabHeight})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -113,6 +125,24 @@ suite('EditorHeaderControl', () => {
 			});
 		}));
 	}
+
+	test('shows the header with its actions only for the editors it shows for, such as not for a terminal, as the active editor changes', () => {
+		const changes = store.add(new TestHeaderEditorInput());
+		const terminal = store.add(new TestHeaderEditorInput());
+		const header = createHeader({ showHeader: true, showHeaderFor: editor => editor !== terminal });
+		header.hasActions.set(true);
+		header.activate(changes);
+		const states = [header.state()];
+		header.activate(terminal);
+		states.push(header.state());
+		header.activate(changes);
+		states.push(header.state());
+		assert.deepStrictEqual(states, [
+			{ height: EditorHeaderControl.DEFAULT_HEIGHT, display: '', actionsDisplay: '' },
+			{ height: 0, display: 'none', actionsDisplay: '' },
+			{ height: EditorHeaderControl.DEFAULT_HEIGHT, display: '', actionsDisplay: '' },
+		]);
+	});
 
 	test('does not reserve an empty header for other editors or an empty group', () => {
 		const reservedEditor = store.add(new TestHeaderEditorInput());

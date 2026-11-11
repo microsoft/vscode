@@ -13,6 +13,7 @@ import type { CancellationToken } from '../../../../base/common/cancellation.js'
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
+import { env } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -146,7 +147,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 				isEnabled: () => sharesClientNetwork() && configurationService.getValue<boolean>('http.systemCertificates') === true,
 				loadCertificates: () => requestService.loadCertificates(),
 			},
-			clientProxy: instantiationService.createInstance(AgentHostClientProxy, sharesClientNetwork),
+			clientProxy: instantiationService.createInstance(AgentHostClientProxy, sharesClientNetwork, env),
 		}));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the
 		// address-derived authority, so register it for reads. The ambient `local` authority

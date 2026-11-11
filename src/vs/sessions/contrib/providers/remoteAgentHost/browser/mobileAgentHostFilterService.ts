@@ -5,8 +5,8 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
-import { AgentHostFilterService } from '../../../../services/agentHostFilter/browser/agentHostFilterService.js';
-import { IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { AgentHostFilterService } from '../../../../../workbench/contrib/sessions/browser/agentHostFilterService.js';
+import { IAgentHostFilterEntry } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 
 export function isImplicitlyConnectedHost(entry: IAgentHostFilterEntry): boolean {
 	return entry.grouped && !entry.connectable && entry.sessionCreationProviderId !== undefined;

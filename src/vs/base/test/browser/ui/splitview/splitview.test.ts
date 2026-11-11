@@ -511,6 +511,22 @@ suite('Splitview', () => {
 		assert.deepStrictEqual([view1.size, view2.size], [50, 50]);
 	});
 
+	test('proportional layout keeps a view that keeps its size within its bounds, such as one restored at a size out of them', () => {
+		class FixedView extends TestView {
+			readonly proportionalLayout = false;
+		}
+		const fixed = store.add(new FixedView(30, 30));
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container, { descriptor: { size: 300, views: [{ view: fixed, size: 100 }, { view: view1, size: 100 }, { view: view2, size: 100 }] } }));
+
+		splitview.layout(300);
+		const sizes = [fixed.size, view1.size, view2.size];
+		splitview.layout(600);
+
+		assert.deepStrictEqual({ sizes, grown: [fixed.size, view1.size, view2.size] }, { sizes: [30, 135, 135], grown: [30, 285, 285] });
+	});
+
 	test('disable proportional layout', () => {
 		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
 		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));

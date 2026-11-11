@@ -15,6 +15,22 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents paste choices only on the supported workbench chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
+	});
+
+	test('documents showing files above the chat input only while chat resources are enabled', () => {
+		const help = (chatResourcesEnabled: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, chatResourcesEnabled);
+		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);
+	});
+
 	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -632,7 +648,7 @@ suite('Chat Accessibility Help', () => {
 			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
 			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
 			focus: shown.includes('Escape while it is focused, returns to the chat input'),
-			focusRemainingTasks: shown.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			focusRemainingTasks: shown.includes('Archiving the session sets it aside so you can focus on your remaining tasks'),
 			retained: shown.includes('The session is not deleted'),
 			agentRecovery: shown.includes('Ask your agent to find it'),
 			recovery: shown.includes('"Archived" section of the sessions list. You can unarchive it anytime'),
@@ -683,7 +699,7 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done, Configure Automatic Cleanup, or Dismiss Mark as Done Suggestion'),
 			cleanupSettings: help.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
 			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
-			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			focusRemainingTasks: help.includes('Marking the session as done sets it aside so you can focus on your remaining tasks'),
 			retained: help.includes('The session is not deleted'),
 			agentRecovery: help.includes('Ask your agent to find it'),
 			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),
@@ -702,6 +718,18 @@ suite('Chat Accessibility Help', () => {
 			supported: true,
 			unsupported: false,
 		});
+	});
+
+	test('documents pill dragging and keyboard movement only when inline attachments are enabled', () => {
+		const keybindings = new MockKeybindingService();
+		const help = getAccessibilityHelpText('agentView', keybindings, true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, false, false, true, true);
+		assert.deepStrictEqual({
+			drag: help.includes('Drag a pill to move it within the same chat input'),
+			cancel: help.includes('Press Escape or drop outside the input to cancel'),
+			cut: help.includes('<keybinding:editor.action.clipboardCutAction>'),
+			paste: help.includes('<keybinding:editor.action.clipboardPasteAction>'),
+			disabled: getAccessibilityHelpText('agentView', keybindings, true).includes('Drag a pill'),
+		}, { drag: true, cancel: true, cut: true, paste: true, disabled: false });
 	});
 
 	test('describes long pasted text attachments regardless of line count', () => {

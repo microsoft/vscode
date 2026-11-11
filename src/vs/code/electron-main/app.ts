@@ -93,6 +93,8 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { UnattendedRestartScheduler } from '../../platform/update/electron-main/unattendedRestartScheduler.js';
+import { IUnattendedRestartReadinessProvider, UnattendedRestartChannelName } from '../../platform/lifecycle/common/unattendedRestart.js';
 import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
@@ -100,7 +102,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, extractChatSessionToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
@@ -122,7 +124,6 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
-import { CancellationToken } from '../../base/common/cancellation.js';
 import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -803,6 +804,13 @@ export class CodeApplication extends Disposable {
 		// Post Open Windows Tasks
 		this.afterWindowOpen(appInstantiationService);
 
+		// Restart to apply updates while the screen is locked
+		this._register(appInstantiationService.createInstance(UnattendedRestartScheduler, {
+			getWindowReadiness: window => ProxyChannel.toService<IUnattendedRestartReadinessProvider>(
+				mainProcessElectronServer.getChannel(UnattendedRestartChannelName, client => client.ctx === `window:${window.id}`)
+			).canRestartUnattended()
+		}));
+
 		const isGeneratingNodeCompileCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
 		const shouldStartCriticalNodeProcesses = isGeneratingNodeCompileCache || process.env['VSCODE_MEASURE_NODE_COMPILE_CACHE'] === '1';
 		if (shouldStartCriticalNodeProcesses) {
@@ -919,6 +927,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		const openables: IWindowOpenable[] = [];
+		const openableChatSessions: (ChatSessionToOpen | undefined)[] = [];
 		const urls: IProtocolUrl[] = [];
 
 		for (const protocolUrl of protocolUrls) {
@@ -926,7 +935,10 @@ export class CodeApplication extends Disposable {
 				continue; // invalid
 			}
 
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
+			// A chat session parameter targets the window that opens, not the openable itself
+			const { uri: openableUri, chatSessionToOpen } = extractChatSessionToOpen(protocolUrl.uri);
+
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(openableUri);
 			if (windowOpenable) {
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
@@ -936,6 +948,7 @@ export class CodeApplication extends Disposable {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
 
 					openables.push(windowOpenable); // handled as window to open
+					openableChatSessions.push(chatSessionToOpen);
 				}
 			} else {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
@@ -944,7 +957,11 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		return { urls, openables };
+		return {
+			urls,
+			openables,
+			chatSessionToOpen: openables.length === 1 ? openableChatSessions[0] : undefined
+		};
 	}
 
 	private async shouldBlockOpenable(openable: IWindowOpenable, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
@@ -1131,13 +1148,12 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
-		// Extract session parameter to open a specific chat session in the target window
-		const session = params.get('session');
-		if (session !== null) {
-			this.logService.trace(`app#handleProtocolUrl() found 'session' as parameter:`, uri.toString(true));
+		// Extract chat session parameters to open a specific chat session in the target window
+		const { uri: uriWithoutChatSession, chatSessionToOpen } = extractChatSessionToOpen(uri);
+		if (uriWithoutChatSession !== uri) {
+			this.logService.trace(`app#handleProtocolUrl() found chat session parameter:`, uri.toString(true));
 
-			params.delete('session');
-			uri = uri.with({ query: params.toString() });
+			uri = uriWithoutChatSession;
 		}
 
 		// Check if the protocol URL is a window openable to open...
@@ -1155,16 +1171,12 @@ export class CodeApplication extends Disposable {
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
-					gotoLineMode: true
+					gotoLineMode: true,
+					chatSessionToOpen
 					// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
 				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
-
-				// Open chat session in the target window if requested
-				if (window && session) {
-					window.sendWhenReady('vscode:openChatSession', CancellationToken.None, session);
-				}
 
 				return true;
 			}
@@ -1571,7 +1583,8 @@ export class CodeApplication extends Disposable {
 					cli: args,
 					urisToOpen: initialProtocolUrls.openables,
 					gotoLineMode: true,
-					initialStartup: true
+					initialStartup: true,
+					chatSessionToOpen: initialProtocolUrls.chatSessionToOpen
 					// remoteAuthority: will be determined based on openables
 				});
 			}

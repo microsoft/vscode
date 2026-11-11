@@ -88,12 +88,13 @@ suite('Copilot SDK managed model configuration', function () {
 				if (stub) {
 					response.writeHead(stub.status, stub.headers);
 					let content = stub.body.replaceAll('${capi}', baseUrl);
-					if (path === '/models' && modelEfforts) {
-						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = JSON.parse(content);
+					if ((path === '/models' || path === '/meta') && modelEfforts) {
+						const document = JSON.parse(content);
+						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = path === '/meta' ? document.models : document;
 						const model = catalog.data.find(model => model.id === 'gpt-5');
 						assert.ok(model);
 						model.capabilities.supports.reasoning_effort = modelEfforts;
-						content = JSON.stringify(catalog);
+						content = JSON.stringify(document);
 					}
 					response.end(content);
 				} else {
@@ -409,7 +410,7 @@ suite('Copilot SDK managed model configuration', function () {
 		});
 	}
 
-	test('bundled SDK regression: unsupported server effort reaches inference even in default-only mode (#26681)', async () => {
+	test('bundled SDK drops unsupported server effort before inference in default-only mode (#26681)', async () => {
 		policy = { model: 'gpt-4o', effortLevel: 'high' };
 		const session = await client.createSession({
 			model: 'gpt-4o', workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
@@ -420,7 +421,7 @@ suite('Copilot SDK managed model configuration', function () {
 			await session.rpc.model.list();
 			const response = await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
 			assert.deepStrictEqual({ response: response?.data.content, completionEfforts, unexpectedRequests }, {
-				response: 'OK', completionEfforts: ['high'], unexpectedRequests: [],
+				response: 'OK', completionEfforts: [undefined], unexpectedRequests: [],
 			});
 		} finally {
 			await session.disconnect();

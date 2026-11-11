@@ -28,13 +28,12 @@ import { SideBarVisibleContext } from '../../../workbench/common/contextkeys.js'
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../workbench/services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatDashboardService } from '../../browser/chatDashboardService.js';
-import { ExperimentalMobileTitlebarPart } from '../../browser/mobile/experimentalMobileTitlebarPart.js';
+import { MobileTitlebarPart as MobileWorkbenchTitlebarPart } from '../../browser/mobile/mobileTitlebarPart.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from '../../browser/parts/mobile/contributions/mobileChangesView.js';
 import { MobileTitlebarPart } from '../../browser/parts/mobile/mobileTitlebarPart.js';
-import { IsNewChatSessionContext } from '../../common/contextkeys.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionFileChange } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function query<T extends HTMLElement>(container: ParentNode, selector: string): T {
 	const element = container.querySelector<T>(selector);
@@ -62,12 +61,14 @@ async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof M
 	const chat = new class extends mock<IChat>() {
 		override readonly changes = changes;
 	}();
-	const session = new class extends mock<IActiveSession>() {
+	const session = new class extends mock<ISession>() {
 		override readonly title = title;
-		override readonly activeChat = constObservable(chat);
+		override readonly status = constObservable(SessionStatus.Completed);
 	}();
-	const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	instantiationService.stub(ISessionsService, { activeSession });
+	const activeSession = observableValue<ISession | undefined>('activeSession', undefined);
+	stubSessionHosts(instantiationService, store, {
+		session: activeSession.map(session => session && { session, chat }),
+	});
 	instantiationService.stub(IDefaultAccountService, {
 		onDidChangeDefaultAccount: Event.None,
 		getDefaultAccount: async () => null,
@@ -132,10 +133,11 @@ async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof M
 suite('Sessions - MobileTitlebarPart isolation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const ctor of [MobileTitlebarPart, ExperimentalMobileTitlebarPart]) {
-		const experimental = ctor === ExperimentalMobileTitlebarPart;
+	for (const ctor of [MobileTitlebarPart, MobileWorkbenchTitlebarPart]) {
+		const mobileWorkbench = ctor === MobileWorkbenchTitlebarPart;
+		const titlebar = mobileWorkbench ? 'mobile workbench titlebar' : 'responsive titlebar';
 
-		test(`${ctor.name} keeps its own title presentation and disposes subscriptions`, async () => {
+		test(`${titlebar} keeps its own title presentation and disposes subscriptions`, async () => {
 			const h = await createHarness(store, ctor);
 			const titleElement = query<HTMLButtonElement>(h.container, '.mobile-session-title');
 			const titles = [titleElement.textContent];
@@ -159,12 +161,12 @@ suite('Sessions - MobileTitlebarPart isolation', () => {
 			h.sidebarVisible.set(true);
 			titles.push(titleElement.textContent);
 
-			assert.deepStrictEqual(titles, experimental
+			assert.deepStrictEqual(titles, mobileWorkbench
 				? ['Agents', 'Agents', 'First session', 'Sessions', 'Sessions', 'Renamed session', 'New Session', 'Override', 'Override']
 				: ['New Session', 'First session', 'First session', 'First session', 'Renamed session', 'Renamed session', 'New Session', 'Override', 'Override']);
 		});
 
-		test(`${ctor.name} preserves the shared toolbar, changes pill and navigation actions`, async () => {
+		test(`${titlebar} preserves the shared toolbar, changes pill and navigation actions`, async () => {
 			const h = await createHarness(store, ctor);
 			const titleElement = query<HTMLButtonElement>(h.container, '.mobile-session-title');
 			const newSession = query<HTMLButtonElement>(h.container, '.mobile-new-session-button');
@@ -214,7 +216,7 @@ suite('Sessions - MobileTitlebarPart isolation', () => {
 			});
 		});
 
-		test(`${ctor.name} keeps account presentation defaults and cleans up repeated sheets`, async () => {
+		test(`${titlebar} keeps account presentation defaults and cleans up repeated sheets`, async () => {
 			const h = await createHarness(store, ctor);
 			const account = query<HTMLButtonElement>(h.container, '.mobile-account-indicator');
 			account.focus();
@@ -244,9 +246,9 @@ suite('Sessions - MobileTitlebarPart isolation', () => {
 				dashboardDisposals: h.getDashboardDisposals(), staleEscapeHandled: staleEscape.defaultPrevented,
 			}, {
 				initial: {
-					role: experimental ? 'dialog' : null, modal: experimental ? 'true' : null,
-					label: experimental ? 'Account' : null, tabIndex: experimental ? '-1' : null,
-					focus: experimental ? 'close' : 'account', profile: 'Test Account',
+					role: mobileWorkbench ? 'dialog' : null, modal: mobileWorkbench ? 'true' : null,
+					label: mobileWorkbench ? 'Account' : null, tabIndex: mobileWorkbench ? '-1' : null,
+					focus: mobileWorkbench ? 'close' : 'account', profile: 'Test Account',
 				},
 				closed: { sheetRemoved: true, accountFocused: true, dashboardDisposals: 1 },
 				remaining: 0, dashboardDisposals: 3, staleEscapeHandled: false,
@@ -254,8 +256,8 @@ suite('Sessions - MobileTitlebarPart isolation', () => {
 		});
 	}
 
-	test('experimental account sheet wraps focus past disabled actions and restores it on Escape and action invocation', async () => {
-		const h = await createHarness(store, ExperimentalMobileTitlebarPart);
+	test('mobile workbench account sheet wraps focus past disabled actions and restores it on Escape and action invocation', async () => {
+		const h = await createHarness(store, MobileWorkbenchTitlebarPart);
 		const account = query<HTMLButtonElement>(h.container, '.mobile-account-indicator');
 		account.focus();
 		account.click();

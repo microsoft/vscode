@@ -29,13 +29,14 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionBrowserNetworkContribution } from '../../browser/sessionBrowserNetwork.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionBrowserNetworkContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,7 +52,7 @@ suite('SessionBrowserNetworkContribution', () => {
 
 	function createResolver(services: {
 		readonly sessionsManagement?: Partial<ISessionsManagementService>;
-		readonly sessions?: Partial<ISessionsService>;
+		readonly sessions?: Partial<ITestSessionsService>;
 		readonly providers?: Partial<ISessionsProvidersService>;
 		readonly connections: Partial<IAgentHostConnectionsService>;
 		readonly browserView?: Partial<IBrowserViewWorkbenchService>;
@@ -75,7 +76,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			onDidDiscardNewSession: Event.None,
 			...services.sessionsManagement,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ ...services.providers }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ connections: [], onDidChangeConnections: Event.None, ...services.connections }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ onWillOpenEditor: Event.None, ...services.editor }));
@@ -92,7 +94,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		const local = session('local', 'local-agent-host', '/repo');
 		const draft = session('draft', 'agenthost-wsl', '/repo');
 		const workspaceless = session('quick', 'agenthost-ssh');
-		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
 		const newSession = observableValue<ISession | undefined>('draft', draft);
 		const chats = new Map<string, ISession>([['chat:/committed', committed], ['chat:/local', local], ['chat:/quick', workspaceless]]);
 
@@ -131,7 +133,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			workspaceless: resolve({ type: 'agent', sessionId: 'chat:/quick' }),
 			unknownChat: resolve({ type: 'agent', sessionId: 'chat:/gone' }),
 		};
-		activeSession.set(upcastPartial<IActiveSession>(local), undefined);
+		activeSession.set(upcastPartial<ITestSessionWithChat>(local), undefined);
 		const activeLocal = resolve({ type: 'user' });
 
 		const localNetwork = { network: undefined, storageAffinity: undefined };

@@ -313,6 +313,8 @@ export interface IChatConfirmationWidget2Options<T> {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	footerBanner?: HTMLElement;
+	/** Interactive content, such as an optional input, shown above the buttons. Unlike the footer banner, it is not a live region. */
+	additionalContent?: HTMLElement;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 	fileWidgetOptions?: IRenderFileWidgetsOptions;
@@ -366,7 +368,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, message, buttons, icon, footerBanner } = options;
+		const { title, subtitle, message, buttons, icon, footerBanner, additionalContent } = options;
 		this.fileWidgetOptions = options.fileWidgetOptions;
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
@@ -414,6 +416,9 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			if (!footerBanner.hasAttribute('aria-live')) {
 				footerBanner.setAttribute('aria-live', 'polite');
 			}
+		}
+		if (additionalContent) {
+			(footerBanner ?? this.messageScrollable.getDomNode()).insertAdjacentElement('afterend', additionalContent);
 		}
 
 		this.updateButtons(buttons);

@@ -41,7 +41,7 @@ import { UriIdentityService } from '../../../../../platform/uriIdentity/common/u
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
-import { SashGrippersController } from '../../../sash/browser/sash.js';
+import { SASH_GRIPPERS_HIDDEN_ATTRIBUTE, SashGrippersController } from '../../../sash/browser/sash.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
 import { FromWebviewMessage, ToWebviewMessage } from '../../browser/webviewMessages.js';
@@ -221,7 +221,7 @@ suite('WebviewElement', () => {
 			containers: [main.container, auxiliary.container],
 			onDidAddContainer: Event.None,
 		})));
-		const hidden = () => [main.container, auxiliary.container].map(container => container.classList.contains('sash-grippers-hidden'));
+		const hidden = () => [main.container, auxiliary.container].map(container => container.hasAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE));
 		await timeout(120);
 		const idle = hidden();
 		await sendMouseMove(main.webview, main.port);

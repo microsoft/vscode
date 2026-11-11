@@ -9,10 +9,10 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { installPullToRefresh } from '../../../browser/mobile/mobilePullToRefresh.js';
-import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsListPresentation, SessionNameKind } from '../../../services/presentation/browser/sessionsListPresentation.js';
+import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsListPresentation, SessionNameKind } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { renderMobileSessionToolbar } from './mobileSessionToolbar.js';
 
 export class MobileSessionsListPresentation implements ISessionsListPresentation {
