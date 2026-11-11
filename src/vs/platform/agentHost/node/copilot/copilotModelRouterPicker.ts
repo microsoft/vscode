@@ -38,6 +38,11 @@ const situationLead = 'Facts about this request, which are not part of the messa
 
 const situationNote = ' The request comes with facts about it, such as what is attached, the mode the user chose and the workspace. Use them together with the message to judge the work.';
 
+/** The answer that the message asks for no model. Never a model id. */
+const NO_REQUESTED_MODEL = 'none';
+
+const requestedModelInstructions = `Does the message ask to run this request on one of these models, by its name or its family, such as "use opus" or "with the latest sonnet"? Pick that model. When it asks for the latest of a family, pick the one with the highest version. Pick \`${NO_REQUESTED_MODEL}\` when the message asks for no model, asks for one that is not listed, or only talks about a model without asking to use it.`;
+
 const effortCriteria: readonly string[] = [
 	'Low: a trivial lookup, mechanical edit, or simple explanation.',
 	'Medium: a well-specified, multi-step task in a familiar area.',
@@ -121,6 +126,15 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 			instructions: `${agentFraming}${situation ? situationNote : ''}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}${followUp ? `\n\n${followUpEffortNote}` : ''}`,
 			levels,
 		}] : []),
+		...(request.requestableModels?.length ? [{
+			kind: 'choice' as const,
+			name: 'requestedModel',
+			instructions: requestedModelInstructions,
+			options: [
+				...request.requestableModels.map(model => ({ value: model.id, description: model.name })),
+				{ value: NO_REQUESTED_MODEL, description: 'The message does not ask for one of these models.' },
+			],
+		}] : []),
 	];
 	let prompt = truncateToEscapedBytes(request.text, modelRouterRequestLimits.prompt);
 	let recentTurns = followUp?.recentTurns.map(turn => {
@@ -166,10 +180,13 @@ function toPick(result: IAgentDecisionsResult): IModelRouterPick {
 	const model = answer('model');
 	const effort = answer('effort');
 	const clearModel = model?.kind === 'choice' && !model.tied ? model : undefined;
+	const requested = answer('requestedModel');
+	const requestedModel = requested?.kind === 'choice' && !requested.tied && requested.value !== NO_REQUESTED_MODEL ? { id: requested.value, confidence: requested.confidence } : undefined;
 	return {
 		model: clearModel?.value,
 		confidence: clearModel?.confidence ?? 0,
 		probabilities: model?.kind === 'choice' ? Object.fromEntries(model.probabilities.map(entry => [entry.value, entry.probability])) : {},
 		...(effort?.kind === 'score' ? { effortScore: effort.score } : {}),
+		...(requestedModel ? { requestedModel } : {}),
 	};
 }

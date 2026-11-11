@@ -8,7 +8,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/agent.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
-import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, supportedModelEfforts, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
 import { describeModelRouterModel, describeModelRouterSituation, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
@@ -44,6 +44,8 @@ export interface IModelRouterPickRequest {
 	readonly askEffort: boolean;
 	readonly followUp?: IModelRouterFollowUp;
 	readonly situation?: readonly string[];
+	/** Models the message can ask for by name. Given, the decision is also asked whether the message asks for one. */
+	readonly requestableModels?: readonly { readonly id: string; readonly name: string }[];
 	readonly chat: string;
 }
 
@@ -53,6 +55,8 @@ export interface IModelRouterPick {
 	readonly probabilities: Readonly<Record<string, number>>;
 	/** Expected effort rank, from 0 (low) to 4 (max). */
 	readonly effortScore?: number;
+	/** The model the message asks for, when it clearly asks for one of the requestable models. */
+	readonly requestedModel?: { readonly id: string; readonly confidence: number };
 }
 
 export const enum ModelRouterPickerFailure {
@@ -76,6 +80,8 @@ export interface IModelRouterPicker {
 
 /** Below this a first-turn pick is treated as "no route fits", and the chat starts on the router's first model. */
 const MIN_PICK_CONFIDENCE = 0.4;
+/** Below this the decision is not sure the message asks for a model, and the route keeps its own. */
+const MIN_REQUESTED_MODEL_CONFIDENCE = 0.4;
 /** Follow-ups that only tell the agent to carry on; they keep the chat's model without a routing call. */
 const CONTINUATION = /^\s*(ok(ay)?|yes|yep|sure|continue|proceed|next|go ahead|do it|go on|thanks?( you)?)[.!]?\s*$/i;
 /** How many earlier turns a follow-up decision sees. */
@@ -216,7 +222,9 @@ export class CopilotModelRouter {
 			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
-		const current = last?.router === router.name ? routes.find(route => routeKey(route) === (last.routeName ?? last.model)) : undefined;
+		const own = last?.router === router.name ? routes.find(route => routeKey(route) === (last.routeName ?? last.routeModel ?? last.model)) : undefined;
+		// A chat whose message asked for a model keeps it on its route, for as long as the router has that model.
+		const current = own && last?.routeModel ? onRequestedModel(own, routes.find(route => route.model.id === last.model)?.model, router) : own;
 		return current
 			? this._routeFollowUp(context, current, keptEffort(current, last?.effort))
 			: this._routeFresh(context, last?.model);
@@ -251,23 +259,29 @@ export class CopilotModelRouter {
 			if (!request.picker) {
 				throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'No decision model');
 			}
-			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat, situation: context.situation });
+			const requestableModels = [...new Map(routes.map(route => [route.model.id, { id: route.model.id, name: route.model.name }])).values()];
+			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat, situation: context.situation, ...(requestableModels.length > 1 ? { requestableModels } : {}) });
 		} catch (error) {
 			this._logService.warn(`[ModelRouter] ${request.chat}: pick failed; using ${fallback.model.id}`, error);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
 		}
+		// The route says what work this is; a model the message asks for by name only changes what the route runs on.
+		const { requestedModel } = pick;
+		const requested = requestedModel && requestedModel.confidence >= MIN_REQUESTED_MODEL_CONFIDENCE ? routes.find(route => route.model.id === requestedModel.id)?.model : undefined;
 		const picked = routes.find(route => routeKey(route) === pick.model);
 		if (!picked || pick.confidence < MIN_PICK_CONFIDENCE) {
-			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}`);
-			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
+			const route = onRequestedModel(fallback, requested, router);
+			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${route.model.id}`);
+			return decision(context, route, { ...switchedFrom(route), defaulted: true }, [], this._effortFor(context, route, pick.effortScore));
 		}
-		const effort = this._effortFor(context, picked, pick.effortScore);
-		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}`);
-		return decision(context, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
+		const route = onRequestedModel(picked, requested, router);
+		const effort = this._effortFor(context, route, pick.effortScore);
+		this._logService.info(`[ModelRouter] ${request.chat}: picked ${routeKey(route)} (${pick.confidence}) on ${route.model.id}${route.ownModel ? ` as the message asked (${requestedModel?.confidence})` : ''} effort=${effort}`);
+		return decision(context, route, { ...switchedFrom(route), ...preferenceOf(route) }, [], effort);
 	}
 
 	/** Moves the chat when its message clearly fits another route, and otherwise keeps its model. */
-	private async _routeFollowUp(context: IRouteContext, current: IResolvedModelRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
+	private async _routeFollowUp(context: IRouteContext, current: IRoutedRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, router, routes } = context;
 		const stay = decision(context, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
 		// "Continue" alone keeps the model, but not when it brings a new attachment a route can go by.
@@ -320,7 +334,7 @@ function hasRequest(request: IModelRouterRouteRequest): boolean {
 	return !!request.text.trim() || !!request.situation?.attachments?.length;
 }
 
-function decision({ router, keepLongContext }: IRouteContext, route: IResolvedModelRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {
+function decision({ router, keepLongContext }: IRouteContext, route: IRoutedRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {
 	const contextSizes = modelContextSizes(route.model);
 	const largest = contextSizes.length > 1 ? contextSizes[contextSizes.length - 1] : undefined;
 	// With no size from the router the model runs on its own default, which for some models is the larger window.
@@ -341,6 +355,7 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 			...(router.displayName ? { routerLabel: router.displayName } : {}),
 			chosenModel: route.model.id,
 			...(route.route.name ? { routeName: route.route.name } : {}),
+			...(route.ownModel ? { routeModel: route.ownModel } : {}),
 			...routed,
 			...(effort ? { effort } : {}),
 			...(contextSize && contextTokens ? { contextSize, contextTokens } : {}),
@@ -354,8 +369,26 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 const PREFERENCE_CHARS = 300;
 
 /** What a routing decision answers with, and what a chat's turns remember a pick by: the route's name, or its model when it has none. */
-function routeKey(route: IResolvedModelRoute): string {
-	return route.route.name ?? route.model.id;
+function routeKey(route: IRoutedRoute): string {
+	return route.route.name ?? route.ownModel ?? route.model.id;
+}
+
+/** A route as a chat runs it: on the model its message asked for, when that is another of the router's models. */
+interface IRoutedRoute extends IResolvedModelRoute {
+	/** The route's own model, which the model the message asked for replaced. */
+	readonly ownModel?: string;
+}
+
+/** The route run on the model the message asked for. It keeps its name, guidance, effort and context size, where that model has them. */
+function onRequestedModel(route: IResolvedModelRoute, model: IAgentModelInfo | undefined, router: IModelRouter): IRoutedRoute {
+	if (!model || model.id === route.model.id) {
+		return route;
+	}
+	const supportedEfforts = supportedModelEfforts(model);
+	const fixedEffort = router.effort === 'off' ? undefined : route.route.effort ?? (router.effort !== 'auto' ? router.effort : undefined);
+	const effort = fixedEffort && closestEffort(supportedEfforts, reasoningEffortRank(fixedEffort));
+	const contextSize = modelContextSizes(model).length > 1 ? route.route.contextSize ?? router.contextSize : undefined;
+	return { route: route.route, model, reference: model.id, supportedEfforts, ownModel: route.model.id, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}) };
 }
 
 /**
@@ -404,13 +437,13 @@ function finalResponseText(turn: Turn): string {
  * that router's only while no other selection came after it: a later turn that selected another
  * router but couldn't route (one with errors, say) means the next router to run routes afresh.
  */
-function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string; readonly routeName?: string } | undefined {
+function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string; readonly routeName?: string; readonly routeModel?: string } | undefined {
 	const unroutedRouters = new Set<string>();
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
 			const ownPick = [...unroutedRouters].every(name => name === routed.router);
-			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}), ...(routed.routeName ? { routeName: routed.routeName } : {}) };
+			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}), ...(routed.routeName ? { routeName: routed.routeName } : {}), ...(routed.routeModel ? { routeModel: routed.routeModel } : {}) };
 		}
 		const requested = turns[i].message.model;
 		const requestedRouter = unroutedRouterOf(turns[i]);

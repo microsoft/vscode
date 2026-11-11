@@ -268,6 +268,8 @@ export interface IModelRoutedInfo {
 	/** The chosen route's name, when it has one. A chat stays on a named route by this name. */
 	readonly routeName?: string;
 	readonly chosenModel: string;
+	/** The route's own model, when the message asked for another of the router's models by name. {@link chosenModel} is then the model it asked for, which the chat keeps. */
+	readonly routeModel?: string;
 	/** The user's note on the chosen model, when it decided the pick. */
 	readonly preference?: string;
 	/** The thinking effort the router chose for this turn. */

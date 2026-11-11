@@ -26,9 +26,9 @@ export interface IModelRouterGuidance {
  * The guidance of the route a turn was routed to, or `undefined` when that route has none.
  * Never an empty one: callers compare by identity, and "no guidance" has to be one value.
  */
-export function resolveModelRouterGuidance(router: IModelRouter, routed: Pick<IModelRoutedInfo, 'routeName' | 'chosenModel'>, models: readonly IAgentModelInfo[]): IModelRouterGuidance | undefined {
-	// A route is found the way routing knows it: by its name, or by the model it resolved to.
-	const key = routed.routeName ?? routed.chosenModel;
+export function resolveModelRouterGuidance(router: IModelRouter, routed: Pick<IModelRoutedInfo, 'routeName' | 'routeModel' | 'chosenModel'>, models: readonly IAgentModelInfo[]): IModelRouterGuidance | undefined {
+	// A route is found the way routing knows it: by its name, or by the model it resolved to, which is not the chosen one when the message asked for another.
+	const key = routed.routeName ?? routed.routeModel ?? routed.chosenModel;
 	const route = resolveModelRouter(router, models).routes.find(candidate => (candidate.route.name ?? candidate.model.id) === key)?.route;
 	if (!route?.mainAgentGuidance) {
 		return undefined;

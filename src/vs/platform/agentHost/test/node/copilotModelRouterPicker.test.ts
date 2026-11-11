@@ -136,6 +136,23 @@ suite('DecisionsModelRouterPicker', () => {
 		]);
 	});
 
+	test('asks which of the given models the message asks for, and reads `none` as no request', async () => {
+		const requestableModels = [{ id: 'haiku', name: 'Haiku' }, { id: 'opus', name: 'Opus' }];
+		const question = (request: IModelRouterPickRequest) => buildModelRouterDecisionsRequest(request).questions.find(candidate => candidate.name === 'requestedModel');
+		const asked = question(pickRequest({ requestableModels }));
+		const answers = (value: string): IAgentDecisionsResult => ({
+			model: 'gpt-6-luna-decisions',
+			answers: [
+				{ kind: 'choice', name: 'model', value: 'opus', tied: false, confidence: 0.8, probabilities: [] },
+				{ kind: 'choice', name: 'requestedModel', value, tied: false, confidence: 0.7, probabilities: [] },
+			],
+		});
+		const requested = async (value: string) => (await new DecisionsModelRouterPicker(async () => answers(value)).pick(pickRequest({ requestableModels }))).requestedModel;
+		assert.deepStrictEqual({ withoutModels: question(pickRequest()), options: asked?.kind === 'choice' ? asked.options.map(option => option.value) : undefined, named: await requested('haiku'), none: await requested('none') }, {
+			withoutModels: undefined, options: ['haiku', 'opus', 'none'], named: { id: 'haiku', confidence: 0.7 }, none: undefined,
+		});
+	});
+
 	test('reports an account that can\'t use the decision model separately from an outage', async () => {
 		const failWith = (kind: string) => new DecisionsModelRouterPicker((_: IAgentDecisionsRequest) => Promise.reject(Object.assign(new Error(kind), { data: { kind } }))).pick(pickRequest()).catch(error => (error as ModelRouterPickerError).failure);
 		assert.deepStrictEqual(await Promise.all([failWith('notEnabled'), failWith('timeout')]), [ModelRouterPickerFailure.NoDecisionModel, ModelRouterPickerFailure.Unavailable]);

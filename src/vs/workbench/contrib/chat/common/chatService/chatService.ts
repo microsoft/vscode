@@ -688,6 +688,8 @@ export interface IChatAutoModeResolutionPart {
 	router?: string;
 	/** The name of the route a host-side model router chose, when the route has one. */
 	routeName?: string;
+	/** The user's message asked for the model by name, so the route runs on it in place of its own. */
+	modelRequested?: boolean;
 	/** The chosen route's `when`, when it decided the pick. */
 	preference?: string;
 	/** The thinking effort the router chose for this turn. */

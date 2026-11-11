@@ -296,7 +296,7 @@ suite('ChatResponseAccessibleView', () => {
 		const named = { kind: 'autoModeResolution' as const, router: 'Workday', routeName: 'bug-fix', resolved: { id: 'opus', name: 'Claude Opus 5.5' } };
 		const item = upcastPartial<IChatResponseViewModel>({
 			isComplete: true,
-			response: upcastPartial<IResponse>({ value: [{ ...named, effort: 'medium' }, { ...named, defaulted: true }, { ...named, kept: true }, { ...named, switchedFrom: 'GPT-5.5' }, { ...named, switchedFrom: 'Claude Opus 5.5' }, { ...named, routeName: undefined, playbook: 'feature' } as IChatAutoModeResolutionPart] }),
+			response: upcastPartial<IResponse>({ value: [{ ...named, effort: 'medium' }, { ...named, defaulted: true }, { ...named, kept: true }, { ...named, switchedFrom: 'GPT-5.5' }, { ...named, switchedFrom: 'Claude Opus 5.5' }, { ...named, routeName: undefined, playbook: 'feature' } as IChatAutoModeResolutionPart, { ...named, modelRequested: true, effort: 'high' }] }),
 		});
 
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true).map(part => part.text), [
@@ -309,6 +309,7 @@ suite('ChatResponseAccessibleView', () => {
 			'Workday moved to its bug-fix route on Claude Opus 5.5',
 			// A chat saved while named routes were written as playbooks.
 			'Workday picked its feature route on Claude Opus 5.5',
+			'Workday picked its bug-fix route on Claude Opus 5.5, the model you asked for \u00b7 High effort',
 		]);
 	});
 

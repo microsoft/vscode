@@ -310,6 +310,7 @@ function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
 		chosenModel: raw.chosenModel,
 		...(typeof raw.routerLabel === 'string' ? { routerLabel: raw.routerLabel } : {}),
 		...(typeof routeName === 'string' ? { routeName } : {}),
+		...(typeof raw.routeModel === 'string' ? { routeModel: raw.routeModel } : {}),
 		...(typeof raw.preference === 'string' ? { preference: raw.preference } : {}),
 		...(typeof raw.effort === 'string' ? { effort: raw.effort } : {}),
 		...(raw.contextSize === 'default' || raw.contextSize === 'long' ? { contextSize: raw.contextSize } : {}),

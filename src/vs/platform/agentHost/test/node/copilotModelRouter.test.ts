@@ -268,6 +268,21 @@ suite('CopilotModelRouter', () => {
 		});
 	});
 
+	test('a message that asks for one of the router\'s models runs the route that fits the work on that model, and the chat keeps it', async () => {
+		const pick = (confidence: number) => new FakePicker({ model: 'opus', confidence: 0.9, probabilities: {}, requestedModel: { id: 'haiku', confidence } });
+		const picker = pick(0.7);
+		const asked = await resolve({ file: routerFile(), picker });
+		// The route is still the planning one, which a turn saved with only the model it ran on would not say.
+		const kept = await resolve({ file: routerFile(), picker, previousTurns: [routedTurn(asked.routed!)] });
+		const unsure = await resolve({ file: routerFile(), picker: pick(0.2) });
+		assert.deepStrictEqual({ requestable: picker.requests[0].requestableModels, asked: [asked.selection?.id, asked.routed], kept: [kept.selection?.id, kept.routed], unsure: unsure.selection?.id }, {
+			requestable: [{ id: 'haiku', name: 'HAIKU' }, { id: 'opus', name: 'OPUS' }],
+			asked: ['haiku', { router: 'daily', chosenModel: 'haiku', routeModel: 'opus', preference: 'Planning.', firstTurnOnly: true }],
+			kept: ['haiku', { router: 'daily', chosenModel: 'haiku', routeModel: 'opus', kept: true, firstTurnOnly: true }],
+			unsure: 'opus',
+		});
+	});
+
 	test('with switching auto, a chat moves between named routes that run on the same model', async () => {
 		const content = 'version: 1\ndescription: Test.\neffort: off\nswitching: auto\nroutes:\n  - name: feature\n    model: opus\n    when: Building.\n  - name: bug-fix\n    model: opus\n    when: Fixing.\n';
 		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };

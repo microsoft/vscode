@@ -7926,6 +7926,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						resolved: { id: routed.chosenModel, name: routedModel ? displayName(routedModel) : routed.chosenModel },
 						router: routed.routerLabel ?? routed.router,
 						...(routed.routeName ? { routeName: routed.routeName } : {}),
+						...(routed.routeModel ? { modelRequested: true } : {}),
 						preference: routed.preference,
 						effort: routed.effort,
 						...(routed.contextTokens ? { contextSize: routed.contextTokens } : {}),

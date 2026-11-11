@@ -41,6 +41,8 @@ suite('modelRouterGuidance', () => {
 		assert.deepStrictEqual({
 			named: resolveModelRouterGuidance(router, { routeName: 'feature', chosenModel: 'opus' }, models),
 			unnamed: resolveModelRouterGuidance(router, { chosenModel: 'haiku' }, models),
+			// The message asked for another model, so the route is not the one the turn's model would name.
+			onRequestedModel: resolveModelRouterGuidance(router, { chosenModel: 'opus', routeModel: 'haiku' }, models),
 			// "No guidance" is one value, so that guidance can be compared by identity.
 			noGuidance: resolveModelRouterGuidance(router, { routeName: 'notes', chosenModel: 'opus' }, models),
 			// A model alone never means a named route.
@@ -49,6 +51,7 @@ suite('modelRouterGuidance', () => {
 		}, {
 			named: { router: 'Workday', route: 'feature', guidance: 'Plan first.' },
 			unnamed: { router: 'Workday', guidance: 'Keep it short.' },
+			onRequestedModel: { router: 'Workday', guidance: 'Keep it short.' },
 			noGuidance: undefined,
 			modelOfNamedRoute: undefined,
 			unknown: undefined,
