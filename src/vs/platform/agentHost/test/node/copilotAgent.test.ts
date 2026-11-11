@@ -26479,6 +26479,38 @@ suite('CopilotAgent', () => {
 			});
 		}
 
+		for (const operation of ['send', 'resume'] as const) {
+			test(`rechecks extension enablement after the final ${operation} catch-up await`, async () => {
+				const agent = createTestAgent(disposables);
+				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', `extension-admission-${operation}`);
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const peer = makeFakeChatSession(session, 'extension-admission-peer');
+				const admittedCurrent: boolean[] = [];
+				const recordAdmission = async () => { admittedCurrent.push(agent['_isExtensionEnablementCurrent'](peer.fake)); };
+				peer.fake.send = recordAdmission;
+				peer.fake.resume = recordAdmission;
+				setPeerChatStub(agent, chat, peer.fake);
+				let attempts = 0;
+				agent['_catchUpExtensions'] = async () => {
+					if (++attempts === 2) {
+						// The save settles ahead of the caller's await continuation.
+						queueMicrotask(() => { agent['_extensionPreferenceRevision']++; });
+					} else if (attempts > 2) {
+						agent['_appliedExtensionRevisions'].set(peer.fake, agent['_extensionPreferenceRevision']);
+					}
+				};
+				const context = exactChatContext(session, chat);
+				assert.ok(agent.chats.resumeTurn);
+				if (operation === 'send') {
+					await agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, context);
+				} else {
+					await agent.chats.resumeTurn(chat, 'new-turn', context);
+				}
+				assert.deepStrictEqual(admittedCurrent, [true]);
+			});
+		}
+
 		test('sendMessage on an addressed chat resumes the addressed backing even when the parent session is provisional', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });

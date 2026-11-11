@@ -6937,10 +6937,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (credential) {
 				entry.assertScopedCredential(credential);
 			}
-			await this._catchUpExtensions(entry);
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
+			do {
+				await this._catchUpExtensions(entry);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+			} while (!this._isExtensionEnablementCurrent(entry));
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -8959,10 +8961,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
-			await this._catchUpExtensions(entry);
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
+			do {
+				await this._catchUpExtensions(entry);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+			} while (!this._isExtensionEnablementCurrent(entry));
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}
