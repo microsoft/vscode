@@ -135,9 +135,11 @@ export function getSSHRemoteAuthorityConnectionKey(remoteAuthority: string): str
 	if (!ssh) {
 		return undefined;
 	}
-	return computeSSHConnectionKey(ssh.user === undefined && ssh.port === undefined
-		? { sshConfigHost: ssh.hostName }
-		: { host: ssh.hostName, username: ssh.user, port: ssh.port });
+	if (ssh.user === undefined && ssh.port === undefined) {
+		return computeSSHConnectionKey({ sshConfigHost: ssh.hostName });
+	}
+	// Without the user, the key depends on SSH config that cannot be resolved here.
+	return ssh.user === undefined ? undefined : computeSSHConnectionKey({ host: ssh.hostName, username: ssh.user, port: ssh.port });
 }
 
 function readSSHAuthorityObject(host: string): ISSHRemoteAuthority | undefined {

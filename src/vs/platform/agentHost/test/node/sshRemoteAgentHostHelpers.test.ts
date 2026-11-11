@@ -19,6 +19,7 @@ import {
 	buildFindFallbackCLICommand,
 	filterLiveAgentHostEndpoints,
 	findNewAgentHostEndpoint,
+	formatAgentHostUrlHost,
 	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
@@ -519,6 +520,12 @@ suite('SSH Remote Agent Host Helpers', () => {
 		test('always includes --new-instance so an existing standalone is never silently reused', () => {
 			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON);
 			assert.ok(cmd.includes(' --new-instance '), 'spawn command must request a genuinely new instance, not reuse an existing standalone');
+		});
+	});
+
+	suite('formatAgentHostUrlHost', () => {
+		test('dials loopback for wildcards and brackets IPv6 literals', () => {
+			assert.deepStrictEqual(['127.0.0.1', '0.0.0.0', '::', '::1', '[::1]', 'localhost', undefined].map(formatAgentHostUrlHost), ['127.0.0.1', '127.0.0.1', '127.0.0.1', '[::1]', '[::1]', 'localhost', '127.0.0.1']);
 		});
 	});
 

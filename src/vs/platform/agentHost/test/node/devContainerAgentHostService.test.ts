@@ -813,7 +813,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
-	test('reuses the lowest instanceId among compatible standalone endpoints', async () => {
+	test('reuses the first compatible standalone endpoint in newest-first registry order', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const endpoint = service.endpoints[0];
 		service.endpoints = [
@@ -826,9 +826,9 @@ suite('Dev Container Agent Host Main Service', () => {
 		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
 
 		assert.deepStrictEqual({
-			reusesLowestCompatible: service.relayCommand?.includes(`agent relay ${shellEscape('standalone-a')}`),
+			reusesNewestCompatible: service.relayCommand?.includes(`agent relay ${shellEscape('standalone-b')}`),
 			separateExecs: service.separateExecs,
-		}, { reusesLowestCompatible: true, separateExecs: [] });
+		}, { reusesNewestCompatible: true, separateExecs: [] });
 	});
 
 	test('spawns when only a different-quality standalone is live', async () => {
