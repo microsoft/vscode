@@ -2348,7 +2348,11 @@ export interface IAgent {
 
 	// ---- Authentication and diagnostics ------------------------------------
 
-	getProtectedResources(): ProtectedResourceMetadata[];
+	/** Advertised authentication resources; optional credentials are marked `required: false`. */
+	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
+
+	/** Reject unauthorized delivery before providers or the canonical credential store are mutated. */
+	validateAuthentication?(params: AuthenticateParams): void;
 
 	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
 	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;
