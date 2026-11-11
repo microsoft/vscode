@@ -56,6 +56,7 @@ import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/commo
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
+import { ISessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
@@ -366,6 +367,7 @@ suite('Chat window contribution', () => {
 			}));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined }));
 			let whileOpening: number | undefined;
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				open: async () => {
@@ -412,6 +414,43 @@ suite('Chat window contribution', () => {
 		};
 
 		assert.strictEqual(await run(), 1);
+	});
+
+	test('a session another pane shows takes the editors it has saved along, which stay saved unless the window has them, and the main window\'s editors stay', async () => {
+		const run = async (windowHasEditors: boolean) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			stubSessionsHostLayout(instantiationService);
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
+			const focused = upcastPartial<ITestSessionWithChat>({ sessionId: 'beta', resource: URI.parse('test:/beta'), activeChat: constObservable(chat('beta')) as ITestSessionWithChat['activeChat'] });
+			const other = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', resource: URI.parse('test:/alpha'), activeChat: constObservable(chat('alpha')) as ITestSessionWithChat['activeChat'] });
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				gridShown: constObservable([other, focused]),
+				slotPanes: testGridPanes(constObservable([other, focused])),
+				mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(focused),
+			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ id: 1 })] }) }));
+			const saved = [upcastPartial<EditorInput>({ typeId: 'saved' })];
+			const events: string[] = [];
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({
+				takeEditorsFor: (session: ISession) => session.sessionId === 'alpha' ? { editors: saved, activeEditor: saved[0], accept: () => events.push('accepted'), dispose: () => events.push('disposed') } : undefined,
+			}));
+			let opened: { moveFrom: number | undefined; editors: readonly EditorInput[] | undefined } | undefined;
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+				open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[]; editors?: readonly EditorInput[] } }) => {
+					opened = { moveFrom: options?.editors?.moveFrom?.length, editors: options?.editors?.editors };
+					return upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ contains: () => windowHasEditors })] }) });
+				},
+			}));
+			await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, upcastPartial<ISession>({ sessionId: 'alpha', resource: other.resource })));
+			return { moveFrom: opened?.moveFrom, takesSaved: opened?.editors === saved, events };
+		};
+
+		assert.deepStrictEqual({ received: await run(true), notReceived: await run(false) }, {
+			received: { moveFrom: 0, takesSaved: true, events: ['accepted', 'disposed'] },
+			notReceived: { moveFrom: 0, takesSaved: true, events: ['disposed'] },
+		});
 	});
 
 	test('a chat opened in a window opens exactly that chat, also its session\'s main chat, which is named by the session, while a session opens the chat it shows', async () => {

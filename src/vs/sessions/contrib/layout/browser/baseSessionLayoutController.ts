@@ -57,7 +57,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
-import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
+import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService, IStashedSessionEditors } from '../common/sessionEditorWorkingSet.js';
 import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
@@ -330,6 +330,8 @@ export abstract class BaseLayoutController extends Disposable {
 		this._chatLayoutContext = this._chatLayoutEnabled
 			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._mainWindowSession, this._mainWindowChat))
 			: undefined;
+
+		this._register(this._editorWorkingSetService.registerStashedEditorsProvider((session, chatResource) => this._takeStashedEditors(session, chatResource)));
 
 		// [B3] Restore persisted state (with one-time legacy migration).
 		this._loadState();
@@ -1413,6 +1415,30 @@ export abstract class BaseLayoutController extends Disposable {
 			const workingSet = this._editorGroupsService.saveWorkingSet(workingSetName);
 			this._workingSets.set(sessionResource, workingSet);
 		}
+	}
+
+	private _takeStashedEditors(session: ISession, chatResource: URI): IStashedSessionEditors | undefined {
+		const key = this._ownerKeyForChat(session.resource, chatResource, session.mainChat.get().resource);
+		const workingSet = key && this._workingSets.get(key);
+		const resolved = workingSet && this._editorGroupsService.resolveWorkingSet(workingSet);
+		if (!key || !resolved) {
+			return undefined;
+		}
+
+		let accepted = false;
+		return {
+			editors: resolved.editors,
+			activeEditor: resolved.activeEditor,
+			accept: () => {
+				accepted = true;
+				this._deleteWorkingSet(key);
+			},
+			dispose: () => {
+				if (!accepted) {
+					resolved.editors.forEach(editor => editor.dispose());
+				}
+			}
+		};
 	}
 
 	private _deleteWorkingSet(sessionResource: URI): void {

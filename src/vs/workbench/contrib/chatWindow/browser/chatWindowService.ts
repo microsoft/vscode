@@ -883,6 +883,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 			if (added !== target) {
 				moveBack();
+			} else if (options?.editors?.editors?.length) {
+				await this._openEditors(options.editors, target.mainPart);
 			}
 			return added;
 		}

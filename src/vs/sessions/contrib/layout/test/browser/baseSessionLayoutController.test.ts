@@ -521,6 +521,37 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`, `session-working-set:${sessionB.resource.toString()}`]);
 	});
 
+	test('takes the editors of a session whose working set is saved, which stay saved until the taker has them', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const taken = harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource);
+		const beforeAccept = harness.deleteWorkingSetCalls.length;
+		taken?.accept();
+
+		assert.deepStrictEqual({
+			editors: taken?.editors.map(editor => editor.resource?.path),
+			deletedBeforeAccept: beforeAccept,
+			deletedAfterAccept: harness.deleteWorkingSetCalls,
+			takenAgain: harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource),
+			ofTheActiveSession: harness.editorWorkingSetService.takeEditorsFor(sessionB, sessionB.mainChat.get().resource),
+		}, {
+			editors: ['/repo/util.ts'],
+			deletedBeforeAccept: 0,
+			deletedAfterAccept: [`session-working-set:${sessionA.resource.toString()}`],
+			takenAgain: undefined,
+			ofTheActiveSession: undefined,
+		});
+	});
+
 	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });

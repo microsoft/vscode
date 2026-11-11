@@ -15,6 +15,7 @@ import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbenc
 import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -68,14 +69,24 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	// The editors moving out empty the main window's editor part: that is not the user closing them, so the main window
 	// keeps its side pane as it is, for the session it shows next, as when it switches sessions.
 	const suppression = ownsEditors ? layoutService.suppressEditorPartAutoVisibility() : undefined;
+	// A session another pane shows has its editors saved, not open in the main window.
+	const stashed = ownsEditors ? undefined : accessor.get(ISessionEditorWorkingSetService).takeEditorsFor(session, chatResource ?? session.resource);
 	try {
-		await chatWindowService.open(chatResource ?? session.resource, {
+		const window = await chatWindowService.open(chatResource ?? session.resource, {
 			...options,
 			exactChat: !!chat,
-			editors: { ...options?.editors, moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [] },
+			editors: {
+				...options?.editors,
+				moveFrom: ownsEditors ? editorGroupsService.mainPart.groups : [],
+				...(stashed && { editors: stashed.editors, activeEditor: stashed.activeEditor }),
+			},
 		});
+		if (window && stashed?.editors.every(editor => window.mainPart.groups.some(group => group.contains(editor)))) {
+			stashed.accept();
+		}
 	} finally {
 		suppression?.dispose();
+		stashed?.dispose();
 	}
 }
 
