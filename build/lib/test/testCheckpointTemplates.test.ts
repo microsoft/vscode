@@ -387,8 +387,7 @@ suite('Product test checkpoint templates', () => {
 			})),
 			copilotSetup: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
 			copilotTests: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
-			// The CI test job that builds the server for the remote smoke tests checks the packaged Agent Host
-			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\'))) }}'],
+			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
 			selectedIds: availableIds,
 			selectionsMatchTests: true,
 			copilotCheckpoints: ['copilot-unit', 'copilot-simulation', 'copilot-prompt', 'copilot-extension', 'copilot-completions-core', 'copilot-sanity'],
@@ -462,9 +461,8 @@ suite('Product test checkpoint templates', () => {
 				forwardedTestIds: compileSteps.map(step => (step.parameters as Record<string, string>).VSCODE_TEST_IDS),
 				selectedIds: selectedIds.map(({ selectedId }) => selectedId).sort(),
 				selectionsMatchTests: selectedIds.every(({ selectedId, testId }) => selectedId === testId),
-				// The CI test job that builds the server for the remote smoke tests checks the packaged Agent Host
 				agentHostSmokeFollowsTest: records(compileTemplate).some(record => Object.keys(record).some(key =>
-					key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')')
+					key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')')
 					&& key.includes('eq(length(parameters.VSCODE_TEST_IDS), 0)')
 					&& key.includes('ne(parameters.VSCODE_CIBUILD, true)'))),
 				copilotSetup: Object.keys(setup.steps.find(step => records(step).some(record => record.template === '../../copilot/pull-test-cache.yml@self')) ?? {}),
@@ -601,7 +599,7 @@ suite('Product test checkpoint templates', () => {
 			const compileParameters = compileCall?.parameters as Record<string, unknown> | undefined;
 			const compile = readTemplate(`${platform}/steps/product-build-${platform}-compile.yml`);
 			const packagedHostGuards = records(compile.steps).flatMap(record => Object.entries(record)
-				.filter(([key, branch]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')')
+				.filter(([key, branch]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')')
 					&& records(branch).some(step => step.displayName === '🧪 Smoke test packaged Agent Host'))
 				.map(([key]) => key));
 			const productTestGuards = compile.steps.flatMap(step => Object.entries(step)
@@ -622,7 +620,7 @@ suite('Product test checkpoint templates', () => {
 			ciBuild: true,
 			noProductTestSelection: true,
 			defaultTestIds: [],
-			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote'))) }}`],
+			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}`],
 			productTestGuards: ['${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}'],
 			repeatedTestJobs: 3,
 		})));
