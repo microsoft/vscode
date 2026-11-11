@@ -3584,6 +3584,8 @@ suite('Sessions - SessionsList', () => {
 				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo', branch: 'main' }, 2),
 				createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 1),
 				createWorktreeSession('plain', { workingDirectory: 'file:///other' }, 3),
+				// Listed before its provider reports the repository: a worktree by its path.
+				createWorktreeSession('projectless', { workingDirectory: 'file:///work/repo.worktrees/projectless' }, 4),
 			]);
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -3602,6 +3604,7 @@ suite('Sessions - SessionsList', () => {
 				'repo (main)': ThemeIcon.asClassName(Codicon.folder),
 				'feature': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
 				'other': ThemeIcon.asClassName(Codicon.folder),
+				'projectless': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
 			});
 		});
 
@@ -4077,6 +4080,52 @@ suite('Sessions - SessionsList', () => {
 				multiRoot: ['checkout', 'nested', 'worktree', 'other'],
 				empty: [],
 			});
+		});
+
+		test('scopes a worktree that VS Code created by its path before its provider reports the repository', () => {
+			const sessions = [
+				// A session listed before its project is known: its folder is only the worktree.
+				createFolderSession('projectless', 'x', { root: 'file:///work/vscode.worktrees/x' }),
+				createFolderSession('checkout', 'vscode', { root: 'file:///work/vscode' }),
+				createFolderSession('elsewhere', 'other.worktrees', { root: 'file:///work/other.worktrees/y' }),
+			];
+			const scoped = (folder: string) => {
+				const scope = getSessionsInScopeFolders(sessions, [URI.parse(folder)]);
+				return sessions.filter(session => scope.includes(session)).map(session => session.sessionId);
+			};
+
+			// A worktree outside that layout names its repository through its `.git`, which the host reads.
+			const ownWorktreeScope = getSessionsInScopeFolders(sessions, [URI.parse('file:///work/owners/scope')], undefined, [URI.parse('file:///work/vscode')]);
+			const plainScope = getSessionsInScopeFolders(sessions, [URI.parse('file:///work/owners/scope')]);
+
+			assert.deepStrictEqual({
+				checkoutWindow: scoped('file:///work/vscode'),
+				worktreeWindow: scoped('file:///work/vscode.worktrees/z'),
+				ownWorktreeWindow: sessions.filter(session => ownWorktreeScope.includes(session)).map(session => session.sessionId),
+				withoutRepository: sessions.filter(session => plainScope.includes(session)).map(session => session.sessionId),
+			}, {
+				checkoutWindow: ['projectless', 'checkout'],
+				worktreeWindow: ['projectless', 'checkout'],
+				ownWorktreeWindow: ['projectless', 'checkout'],
+				withoutRepository: [],
+			});
+		});
+
+		test('says so when no session of the scope is listed', () => {
+			const harness = createListHarness(disposables, [createFolderSession('elsewhere', 'other', { root: 'file:///other' })]);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scopeFolders: constObservable([URI.parse('file:///work/vscode')]),
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+
+			assert.deepStrictEqual({
+				sessions: list.getVisibleSessions().length,
+				rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions in this folder yet.'),
+			}, { sessions: 0, rows: ['No sessions in this folder yet.'] });
 		});
 
 		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);

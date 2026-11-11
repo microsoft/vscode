@@ -68,6 +68,7 @@ import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionsInScopeFolders, ISessionScope } from '../sessionScope.js';
+import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -731,6 +732,8 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 export const SessionsListSearchOpenContext = new RawContextKey<boolean>('sessionsListSearchOpen', false, localize('sessionsListSearchOpen', "Whether the search of the Sessions list is open."));
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
+/** The section id of the placeholder a scoped list shows while none of its folders' sessions are listed. */
+const SCOPE_EMPTY_PLACEHOLDER_ID = '__scope_empty__';
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 const INSET_ROW_GAP = 2;
 
@@ -4451,6 +4454,8 @@ interface ISessionsListControlBaseOptions {
 	 * shows only the sessions of these folders, in every section and search. See {@link getSessionsInScopeFolders}.
 	 */
 	readonly scopeFolders?: IObservable<readonly URI[]>;
+	/** The repositories the {@link scopeFolders} are checkouts of, such as the main checkout of an open worktree, whose sessions the scope includes too. */
+	readonly scopeRepositories?: IObservable<readonly URI[]>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5168,6 +5173,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const scopeFolders = this.options.scopeFolders;
 		if (scopeFolders) {
 			this._register(runOnChange(scopeFolders, () => this.update()));
+		}
+		const scopeRepositories = this.options.scopeRepositories;
+		if (scopeRepositories) {
+			this._register(runOnChange(scopeRepositories, () => this.update()));
 		}
 
 		const createTree = (container: HTMLElement, label: string) => treeDisposables.add(treeInstantiationService.createInstance(
@@ -6440,6 +6449,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const archivedSection = sections.find(s => s.id === 'archived');
 		if (archivedSection) {
 			children.push(renderSection(archivedSection));
+		}
+		// A scoped list without any session of its folders says so rather than showing nothing.
+		if (scope && filtered.length === 0) {
+			children.push({ element: { placeholder: true as const, sectionId: SCOPE_EMPTY_PLACEHOLDER_ID, label: localize('sessionsList.scopeEmpty', "No sessions in this folder yet.") } });
 		}
 
 		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== this.isInboxLayout();
@@ -8624,7 +8637,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** The sessions of the host's scope folders, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scopeFolders}. */
 	private getHostScope(): ISessionScope | undefined {
 		const scopeFolders = this.options.scopeFolders?.get() ?? [];
-		return scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
+		return scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders, undefined, this.options.scopeRepositories?.get()) : undefined;
 	}
 
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
@@ -10086,7 +10099,8 @@ function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
 		id: `${WORKTREE_SECTION_PREFIX}${workingDirectory.toString()}`,
 		label: repository?.branchName ? localize('worktreeSectionLabel', "{0} ({1})", name, repository.branchName) : name,
 		hover: workingDirectory.fsPath,
-		isMainCheckout: !repository?.workTreeUri || extUriBiasedIgnorePathCase.isEqual(workingDirectory, repository.uri),
+		// A worktree VS Code created names its repository by its path, also before its provider reports the repository.
+		isMainCheckout: !getRepositoryRootFromWorktree(workingDirectory) && (!repository?.workTreeUri || extUriBiasedIgnorePathCase.isEqual(workingDirectory, repository.uri)),
 	};
 }
 

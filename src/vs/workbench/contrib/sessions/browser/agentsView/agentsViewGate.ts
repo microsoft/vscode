@@ -36,6 +36,7 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
+import { WorkspaceFolderRepositories } from './workspaceFolderRepositories.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
@@ -44,6 +45,14 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 
 	private _workspaceFolders: IObservable<readonly URI[]> | undefined;
 
+	private _workspaceFolderRepositories: WorkspaceFolderRepositories | undefined;
+
+	/** The repositories of the window's folders, read from their `.git`, such as the main checkout of an open worktree. */
+	private get workspaceFolderRepositories(): IObservable<readonly URI[]> {
+		this._workspaceFolderRepositories ??= this._register(this.instantiationService.createInstance(WorkspaceFolderRepositories));
+		return this._workspaceFolderRepositories.repositories;
+	}
+
 	/** The folders of the window's workspace, to which the list scopes its sessions; none in an empty window. */
 	private get workspaceFolders(): IObservable<readonly URI[]> {
 		this._workspaceFolders ??= observableFromEvent(this, this.contextService.onDidChangeWorkspaceFolders, () => this.contextService.getWorkspace().folders.map(folder => folder.uri));
@@ -51,7 +60,7 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scopeFolders: this.workspaceFolders, allowWorktreeGrouping: true };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scopeFolders: this.workspaceFolders, scopeRepositories: this.workspaceFolderRepositories, allowWorktreeGrouping: true };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }

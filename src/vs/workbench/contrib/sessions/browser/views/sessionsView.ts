@@ -185,6 +185,9 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 	/** Folders the list is scoped to, such as the folders of an editor window's workspace. See the `scopeFolders` option of the sessions list. */
 	readonly scopeFolders?: IObservable<readonly URI[]>;
 
+	/** The repositories the {@link scopeFolders} are checkouts of. See the `scopeRepositories` option of the sessions list. */
+	readonly scopeRepositories?: IObservable<readonly URI[]>;
+
 	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
 	readonly allowWorktreeGrouping?: boolean;
 }
@@ -229,6 +232,7 @@ export class SessionsView extends ViewPane {
 	private readonly hideCustomizations: boolean;
 	private readonly allowWorktreeGrouping: boolean;
 	private readonly scopeFolders: IObservable<readonly URI[]> | undefined;
+	private readonly scopeRepositories: IObservable<readonly URI[]> | undefined;
 
 	constructor(
 		options: ISessionsViewOptions,
@@ -260,6 +264,7 @@ export class SessionsView extends ViewPane {
 		this.headerInTitle = !!options.headerInTitle;
 		this.hideCustomizations = options.showCustomizations === false;
 		this.scopeFolders = options.scopeFolders;
+		this.scopeRepositories = options.scopeRepositories;
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
@@ -388,6 +393,7 @@ export class SessionsView extends ViewPane {
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
 			scopeFolders: this.scopeFolders,
+			scopeRepositories: this.scopeRepositories,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
