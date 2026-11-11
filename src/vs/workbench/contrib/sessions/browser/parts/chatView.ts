@@ -23,6 +23,7 @@ import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chat
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -348,6 +349,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	saveViewState(): void {
 		// no-op by default
+	}
+
+	/**
+	 * The chat widget of its input, which sends what it takes: of the chat it shows, or of its new-session composer, whose
+	 * sends create the session. Undefined while it has none.
+	 */
+	get chatWidget(): IChatWidget | undefined {
+		return undefined;
 	}
 
 	/**

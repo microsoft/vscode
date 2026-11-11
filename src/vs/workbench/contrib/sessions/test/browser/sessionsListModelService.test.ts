@@ -10,6 +10,7 @@ import { autorun, constObservable, ISettableObservable, observableValue } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionSortEntry, SessionsListModelService } from '../../browser/sessionsListModelService.js';
@@ -68,6 +69,7 @@ suite('SessionsListModelService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsStorageService, storageService);
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		attention = observableValue('inboxAttention', new Map<string, IInboxSessionAttention>());
@@ -1191,6 +1193,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
@@ -1206,6 +1209,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
@@ -1223,6 +1227,7 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
@@ -1250,6 +1255,7 @@ suite('SessionsListModelService', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storageService);
+			instantiationService.stub(ISessionsStorageService, storageService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
 			disposables.add(instantiationService.createInstance(SessionsListModelService));
@@ -1278,6 +1284,7 @@ suite('SessionsListModelService', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storage);
+			instantiationService.stub(ISessionsStorageService, storage);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, {
 				...mock<ISessionsManagementService>(),
@@ -1338,6 +1345,7 @@ suite('SessionsListModelService', () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ISessionsStorageService, storage);
 				instantiationService.stub(IConfigurationService, new TestConfigurationService());
 				instantiationService.stub(ISessionsManagementService, {
 					...mock<ISessionsManagementService>(),

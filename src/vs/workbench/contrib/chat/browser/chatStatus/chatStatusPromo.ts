@@ -215,6 +215,10 @@ export class ChatStatusPromo extends Disposable {
 	}
 
 	private getOpportunity(): IPromo | undefined {
+		// Trying a model opens it in the Chat view, which does not show while something replaces it
+		if (this.chatWidgetService.chatViewHostDelegate) {
+			return undefined;
+		}
 		const sessionType = this.resolveDefaultSessionType().sessionType;
 		if (this.viewsService.isViewVisible(ChatViewId)) {
 			const resource = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.widget?.viewModel?.sessionResource;

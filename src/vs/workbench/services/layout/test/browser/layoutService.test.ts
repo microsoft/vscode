@@ -132,6 +132,11 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// Visible horizontal (bottom) panel: not part of the vertical order, so it owns no
 			// edge; the secondary side bar still owns the right edge.
 			horizontalPanelVisible: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+
+			// A chat part sits beside the editor on the side bar's side, inside a vertical panel on that side.
+			chatPartOnly: owners(s => { s.visibleParts = new Set([Parts.CHAT_PART, Parts.EDITOR_PART]); }),
+			chatPartOnlySideBarRight: owners(s => { s.sideBarPosition = Position.RIGHT; s.visibleParts = new Set([Parts.CHAT_PART, Parts.EDITOR_PART]); }),
+			chatPartInsideVerticalPanel: owners(s => { s.panelPosition = Position.LEFT; s.visibleParts = new Set([Parts.PANEL_PART, Parts.CHAT_PART, Parts.EDITOR_PART]); }),
 		};
 
 		assert.deepStrictEqual(actual, {
@@ -147,6 +152,9 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			verticalPanelFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			chatPartOnly: { left: Parts.CHAT_PART, right: Parts.EDITOR_PART },
+			chatPartOnlySideBarRight: { left: Parts.EDITOR_PART, right: Parts.CHAT_PART },
+			chatPartInsideVerticalPanel: { left: Parts.PANEL_PART, right: Parts.EDITOR_PART },
 		});
 	});
 });
