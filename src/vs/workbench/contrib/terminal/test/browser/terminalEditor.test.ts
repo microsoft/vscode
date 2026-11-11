@@ -99,6 +99,9 @@ suite('TerminalEditor - ActionViewItem regression', () => {
 		assert.strictEqual(item1.actionDisposables.isDisposed, true);
 		assert.strictEqual(item2.actionDisposables.isDisposed, false);
 
+		onDidChangeAvailableProfiles.fire([{ profileName: 'fish', path: '/bin/fish', isAutoDetected: false, isDefault: true }]);
+		assert.deepStrictEqual({ item1Updates, item2Updates }, { item1Updates: 1, item2Updates: 2 });
+
 		// Disposing the editor cleans up the remaining active dropdowns (item2)
 		editor.dispose();
 		assert.strictEqual(item2.actionDisposables.isDisposed, true);
