@@ -93,6 +93,7 @@ import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/
 import { SessionDataService } from '../../node/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { readCopilotSessionEvents } from '../../node/copilot/copilotSessionHistory.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
@@ -6996,6 +6997,32 @@ suite('CopilotAgentSession', () => {
 			turns: [{ id: 'request', text: 'Question', parts: ['Thinking', 'First', 'Last'] }],
 			opaque: 'opaque',
 		});
+	});
+
+	test('history reads skip unused events and keep every inline binary', async () => {
+		const image = (toolCallId: string, data: string) => ({
+			type: 'tool.execution_complete', data: {
+				toolCallId, success: true,
+				result: { content: toolCallId, binaryResultsForLlm: [{ type: 'image', data, mimeType: 'image/png' }] },
+			},
+		});
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'Question' } },
+			image('older', 'aaaa'),
+			{ type: 'hook.start', data: { hookInvocationId: 'hook', hookType: 'postToolUse', input: { toolResult: 'aaaa' } } },
+			{ type: 'hook.end', data: { hookInvocationId: 'hook', hookType: 'postToolUse', success: true } },
+			{ type: 'permission.requested', data: { requestId: 'permission', permissionRequest: { kind: 'read', path: '/repo' } } },
+			{ type: 'permission.completed', data: { requestId: 'permission', result: { kind: 'approved' } } },
+			image('newest', 'bbbb'),
+		]);
+		const pages = [events.slice(6), events.slice(0, 6)];
+		const read = await readCopilotSessionEvents(async () => {
+			const page = pages.shift()!;
+			return { events: page, cursor: String(pages.length), hasMore: pages.length > 0, cursorStatus: 'ok' };
+		}, CancellationToken.None);
+		assert.deepStrictEqual(read.map(event => event.type === 'tool.execution_complete'
+			? `${event.data.toolCallId}:${event.data.result?.binaryResultsForLlm?.map(binary => hasKey(binary, { data: true }) ? binary.data : 'ref').join(',')}`
+			: event.type), ['user.message', 'older:aaaa', 'newest:bbbb']);
 	});
 
 	for (const failure of ['expired', 'repeated', 'cyclic', 'empty', 'rpc'] as const) {
