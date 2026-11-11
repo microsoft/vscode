@@ -3,8 +3,8 @@
 # This file is consumed by eslint.config.js and gates the
 # `local/code-no-register-after-await` lint rule.
 #
-# DO NOT ADD NEW ENTRIES. After an `await`, register with `this._registerOrDispose(x)`, or check
-# `this._store.isDisposed` (or a cancellation token or abort signal) before registering anything,
+# DO NOT ADD NEW ENTRIES. After an `await`, register with `thenRegisterOrDispose(promise, this._store)`,
+# or check `this._store.isDisposed` (or a cancellation token or abort signal) before registering anything,
 # and dispose what was created.
 # Remove a file from this list once it no longer reports the rule.
 #

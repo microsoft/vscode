@@ -152,10 +152,10 @@ The fixes can be run using `pnpm exec eslint --fix` in the VS Code repo.
 
 Registrations are `this._register(x)`, `.add(x)` on a store held by `this` (a field the class declares as a `DisposableStore` or `DisposableSet`, or one named like `_store`, `_disposables` or `renderDisposables`), and `.value = x` or `.set(key, x)` on a field the class declares as a `MutableDisposable` or `DisposableMap`. Checks are conditions on `isDisposed`/`disposed`-style members or variables, `isCancellationRequested` or `aborted` that keep the registration from running once the object is gone, such as `if (this._store.isDisposed) { ...; return; }`, `if (!this._store.isDisposed) { ... }` or a conditional expression. `signal.throwIfAborted()` counts as a check too. Awaiting `raceCancellationError(...)` does not: it can resolve after the token was cancelled, and the token may not track disposal. The analysis is syntactic and per function. It follows branches, loops (including `for await`) and `try`/`finally`, so an await inside a branch that returns does not affect the code after the branch, and nested functions are analyzed on their own. It does not see a check inside a called helper, or a staleness check that works only because `dispose()` resets the compared field. Suppress such a report with an `eslint-disable-next-line` comment that names the check.
 
-When the awaited value is all there is to register, use `_registerOrDispose` (or `addOrDispose` on a `DisposableStore`). It disposes the value instead if the object was disposed while awaiting:
+When the awaited value is all there is to register, pass the promise to `thenRegisterOrDispose` from `lifecycle.ts`. It registers the value once the promise resolves, or disposes it instead if the store was disposed in the meantime:
 
 ```ts
-this._registerOrDispose(await this.doCreate());
+const storage = await thenRegisterOrDispose(this.doCreate(), this._store);
 ```
 
 When more work follows, re-check after the await, dispose what was created and return:

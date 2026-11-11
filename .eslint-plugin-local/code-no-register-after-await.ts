@@ -28,8 +28,8 @@ import type * as ESTree from 'estree';
  * because they throw once the operation was cancelled. Awaiting `raceCancellationError(...)` does not: it can resolve
  * after the token was cancelled.
  *
- * `this._registerOrDispose(x)` and `store.addOrDispose(x)` are not registrations: they dispose `x` if the owner was
- * already disposed.
+ * `thenRegisterOrDispose(promise, this._store)` is not a registration: it disposes the value if the store was already
+ * disposed when the promise resolves.
  *
  * The analysis is syntactic and per function: nested functions are analyzed on their own.
  */
@@ -37,7 +37,7 @@ export default new class NoRegisterAfterAwait implements eslint.Rule.RuleModule 
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			registerAfterAwait: 'Disposable registered with \'{{name}}\' after \'await\' without re-checking disposal. If the object was disposed while awaiting, the registered value leaks. Use `this._registerOrDispose(x)` or `store.addOrDispose(x)`, or, if more work follows, check `this._store.isDisposed` (or a cancellation token or abort signal) after the await, dispose what was created, and return.',
+			registerAfterAwait: 'Disposable registered with \'{{name}}\' after \'await\' without re-checking disposal. If the object was disposed while awaiting, the registered value leaks. Pass the promise to `thenRegisterOrDispose(promise, this._store)` instead of awaiting it, or, if more work follows, check `this._store.isDisposed` (or a cancellation token or abort signal) after the await, dispose what was created, and return.',
 		},
 		schema: false,
 	};

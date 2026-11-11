@@ -181,9 +181,8 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-re
 		`class A extends Disposable { async f(token: CancellationToken) { await y; if (token.isCancellationRequested) { throw new CancellationError(); } this._register(x); } }`,
 		`class A extends Disposable { async f(token: CancellationToken) { await y; if (token.isCancellationRequested || this._store.isDisposed) { return; } this._register(x); } }`,
 		`class A extends Disposable { async f(signal: AbortSignal) { await y; signal.throwIfAborted(); this._register(x); } }`,
-		// The helpers dispose the value when the owner was disposed.
-		`class A extends Disposable { async f() { this._registerOrDispose(await y); } }`,
-		`class A extends Disposable { async f() { await y; this._store.addOrDispose(x); } }`,
+		// The helper disposes the value when the store was disposed.
+		`class A extends Disposable { async f() { const x = await thenRegisterOrDispose(y, this._store); } }`,
 		// The guard of the Claude agent session: the abort controller is aborted on dispose.
 		`class A extends Disposable {
 			async f() {
