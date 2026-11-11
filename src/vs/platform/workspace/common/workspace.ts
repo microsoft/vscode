@@ -192,7 +192,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 	if (workspace.folders.length === 1) {
 		return {
 			id: workspace.id,
-			uri: workspace.folders[0].uri
+			uri: workspace.folders[0].primaryUri ?? workspace.folders[0].uri
 		};
 	}
 
@@ -319,6 +319,13 @@ export interface IWorkspaceFolderData {
 	 * The ordinal number of this workspace folder.
 	 */
 	readonly index: number;
+
+	/**
+	 * The primary location of this workspace folder, which is its identity.
+	 * Only set while the folder is at an alternate location, in which case
+	 * `uri` is that alternate location. Otherwise `undefined`.
+	 */
+	readonly primaryUri?: URI;
 }
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
@@ -425,6 +432,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	readonly uri: URI;
 	readonly name: string;
 	readonly index: number;
+	readonly primaryUri?: URI;
 
 	constructor(
 		data: IWorkspaceFolderData,
@@ -440,6 +448,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 		this.uri = data.uri;
 		this.index = data.index;
 		this.name = data.name;
+		this.primaryUri = data.primaryUri;
 	}
 
 	toResource(relativePath: string): URI {
@@ -447,7 +456,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toJSON(): IWorkspaceFolderData {
-		return { uri: this.uri, name: this.name, index: this.index };
+		return { uri: this.uri, name: this.name, index: this.index, ...(this.primaryUri ? { primaryUri: this.primaryUri } : undefined) };
 	}
 }
 
