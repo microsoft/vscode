@@ -374,7 +374,7 @@ function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; read
 			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}) };
 		}
 		const requested = turns[i].message.model;
-		const requestedRouter = modelRouterNameFromModelId(requested?.id);
+		const requestedRouter = unroutedRouterOf(turns[i]);
 		if (requested && !requestedRouter) {
 			const effort = requested.config?.[ReasoningEffortConfigKey];
 			return { model: requested.id, effort: typeof effort === 'string' ? effort : undefined };
@@ -384,6 +384,15 @@ function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; read
 		}
 	}
 	return undefined;
+}
+
+/**
+ * The router a turn asked for and got no pick from. A live turn's selection is the router itself.
+ * A turn restored after a host restart has the model it ran on as its selection, so the usage
+ * saved with it carries the router instead.
+ */
+function unroutedRouterOf(turn: Turn): string | undefined {
+	return modelRouterNameFromModelId(turn.message.model?.id) ?? readUsageInfoMeta(turn.usage).modelRouterUnrouted;
 }
 
 /**
@@ -402,7 +411,7 @@ function isOnLongContext(turns: readonly Turn[]): boolean {
 			return false;
 		}
 		const requested = turns[i].message.model;
-		if (!routed && requested && !modelRouterNameFromModelId(requested.id)) {
+		if (!routed && requested && !unroutedRouterOf(turns[i])) {
 			return false;
 		}
 	}

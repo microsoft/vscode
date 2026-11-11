@@ -33,7 +33,7 @@ import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/cod
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
-import { isModelRouterModelId } from '../common/modelRouter.js';
+import { isModelRouterModelId, modelRouterNameFromModelId } from '../common/modelRouter.js';
 import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionResponseMeta.js';
 import { readMcpServerSource, type McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 
@@ -313,6 +313,8 @@ export class AgentSideEffects extends Disposable {
 	readonly onDidStartTurn: Event<string>;
 	/** What a model router chose for recent turns, merged into every usage report so the choice persists with the turn. */
 	private readonly _routedTurns = new LRUCache<string, IModelRoutedInfo>(200);
+	/** The router of recent turns that asked for one and got no pick, kept with the turn's usage the same way. */
+	private readonly _unroutedTurns = new LRUCache<string, string>(200);
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
@@ -2417,6 +2419,7 @@ export class AgentSideEffects extends Disposable {
 		} catch (err) {
 			this._logService.error(`[AgentSideEffects] Routing ${selection.id} failed for ${turnChannel}; keeping the chat's model`, err);
 			this._turnTracker.updateFusionTelemetry(turnChannel, turnId, { modelRouterOutcome: 'failed' satisfies ModelRouterOutcome });
+			this._markUnrouted(turnChannel, turnId, selection);
 			return undefined;
 		}
 		if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
@@ -2429,6 +2432,8 @@ export class AgentSideEffects extends Disposable {
 				this._routedTurns.set(this._routedTurnKey(turnChannel, turnId), resolution.routed);
 				// Name the pick now; the model's own usage report can arrive much later.
 				this._stateManager.dispatchServerAction(turnChannel, { type: ActionType.ChatUsage, turnId, usage: { _meta: { modelRouted: resolution.routed } } });
+			} else {
+				this._markUnrouted(turnChannel, turnId, selection);
 			}
 			for (const notice of resolution.notices) {
 				this._stateManager.dispatchServerAction(turnChannel, {
@@ -2452,16 +2457,34 @@ export class AgentSideEffects extends Disposable {
 		return `${channel}\0${turnId}`;
 	}
 
-	/** Adds the router's choice to a turn's usage, since each usage report replaces the last. */
+	/**
+	 * Records that a turn asked for a model router and ran on the chat's model instead. A restored
+	 * turn's own selection is the model it ran on, which would otherwise read as picked by hand.
+	 */
+	private _markUnrouted(turnChannel: ProtocolURI, turnId: string, selection: ModelSelection): void {
+		const router = modelRouterNameFromModelId(selection.id);
+		if (!router) {
+			return;
+		}
+		this._unroutedTurns.set(this._routedTurnKey(turnChannel, turnId), router);
+		this._stateManager.dispatchServerAction(turnChannel, { type: ActionType.ChatUsage, turnId, usage: { _meta: { modelRouterUnrouted: router } } });
+	}
+
+	/** Adds the router's choice, or that it made none, to a turn's usage, since each usage report replaces the last. */
 	private _withModelRouted<T extends StateAction>(channel: ProtocolURI, action: T): T {
 		if (action.type !== ActionType.ChatUsage) {
 			return action;
 		}
 		const activeTurn = this._stateManager.getChatState(channel)?.activeTurn;
-		// The cache is bounded, so a long-paused turn falls back to what its usage already carries.
-		const modelRouted = this._routedTurns.get(this._routedTurnKey(channel, action.turnId))
-			?? (activeTurn?.id === action.turnId ? readUsageInfoMeta(activeTurn.usage).modelRouted : undefined);
-		return modelRouted ? { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouted } } } : action;
+		const key = this._routedTurnKey(channel, action.turnId);
+		// The caches are bounded, so a long-paused turn falls back to what its usage already carries.
+		const carried = activeTurn?.id === action.turnId ? readUsageInfoMeta(activeTurn.usage) : undefined;
+		const modelRouted = this._routedTurns.get(key) ?? carried?.modelRouted;
+		if (modelRouted) {
+			return { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouted } } };
+		}
+		const modelRouterUnrouted = this._unroutedTurns.get(key) ?? carried?.modelRouterUnrouted;
+		return modelRouterUnrouted ? { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouterUnrouted } } } : action;
 	}
 
 	/**

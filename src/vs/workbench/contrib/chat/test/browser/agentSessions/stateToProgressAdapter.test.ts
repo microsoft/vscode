@@ -1569,16 +1569,20 @@ suite('stateToProgressAdapter', () => {
 			const routedTurn = (id: string, router: string, firstTurnOnly?: boolean) => createTurn({ id, usage: { _meta: { modelRouted: { router, chosenModel: 'opus', ...(firstTurnOnly ? { firstTurnOnly } : {}) } } } });
 			const picked = routedTurn('turn-1', 'daily', true);
 			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
+			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
+			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
 			assert.deepStrictEqual({
 				firstTurn: isModelRouterPickSettled([picked], 'turn-1', 'daily'),
 				laterTurn: isModelRouterPickSettled([picked, createTurn({ id: 'turn-2' })], 'turn-3', 'daily'),
 				afterItsOwnUnroutedTurn: isModelRouterPickSettled([picked, selecting('model-router:daily')], 'turn-3', 'daily'),
+				afterItsOwnRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('daily')], 'turn-3', 'daily'),
+				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
 				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
 				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
 				reroutesEveryTurn: isModelRouterPickSettled([routedTurn('turn-1', 'daily')], 'turn-2', 'daily'),
 				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
 				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
-			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
