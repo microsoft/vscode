@@ -25,7 +25,7 @@ import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type AgentProvider, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentPluginInstallation, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -5051,14 +5051,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
-	get setPluginEnabled(): IAgentConnection['setPluginEnabled'] {
+	get setPluginEnabled(): ((provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>) | undefined {
 		const connection = this.connection;
 		return connection?.setPluginEnabled
 			? (provider, plugin, enabled, scope, session, chat) => connection.setPluginEnabled!(provider, plugin, enabled, scope, session, chat)
 			: undefined;
 	}
 
-	get listPluginInstallations(): IAgentConnection['listPluginInstallations'] {
+	get listPluginInstallations(): ((provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>) | undefined {
 		const connection = this.connection;
 		return connection?.listPluginInstallations
 			? (provider, session, chat) => connection.listPluginInstallations!(provider, session, chat)
