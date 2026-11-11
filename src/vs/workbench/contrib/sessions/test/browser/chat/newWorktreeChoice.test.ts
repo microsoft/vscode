@@ -23,7 +23,7 @@ suite('NewWorktreeChoice', () => {
 	 * Drafts of the local agent host, whose isolation starts as its agent remembers it, a new worktree, until their
 	 * configuration resolves; the writes the choice makes apply as the agent takes them, later.
 	 */
-	function create(options?: { readOnly?: boolean }) {
+	function create(options?: { readOnly?: boolean; synchronous?: boolean }) {
 		const values = new Map<string, Record<string, unknown>>();
 		const resolved = new Set<string>();
 		const writes: string[] = [];
@@ -37,7 +37,14 @@ suite('NewWorktreeChoice', () => {
 			} : undefined,
 			setSessionConfigValue: async (sessionId, _chat, property, value) => {
 				writes.push(`${sessionId}=${value}`);
-				pending.push(() => values.set(sessionId, { ...values.get(sessionId), [property]: value }));
+				const apply = () => values.set(sessionId, { ...values.get(sessionId), [property]: value });
+				if (options?.synchronous) {
+					// As the agent host's provider does: its cache changes and it tells at once, which applies the default
+					apply();
+					onDidChangeSessionConfig();
+				} else {
+					pending.push(apply);
+				}
 			},
 			trackSessionConfigOperation: () => { },
 		});
@@ -45,6 +52,8 @@ suite('NewWorktreeChoice', () => {
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as unknown as T }));
 		const session = observableValue<ISession | undefined>('session', undefined);
 		const choice = instantiationService.createInstance(NewWorktreeChoice, session);
+		// As the composer does on each change of its draft's configuration
+		const onDidChangeSessionConfig = () => choice.applyDefault();
 		const draft = (sessionId: string) => {
 			values.set(sessionId, { isolation: 'worktree' });
 			return upcastPartial<ISession>({
@@ -85,6 +94,16 @@ suite('NewWorktreeChoice', () => {
 			chosen: { available: true, selected: true },
 			writes: ['a=folder', 'a=worktree'],
 		});
+	});
+
+	test('the user\'s New Worktree stays where its agent takes it, and tells of the change, at once', () => {
+		const { choice, show, resolve, writes, state } = create({ synchronous: true });
+		show('a');
+		resolve('a');
+		choice.applyDefault();
+		choice.setSelected(true);
+
+		assert.deepStrictEqual({ state: state(), writes }, { state: { available: true, selected: true }, writes: ['a=folder', 'a=worktree'] });
 	});
 
 	test('picking another folder after New Worktree: the folder\'s new draft works in it, as its configuration resolves after the pick', () => {
