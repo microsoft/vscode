@@ -43,16 +43,14 @@ export function trackMainPartEditors(part: Pick<IEditorPart, 'groups' | 'onDidAd
 
 /**
  * Shows only the chat of a chat window that opened with no editor in its main part, as it does once its last editor
- * closes: when it would show only its main part, such as when none of the editors it showed could be restored, and when
- * its chat shows in a chat window for the first time, with no editor to bring along. The chat keeps what is remembered
- * for it, so that a mode the user chooses for it shows again.
+ * closes: when none of the editors it showed could be restored, and when its chat shows in a chat window for the first
+ * time, with no editor to bring along. The chat keeps what is remembered for it, so that a mode the user chooses for it
+ * shows again, and the first editor that opens shows the main part as remembered.
  *
- * @param firstOpen whether no layout is remembered for the chat.
  * @returns whether it showed only the chat.
  */
-export function showChatInsteadOfEmptyMainPart(part: Pick<IEditorPart, 'groups'>, window: { readonly layoutMode: IObservable<ChatWindowLayoutMode>; showChatOnly(): void }, firstOpen: boolean): boolean {
-	const mode = window.layoutMode.get();
-	if (mode === ChatWindowLayoutMode.ChatOnly || (mode !== ChatWindowLayoutMode.EditorOnly && !firstOpen) || part.groups.some(group => !group.isEmpty)) {
+export function showChatInsteadOfEmptyMainPart(part: Pick<IEditorPart, 'groups'>, window: { readonly layoutMode: IObservable<ChatWindowLayoutMode>; showChatOnly(): void }): boolean {
+	if (window.layoutMode.get() === ChatWindowLayoutMode.ChatOnly || part.groups.some(group => !group.isEmpty)) {
 		return false;
 	}
 	window.showChatOnly();

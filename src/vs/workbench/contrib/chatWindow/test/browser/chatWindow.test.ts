@@ -347,6 +347,16 @@ suite('Chat window', () => {
 		assert.deepStrictEqual(modes, [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly]);
 	});
 
+	test('the editors it restores in its main part keep the mode it opens in, such as only its chat, while an editor the user opens after shows its main part', async () => {
+		const { window, state, main } = createWindow();
+		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+		await window.restoreMainPartEditors(async () => main.group.open(editor()));
+		const restored = window.layoutMode.get();
+		main.group.open(editor());
+
+		assert.deepStrictEqual({ restored, afterUserOpen: window.layoutMode.get() }, { restored: ChatWindowLayoutMode.ChatOnly, afterUserOpen: ChatWindowLayoutMode.SideBySide });
+	});
+
 	test('an editor of its main part dropped beside the chat splits the chat part and empties the main part, which changes no mode: never Editor Only', () => {
 		const { window, main, chat } = createWindow();
 		const file = editor();
@@ -360,29 +370,27 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ modes, chatVisible: window.chatVisible }, { modes: [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.SideBySide], chatVisible: true });
 	});
 
-	test('it opens showing only its chat while its main part has no editor: the first time its chat shows in a window, as 491817 does, or when it would show only its main part; a mode chosen for the chat shows again', () => {
-		const opened = (mode: ChatWindowLayoutMode, firstOpen: boolean, hasEditor: boolean) => {
+	test('it opens showing only its chat while its main part has no editor, whatever mode is remembered for its chat, which stays remembered', () => {
+		const opened = (mode: ChatWindowLayoutMode, hasEditor: boolean) => {
 			const defaults = new ChatWindowDefaults(disposables.add(new InMemoryStorageService()));
 			const state = new ChatWindowState(defaults);
 			state.setLayoutMode(mode);
 			const remembered = defaults.getLayoutMode();
-			showChatInsteadOfEmptyMainPart({ groups: [upcastPartial<IEditorGroup>({ isEmpty: !hasEditor })] }, state, firstOpen);
+			showChatInsteadOfEmptyMainPart({ groups: [upcastPartial<IEditorGroup>({ isEmpty: !hasEditor })] }, state);
 			return `${state.layoutMode.get()}, default ${defaults.getLayoutMode() === remembered ? 'kept' : 'changed'}`;
 		};
 		assert.deepStrictEqual({
-			firstOpenNoEditor: opened(ChatWindowLayoutMode.SideBySide, true, false),
-			firstOpenStackedNoEditor: opened(ChatWindowLayoutMode.Stacked, true, false),
-			firstOpenWithEditor: opened(ChatWindowLayoutMode.SideBySide, true, true),
-			rememberedSideBySideNoEditor: opened(ChatWindowLayoutMode.SideBySide, false, false),
-			rememberedEditorOnlyNoEditor: opened(ChatWindowLayoutMode.EditorOnly, false, false),
-			rememberedEditorOnlyWithEditor: opened(ChatWindowLayoutMode.EditorOnly, false, true),
+			sideBySideNoEditor: opened(ChatWindowLayoutMode.SideBySide, false),
+			stackedNoEditor: opened(ChatWindowLayoutMode.Stacked, false),
+			editorOnlyNoEditor: opened(ChatWindowLayoutMode.EditorOnly, false),
+			sideBySideWithEditor: opened(ChatWindowLayoutMode.SideBySide, true),
+			editorOnlyWithEditor: opened(ChatWindowLayoutMode.EditorOnly, true),
 		}, {
-			firstOpenNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
-			firstOpenStackedNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
-			firstOpenWithEditor: `${ChatWindowLayoutMode.SideBySide}, default kept`,
-			rememberedSideBySideNoEditor: `${ChatWindowLayoutMode.SideBySide}, default kept`,
-			rememberedEditorOnlyNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
-			rememberedEditorOnlyWithEditor: `${ChatWindowLayoutMode.EditorOnly}, default kept`,
+			sideBySideNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
+			stackedNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
+			editorOnlyNoEditor: `${ChatWindowLayoutMode.ChatOnly}, default kept`,
+			sideBySideWithEditor: `${ChatWindowLayoutMode.SideBySide}, default kept`,
+			editorOnlyWithEditor: `${ChatWindowLayoutMode.EditorOnly}, default kept`,
 		});
 	});
 

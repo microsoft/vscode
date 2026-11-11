@@ -407,7 +407,11 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 		const isChatIn = (groups: readonly IEditorGroup[]) => groups.some(group => this.chatInputs.some(input => group.contains(input)));
 		this._register(trackMainPartEditors(mainPart, {
-			onDidOpenEditor: () => this._showMainPart(),
+			onDidOpenEditor: () => {
+				if (!this._restoringMainPartEditors) {
+					this._showMainPart();
+				}
+			},
 			// Only the chat part can show the chat: with the chat moved to another part, the window keeps its layout
 			onDidCloseLastEditor: () => {
 				if (isChatIn(this.chatPart.groups)) {
@@ -571,13 +575,25 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._returnChat();
 		this._host.resetLayout();
 		this.state.reset();
-		showChatInsteadOfEmptyMainPart(this.mainPart, this, true);
+		showChatInsteadOfEmptyMainPart(this.mainPart, this);
 	}
 
 	showEditor(): void {
 		this._returnChat();
 		this._showMainPart();
 	}
+
+	/** Opens the editors the window restores in its main part, which do not show it as an editor the user opens does. */
+	async restoreMainPartEditors(restore: () => Promise<void>): Promise<void> {
+		this._restoringMainPartEditors = true;
+		try {
+			await restore();
+		} finally {
+			this._restoringMainPartEditors = false;
+		}
+	}
+
+	private _restoringMainPartEditors = false;
 
 	/** Shows the main part beside the chat, as the window shows it once an editor opens in it. */
 	private _showMainPart(): void {
@@ -1250,9 +1266,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (anchor) {
 			chatWindow.anchor = anchor;
 		}
-		await this._openEditors(options?.editors, mainPart);
-		await this._openCreatedParts(options?.createdParts, mainPart, grid);
-		showChatInsteadOfEmptyMainPart(mainPart, chatWindow, !rememberedLayout);
+		await chatWindow.restoreMainPartEditors(async () => {
+			await this._openEditors(options?.editors, mainPart);
+			await this._openCreatedParts(options?.createdParts, mainPart, grid);
+		});
+		showChatInsteadOfEmptyMainPart(mainPart, chatWindow);
 		if (options?.showTerminals) {
 			chatWindow.getOrCreateTerminalsPart();
 		}
