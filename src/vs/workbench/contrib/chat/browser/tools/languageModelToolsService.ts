@@ -17,7 +17,7 @@ import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/c
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../base/common/mime.js';
-import { derived, derivedOpts, IObservable, IReader, observableFromEventOpts, ObservableSet, observableSignal, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, observableFromEvent, observableFromEventOpts, ObservableSet, observableSignal, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -34,6 +34,7 @@ import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedC
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -146,6 +147,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _pendingGlobalAutoApproveCheck: Promise<boolean> | undefined;
 
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
+	private readonly _isMcpDisabledByPolicy: IObservable<boolean>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -168,6 +170,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		super();
 
 		this._isAgentModeEnabled = observableConfigValue(ChatConfiguration.AgentEnabled, true, this._configurationService);
+		this._isMcpDisabledByPolicy = observableFromEvent(this,
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(mcpAccessConfig)),
+			() => this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -177,7 +182,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled) || e.affectsConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled) || e.affectsConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled) || e.affectsConfiguration(mcpAccessConfig)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -254,12 +259,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	/**
-	 * Returns if the given tool or toolset is permitted in the current context.
-	 * When agent mode is enabled, all tools are permitted (no restriction)
-	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
-	 */
+	private isAllowedByPolicy(toolOrToolSet: IToolData | IToolSet, reader?: IReader): boolean {
+		return toolOrToolSet.source.type !== 'extension' || !(reader
+			? this._isMcpDisabledByPolicy.read(reader)
+			: this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
+	}
+
+	/** Applies enterprise policy and restricts agentic-loop tools to a read-only subset when agent mode is disabled. */
 	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
+		if (!this.isAllowedByPolicy(toolOrToolSet, reader)) {
+			return false;
+		}
+
 		const agentModeEnabled = this._isAgentModeEnabled.read(reader);
 		if (agentModeEnabled !== false) {
 			return true;
@@ -491,15 +502,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private _validateToolSession(toolData: IToolData | undefined, toolSessionResource: URI | undefined): void {
+	private _validateToolAccess(toolData: IToolData | undefined, toolSessionResource: URI | undefined): void {
 		if (toolData?.sessionResource && !isEqual(toolData.sessionResource, toolSessionResource)) {
 			throw new Error(localize('toolSessionMismatch', "Tool \"{0}\" is not available in this session.", toolData.id));
+		}
+
+		if (toolData && !this.isAllowedByPolicy(toolData)) {
+			throw new Error(localize('extensionToolDisabledByPolicy', "Tool \"{0}\" is disabled because your organization has disabled MCP and third-party extension tools.", toolData.id));
 		}
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		const toolData = this._tools.get(dto.toolId)?.data;
-		this._validateToolSession(toolData, dto.toolSessionResource);
+		this._validateToolAccess(toolData, dto.toolSessionResource);
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
 		let model: IChatModel | undefined;
 		let request: IChatRequestModel | undefined;
@@ -576,7 +591,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		let tool = this._tools.get(dto.toolId);
 		try {
-			this._validateToolSession(tool?.data, dto.toolSessionResource);
+			this._validateToolAccess(tool?.data, dto.toolSessionResource);
 
 			// Fire the event to notify listeners that a tool is being invoked
 			this._onDidInvokeTool.fire({
@@ -591,14 +606,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (!tool) {
 				throw new Error(`Tool ${dto.toolId} was not contributed`);
 			}
-			this._validateToolSession(tool.data, dto.toolSessionResource);
+			this._validateToolAccess(tool.data, dto.toolSessionResource);
 
 			if (!tool.impl) {
 				await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
 
 				// Extension should activate and register the tool implementation
 				tool = this._tools.get(dto.toolId);
-				this._validateToolSession(tool?.data, dto.toolSessionResource);
+				this._validateToolAccess(tool?.data, dto.toolSessionResource);
 				if (!tool?.impl) {
 					throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 				}
@@ -752,7 +767,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (!currentTool) {
 				throw new Error(`Tool ${dto.toolId} was not contributed`);
 			}
-			this._validateToolSession(currentTool.data, dto.toolSessionResource);
+			this._validateToolAccess(currentTool.data, dto.toolSessionResource);
 			if (!currentTool.impl) {
 				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 			}
@@ -1138,7 +1153,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (!toolEntry) {
 			return undefined;
 		}
-		this._validateToolSession(toolEntry.data, options.toolSessionResource);
+		this._validateToolAccess(toolEntry.data, options.toolSessionResource);
 
 		// Don't create a streaming invocation for tools that don't implement handleToolStream.
 		// These tools will have their invocation created directly in invokeToolInternal.
@@ -1206,7 +1221,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		const { invocation, toolSessionResource } = pendingToolCall;
 		const toolEntry = this._tools.get(invocation.toolId);
-		this._validateToolSession(toolEntry?.data, toolSessionResource);
+		this._validateToolAccess(toolEntry?.data, toolSessionResource);
 
 		// Update the partial input on the invocation
 		invocation.updatePartialInput(partialInput);
@@ -1799,6 +1814,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		referenceName = this.getSpecedToolSetName(referenceName);
 
 		const result = new class extends ToolSet implements IDisposable {
+			override getTools(reader?: IReader): Iterable<IToolData> {
+				return Iterable.filter(super.getTools(reader), tool => that.isAllowedByPolicy(tool, reader));
+			}
+
 			dispose(): void {
 				if (that._toolSets.has(result)) {
 					this._tools.clear();
@@ -1824,7 +1843,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		for (const toolSet of this.toolSets.read(reader)) {
 			if (toolSet.source.type !== 'user') {
 				result.push([toolSet, getToolSetFullReferenceName(toolSet)]);
-				for (const tool of toolSet.getTools()) {
+				for (const tool of toolSet.getTools(reader)) {
 					result.push([tool, getToolFullReferenceName(tool, toolSet)]);
 					coveredByToolSets.add(tool);
 				}

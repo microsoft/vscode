@@ -678,7 +678,7 @@
             "localization": {
                 "description": {
                     "key": "chat.extensionToolsEnabled",
-                    "value": "Enable using tools contributed by third-party extensions."
+                    "value": "Enable using tools contributed by third-party extensions. These tools are also disabled when your organization disables MCP."
                 }
             },
             "type": "boolean",
