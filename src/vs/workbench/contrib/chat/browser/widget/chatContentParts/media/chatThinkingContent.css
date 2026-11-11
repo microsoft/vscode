@@ -184,6 +184,28 @@
 	}
 }
 
+/* A conversation lists each reasoning run as a row naming its time. The run's text opens
+	under the row in the same text column, like the details of a tool call. */
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-thinking-conversation .chat-thinking-tool-wrapper > .chat-used-context.chat-thinking-reasoning {
+	margin-left: 0;
+	padding-left: var(--vscode-spacing-size240);
+
+	.chat-used-context-list.chat-thinking-reasoning-content {
+		margin: 0;
+		padding: 0;
+		border: none;
+
+		> .chat-thinking-item.markdown-content {
+			padding: var(--chat-persistent-nested-gap) var(--vscode-spacing-size120) 0 0;
+
+			&::before,
+			> .chat-thinking-icon {
+				display: none;
+			}
+		}
+	}
+}
+
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible:not(.chat-tool-chain-preview)) {
 	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		box-sizing: border-box;
@@ -254,7 +276,12 @@
 
 /* A conversation title with links sits beside its button; keep it in the button's text column and type size. */
 .interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label.chat-thinking-title-beside-button {
+	/* The title gets its own text column, so its line matches a title inside the button and the header keeps its height. */
+	display: flex;
+	align-items: flex-start;
+
 	> .monaco-button.monaco-icon-button {
+		flex-shrink: 0;
 		padding-right: 0;
 
 		/* The emptied label still spans the title's line, so the chevron centers on it. */
@@ -264,6 +291,7 @@
 	}
 
 	> .rendered-markdown.chat-thinking-title-detail {
+		min-width: 0;
 		font-size: var(--vscode-chat-font-size-body-s);
 	}
 }
@@ -327,6 +355,7 @@
 	> .chat-thinking-conversation,
 	> .chat-tool-chain-collapsible,
 	.chat-tool-chain .chat-thinking-tool-wrapper > .chat-used-context,
+	.chat-thinking-conversation .chat-thinking-tool-wrapper > .chat-thinking-reasoning,
 	.chat-tool-call-with-icon :is(.chat-terminal-thinking-collapsible, .chat-confirmation-widget-collapsible) {
 		gap: 0;
 
@@ -394,8 +423,22 @@
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress-anchor > .chat-working-progress > .chat-progress-icon,
 .interactive-session .chat-sticky-progress > .chat-working-progress > .chat-progress-icon,
+.interactive-session .interactive-response .value > .completed-response-conversation > .completed-response-summary .chat-collapsible-hover-chevron.codicon,
 .interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
+}
+
+/* In Conversation progress a completed response's steps disclose like a conversation section: the chevron
+	leads the label and stays visible, and the steps open under it in the label's text column. */
+.interactive-session .interactive-response.chat-persistent-progress > .value > .completed-response-conversation {
+	&::details-content {
+		margin-inline-start: var(--chat-persistent-rail-left);
+		padding-inline-start: calc(var(--vscode-spacing-size240) - var(--chat-persistent-rail-left) - var(--vscode-strokeThickness));
+	}
+
+	> .completed-response-summary .chat-collapsible-hover-chevron.codicon {
+		opacity: 1;
+	}
 }
 
 /* A conversation section's chevron turns to point down at its rows while open, like a collapsible's hover chevron. */
@@ -478,6 +521,11 @@
 		> p {
 			display: inline;
 			margin: 0;
+		}
+
+		/* The title's own text sets the header's line; smaller links, file pills, and code must not stretch it. */
+		:is(a, code) {
+			line-height: 1;
 		}
 	}
 

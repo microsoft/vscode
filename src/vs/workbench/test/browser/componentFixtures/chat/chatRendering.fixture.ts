@@ -11,7 +11,7 @@ import { ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressV
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatQuestionCarousel, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
-import { getToolInvocationSummaryFromInput } from '../../../../contrib/chat/common/tools/toolInvocationSummary.js';
+import { getToolInvocationSummaryFromInput, type ChatToolInvocationSummary } from '../../../../contrib/chat/common/tools/toolInvocationSummary.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsConfirmationService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
@@ -333,6 +333,89 @@ async function renderDeterministicToolSummaries(context: ComponentFixtureContext
 	}, 'Deterministic tool summaries did not settle');
 }
 
+/**
+ * Finished Conversation sections: a generated title and a tool summary with their time,
+ * reasoning alone, and a tool summary whose time was not recorded.
+ */
+interface IConversationSectionsOptions {
+	/** Opens a section and one of its reasoning rows. */
+	readonly expandSection?: boolean;
+	/** Folds the sections into the completed response's disclosure, which is left closed or opened. */
+	readonly completedSteps?: 'closed' | 'open';
+}
+
+async function renderConversationSections(context: ComponentFixtureContext, options: IConversationSectionsOptions = {}): Promise<void> {
+	const titles = ['Reviewing the completion handler - 9s', 'Ran 2 commands, read summary.ts - 31s', 'Thought for 26s', 'Edited 2 files, 1 other step'];
+	const height = options.completedSteps === 'closed' ? 220 : options.expandSection || options.completedSteps ? 640 : 420;
+	await renderChatWidget(context, {
+		width: 500, height, listHeight: height, inputVisible: false,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Conversation,
+		collapseCompletedResponses: !!options.completedSteps,
+		thinkingPhrases: ['Working'],
+		messages: [{ user: 'Collapse the terminal output once its command finishes', responseComplete: false, assistant: [] }],
+		onRendered: ({ model }) => {
+			const request = model.getRequests()[0];
+			const reason = (id: string, value: string, reasoningDurationMs: number) => model.acceptResponseProgress(request, { kind: 'thinking', id, value, reasoningTimingSource: 'provider', reasoningDurationMs });
+			const say = (text: string) => model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(text) });
+			const tool = (toolCallId: string, message: string, summary: ChatToolInvocationSummary, startedAt?: number, completedAt?: number) => model.acceptResponseProgress(request, {
+				kind: 'toolInvocationSerialized', toolId: toolCallId, toolCallId, invocationMessage: new MarkdownString(message), pastTenseMessage: new MarkdownString(message),
+				isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, source: ToolDataSource.Internal,
+				presentation: undefined, originMessage: undefined, summary, startedAt, completedAt,
+			});
+
+			reason('review', '**Reviewing the completion handler**\n\nThe output stays open after the command exits, so the handler is the place to start.', 5000);
+			tool('status', 'Ran `git status --short`', { kind: 'command' }, 10_000, 14_000);
+			say('The handler only collapses commands it saw start.');
+
+			reason('plan', 'The card is rebuilt when the tool call completes, so the state it remembers has to be keyed by the invocation.', 23_000);
+			tool('build', 'Ran `pnpm run build-fast`', { kind: 'command' }, 30_000, 32_000);
+			tool('test', 'Ran `scripts/test.sh`', { kind: 'command' }, 31_000, 33_000);
+			tool('read', 'Read summary.ts', { kind: 'read', resources: [{ uri: URI.file('/workspace/summary.ts') }] }, 40_000, 41_000);
+			reason('compare', 'Both layouts collapse now, so the tests can cover them together.', 4000);
+			say('The card collapses in every layout.');
+
+			reason('verify', 'A rebuilt card must not expand again when late output arrives.', 26_000);
+			say('Late output no longer reopens the card.');
+
+			for (const file of ['/workspace/progressPart.ts', '/workspace/progressPart.test.ts']) {
+				model.acceptResponseProgress(request, { kind: 'externalEdit', uri: URI.file(file), editKind: 'edit', diff: { added: 12, removed: 4 }, undoStopId: 'edits' });
+			}
+			tool('memory', 'Stored a memory', { kind: 'unknown' });
+			say('The fix and its tests are in place.');
+			request.response?.setElapsedMs(123_000);
+			request.response?.complete();
+		},
+	});
+	const sections = () => [...context.container.querySelectorAll<HTMLElement>('.chat-thinking-conversation')];
+	const isSettled = () => !context.container.getAnimations({ subtree: true }).some(animation =>
+		(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
+	await waitForFixtureCondition(() => {
+		const rendered = sections().map(section => section.querySelector(':scope > .chat-used-context-label .monaco-button-mdlabel')?.textContent);
+		return rendered.length === titles.length && rendered.every((title, index) => title === titles[index]) && isSettled();
+	}, 'Conversation section titles did not settle');
+	if (options.completedSteps) {
+		const disclosure = () => context.container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		await waitForFixtureCondition(() => disclosure()?.open === false, 'Completed steps did not collapse');
+		if (options.completedSteps === 'open') {
+			disclosure()!.querySelector<HTMLElement>('summary')!.click();
+			// The steps unclip as the disclosure grows, so it is open once it reaches the last one.
+			await waitForFixtureCondition(() => {
+				const details = disclosure();
+				const lastStep = details?.lastElementChild;
+				return !!details?.open && !!lastStep && lastStep.getBoundingClientRect().bottom <= details.getBoundingClientRect().bottom + 0.5 && isSettled();
+			}, 'Completed steps did not open');
+		}
+	}
+	if (options.expandSection) {
+		const section = sections()[1];
+		section.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!.click();
+		await waitForFixtureCondition(() => section.querySelectorAll('.chat-thinking-reasoning').length === 2, 'Reasoning rows did not render');
+		section.querySelector<HTMLElement>('.chat-thinking-reasoning > .chat-used-context-label .monaco-button')!.click();
+		await waitForFixtureCondition(() => !!section.querySelector('.chat-thinking-reasoning:not(.chat-used-context-collapsed)') && isSettled(), 'Reasoning row did not expand');
+	}
+}
+
 function renderReadPills(context: ComponentFixtureContext, complete: boolean): Promise<void> {
 	const resource = URI.file('/workspace/chatListRenderer.ts');
 	const diff = {
@@ -442,6 +525,29 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		virtualTime: { enabled: false },
 		deferPaint: true,
 		render: context => renderDeterministicToolSummaries(context, 280),
+	}),
+	ConversationSections: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderConversationSections(context),
+	}),
+	ConversationSectionExpanded: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderConversationSections(context, { expandSection: true }),
+	}),
+	ConversationCompletedSteps: defineComponentFixture({
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderConversationSections(context, { completedSteps: 'closed' }),
+	}),
+	ConversationCompletedStepsOpen: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderConversationSections(context, { completedSteps: 'open' }),
 	}),
 	SuccessfulCommands: defineComponentFixture({
 		virtualTime: { enabled: false },
