@@ -223,6 +223,8 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							}
 							if (!label) {
 								label = localize('label.dfl', "Search");
+							} else if (!that._windowTitle.isCustomTitleFormat() && that._windowTitle.folderLocation) {
+								label = localize('label.withFolderLocation', "{0} ({1})", label, that._windowTitle.folderLocation);
 							}
 							if (prefix) {
 								label = localize('label1', "{0} {1}", prefix, label);
