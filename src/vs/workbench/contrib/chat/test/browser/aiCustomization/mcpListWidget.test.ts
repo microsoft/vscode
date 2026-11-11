@@ -231,9 +231,9 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 			? galleryDiscoveryEnabled
 			: key === mcpGalleryServiceEnablementConfig
 				? true
-			: key === CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled
-				? connectorsEnabled
-				: undefined,
+				: key === CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled
+					? connectorsEnabled
+					: undefined,
 		inspect: (key: string) => key === mcpAccessConfig ? {
 			value: widget.access,
 			defaultValue: McpAccessValue.All,
