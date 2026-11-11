@@ -152,6 +152,7 @@ suite('ChatWindowState', () => {
 			leafWithoutId: read(JSON.stringify([[chat.toString(), { ...arrangement, root: { type: 'branch', size: 1000, data: [{ type: 'leaf', data: {}, size: 30 }] } }]])),
 			emptyBranch: read(JSON.stringify([[chat.toString(), { ...arrangement, root: { type: 'branch', size: 1000, data: [] } }]])),
 			unknownSplitLayout: read(JSON.stringify([[chat.toString(), { ...arrangement, splitLayout: ChatWindowLayoutMode.ChatOnly }]])),
+			infiniteWidth: read(JSON.stringify([[chat.toString(), arrangement]]).replace('"width":1000', '"width":1e309')),
 		}, {
 			stored: { arrangement, sizes: { stacked: { chat: { width: 10, height: 20 } } } },
 			corrupt: undefined,
@@ -159,6 +160,7 @@ suite('ChatWindowState', () => {
 			leafWithoutId: undefined,
 			emptyBranch: undefined,
 			unknownSplitLayout: undefined,
+			infiniteWidth: undefined,
 		});
 	});
 });

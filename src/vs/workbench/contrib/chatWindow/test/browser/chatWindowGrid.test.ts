@@ -21,7 +21,7 @@ import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '.
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
-import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowPartSizes, IChatWindowArrangement } from '../../common/chatWindowState.js';
 
 suite('Chat window grid', () => {
@@ -487,15 +487,30 @@ suite('Chat window grid', () => {
 		});
 	});
 
-	test('a window that closes, its parts leaving the grid, still exports the arrangement the user gave them', () => {
-		const { grid } = setup();
-		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
-		const arranged = grid.exportArrangement();
-		grid.willClose();
-		grid.partGrid!.removeCell(ChatWindowGridCell.Main);
-		grid.partGrid!.removeCell(ChatWindowGridCell.Chat);
+	test('a window that closes, its parts leaving the grid, still exports the arrangement the user last gave them, also without an export before', () => {
+		const exportOnClose = (arrange: (grid: ChatWindowGrid) => void) => {
+			const { grid } = setup();
+			arrange(grid);
+			// As the window closes: it says so, then its parts leave the grid
+			grid.setClosing(true);
+			grid.partGrid!.removeCell(ChatWindowGridCell.Main);
+			grid.partGrid!.removeCell(ChatWindowGridCell.Chat);
+			return grid.exportArrangement() && JSON.stringify(collectIds(grid.exportArrangement()!.root));
+		};
+		const collectIds = (node: IChatWindowArrangement['root']): string[] => node.type === 'leaf' ? [node.data.id] : node.data.flatMap(collectIds);
+		const swap = (grid: ChatWindowGrid) => grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
 
-		assert.deepStrictEqual({ arranged: !!arranged, closing: grid.exportArrangement() === arranged }, { arranged: true, closing: true });
+		assert.deepStrictEqual({
+			swapped: exportOnClose(swap),
+			swappedBackAfterAnExport: exportOnClose(grid => {
+				swap(grid);
+				grid.exportArrangement();
+				grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { reference: ChatWindowGridCell.Main, direction: Direction.Left });
+			}),
+		}, {
+			swapped: JSON.stringify([ChatWindowGridCell.TitleRow, ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Strip]),
+			swappedBackAfterAnExport: undefined,
+		});
 	});
 
 	test('an arrangement a new grid cannot show falls back to the window\'s: of the other split layout, of other cells, such as with a strip the window no longer has, or of a cell it does not know', () => {
@@ -1323,6 +1338,46 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ editorAreaClosed, editorShownAgain: { ...read(), height: height() } }, {
 			editorAreaClosed: { topology: 'column(titleRow, row(chat, column(main, terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 770, acrossTheWindow: false },
 			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200 },
+		});
+	});
+
+	test('the main part arranged side by side while hidden, as Stacked is switched off in Chat Only, shows again at its share beside the terminals under it, which are as tall as the user made them', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.Stacked);
+		const splitLayout = observableValue<ChatWindowSplitLayout>('splitLayout', ChatWindowLayoutMode.Stacked);
+		const terminalsPart = createPartWithEditors('terminals');
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals, splitLayout }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.UnderEditor), undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		terminals.set(terminalsPart.part, undefined);
+		terminalsPart.setEmpty(false);
+		drag(container, grid, ChatWindowGridCell.Terminals, 'top', 200);
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		// Toggle Arrangement while only the chat shows
+		splitLayout.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const hidden = grid.partGrid!.describe();
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const size = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).height;
+
+		assert.deepStrictEqual({ hidden, shown: { main: size(ChatWindowGridCell.Main), terminals: size(ChatWindowGridCell.Terminals) } }, {
+			hidden: 'column(titleRow, row(chat, column(main, terminals), strip))',
+			shown: { main: 570, terminals: 200 },
+		});
+	});
+
+	test('the height the user gives the terminals while the main part is hidden is theirs as it shows again; the others share the rest as they did', () => {
+		const { mode, grid, open, height, userResize } = setupWithTerminals(ChatWindowLayoutMode.Stacked);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 200);
+		const size = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).height;
+		const before = { main: size(ChatWindowGridCell.Main), chat: size(ChatWindowGridCell.Chat) };
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		userResize(ChatWindowGridCell.Terminals, 'top', 300);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const share = (before.main + before.chat - 100) / (before.main + before.chat);
+
+		assert.deepStrictEqual({ terminals: height(), main: size(ChatWindowGridCell.Main), chat: size(ChatWindowGridCell.Chat) }, {
+			terminals: 300, main: Math.round(before.main * share), chat: before.chat + before.main - 100 - Math.round(before.main * share),
 		});
 	});
 

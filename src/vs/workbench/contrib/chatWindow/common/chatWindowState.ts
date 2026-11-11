@@ -213,7 +213,7 @@ function isArrangementNode(value: unknown, depth: number): value is ChatWindowAr
 function isArrangement(value: unknown): value is IChatWindowArrangement {
 	const candidate = value as Partial<IChatWindowArrangement> | undefined;
 	return candidate?.version === 1 && isChatWindowSplitLayout(candidate.splitLayout) && (candidate.orientation === 0 || candidate.orientation === 1)
-		&& typeof candidate.width === 'number' && candidate.width > 0 && typeof candidate.height === 'number' && candidate.height > 0
+		&& typeof candidate.width === 'number' && Number.isFinite(candidate.width) && candidate.width > 0 && typeof candidate.height === 'number' && Number.isFinite(candidate.height) && candidate.height > 0
 		&& candidate.root?.type === 'branch' && isArrangementNode(candidate.root, 0);
 }
 
