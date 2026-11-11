@@ -3840,8 +3840,8 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		function createFolderSession(id: string, label: string, folder: { readonly root: string; readonly workingDirectory?: string; readonly repository?: string; readonly worktree?: string }, createdAt?: Date): ISession {
-			const { session } = createTestSession(id, { workspaceLabel: label, createdAt });
+		function createFolderSession(id: string, label: string, folder: { readonly root: string; readonly workingDirectory?: string; readonly repository?: string; readonly worktree?: string }, createdAt?: Date, options?: ITestSessionOptions): ISession {
+			const { session } = createTestSession(id, { ...options, workspaceLabel: label, createdAt });
 			const root = URI.parse(folder.root);
 			return {
 				...session,
@@ -3896,8 +3896,31 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+
+		function openScopedList(harness: ReturnType<typeof createListHarness>, scopeFolders: IObservable<readonly URI[]> | undefined) {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scopeFolders,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
+			return {
+				list,
+				snapshot: () => ({ sessions: list.getVisibleSessions().map(session => session.sessionId), showMore: showMoreLabels().map(label => label.textContent) }),
+				sectionLabels: () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-section-label')].map(label => label.textContent).sort(),
+				click: (label: string) => {
+					const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
+					assert.ok(row, `Expected a "${label}" row`);
+					clickRow(row);
+				},
+			};
+		}
+
 		test('lists the scope\'s workspaces and hides the others behind a more row, leaving an unscoped list unchanged', () => {
-			const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
 			const harness = createListHarness(disposables, [
 				createFolderSession('repo-checkout', 'repo', { root: 'file:///repo', repository: 'file:///repo' }, hoursAgo(1)),
 				createFolderSession('repo-worktree', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }, hoursAgo(2)),
@@ -3905,28 +3928,8 @@ suite('Sessions - SessionsList', () => {
 				createFolderSession('b-session', 'b', { root: 'file:///b' }, hoursAgo(4)),
 			]);
 			const scopeFolders = observableValue<readonly URI[]>('scopeFolders', []);
-			const open = (scoped: boolean) => {
-				const container = harness.createContainer(400, 1400);
-				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-					grouping: () => SessionsGrouping.Workspace,
-					sorting: () => SessionsSorting.Created,
-					scopeFolders: scoped ? scopeFolders : undefined,
-					onSessionOpen: () => { },
-				}));
-				list.layout(1400, 400);
-				const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
-				return {
-					list,
-					snapshot: () => ({ sessions: list.getVisibleSessions().map(session => session.sessionId), showMore: showMoreLabels().map(label => label.textContent) }),
-					click: (label: string) => {
-						const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
-						assert.ok(row, `Expected a "${label}" row`);
-						clickRow(row);
-					},
-				};
-			};
-			const unscoped = open(false);
-			const scoped = open(true);
+			const unscoped = openScopedList(harness, undefined);
+			const scoped = openScopedList(harness, scopeFolders);
 
 			const emptyScope = { unscoped: unscoped.snapshot(), scoped: scoped.snapshot() };
 			scopeFolders.set([URI.parse('file:///repo')], undefined);
@@ -3946,6 +3949,50 @@ suite('Sessions - SessionsList', () => {
 				},
 				showAll: { sessions: ['repo-checkout', 'repo-worktree'], showMore: ['+2 more workspaces'] },
 				expanded: { sessions: ['repo-checkout', 'repo-worktree', 'a-session', 'b-session'], showMore: ['Show fewer workspaces'] },
+			});
+		});
+
+		test('splits a section of the scope\'s workspace name from workspaces of the same name elsewhere', () => {
+			const harness = createListHarness(disposables, [
+				createFolderSession('in-scope', 'repo', { root: 'file:///a/repo', repository: 'file:///a/repo' }, hoursAgo(1)),
+				createFolderSession('same-name', 'repo', { root: 'file:///b/repo', repository: 'file:///b/repo' }, hoursAgo(2)),
+				createFolderSession('remote', 'repo', { root: 'vscode-agent-host://host/repo', repository: 'vscode-agent-host://host/repo' }, hoursAgo(3)),
+			]);
+			const unscoped = openScopedList(harness, undefined);
+			const scoped = openScopedList(harness, constObservable([URI.parse('file:///a/repo')]));
+
+			const before = { unscoped: { ...unscoped.snapshot(), sections: unscoped.sectionLabels() }, scoped: { ...scoped.snapshot(), sections: scoped.sectionLabels() } };
+			scoped.click('+1 more workspace');
+
+			assert.deepStrictEqual({ before, expanded: { ...scoped.snapshot(), sections: scoped.sectionLabels() } }, {
+				before: {
+					unscoped: { sessions: ['in-scope', 'same-name', 'remote'], showMore: [], sections: ['repo'] },
+					scoped: { sessions: ['in-scope'], showMore: ['+1 more workspace'], sections: ['repo'] },
+				},
+				expanded: { sessions: ['in-scope', 'same-name', 'remote'], showMore: ['Show fewer workspaces'], sections: ['repo', 'repo'] },
+			});
+		});
+
+		test('knows the scope\'s repository from a session in a custom group or filtered out', () => {
+			const render = (anchorOptions: ITestSessionOptions, placeInGroup: boolean, excludeClaude: boolean) => {
+				const anchor = createFolderSession('anchor', 'repo', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }, hoursAgo(1), anchorOptions);
+				// The checkout reports only its own folder, so only the anchor links it to the opened worktree.
+				const checkout = createFolderSession('checkout', 'checkout', { root: 'file:///repo', repository: 'file:///repo' }, hoursAgo(2));
+				const other = createFolderSession('other', 'other', { root: 'file:///other' }, hoursAgo(3));
+				const harness = createListHarness(disposables, [anchor, checkout, other]);
+				if (placeInGroup) {
+					harness.instantiationService.get(ISessionGroupsService).createGroup('Work', [anchor.sessionId]);
+				}
+				const scoped = openScopedList(harness, constObservable([URI.parse('file:///repo.worktrees/x')]));
+				if (excludeClaude) {
+					scoped.list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
+				}
+				return scoped.snapshot();
+			};
+
+			assert.deepStrictEqual({ grouped: render({}, true, false), filtered: render({ harness: 'claude' }, false, true) }, {
+				grouped: { sessions: ['checkout', 'anchor'], showMore: ['+1 more workspace'] },
+				filtered: { sessions: ['checkout'], showMore: ['+1 more workspace'] },
 			});
 		});
 

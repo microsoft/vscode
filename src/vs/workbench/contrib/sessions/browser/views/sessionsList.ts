@@ -715,6 +715,8 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 export const SessionsListSearchOpenContext = new RawContextKey<boolean>('sessionsListSearchOpen', false, localize('sessionsListSearchOpen', "Whether the search of the Sessions list is open."));
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
+/** Suffix of the section that a scoped list splits off a grouping section for its sessions outside the scope. */
+const OUT_OF_SCOPE_SECTION_ID_SUFFIX = '#outOfScope';
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 const INSET_ROW_GAP = 2;
 
@@ -6025,11 +6027,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const scopeFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern ? this.options.scopeFolders?.get() ?? [] : [];
 		const moreFolderSectionIds = new Set<string>();
 		if (scopeFolders.length > 0) {
-			const scope = getSessionsInScopeFolders(sections.flatMap(section => section.sessions), scopeFolders);
-			for (const section of sections) {
-				if (isSessionGroupingSection(section.id) && this.getSectionParentId(section.id) === undefined
-					&& !section.sessions.some(session => scope.includes(session) || session.sessionId === onboardingSession?.sessionId)) {
+			// The scope's repositories are known from every session, including those placed in custom groups or filtered out.
+			const scope = getSessionsInScopeFolders(this.sessions, scopeFolders);
+			const isInScope = (session: ISession) => scope.includes(session) || session.sessionId === onboardingSession?.sessionId;
+			for (let index = 0; index < sections.length; index++) {
+				const section = sections[index];
+				if (!isSessionGroupingSection(section.id) || this.getSectionParentId(section.id) !== undefined) {
+					continue;
+				}
+				const inScope = section.sessions.filter(isInScope);
+				if (inScope.length === 0) {
 					moreFolderSectionIds.add(section.id);
+				} else if (inScope.length < section.sessions.length) {
+					// Sections group by label, so a workspace of the same name elsewhere goes under "+N more" as a section of its own.
+					const outOfScope = section.sessions.filter(session => !isInScope(session));
+					const isWorkspaceSection = section.id.startsWith('workspace:');
+					const outOfScopeSection: ISessionSection = {
+						...section,
+						id: `${section.id}${OUT_OF_SCOPE_SECTION_ID_SUFFIX}`,
+						collapseStateId: isWorkspaceSection ? workspaceCollapseStateId(outOfScope) : undefined,
+						sessions: outOfScope,
+					};
+					sections.splice(index, 1, { ...section, collapseStateId: isWorkspaceSection ? workspaceCollapseStateId(inScope) : section.collapseStateId, sessions: inScope }, outOfScopeSection);
+					moreFolderSectionIds.add(outOfScopeSection.id);
+					index++;
 				}
 			}
 		} else if (partitionFolders) {
