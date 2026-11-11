@@ -8788,7 +8788,8 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
 		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
 		const container = document.createElement('div');
-		const trigger = picker.render(container);
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
 		const snapshot = () => {
 			picker.showPicker();
 			return {

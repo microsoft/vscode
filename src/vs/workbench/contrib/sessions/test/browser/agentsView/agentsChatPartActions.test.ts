@@ -16,7 +16,7 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { registerAgentsChatPartActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
@@ -50,7 +50,7 @@ suite('Agents chat part actions', () => {
 	const menuWhen = (menu: Parameters<typeof MenuRegistry.getMenuItems>[0], commandId: string) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === commandId)?.when?.serialize();
 
 	test('starts a new session in the worktree of a Worktree section, as its latest session, but not in its Other section; and in the folder of a session', async () => {
-		store.add(registerAgentsChatPartActions());
+		store.add(registerAgentsViewNewSessionActions());
 		const older = createSession('older', '/work/repo', '/work/repo.worktrees/feature', 1);
 		const latest = { ...createSession('latest', '/work/repo', '/work/repo.worktrees/feature', 2), sessionType: 'claude' };
 		const section = (id: string) => upcastPartial<ISessionSection>({ id, label: id, sessions: [older, latest] });

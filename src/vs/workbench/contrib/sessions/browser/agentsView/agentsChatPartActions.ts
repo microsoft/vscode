@@ -112,6 +112,16 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 	}));
 
+	return store;
+}
+
+/**
+ * Registers the actions of the Sessions list of an editor window that start a new session in the chat part, until the
+ * returned disposable is disposed: in the worktree of a section of the Worktree grouping, and in the folder of a session.
+ */
+export function registerAgentsViewNewSessionActions(): IDisposable {
+	const store = new DisposableStore();
+
 	// A new session in the folder or worktree of a section of the Worktree grouping: not of its Other section
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
