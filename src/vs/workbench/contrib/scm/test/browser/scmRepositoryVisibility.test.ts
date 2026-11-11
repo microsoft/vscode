@@ -32,14 +32,15 @@ suite('SCM repository visibility context keys', () => {
 
 	test('removes a repository visibility key when its owner resets it', () => {
 		const service = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const context = service.getContextValuesContainer(service.contextId);
 		const rawKey = ContextKeys.RepositoryVisibility(repository('visibility-reset-test'));
 		const key = rawKey.bindTo(service);
 		key.set(true);
-		assert.strictEqual(service.getContextKeyValue(rawKey.key), true);
+		assert.strictEqual(Object.hasOwn(context.value, rawKey.key), true);
 
 		key.reset();
 
-		assert.strictEqual(service.getContextKeyValue(rawKey.key), undefined);
+		assert.strictEqual(Object.hasOwn(context.value, rawKey.key), false);
 	});
 
 	test('preserves visible and hidden expressions while a repository is active', () => {
