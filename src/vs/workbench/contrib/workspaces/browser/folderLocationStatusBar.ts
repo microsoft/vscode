@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { AnimationFrameScheduler, DisposableResizeObserver } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -14,7 +16,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { registerOnboardingTargetProvider } from '../../onboarding/browser/spotlight/onboardingTarget.js';
+import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../onboarding/common/onboardingScenario.js';
@@ -38,6 +40,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 
 	private readonly entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly introductionReady = observableValue<boolean>(this, false);
+	private readonly introductionObservation = this._register(new MutableDisposable<DisposableStore>());
 	private primaryName: string | undefined;
 
 	constructor(
@@ -109,6 +112,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		if (!location || !folder?.primaryUri) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
+			this.introductionObservation.clear();
 			this.primaryName = undefined;
 			return;
 		}
@@ -117,9 +121,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.location.id}) ${getFolderLocationText(location)}`,
+			text: `$(${location.icon?.id ?? Codicon.location.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
-			tooltip: localize('folderLocationTooltip', "The folder '{0}' is at the location '{1}'. Files, search, terminals and extensions use this location, but open editors stay where they are.", primaryName, getFolderLocationText(location)),
+			tooltip: localize('folderLocationTooltip', "The folder '{0}' is at the location '{1}', an alternate location of '{0}'. Files, search, terminals and extensions use this location, but open editors stay where they are. Opening work in the primary location returns the folder to it.", primaryName, getFolderLocationText(location)),
 			kind: 'prominent' as const
 		};
 
@@ -127,8 +131,27 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			this.entry.value.update(props);
 		} else {
 			this.entry.value = this.statusbarService.addEntry(props, FOLDER_LOCATION_STATUS_ENTRY_ID, StatusbarAlignment.LEFT, 1000);
-			this.introductionReady.set(true, undefined);
+			this.observeIntroductionTarget();
 		}
+	}
+
+	/**
+	 * The introduction is ready only while the entry is rendered and visible, because
+	 * the onboarding engine marks a scenario as seen before it resolves its target.
+	 */
+	private observeIntroductionTarget(): void {
+		const store = new DisposableStore();
+		const scheduler = store.add(new AnimationFrameScheduler(mainWindow.document.body, () => {
+			this.introductionReady.set(!!resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID), undefined);
+		}));
+		const observer = store.add(new DisposableResizeObserver('FolderLocation.introductionTarget', () => scheduler.schedule()));
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- the status bar names each item element after its entry id
+		const element = mainWindow.document.getElementById(FOLDER_LOCATION_STATUS_ENTRY_ID);
+		if (element) {
+			store.add(observer.observe(element));
+		}
+		scheduler.schedule();
+		this.introductionObservation.value = store;
 	}
 }
 
