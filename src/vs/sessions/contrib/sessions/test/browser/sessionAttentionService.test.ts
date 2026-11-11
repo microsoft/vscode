@@ -141,10 +141,10 @@ suite('SessionAttentionService', () => {
 			whileHidden, initial, metadata, working, restored: historical(restored.service),
 			cutoff: restored.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE),
 			canvasCutoff: restored.storage.getNumber('sessions.inboxNotifications.completionStartTime', StorageScope.APPLICATION),
-		}, { whileHidden: undefined, initial: ['old', 'late'], metadata: ['old', 'late'], working: ['late'], restored: ['old', 'late'], cutoff: start, canvasCutoff: undefined });
+		}, { whileHidden: undefined, initial: ['old', 'late'], metadata: ['old', 'late'], working: ['late'], restored: ['late'], cutoff: start, canvasCutoff: undefined });
 	}));
 
-	test('restart clears restored read completions but preserves unread, actionable and new activity', () => runWithFakedTimers({ startTime: new Date(2026, 10, 11, 12).getTime() }, async () => {
+	test('reading Inbox completions does not dismiss them across restart', () => runWithFakedTimers({ startTime: new Date(2026, 10, 11, 12).getTime() }, async () => {
 		const fixture = createFixture([]);
 		store.add(fixture.service.acquireSessionAttention());
 		const start = Date.now();
@@ -172,7 +172,7 @@ suite('SessionAttentionService', () => {
 			initial, afterRestart, newCompletion: restoredModel.getInboxState(read)?.kind,
 			cutoff: restored.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE),
 		}, {
-			initial: [undefined, undefined, undefined], afterRestart: ['done', undefined, undefined],
+			initial: [undefined, undefined, undefined], afterRestart: [undefined, undefined, undefined],
 			newCompletion: undefined, cutoff: start,
 		});
 	}));
@@ -195,6 +195,46 @@ suite('SessionAttentionService', () => {
 			resident: initial, unloaded: initial, next: [], loaded: [],
 		});
 	});
+
+	test('reading sessions returned by activity still requires dismissal after restart', () => runWithFakedTimers({ startTime: new Date(2026, 10, 11, 12).getTime() }, async () => {
+		const fixture = createFixture([]);
+		store.add(fixture.service.acquireSessionAttention());
+		await timeout(1000);
+		const sessions = ['read', 'unread', 'explicit', 'snoozed'].map(id => createSession(id, SessionStatus.Completed, Date.now()));
+		fixture.setSessions(sessions);
+		const model = fixture.createListModel();
+		model.setInboxState(sessions, 'done');
+		await timeout(1000);
+		for (const session of sessions) {
+			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now()), undefined);
+		}
+		for (const session of [sessions[0], sessions[2], sessions[3]]) {
+			(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		}
+		model.setInboxState([sessions[2]], undefined);
+		model.setInboxState([sessions[3]], Date.now() + 100);
+		await timeout(101);
+		const before = sessions.map(session => model.getInboxState(session)?.kind);
+		model.dispose();
+		fixture.service.dispose();
+		await timeout(1000);
+		const restored = createFixture(sessions, fixture.storage);
+		store.add(restored.service.acquireSessionAttention());
+		const restoredModel = restored.createListModel();
+		const after = sessions.map(session => restoredModel.getInboxState(session)?.kind);
+		restoredModel.setInboxState([sessions[0]], 'done');
+		restoredModel.dispose();
+		const reloadedModel = restored.createListModel();
+		const dismissed = reloadedModel.getInboxState(sessions[0])?.kind;
+		await timeout(1000);
+		(sessions[0].lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now()), undefined);
+		assert.deepStrictEqual({ before, after, dismissed, newCompletion: reloadedModel.getInboxState(sessions[0])?.kind }, {
+			before: [undefined, undefined, undefined, undefined],
+			after: [undefined, undefined, undefined, undefined],
+			dismissed: 'done',
+			newCompletion: undefined,
+		});
+	}));
 
 	test('existing completed-session triage stays current until provider activity changes', () => {
 		const session = createSession('complete');

@@ -142,6 +142,10 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
+function isUnreadSessionModifiedToday(session: ISession, reader?: IReader): boolean {
+	return !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
+}
+
 type StoredSessionInboxState = SessionInboxState | { readonly kind: 'resumed' };
 
 interface ISessionInboxUndoToken {
@@ -221,6 +225,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 					if (undoToken?.state === value) {
 						undoToken.state = hydrated;
 					}
+				}
+			}
+			for (const [id, session] of sessions) {
+				if (!next.has(id) && attention.get(id)?.isHistoricalCompletion && !session.loading.read(reader) && isUnreadSessionModifiedToday(session, reader)) {
+					next.set(id, { kind: 'resumed' });
 				}
 			}
 			if ([...next].some(([id, value]) => state.get(id) !== value)) {
@@ -372,8 +381,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
 		if (attention?.isHistoricalCompletion) {
-			const unreadToday = !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
-			if (!unreadToday) {
+			if (!isUnreadSessionModifiedToday(session, reader)) {
 				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
 			}
 		}

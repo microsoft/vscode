@@ -55,7 +55,6 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 
 	readonly sessionAttention: IObservable<ReadonlyMap<string, IInboxSessionAttention>>;
 	private readonly _attentionConsumers = observableValue(this, 0);
-	private readonly _startTime = Date.now();
 	private readonly _trackingEnabled: IObservable<boolean>;
 	private readonly _attentionStartTime: IObservable<number>;
 	private readonly _refreshedGitHubModels = new WeakSet<object>();
@@ -177,7 +176,6 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 				const pendingInput = notifications.find(item => item.kind === AttentionKind.NeedsInput);
 				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
 				const attentionStartTime = this._attentionStartTime.read(reader);
-				const completionCutoff = session.isRead.read(reader) ? Math.max(attentionStartTime, this._startTime) : attentionStartTime;
 				const needsAttention = notifications.some(item => item.kind !== AttentionKind.PassingCI);
 				return {
 					tab: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
@@ -185,7 +183,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 					priority: notifications[0]?.priority ?? InboxNotificationPriority.Later,
 					notificationIds: notifications.map(item => item.id).sort(),
 					...(pendingInput?.provisionalId ? { pendingInput: { notificationId: pendingInput.id, provisionalId: pendingInput.provisionalId } } : {}),
-					isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(completionCutoff) && timestamp < completionCutoff
+					isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
 						&& !notifications.some(item => item.kind !== AttentionKind.PullRequestMerged),
 				} satisfies IInboxSessionAttention;
 			});

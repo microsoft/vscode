@@ -5265,6 +5265,8 @@ suite('Sessions - SessionsList', () => {
 			grouped.isRead.set(false, undefined);
 			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
 			grouped.isRead.set(true, undefined);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			model.setInboxState([grouped.session], 'done');
 			await retry(async () => assert.deepStrictEqual(snapshot(), initial), 10, 100);
 			running.status.set(SessionStatus.NeedsInput, undefined);
 			attention.set(new Map([...attention.get(), ['ready', { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['review'], isHistoricalCompletion: false }]]), undefined);
@@ -5506,6 +5508,7 @@ suite('Sessions - SessionsList', () => {
 			const snapshot = (list: SessionsList) => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [[node.id, node.collapsed]] : []);
 			const list = create();
 			const empty = snapshot(list);
+			list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
 			list.setItemCollapsed({ section: SessionInboxSection.Working }, false);
 			harness.managementService.sessions = [pinned, done, working, ready];
 			list.refresh();
@@ -5522,13 +5525,53 @@ suite('Sessions - SessionsList', () => {
 			grouping = SessionsGrouping.Inbox;
 			restoredList.update();
 			assert.deepStrictEqual({ empty, populated, manuallyExpanded, restored, ordinaryShowsCleared, returned: snapshot(restoredList) }, {
-				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, true], [SessionInboxSection.Done, false]],
+				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
 				populated: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, true]],
 				manuallyExpanded: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
 				restored: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
 				ordinaryShowsCleared: true,
 				returned: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
 			});
+		});
+
+		test('Working follows Inbox population until the user chooses its expansion state', () => {
+			const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
+			const ready = createTestSession('ready').session;
+			const harness = createListHarness(disposables, [working]);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			const create = () => {
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(800, 320);
+				return list;
+			};
+			const collapsed = (list: SessionsList) => {
+				const section = list.getTreeSnapshot().find(node => node.type === 'section' && node.id === SessionInboxSection.Working);
+				return section?.type === 'section' ? section.collapsed : undefined;
+			};
+			let list = create();
+			const states = [collapsed(list)];
+			for (const sessions of [[working, ready], [working], [working, ready]]) {
+				harness.managementService.sessions = sessions;
+				list.refresh();
+				states.push(collapsed(list));
+			}
+			list.setItemCollapsed({ section: SessionInboxSection.Working }, false);
+			harness.managementService.sessions = [working];
+			list.refresh();
+			list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
+			list.update();
+			states.push(collapsed(list));
+			list.dispose();
+			list = create();
+			states.push(collapsed(list));
+			for (const sessions of [[working, ready], [working]]) {
+				harness.managementService.sessions = sessions;
+				list.refresh();
+				states.push(collapsed(list));
+			}
+			assert.deepStrictEqual(states, [false, true, false, true, true, true, true, true]);
 		});
 
 		test('empty inbox categories disappear and reappear as sessions arrive', () => {

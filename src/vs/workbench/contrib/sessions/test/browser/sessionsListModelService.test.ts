@@ -175,11 +175,12 @@ suite('SessionsListModelService', () => {
 		]);
 	}));
 
-	test('historical unread completions react to modification and read changes across reload', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+	test('historical unread completions remain in Inbox after reading and reload until dismissed', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const isRead = observableValue('historicalRead', false);
 		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
 		const session = { ...createSession('historical'), isRead, updatedAt };
 		sessions.push(session);
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
 		attention.set(new Map([[session.sessionId, {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
 		}]]), undefined);
@@ -187,12 +188,15 @@ suite('SessionsListModelService', () => {
 		const observer = disposables.add(autorun(reader => states.push(service.getInboxState(session, reader)?.kind)));
 		updatedAt.set(new Date(2026, 0, 1, 11), undefined);
 		isRead.set(true, undefined);
-		isRead.set(false, undefined);
 		observer.dispose();
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		assert.deepStrictEqual({ states, restored: service.getInboxState(session)?.kind }, {
-			states: ['done', undefined, 'done', undefined], restored: undefined,
+		const restored = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ states, restored, dismissed: service.getInboxState(session)?.kind }, {
+			states: ['done', undefined], restored: undefined, dismissed: 'done',
 		});
 	}));
 

@@ -6174,6 +6174,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					: savedCollapsed;
 			} else if (hasInboxSessions && section.id !== SessionInboxSection.ReadyForYou) {
 				defaultCollapsed = inboxBecamePopulated ? ObjectTreeElementCollapseState.Collapsed : ObjectTreeElementCollapseState.PreserveOrCollapsed;
+			} else if (inbox && section.id === SessionInboxSection.Working) {
+				defaultCollapsed = this.hadInboxSessions ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded;
 			}
 			return {
 				element: section as SessionListItem,
