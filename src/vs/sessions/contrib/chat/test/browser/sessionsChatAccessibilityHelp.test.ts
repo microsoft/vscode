@@ -64,10 +64,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			instantiationService.stub(ISessionsHostLayoutService, {});
-			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.');
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				actions: content.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.'),
+				retry: content.includes('If sending fails, an error notification appears and the action remains available to retry.'),
+			};
 		});
-		assert.deepStrictEqual(results, [false, true, false]);
+		assert.deepStrictEqual(results, [{ actions: false, retry: false }, { actions: true, retry: true }, { actions: false, retry: false }]);
 	});
 
 	test('documents comment card previews, secondary actions and review states', () => {

@@ -124,6 +124,9 @@ suite('WorkspaceFolderRepositories', () => {
 			quotedWithComment: origin('"git@github.com:microsoft/vscode.git" ; a comment'),
 			headerHashComment: origin('https://github.com/microsoft/vscode.git', 'origin', ' # the main repository'),
 			headerSemicolonComment: origin('https://github.com/microsoft/vscode.git', 'origin', '; the main repository'),
+			// Only origin's URL counts, also with comments on both headers
+			originAfterCommentedUpstream: parseGitHubOrigin('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n[remote "origin"] ; y\n\turl = git@github.com:microsoft/vscode.git\n'),
+			commentedUpstreamOnly: parseGitHubOrigin('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n'),
 			// The other callers of the shared parser read headers exactly as before
 			otherCallersHeaderComment: parseGitHubRepositoryFromGitConfig('[remote "origin"] # comment\n\turl = https://github.com/microsoft/vscode.git\n'),
 			otherHost: origin('https://gitlab.com/microsoft/vscode.git'),
@@ -139,6 +142,8 @@ suite('WorkspaceFolderRepositories', () => {
 			quotedWithComment: 'microsoft/vscode',
 			headerHashComment: 'microsoft/vscode',
 			headerSemicolonComment: 'microsoft/vscode',
+			originAfterCommentedUpstream: 'microsoft/vscode',
+			commentedUpstreamOnly: undefined,
 			otherCallersHeaderComment: undefined,
 			otherHost: undefined,
 			otherRemote: undefined,

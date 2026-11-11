@@ -17349,6 +17349,38 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		for (const metadata of [undefined, { 'copilot.attachmentDetail': { type: 'terminal_selection' } }]) {
+			test(`terminal selection becomes a model-readable attachment ${metadata ? 'with' : 'without'} metadata`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const selection = '$ echo hello\nhello';
+
+				const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: 'Explain this terminal output.',
+					variables: {
+						variables: [{
+							kind: 'generic',
+							id: 'terminal-selection-1',
+							name: 'Terminal Selection',
+							fullName: 'Terminal Selection',
+							value: selection,
+							icon: Codicon.terminal,
+							...(metadata ? { _meta: metadata } : {}),
+						}],
+					},
+				});
+				fire(chatTurnComplete(turnId, 0));
+				await turnPromise;
+
+				const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+				assert.deepStrictEqual(turnAction.message.attachments, [{
+					type: MessageAttachmentKind.Simple,
+					label: 'Terminal Selection',
+					modelRepresentation: selection,
+					...(metadata ? { displayKind: 'terminal-selection', _meta: metadata } : {}),
+				}]);
+			}));
+		}
+
 		test('generic web references become model-readable attachments without treating them as files', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const urls = ['https://aka.ms/vscode-agent-skills', 'http://example.com/documentation'];

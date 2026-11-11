@@ -347,6 +347,82 @@ suite('ClaudeSdkPipeline', () => {
 		});
 	});
 
+	suite('steering results', () => {
+
+		for (const field of ['user_message_uuid', 'user_message_uuids'] as const) {
+			test(`settles consumed steering via ${field} and allows the next turn`, async () => {
+				const warm = new FakeWarmQuery();
+				const query: Query = new ImmediatelyDoneQuery();
+				const messages = new AsyncIterableSource<SDKMessage>();
+				disposables.add(toDisposable(() => messages.resolve()));
+				const iterator = messages.asyncIterable[Symbol.asyncIterator]();
+				const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+				const ended = new DeferredPromise<void>();
+				let reading = new DeferredPromise<void>();
+				sinon.stub(query, 'next').callsFake(async () => {
+					reading.complete();
+					const result = await iterator.next();
+					if (result.done) {
+						ended.complete();
+					}
+					return result;
+				});
+				sinon.stub(warm, 'query').callsFake(prompt => {
+					assert.ok(typeof prompt !== 'string');
+					prompts.complete(prompt[Symbol.asyncIterator]());
+					return query;
+				});
+				const { pipeline } = createPipeline(disposables, warm);
+				const signals: AgentSignal[] = [];
+				disposables.add(pipeline.onDidProduceSignal(signal => signals.push(signal)));
+				const original = makePrompt('original');
+				const sent = DeferredPromise.fromPromise(pipeline.send(original, 'turn-1'));
+				const promptIterator = await prompts.p;
+				await promptIterator.next();
+				const steering = field === 'user_message_uuids' ? [makePrompt('steer-1'), makePrompt('steer-2')] : [makePrompt('steer-1')];
+				for (const prompt of steering) {
+					pipeline.injectSteering(prompt, prompt.uuid!);
+					await promptIterator.next();
+				}
+
+				reading = new DeferredPromise<void>();
+				messages.emitOne({ ...makeResultSuccess('sess-1'), user_message_uuid: original.uuid });
+				await reading.p;
+				const intermediate = {
+					settled: sent.isSettled,
+					active: pipeline.hasActiveTurn,
+					completions: signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete).length,
+				};
+
+				reading = new DeferredPromise<void>();
+				messages.emitOne({
+					...makeResultSuccess('sess-1'),
+					user_message_uuid: steering[steering.length - 1].uuid,
+					...(field === 'user_message_uuids' ? { user_message_uuids: steering.map(prompt => prompt.uuid!) } : {}),
+				});
+				await reading.p;
+				assert.deepStrictEqual({
+					intermediate,
+					active: pipeline.hasActiveTurn,
+					completions: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []),
+				}, {
+					intermediate: { settled: false, active: true, completions: 0 },
+					active: false,
+					completions: ['turn-1'],
+				});
+				await sent.p;
+
+				const next = pipeline.send(makePrompt('next'), 'turn-2');
+				await promptIterator.next();
+				messages.emitOne({ ...makeResultSuccess('sess-1'), user_message_uuid: makeUuid('next') });
+				await next;
+				assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []), ['turn-1', 'turn-2']);
+				messages.resolve();
+				await ended.p;
+			});
+		}
+	});
+
 	suite('abort', () => {
 
 		test('interrupts before closing and waits for exit before rebuilding, ignoring cancelled results', async () => {
