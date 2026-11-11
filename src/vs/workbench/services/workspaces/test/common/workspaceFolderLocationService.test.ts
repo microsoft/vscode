@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../platform/workspace/common/folderLocations.js';
@@ -26,7 +28,11 @@ suite('WorkspaceFolderLocationService', () => {
 		};
 	}
 
-	test('getLocations merges providers, dedupes and ignores failures', async () => {
+	test('getLocations merges providers, dedupes and reports failures', async () => {
+		const reported: string[] = [];
+		const previous = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error.message));
+		disposables.add(toDisposable(() => setUnexpectedErrorHandler(previous)));
 		const service = disposables.add(new WorkspaceFolderLocationService());
 		disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }], true)));
 		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A' }, { uri: b, label: 'B' }])));
@@ -34,7 +40,7 @@ suite('WorkspaceFolderLocationService', () => {
 
 		const actual = await service.getLocations(primary, CancellationToken.None);
 
-		assert.deepStrictEqual(actual.map(l => l.label), ['A', 'B']);
+		assert.deepStrictEqual({ labels: actual.map(l => l.label), reported }, { labels: ['A', 'B'], reported: ['fail'] });
 	});
 
 	test('resolveLocation reports provider and built-in flag', async () => {
