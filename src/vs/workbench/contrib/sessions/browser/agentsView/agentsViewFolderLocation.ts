@@ -37,8 +37,8 @@ export const AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID = 'agentsView.linkedCheckou
  * The alternate locations of a local folder that is a git repository: its linked checkouts (worktrees). A folder is one
  * only with both links of git's own bookkeeping: its `.git` file names `<primary>/.git/worktrees/<name>`, and that entry's
  * `gitdir` file names the folder's `.git` back. Its locations inherit the primary's trust, so a folder that only points
- * into the primary's worktrees is not one. A folder or link that is not there resolves to nothing; failing to read one
- * throws.
+ * into the primary's worktrees is not one. A folder or link that is not there, or a `.git` folder of an ordinary checkout,
+ * resolves to nothing; failing to read one throws.
  */
 export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocationProvider {
 
@@ -100,12 +100,15 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 		return normalizePath(await this._readOrUndefined(() => this._fileService.realpath(resource)) ?? resource);
 	}
 
-	/** The result of `read`, or `undefined` where what it reads is not there; any other failure throws. */
+	/**
+	 * The result of `read`, or `undefined` where what it reads is not there or is a folder, such as the `.git` folder of
+	 * an ordinary checkout, which links nowhere; any other failure throws.
+	 */
 	private async _readOrUndefined<T>(read: () => Promise<T>): Promise<T | undefined> {
 		try {
 			return await read();
 		} catch (error) {
-			if (isFileNotFound(error)) {
+			if (isFileNotFound(error) || isFileIsDirectory(error)) {
 				return undefined;
 			}
 			throw error;
@@ -115,6 +118,10 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 
 function isFileNotFound(error: unknown): boolean {
 	return error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND;
+}
+
+function isFileIsDirectory(error: unknown): boolean {
+	return error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_IS_DIRECTORY;
 }
 
 export type AgentsViewFolderLocationDirection = 'toAlternate' | 'toPrimary';
