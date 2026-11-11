@@ -994,7 +994,8 @@ async function authenticateProtectedResourceWithServices(
 			return false;
 		}
 		const server = resource.authorization_servers?.[0];
-		const sessions = await authenticationService.getSessions(resolution.providerId, resource.scopes_supported ?? [], {
+		// Scope queries may be exact-match; inspect the primary sign-in's actual grants.
+		const sessions = await authenticationService.getSessions(resolution.providerId, undefined, {
 			account: resolution.session.account, silent: true,
 			authorizationServer: resolution.session.authorizationServer ?? (server ? URI.parse(server) : undefined),
 		}, true);
