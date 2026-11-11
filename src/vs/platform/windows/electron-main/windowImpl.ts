@@ -273,7 +273,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Open devtools if instructed from command line args
-		if (this.environmentMainService.args['open-devtools'] === true) {
+		// (not in hidden mode: undocked DevTools would be shown)
+		if (this.environmentMainService.args['open-devtools'] === true && !isHiddenWindowMode(this.environmentMainService)) {
 			win.webContents.openDevTools();
 		}
 

@@ -1297,11 +1297,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private contentTracingWindowId: number | undefined;
 
 	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // undocked DevTools would be shown and activate the application
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
 	}
 
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // undocked DevTools would be shown and activate the application
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.webContents.toggleDevTools();
 	}
