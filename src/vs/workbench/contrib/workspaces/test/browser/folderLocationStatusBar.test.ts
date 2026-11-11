@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -26,7 +27,7 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	const primary = URI.file('/work/project');
 	const alternate = URI.file('/work/project-alt');
-	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', providerId: 'test', builtIn: true };
+	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
 
 	function createFixture() {
 		const entries: IStatusbarEntry[] = [];
@@ -74,8 +75,8 @@ suite('FolderLocationStatusBarContribution', () => {
 
 		fixture.switchTo();
 		assert.deepStrictEqual(
-			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind },
-			{ visible: true, text: '$(location) Alternate', ariaLabel: 'Folder Location, Alternate', command: RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, kind: 'prominent' });
+			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
+			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate', command: undefined, kind: 'prominent', tooltip: `The folder 'project' is at the location 'Alternate'. Files, search, terminals and extensions use this location, but open editors stay where they are.` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
@@ -84,7 +85,10 @@ suite('FolderLocationStatusBarContribution', () => {
 	test('the introduction is a spotlight on the entry that can return to the primary', async () => {
 		const fixture = createFixture();
 		const scenario = () => onboardingScenarioRegistry.getScenario('workbench.folderLocation.introduction')!;
-		const signal = () => scenario().trigger.kind === 'observable' && scenario().trigger.signal.get();
+		const signal = () => {
+			const trigger = scenario().trigger;
+			return trigger.kind === 'observable' && trigger.signal.get();
+		};
 		assert.strictEqual(signal(), false);
 
 		fixture.switchTo();
