@@ -167,6 +167,30 @@ suite('WorkspaceEditingService', () => {
 			assert.deepStrictEqual(switched.map(u => u?.toString()), [undefined]);
 		});
 
+		test('an idle-only return does nothing while a switch is in flight', async () => {
+			const primary = URI.file('/work/project');
+			const alt = URI.file('/work/alt');
+			const resolution = new DeferredPromise<IResolvedFolderLocation>();
+			const switched: (URI | undefined)[] = [];
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }] }), setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ extUri },
+				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
+				undefined, undefined, undefined,
+				{ resolveLocation: () => resolution.p, setCurrentLocation: () => { } }
+			));
+
+			const pending = service.setFolderLocation(primary, alt);
+			await service.setFolderLocation(primary, undefined, { ifIdle: true });
+			resolution.complete({ uri: alt, label: 'Alt', providerId: 'test', builtIn: false });
+			await pending;
+			await service.setFolderLocation(primary, undefined, { ifIdle: true });
+
+			assert.deepStrictEqual(switched.map(u => u?.toString()), [alt.toString(), undefined]);
+		});
+
 		function createServiceWithPendingTrust() {
 			const primary = URI.file('/work/project');
 			const alt = URI.file('/work/alt');

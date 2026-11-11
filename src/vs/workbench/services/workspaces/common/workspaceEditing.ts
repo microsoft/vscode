@@ -58,8 +58,11 @@ export interface IWorkspaceEditingService {
 	 * location when `location` is `undefined`. The workspace identity (id, storage, extension state)
 	 * stays keyed by the primary location. `location` must be resolved by a registered
 	 * `IWorkspaceFolderLocationProvider`. Only supported for single local folder workspaces.
+	 *
+	 * When `options.ifIdle` is `true`, the call does nothing if another switch is still in flight,
+	 * so that background callers never override a switch requested by the user.
 	 */
-	setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void>;
+	setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason }): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.
