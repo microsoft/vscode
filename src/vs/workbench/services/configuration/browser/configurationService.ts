@@ -480,12 +480,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	 *
 	 * Related root path issue discussion is being tracked here - https://github.com/microsoft/vscode/issues/69335
 	 */
-	async initialize(arg: IAnyWorkspaceIdentifier): Promise<void> {
+	async initialize(arg: IAnyWorkspaceIdentifier, folderLocation?: URI): Promise<void> {
 		mark('code/willInitWorkspaceService');
 
 		const trigger = this.initialized;
 		this.initialized = false;
-		const workspace = await this.createWorkspace(arg);
+		const workspace = await this.createWorkspace(arg, folderLocation);
 		await this.updateWorkspaceAndInitializeConfiguration(workspace, trigger);
 		this.checkAndMarkWorkspaceComplete(false);
 
@@ -557,13 +557,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
 	}
 
-	private async createWorkspace(arg: IAnyWorkspaceIdentifier): Promise<Workspace> {
+	private async createWorkspace(arg: IAnyWorkspaceIdentifier, folderLocation?: URI): Promise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
 			return this.createMultiFolderWorkspace(arg);
 		}
 
 		if (isSingleFolderWorkspaceIdentifier(arg)) {
-			return this.createSingleFolderWorkspace(arg);
+			return this.createSingleFolderWorkspace(arg, folderLocation);
 		}
 
 		return this.createEmptyWorkspace(arg);
@@ -579,7 +579,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return workspace;
 	}
 
-	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): Workspace {
+	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier, folderLocation?: URI): Workspace {
 		const primaryFolder = toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri);
 		const folder = folderLocation && !this.uriIdentityService.extUri.isEqual(folderLocation, primaryFolder.uri)
 			? new WorkspaceFolder({ uri: folderLocation, name: primaryFolder.name, index: 0, primaryUri: primaryFolder.uri }, { uri: folderLocation.toString() })
