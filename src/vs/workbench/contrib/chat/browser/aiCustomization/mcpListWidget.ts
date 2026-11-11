@@ -1616,6 +1616,10 @@ export function shouldShowLegacyMcpGallery(configurationService: IConfigurationS
 			|| getConfiguredCustomMcpGalleryUrl(configurationService, productService) !== undefined);
 }
 
+export function shouldRestartLegacyMcpGallerySearch(query: string, showLegacyGallery: boolean): boolean {
+	return showLegacyGallery && !!query.trim();
+}
+
 export function hasSameMcpMembership(previous: string, current: string): boolean {
 	return previous === current;
 }
@@ -2203,7 +2207,11 @@ export class McpListWidget extends Disposable {
 				this.gallerySnapshotFailed = false;
 				this.gallerySnapshotLoading = false;
 				this.gallerySearchLoading = false;
-				void this.refresh();
+				if (shouldRestartLegacyMcpGallerySearch(this.searchQuery, this.shouldShowLegacyGallery())) {
+					void this.queryMcpSearch();
+				} else {
+					void this.refresh();
+				}
 			}
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();

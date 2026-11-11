@@ -84,6 +84,7 @@ import {
 	hasSameMcpMembership,
 	preserveMcpEntryOrder,
 	shouldLoadMcpGallerySnapshot,
+	shouldRestartLegacyMcpGallerySearch,
 	shouldShowLegacyMcpGallery,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
@@ -1467,6 +1468,15 @@ suite('mcpListWidget', () => {
 			],
 			[false, true, true, true, false, false],
 		);
+	});
+
+	test('restarts active legacy gallery searches after configuration changes', () => {
+		assert.deepStrictEqual([
+			shouldRestartLegacyMcpGallerySearch('', true),
+			shouldRestartLegacyMcpGallerySearch('   ', true),
+			shouldRestartLegacyMcpGallerySearch('enterprise', false),
+			shouldRestartLegacyMcpGallerySearch('enterprise', true),
+		], [false, false, false, true]);
 	});
 
 	test('legacy gallery queries enabled default and configured custom registries independently', async () => {
