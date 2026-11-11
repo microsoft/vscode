@@ -29,6 +29,7 @@ import { CustomizationEnablementKind, type PluginCustomization } from '../../../
 import { type ICustomizationItemAction } from '../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from './agentSessions/agentHost/agentHostCustomizationService.js';
 import { IReader } from '../../../../base/common/observable.js';
+import { readRuntimePluginEnablement } from '../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 
 //#region Simple actions
 
@@ -231,6 +232,10 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 		const policyAction = createPolicyManagedEnablementAction(plugin, accessor.get(INotificationService));
 		if (policyAction) {
 			groups.push([policyAction]);
+		} else if (plugin.copilotCliInstallation) {
+			const enabled = isContributionEnabled(plugin.enablement.get());
+			groups.push([new Action('agentPlugin.toggleRuntime', enabled ? localize('disableGlobally', "Disable Globally") : localize('enableGlobally', "Enable Globally"), undefined, plugin.setEnabled !== undefined,
+				() => setAgentPluginEnablement(plugin, agentPluginService.enablementModel, enabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile))]);
 		} else {
 			groups.push(buildEnablementContextMenuGroup(
 				plugin.enablement.get(),
@@ -259,6 +264,34 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
  * Legacy VS Code-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
  */
 export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
+	const runtime = readRuntimePluginEnablement(customization);
+	if (runtime) {
+		const available = agentHostCustomizations.canSetRuntimePluginEnablement?.(sessionResource) === true;
+		const managed = runtime.managedDesiredEnabled !== undefined;
+		const ready = runtime.effectiveEnabled !== undefined;
+		const create = (scope: 'global' | 'repository', enabled: boolean, supported: boolean): ICustomizationItemAction => ({
+			id: `agentPlugin.runtime.${enabled ? 'enable' : 'disable'}.${scope}`,
+			label: scope === 'global'
+				? enabled ? localize('runtimePluginEnableGlobal', "Enable Globally") : localize('runtimePluginDisableGlobal', "Disable Globally")
+				: enabled ? localize('runtimePluginEnableRepository', "Enable for Repository") : localize('runtimePluginDisableRepository', "Disable for Repository"),
+			enabled: available && !managed && ready && supported,
+			checked: scope === 'global' ? runtime.globalEnabled : undefined,
+			tooltip: managed ? getPluginManagedByOrganizationMessage()
+				: !available ? localize('runtimePluginHostUnsupported', "This host does not support plugin enablement.")
+					: !supported ? localize('runtimePluginRepositoryUnsupported', "This plugin does not support workspace enablement. You can change global enablement.")
+						: !ready ? localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready.") : undefined,
+			run: async () => {
+				if (!available || managed || !ready || !supported || !agentHostCustomizations.setRuntimePluginEnablement) {
+					throw new Error(localize('runtimePluginActionUnavailable', "Plugin enablement is unavailable."));
+				}
+				await agentHostCustomizations.setRuntimePluginEnablement(sessionResource, customization.id, scope, enabled);
+			},
+		});
+		return [
+			create('global', !runtime.globalEnabled, true),
+			...(hasWorkspace ? [create('repository', runtime.effectiveEnabled === false, runtime.repositorySupported)] : []),
+		];
+	}
 	const enablement = getCustomizationScopeEnablement(customization);
 	const actions = [
 		createAgentHostPluginEnablementAction(agentHostCustomizations, agentPluginService, sessionResource, customization, CustomizationEnablementKind.Global, !enablement.global, 'global'),
@@ -275,6 +308,7 @@ type AgentHostPluginEnablementTarget = {
 	readonly uri: string;
 	readonly clientId?: string;
 	readonly enablement?: readonly NonNullable<PluginCustomization['enablement']>[number][];
+	readonly _meta?: Record<string, unknown>;
 };
 
 /**
@@ -282,6 +316,13 @@ type AgentHostPluginEnablementTarget = {
  * or to the agent host for all other scopes.
  */
 export async function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): Promise<void> {
+	if (readRuntimePluginEnablement(plugin)) {
+		if (kind === CustomizationEnablementKind.Session || !agentHostCustomizations.setRuntimePluginEnablement) {
+			throw new Error(localize('runtimePluginScopeUnavailable', "This plugin supports only runtime-owned global or repository enablement."));
+		}
+		await agentHostCustomizations.setRuntimePluginEnablement(sessionResource, plugin.id, kind === CustomizationEnablementKind.Global ? 'global' : 'repository', enabled);
+		return;
+	}
 	if (kind === CustomizationEnablementKind.Global && plugin.clientId !== undefined) {
 		if (agentPluginService === undefined) {
 			throw new Error('A client-published plugin requires its client enablement service');
@@ -460,7 +501,7 @@ export function createEnablePluginDropDown(
 		isContributionDisabled(plugin.enablement.get()) && hasWorkspace,
 		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledWorkspace));
 
-	return new EnablementDropDownAction('agentPlugin.enableDropdown', [enable, enableWorkspace]);
+	return new EnablementDropDownAction('agentPlugin.enableDropdown', plugin.copilotCliInstallation ? [enable] : [enable, enableWorkspace]);
 }
 
 /**
@@ -482,7 +523,7 @@ export function createDisablePluginDropDown(
 		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
 		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledWorkspace));
 
-	return new EnablementDropDownAction('agentPlugin.disableDropdown', [disable, disableWorkspace]);
+	return new EnablementDropDownAction('agentPlugin.disableDropdown', plugin.copilotCliInstallation ? [disable] : [disable, disableWorkspace]);
 }
 
 //#endregion

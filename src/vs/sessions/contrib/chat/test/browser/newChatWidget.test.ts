@@ -2324,16 +2324,19 @@ suite('NewChatWidget', () => {
 		await option?.submenuActions?.[1].run();
 
 		assert.deepStrictEqual({
+			ids: option?.submenuActions?.map(action => action.id),
 			labels: option?.submenuActions?.map(action => action.label),
 			icons: option?.submenuActions?.map(action => (action as { readonly icon?: { readonly id: string } }).icon?.id),
 			selections,
 		}, isWeb
 			? {
+				ids: undefined,
 				labels: undefined,
 				icons: undefined,
 				selections: [],
 			}
 			: {
+				ids: ['newSessionWorkspacePicker.quickChat', 'newSessionWorkspacePicker.quickChat'],
 				labels: ['This Computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],

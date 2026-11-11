@@ -3863,33 +3863,42 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				throw new Error(localize('agentHost.askUnavailable', "Agent mode is disabled and this host does not provide the selected read-only Ask agent."));
 			}
 		}
-		this._clientDispatchedTurnIds.add(turnId);
-
-		// If the chat model has fewer previous requests than the protocol has
-		// turns, a checkpoint was restored or a message was edited. Dispatch
-		// session/truncated so the server drops the stale tail.
+		// Commit the checkpoint's undo/redo branch before sending against the host's history.
 		const chatModel = this._chatService.getSession(request.sessionResource);
-		const protocolState = this._getSessionState(session.toString(), chatURI);
-		if (chatModel && protocolState?.turns.length) {
-			// -2 since -1 will already be the current request
-			const previousRequestIndex = chatModel.getRequests().findIndex(i => i.id === request.requestId) - 1;
-			const previousRequest = previousRequestIndex >= 0 ? chatModel.getRequests()[previousRequestIndex] : undefined;
-			if (!previousRequest && protocolState.turns.length > 0) {
+		const chatSubscription = this._ensureChatSubscription(session.toString(), chatURI);
+		const protocolState = chatSubscription.verifiedValue;
+		if (chatModel && protocolState && !(protocolState instanceof Error) && protocolState.turns.length) {
+			const requests = chatModel.getRequests();
+			const requestIndex = requests.findIndex(i => i.id === request.requestId);
+			const previousRequestIds = new Set(requests.slice(0, Math.max(0, requestIndex)).map(request => request.id));
+			// Failed, unsent requests have no host turn and must not hide a truncation that still needs committing.
+			const seenAtIndex = protocolState.turns.findLastIndex(turn => previousRequestIds.has(turn.id));
+			if (seenAtIndex < protocolState.turns.length - 1) {
 				const truncateAction: ChatTruncatedAction = {
 					type: ActionType.ChatTruncated,
+					...(seenAtIndex >= 0 ? { turnId: protocolState.turns[seenAtIndex].id } : {}),
 				};
-				this._dispatchAction(session, truncateAction, turnChannel);
-			} else {
-				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
-				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
-					const truncateAction: ChatTruncatedAction = {
-						type: ActionType.ChatTruncated,
-						turnId: previousRequest!.id,
-					};
-					this._dispatchAction(session, truncateAction, turnChannel);
+				this._steeringMessageHandoffs.get(turnChannel)?.clear();
+				const store = new DisposableStore();
+				const source = store.add(new CancellationTokenSource(cancellationToken));
+				store.add(this._lifetime.token.onCancellationRequested(() => source.cancel()));
+				try {
+					// Optimistic state is not a barrier: the host may still be rewriting persisted history.
+					const acknowledgement = await this._config.connection.dispatchConfirmed(
+						turnChannel, chatSubscription, truncateAction, source.token,
+					);
+					if (acknowledgement.rejectionReason) {
+						throw new Error(localize('agentHost.truncationRejected', "Chat history could not be restored: {0}", acknowledgement.rejectionReason));
+					}
+				} finally {
+					store.dispose();
+				}
+				if (this._isInvocationAbandoned(cancellationToken)) {
+					return;
 				}
 			}
 		}
+		this._clientDispatchedTurnIds.add(turnId);
 
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
@@ -8435,6 +8444,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (detail) {
 				const displayKind = detail.type.replaceAll('_', '-');
 				return this._toSimpleAttachment(v.name, v.value instanceof URI ? v.value.toString() : typeof v.value === 'string' ? v.value : undefined, v._meta, displayKind, referenceRange);
+			}
+			if (typeof v.value === 'string') {
+				return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
 			}
 			if (v.value instanceof URI && (v.value.scheme === Schemas.http || v.value.scheme === Schemas.https)) {
 				return this._toSimpleAttachment(v.name, v.value.toString(), v._meta, undefined, referenceRange);

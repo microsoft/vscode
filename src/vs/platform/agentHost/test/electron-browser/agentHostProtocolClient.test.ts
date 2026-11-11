@@ -4424,6 +4424,11 @@ suite('AgentHostProtocolClient', () => {
 					source: 'user',
 					status: 'running',
 				}, {
+					id: 'user:lazy',
+					name: 'Lazy',
+					source: 'user',
+					status: 'dormant',
+				}, {
 					id: 'session:preview',
 					name: 'Session Preview',
 					source: 'session',
@@ -4472,6 +4477,14 @@ suite('AgentHostProtocolClient', () => {
 				resourcePath: undefined,
 				source: 'user',
 				status: 'running',
+				pluginName: undefined,
+			}, {
+				id: 'user:lazy',
+				name: 'Lazy',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'user',
+				status: 'dormant',
 				pluginName: undefined,
 			}, {
 				id: 'plugin:dashboard',

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { withRuntimePluginEnablement } from '../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { getCustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { agentHostConnectionKinds } from '../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -20,7 +22,7 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { CustomizationEnablementKind, CustomizationType, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { createPolicyManagedEnablementAction, createUninstallPluginAction, OrganizationRequiredUninstallActionViewItem, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
+import { createAgentHostEnablePluginAction, createPolicyManagedEnablementAction, createUninstallPluginAction, OrganizationRequiredUninstallActionViewItem, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
@@ -321,6 +323,85 @@ suite('AgentPluginActions', () => {
 		assert.deepStrictEqual({ clientCalls, hostCalls }, {
 			clientCalls: [],
 			hostCalls: [[sessionResource, 'host-plugin', customization.enablement, CustomizationEnablementKind.Global, true]],
+		});
+	});
+
+	test('runtime-owned plugin actions offer global and repository scopes without local or session writes', async () => {
+		const calls: unknown[][] = [];
+		const session = URI.parse('other-session://opaque/conversation');
+		const customization: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'native@marketplace', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const service = new class extends mock<IAgentHostCustomizationService>() {
+			override canSetRuntimePluginEnablement(): boolean { return true; }
+			override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean]): Promise<void> { calls.push(args); }
+		}();
+		const actions = getAgentHostPluginEnablementActions(service, undefined, session, customization, true);
+		await actions[0].run();
+		await actions[1].run();
+		assert.deepStrictEqual({ actions: actions.map(action => [action.label, action.enabled]), calls }, {
+			actions: [['Enable Globally', true], ['Disable for Repository', true]],
+			calls: [[session, 'opaque-plugin', 'global', true], [session, 'opaque-plugin', 'repository', false]],
+		});
+	});
+
+	test('child Enable Plugin actions retain runtime ownership from their disabled parent', async () => {
+		const calls: unknown[][] = [];
+		const session = URI.parse('other-session://opaque/conversation');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-parent', name: 'Native', uri: 'other-host:/plugins/native',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'opaque-source', globalEnabled: false, effectiveEnabled: false, repositorySupported: false }),
+		};
+		const reason = getCustomizationDisabledReason({}, plugin);
+		assert.ok(reason?.source === 'plugin');
+		const service = new class extends mock<IAgentHostCustomizationService>() {
+			override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean]): Promise<void> { calls.push(args); }
+			override setCustomizationEnablement(): void { throw new Error('Legacy enablement must not be used'); }
+		}();
+		await createAgentHostEnablePluginAction(service, undefined, session, reason.plugin, CustomizationEnablementKind.Global).run();
+		assert.deepStrictEqual(calls, [[session, plugin.id, 'global', true]]);
+	});
+
+	test('runtime-owned plugins remain read-only on hosts without the management capability', async () => {
+		const customization: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'native@marketplace', globalEnabled: false, repositorySupported: true }),
+		};
+		const actions = getAgentHostPluginEnablementActions(new class extends mock<IAgentHostCustomizationService>() { }(), undefined, URI.parse('other-session://opaque/conversation'), customization, true);
+		await assert.rejects(() => Promise.resolve(actions[0].run()), /unavailable/);
+		assert.deepStrictEqual(actions.map(action => action.enabled), [false, false]);
+	});
+
+	test('runtime plugin controls wait for enablement and reject unsupported workspace scope', async () => {
+		const session = URI.parse('other-session://opaque/conversation');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'custom-provider', plugin: 'direct-source', globalEnabled: false, repositorySupported: false }),
+		};
+		const service = new class extends mock<IAgentHostCustomizationService>() {
+			override canSetRuntimePluginEnablement(): boolean { return true; }
+		}();
+		const pending = getAgentHostPluginEnablementActions(service, undefined, session, plugin, true);
+		const ready = getAgentHostPluginEnablementActions(service, undefined, session, {
+			...plugin,
+			_meta: withRuntimePluginEnablement(plugin._meta, { provider: 'custom-provider', plugin: 'direct-source', globalEnabled: false, effectiveEnabled: false, repositorySupported: false }),
+		}, true);
+		await assert.rejects(() => Promise.resolve(pending[0].run()), /unavailable/);
+		await assert.rejects(() => Promise.resolve(ready[1].run()), /unavailable/);
+		assert.deepStrictEqual({
+			pending: pending.map(action => ({ enabled: action.enabled, checked: action.checked, tooltip: action.tooltip })),
+			ready: ready.map(action => ({ enabled: action.enabled, checked: action.checked, tooltip: action.tooltip })),
+		}, {
+			pending: [
+				{ enabled: false, checked: false, tooltip: 'Plugin enablement is unavailable until this chat\'s session is ready.' },
+				{ enabled: false, checked: undefined, tooltip: 'This plugin does not support workspace enablement. You can change global enablement.' },
+			],
+			ready: [
+				{ enabled: true, checked: false, tooltip: undefined },
+				{ enabled: false, checked: undefined, tooltip: 'This plugin does not support workspace enablement. You can change global enablement.' },
+			],
 		});
 	});
 });

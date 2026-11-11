@@ -132,7 +132,7 @@ function toAgentExtensionStatus(value: unknown): AgentExtensionStatus | undefine
 	if (typeof value !== 'string') {
 		return undefined;
 	}
-	return value === 'running' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown'
+	return value === 'running' || value === 'dormant' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown'
 		? value
 		: 'unknown';
 }

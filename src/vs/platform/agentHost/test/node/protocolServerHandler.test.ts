@@ -484,7 +484,7 @@ class MockAgentService extends Disposable implements IAgentService {
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
 	async cancelDebugLogs(_progressToken: string): Promise<void> { }
-	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async authenticate(..._args: Parameters<IAgentService['authenticate']>): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async getModelsForCredentials(_provider: string, _credentials: IAgentHostCredentialSource, _token?: CancellationToken): Promise<readonly IAgentModelInfo[]> { return []; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -12123,6 +12123,26 @@ suite('ProtocolServerHandler', () => {
 
 		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
 		assert.deepStrictEqual(resp.result, {});
+	});
+
+	test('authenticate still in flight when its transport disconnects is delivered without transport state', async () => {
+		const delivered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const authenticate = sinon.stub(agentService, 'authenticate').callsFake(async () => {
+			started.complete();
+			await release.p;
+			delivered.complete();
+			return { authenticated: true };
+		});
+		disposables.add(toDisposable(() => authenticate.restore()));
+		const transport = connectClient('credential-sender');
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'synthetic-credential' }));
+		await started.p;
+		transport.simulateClose();
+		release.complete();
+		await delivered.p;
+		assert.deepStrictEqual(authenticate.firstCall.args, [{ resource: 'https://api.github.com', token: 'synthetic-credential' }]);
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {

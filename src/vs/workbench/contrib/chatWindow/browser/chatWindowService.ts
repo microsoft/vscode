@@ -31,7 +31,7 @@ import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsS
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
-import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
+import { ChatWindowChatArrangements, ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { CHAT_PART_OPTIONS, IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
@@ -788,6 +788,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	private readonly _openByChat = new SequencerByKey<string>();
 	private readonly _chatLayouts: ChatWindowChatLayouts;
 	private readonly _chatSizes: ChatWindowChatSizes;
+	private readonly _chatArrangements: ChatWindowChatArrangements;
 	/** The grid of each open window, which arranges its parts. */
 	private readonly _grids = new Map<IChatWindow, ChatWindowGrid>();
 
@@ -805,6 +806,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		this.hasProvider = this._provider.map(provider => !!provider);
 		this._chatLayouts = new ChatWindowChatLayouts(_storageService);
 		this._chatSizes = new ChatWindowChatSizes(_storageService);
+		this._chatArrangements = new ChatWindowChatArrangements(_storageService);
 		this._register(this._instantiationService.createInstance(ChatWindowsRestoration, {
 			provider: this._provider,
 			windows: this._windows,
@@ -1120,6 +1122,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			resetLayout: () => {
 				this._chatLayouts.delete(chatWindow.anchor.chat.get());
 				this._chatSizes.delete(chatWindow.anchor.chat.get());
+				this._chatArrangements.delete(chatWindow.anchor.chat.get());
 				gridRef.get()?.reset();
 			},
 			windowGroups: {
@@ -1183,14 +1186,26 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			terminals: chatWindow.terminalsPart,
 			chatInputOnly: derived(reader => state.layoutMode.read(reader) === ChatWindowLayoutMode.Stacked && state.inputOnly.read(reader)),
 			setTerminalPosition: position => state.setTerminalPosition(position),
+			splitLayout: state.splitLayout,
+			arrangement: this._chatArrangements.get(chat),
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition, partFactory));
 		gridRef.set(grid, undefined);
 		// As the window goes away, after its chat part and main part closed and before the part that holds its terminals does
 		disposables.add(chatWindow.onWillClose(() => grid.willClose()));
 		this._grids.set(chatWindow, grid);
 		disposables.add(toDisposable(() => this._grids.delete(chatWindow)));
-		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
-		const saveSizes = () => this._chatSizes.set(chatWindow.anchor.chat.get(), grid.exportSizes());
+		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement, and how the user
+		// arranged them.
+		const saveSizes = () => {
+			const chat = chatWindow.anchor.chat.get();
+			this._chatSizes.set(chat, grid.exportSizes());
+			const arrangement = grid.exportArrangement();
+			if (arrangement) {
+				this._chatArrangements.set(chat, arrangement);
+			} else {
+				this._chatArrangements.delete(chat);
+			}
+		};
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
 		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 		if (look.paintChatBackground) {

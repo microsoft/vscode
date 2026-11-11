@@ -10,6 +10,7 @@ import { dirname, resolve } from 'path';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const pfsModule = resolve(repositoryRoot, 'src/vs/base/node/pfs');
+const fsModules = new Set(['fs', 'node:fs', 'original-fs']);
 
 type Binding = { kind: 'fs' | 'module' | 'requireFactory' | 'require' } | { kind: 'sync' | 'syncBind'; name: string };
 
@@ -28,12 +29,23 @@ function moduleBinding(node: TSESTree.Node, filename: string): Binding | undefin
 	if (typeof value !== 'string') {
 		return undefined;
 	}
-	const importedPath = value.startsWith('.') ? resolve(dirname(filename), value)
-		: value.startsWith('vs/') ? resolve(repositoryRoot, 'src', value) : value;
-	if (['fs', 'node:fs', 'original-fs'].includes(value) || importedPath.replace(/\.(?:js|ts)$/, '') === pfsModule) {
+	if (fsModules.has(value) || (mayResolveToPfs(value) && resolveImport(value, filename).replace(/\.(?:js|ts)$/, '') === pfsModule)) {
 		return { kind: 'fs' };
 	}
 	return value === 'module' || value === 'node:module' ? { kind: 'module' } : undefined;
+}
+
+function resolveImport(value: string, filename: string): string {
+	return value.startsWith('.') ? resolve(dirname(filename), value)
+		: value.startsWith('vs/') ? resolve(repositoryRoot, 'src', value) : value;
+}
+
+/**
+ * Cheap necessary condition for {@link resolveImport} to yield the pfs module: unless the last path segment
+ * is `.` or `..`, it is preserved by path resolution and must therefore mention `pfs`.
+ */
+function mayResolveToPfs(value: string): boolean {
+	return value.includes('pfs') || /(?:^|[\\/])\.\.?[\\/]*$/.test(value);
 }
 
 function memberBinding(binding: Binding | undefined, name: string | undefined): Binding | undefined {
@@ -142,12 +154,38 @@ export default new class implements eslint.Rule.RuleModule {
 			}
 		}
 
+		// Every sync binding originates from a module specifier that resolves to an fs module. Files without one
+		// cannot report, so candidate calls are only resolved (which requires costly scope analysis) at the end
+		// and only if such a specifier was seen.
+		let hasFsModule = false;
+		const candidates: TSESTree.CallExpression[] = [];
+		const checkModule = (node: TSESTree.Node | undefined) => {
+			hasFsModule ||= !!node && moduleBinding(node, context.filename)?.kind === 'fs';
+		};
+
 		return {
+			ImportDeclaration: node => checkModule((node as TSESTree.ImportDeclaration).source),
+			ImportExpression: node => checkModule((node as TSESTree.ImportExpression).source),
+			TSImportEqualsDeclaration: (rawNode: Node) => {
+				const node = rawNode as TSESTree.Node;
+				if (node.type === 'TSImportEqualsDeclaration' && node.moduleReference.type === 'TSExternalModuleReference') {
+					checkModule(node.moduleReference.expression);
+				}
+			},
 			CallExpression: rawNode => {
 				const node = rawNode as TSESTree.CallExpression;
-				const binding = resolveBinding(node.callee);
-				if (binding?.kind === 'sync') {
-					context.report({ node: rawNode, messageId: 'syncFs', data: { name: binding.name } });
+				checkModule(node.arguments[0]);
+				candidates.push(node);
+			},
+			'Program:exit': () => {
+				if (!hasFsModule) {
+					return;
+				}
+				for (const node of candidates) {
+					const binding = resolveBinding(node.callee);
+					if (binding?.kind === 'sync') {
+						context.report({ node: node as Node, messageId: 'syncFs', data: { name: binding.name } });
+					}
 				}
 			},
 		};

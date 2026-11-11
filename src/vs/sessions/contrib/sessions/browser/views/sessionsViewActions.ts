@@ -1235,14 +1235,14 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		: action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
 			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
 				: localize('inboxSnoozed', "{0} snoozed", targets.length);
-	if (targets.length === 1 && action !== 'done') {
+	if (targets.length === 1 || action === 'done') {
 		status(message);
 		return;
 	}
 	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
 		message,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
-		showCountdown: action !== 'done',
+		showCountdown: true,
 		undo: async () => { undo(); status(localize('inboxTriageUndone', "Inbox change undone.")); },
 	});
 }
@@ -1554,15 +1554,15 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
 		if (
 			sessions.length > 0
 			&& configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 			&& !accessibilityService.isMotionReduced()
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
+		}
+		for (const session of sessions) {
+			await sessionsManagementService.archiveSession(session);
 		}
 	}
 }
