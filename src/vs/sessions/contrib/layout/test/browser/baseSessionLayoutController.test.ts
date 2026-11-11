@@ -499,7 +499,7 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
 	});
 
-	test('[B2] switching away does not overwrite a session\'s saved working set while the main part shows only the empty-file placeholder', async () => {
+	test('[B2] switching away from an applied session whose files moved to another window saves the placeholder-only set instead of keeping the stale one', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });
 
@@ -520,7 +520,8 @@ suite('BaseLayoutController', () => {
 		harness.activeSessionObs.set(sessionB, undefined);
 		await timeout(0);
 
-		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`, `session-working-set:${sessionB.resource.toString()}`]);
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`, `session-working-set:${sessionB.resource.toString()}`, `session-working-set:${sessionA.resource.toString()}`]);
+		assert.strictEqual(harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource)?.editors.length, 0);
 	});
 
 	test('[B2] closing every file of a restored session while the empty-file placeholder remains saves the empty set when switching away', async () => {
@@ -627,6 +628,24 @@ suite('BaseLayoutController', () => {
 			afterDispose: afterDispose?.editors.length,
 			afterAccept: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
 		}, { first: 1, whileTaken: undefined, afterDispose: 1, afterAccept: undefined });
+	});
+
+	test('accepting a stash disposes the resolved editors the window did not adopt', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource);
+		handle?.accept();
+
+		assert.deepStrictEqual(handle?.editors.map(editor => editor.isDisposed()), [true]);
 	});
 
 	test('a stash taken for a window is not applied to the main part meanwhile, and the old handle never removes a newer stash', async () => {

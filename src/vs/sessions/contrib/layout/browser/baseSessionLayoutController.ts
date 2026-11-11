@@ -1420,8 +1420,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _saveWorkingSet(sessionResource: URI): void {
 		const mainEditors = this._editorGroupsService.mainPart.groups.flatMap(group => group.editors);
-		const editorsInOtherWindows = this._editorService.visibleEditors.some(editor => !mainEditors.includes(editor));
-		if (this._workingSets.has(sessionResource) && (this._unappliedWorkingSets.has(sessionResource) || editorsInOtherWindows) && mainEditors.length > 0 && mainEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
+		if (this._workingSets.has(sessionResource) && this._unappliedWorkingSets.has(sessionResource) && mainEditors.length > 0 && mainEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
 			return;
 		}
 		this._deleteWorkingSet(sessionResource);
@@ -1461,6 +1460,7 @@ export abstract class BaseLayoutController extends Disposable {
 				if (!settled) {
 					settled = true;
 					this._stashLeases.delete(lease);
+					resolved.dispose();
 					this._releaseWorkingSetReference(workingSet);
 				}
 			},
