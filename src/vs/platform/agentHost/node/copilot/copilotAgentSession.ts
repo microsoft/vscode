@@ -1339,6 +1339,8 @@ export class CopilotAgentSession extends Disposable {
 		mcpServerName: string | undefined;
 		reported: boolean;
 	}>();
+	/** Subagent permissions can arrive before their bridged tool start, so retain their agent IDs for routing. */
+	private readonly _permissionRequestAgentIds = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
@@ -5304,6 +5306,7 @@ export class CopilotAgentSession extends Disposable {
 	private _extensionStatus(status: string): AgentExtensionStatus {
 		switch (status) {
 			case 'running':
+			case 'dormant':
 			case 'disabled':
 			case 'failed':
 			case 'starting':
@@ -8562,7 +8565,9 @@ export class CopilotAgentSession extends Disposable {
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
 			// parent session, which has no matching ChatToolCallStart.
-			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			// A subagent's permission can precede its bridged tool start, so
+			// fall back to the agent that raised the permission request.
+			const parentToolCallId = trackedToolCall?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent({ agentId: this._permissionRequestAgentIds.get(toolCallId) });
 			sandboxRequestId = this._sandbox.getPendingRequestId(toolCallId);
 			const grantConfirmation = sandboxPathGrant && sandboxRequestId ? getSandboxPathGrantConfirmation(sandboxPathGrant) : undefined;
 			const grantMeta = grantConfirmation && sandboxPathGrant ? this._sandbox.pathGrantForSettings(sandboxPathGrant) : undefined;
@@ -8633,6 +8638,9 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
 		} finally {
+			if (request.toolCallId !== undefined) {
+				this._permissionRequestAgentIds.delete(request.toolCallId);
+			}
 			if (this._sandbox.finishPermissionRequest(request.toolCallId, sandboxRequestId, sandboxPathGrant) && !this._store.isDisposed) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
@@ -10353,6 +10361,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
+			if (e.agentId && !e.data.resolvedByHook) {
+				this._permissionRequestAgentIds.set(toolCallId, e.agentId);
+			}
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
 			if (permissionRequest.requestSandboxBypass && !e.data.resolvedByHook) {
@@ -10375,6 +10386,8 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
+			// A handler that settles synchronously finishes before its request event is recorded.
+			this._permissionRequestAgentIds.delete(toolCallId);
 			this._sandbox.completePendingRequest(toolCallId, e.data.requestId);
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const record = {
@@ -13748,6 +13761,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._pendingPermissions.denyAll({ kind: 'decision', result: { kind: 'reject' }, source: 'unattended_fallback' });
 		this._sandbox.clearPendingRequests();
+		this._permissionRequestAgentIds.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}
 

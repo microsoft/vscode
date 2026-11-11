@@ -17,7 +17,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, Dispos
 import { LinkedMap, LRUCache, ResourceMap, ResourceSet, Touch } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, extUriBiasedIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -56,6 +56,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
+import { CopilotEntraAuthentication } from './copilotEntraAuthentication.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, COPILOT_RESERVED_AGENT_NAMES, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
@@ -63,7 +64,7 @@ import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
 import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type IAgentPluginInstallation, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
+import { type IAgentPluginInstallation, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
 import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, type IModelRouter } from '../../common/modelRouter.js';
 import { installedModelRouterAgentPlan, resolveModelRouterAgentPlan, type IInstalledModelRouterAgent } from '../../common/modelRouterAgents.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
@@ -1209,7 +1210,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		{ owner: this, equalsFn: structuralEquals },
 		undefined,
 	);
-	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = this._authenticationRequired;
+	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
+	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
+		// One requirement is published at a time. GitHub's goes first, so a pending Microsoft one cannot hide it.
+		this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
@@ -1541,6 +1545,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
+		if (this._configurationService.copilotM365EnabledAtStartup) {
+			this._entraAuthentication = this._register(this._instantiationService.createInstance(CopilotEntraAuthentication));
+			this._register(this._entraAuthentication.onDidRevoke(() => {
+				void this._requestClientRestart('Microsoft authentication cleared').catch(error => this._logService.error('[Copilot] Failed to restart runtime after Microsoft authentication was cleared', error));
+			}));
+		}
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
@@ -2620,12 +2630,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	getProtectedResources(): ProtectedResourceMetadata[] {
+	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[] {
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
+			// Keep the legacy GitHub requirement until the account-choice gate is retired; default-on cleanup is separate.
+			this._entraAuthentication || this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
+			...(this._entraAuthentication?.getProtectedResources(reader) ?? []),
 		];
+	}
+
+	validateAuthentication(params: AuthenticateParams): void {
+		this._entraAuthentication?.validateAuthentication(params);
 	}
 
 	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {
@@ -3255,10 +3271,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				continue;
 			}
 			const statuses = new Set([current.status, extension.status]);
+			// A `running` and `dormant` pair merges to `running`: both are enabled and settled, and one copy has started.
 			const status = statuses.size === 1 ? current.status
 				: statuses.has('starting') ? 'starting'
 					: statuses.has('failed') ? 'failed'
-						: 'unknown';
+						: [...statuses].every(isAgentExtensionEnabledAndSettled) ? 'running'
+							: 'unknown';
 			result.set(extension.id, {
 				...current,
 				status,
@@ -3365,7 +3383,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw error;
 			}
 			const targets = extensions.filter(extension => extension.id === extensionId);
-			const targetSettled = targets.length > 0 && targets.every(extension => extension.status === (enabled ? 'running' : 'disabled'));
+			const targetSettled = targets.length > 0 && targets.every(extension => enabled ? isAgentExtensionEnabledAndSettled(extension.status) : extension.status === 'disabled');
 			if (enabled && targetSettled) {
 				this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
 				return;
@@ -3919,6 +3937,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
+		if (await this._entraAuthentication?.authenticate(params)) {
+			if (!params.token) {
+				await this._clientStopping;
+			}
+			return true;
+		}
 		let handled = false;
 		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()]);
 		for (const session of sessions) {
@@ -4260,9 +4284,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!catalog || !this._modelRouter) {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
 		}
-		const agentName = request.agent && await this._customAgentWithModel(request.agent.uri);
-		if (agentName) {
-			return { selection: undefined, notices: [localize('modelRouter.agentModel', "The {0} agent uses its own model, so the model router didn't pick one.", agentName)] };
+		const customAgent = request.agent && await this._readCustomAgent(request.agent.uri);
+		if (customAgent?.namesModel) {
+			return { selection: undefined, notices: [localize('modelRouter.agentModel', "The {0} agent uses its own model, so the model router didn't pick one.", customAgent.name)] };
 		}
 		const snapshot = await catalog.whenSettled(token);
 		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
@@ -4274,6 +4298,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			text: request.text,
 			models,
 			previousTurns: request.previousTurns,
+			situation: { ...request.situation, ...(customAgent ? { agent: customAgent.name } : {}) },
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
 		return this._withModelRouterAgents(chatKey, request, file?.router, models, resolution);
@@ -4332,15 +4357,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return shown ? resolution : { ...resolution, notices: [...resolution.notices, notice] };
 	}
 
-	/** A custom agent's name when its file names a model, which the runtime runs it on instead of a router's pick. */
-	private async _customAgentWithModel(uri: string): Promise<string | undefined> {
+	/** A custom agent's name, and whether its file names a model, which the runtime runs it on instead of a router's pick. */
+	private async _readCustomAgent(uri: string): Promise<{ readonly name: string; readonly namesModel: boolean } | undefined> {
 		try {
 			const resource = URI.parse(uri);
 			const frontMatter = parseFrontMatter((await this._fileService.readFile(resource)).value.toString());
-			if (!frontMatter?.getStringValue('model') && !frontMatter?.getStringArrayValue('model')?.length) {
-				return undefined;
-			}
-			return frontMatter.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, '');
+			return {
+				name: frontMatter?.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, ''),
+				namesModel: !!frontMatter?.getStringValue('model') || !!frontMatter?.getStringArrayValue('model')?.length,
+			};
 		} catch {
 			return undefined;
 		}
@@ -4996,6 +5021,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// uses them too.
 				network: this._createRuntimeNetworkConfig(),
 				useLoggedInUser: false,
+				...(!scoped && this._entraAuthentication ? { entra: this._entraAuthentication.options } : {}),
 				gitHubToken,
 				...(scoped ? {
 					baseDirectory: env['COPILOT_HOME'],

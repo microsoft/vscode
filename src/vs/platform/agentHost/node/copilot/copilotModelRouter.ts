@@ -9,6 +9,7 @@ import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/ag
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { describeModelRouterModel, describeModelRouterSituation, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -20,6 +21,7 @@ export interface IModelRouterCandidate {
 	readonly name: string;
 	readonly when: string;
 	readonly examples: readonly string[];
+	readonly facts?: string;
 }
 
 export interface IModelRouterFollowUp {
@@ -41,6 +43,7 @@ export interface IModelRouterPickRequest {
 	/** Whether to also ask how much reasoning effort the request needs. */
 	readonly askEffort: boolean;
 	readonly followUp?: IModelRouterFollowUp;
+	readonly situation?: readonly string[];
 	readonly chat: string;
 }
 
@@ -158,6 +161,7 @@ export interface IModelRouterRouteRequest {
 	readonly text: string;
 	readonly models: readonly IAgentModelInfo[];
 	readonly previousTurns: readonly Turn[];
+	readonly situation?: IModelRouterSituation;
 	/** Asks the decision model; without one, a first turn uses the router's first route. */
 	readonly picker: IModelRouterPicker | undefined;
 }
@@ -169,6 +173,7 @@ interface IRouteContext {
 	readonly router: IModelRouter;
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly candidates: readonly IModelRouterCandidate[];
+	readonly situation: readonly string[] | undefined;
 	/** The chat already runs on a long context window, which a later turn must not take away. */
 	readonly keepLongContext: boolean;
 }
@@ -200,9 +205,14 @@ export class CopilotModelRouter {
 			return { ...keepCurrent, notices: [localize('modelRouter.noModels', "None of the models in the model router {0} are available, so this chat kept its current model.", modelRouterLabel(router))] };
 		}
 		const last = lastSelectionOf(request.previousTurns);
+		const situation = describeModelRouterSituation(request.situation);
 		const context: IRouteContext = {
 			request, router, routes,
-			candidates: routes.map(route => ({ id: routeKey(route), name: route.model.name, when: route.route.when, examples: route.route.examples })),
+			candidates: routes.map(route => {
+				const facts = describeModelRouterModel(route.model);
+				return { id: routeKey(route), name: route.model.name, when: route.route.when, examples: route.route.examples, ...(facts ? { facts } : {}) };
+			}),
+			situation: situation.length ? situation : undefined,
 			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
@@ -233,7 +243,7 @@ export class CopilotModelRouter {
 		if (routes.length === 1) {
 			return decision(context, fallback, { ...switchedFrom(fallback), ...preferenceOf(fallback) }, [], this._effortFor(context, fallback, undefined));
 		}
-		if (!request.text.trim()) {
+		if (!hasRequest(request)) {
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, undefined));
 		}
 		let pick: IModelRouterPick;
@@ -241,7 +251,7 @@ export class CopilotModelRouter {
 			if (!request.picker) {
 				throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'No decision model');
 			}
-			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat });
+			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat, situation: context.situation });
 		} catch (error) {
 			this._logService.warn(`[ModelRouter] ${request.chat}: pick failed; using ${fallback.model.id}`, error);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
@@ -260,7 +270,9 @@ export class CopilotModelRouter {
 	private async _routeFollowUp(context: IRouteContext, current: IResolvedModelRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, router, routes } = context;
 		const stay = decision(context, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
-		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !request.text.trim() || CONTINUATION.test(request.text)) {
+		// "Continue" alone keeps the model, but not when it brings a new attachment a route can go by.
+		const continues = CONTINUATION.test(request.text) && !request.situation?.attachments?.length;
+		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !hasRequest(request) || continues) {
 			return stay;
 		}
 		const { previousTurns } = request;
@@ -274,6 +286,7 @@ export class CopilotModelRouter {
 				guidance: router.guidance,
 				askEffort: this._asksEffort(context),
 				chat: request.chat,
+				situation: context.situation,
 				followUp: {
 					currentModel: routeKey(current),
 					currentEffort,
@@ -300,6 +313,11 @@ export class CopilotModelRouter {
 		}
 		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target.model.name)], this._effortFor(context, target, pick.effortScore));
 	}
+}
+
+/** A message with only an attachment still has something a route can go by. */
+function hasRequest(request: IModelRouterRouteRequest): boolean {
+	return !!request.text.trim() || !!request.situation?.attachments?.length;
 }
 
 function decision({ router, keepLongContext }: IRouteContext, route: IResolvedModelRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {

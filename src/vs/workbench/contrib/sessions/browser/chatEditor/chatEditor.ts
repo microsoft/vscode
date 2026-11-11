@@ -81,6 +81,11 @@ export interface ISessionChatViewHost {
 	/** Called with what the editor shows once it is created, until the returned disposable is disposed. */
 	attach(view: ChatEditorContent): IDisposable;
 	/**
+	 * Takes what is dropped on the view of the chat, `element`, and opens it, such as a session or chat that a chat window opens
+	 * beside `chat`, until the returned disposable is disposed. Without it, the view takes only what the chat input does.
+	 */
+	createDropTarget?(element: HTMLElement, chat: () => URI | undefined): IDisposable;
+	/**
 	 * What shows the chat: the last attached of those attached, such as the view where the chat moves to while the one it
 	 * moves from is still there.
 	 */
@@ -288,6 +293,10 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		this.element = $('.session-chat-view-editor.sessions-window-host');
 		// The chat takes what is dropped on it, such as files to attach; editors dropped on the edges of its part split it.
 		this._register(registerContentDropTarget(this.element));
+		// What its host opens on a drop, such as a session or chat that a chat window opens beside it
+		if (host?.createDropTarget) {
+			this._register(host.createDropTarget(this.element, () => host.content.get()?.chat.get().resource));
+		}
 		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
 		// its window's main part, as the main window's chat reads the one of its editor area.
 		const scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));

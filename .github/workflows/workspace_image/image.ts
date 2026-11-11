@@ -763,6 +763,27 @@ export async function mountLinuxImage(source: Source, file: string, root: string
 	};
 }
 
+/**
+ * Recreates a packed disk image in the sparse file `file`, on macOS, and runs `attach`, which
+ * mounts its volume at `root`, and returns how to unmount it: `detach`.
+ */
+export async function mountDarwinImage(source: Source, file: string, root: string, connections: number, attach: readonly [string, ...string[]], detach: readonly [string, ...string[]]): Promise<() => void> {
+	const unmount = () => {
+		spawnSync(detach[0], detach.slice(1), { stdio: 'inherit' });
+	};
+	log(await unpack(source, file, { sparse: true, connections }));
+	try {
+		await runUntilDeadline(attach[0], attach.slice(1));
+	} catch (err) {
+		// The deadline may have stopped the attach after the mount
+		if (isMountPoint(root)) {
+			unmount();
+		}
+		throw err;
+	}
+	return unmount;
+}
+
 /** Mounts a disk image at the root folder, and returns how to unmount it */
 async function mount(source: Source, root: string, connections: number): Promise<() => void> {
 	const temp = process.env.RUNNER_TEMP ?? os.tmpdir();
@@ -774,19 +795,7 @@ async function mount(source: Source, root: string, connections: number): Promise
 		case 'darwin': {
 			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
 			const file = path.join(temp, 'workspace-image.asif');
-			log(await unpack(source, file, { sparse: true, connections }));
-			try {
-				await runUntilDeadline('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
-			} catch (err) {
-				// The deadline may have stopped diskutil after the mount
-				if (isMountPoint(root)) {
-					spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
-				}
-				throw err;
-			}
-			return () => {
-				spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
-			};
+			return mountDarwinImage(source, file, root, connections, ['diskutil', 'image', 'attach', '--nobrowse', '--mountPoint', root, file], ['diskutil', 'unmount', 'force', root]);
 		}
 		case 'win32': {
 			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache. The

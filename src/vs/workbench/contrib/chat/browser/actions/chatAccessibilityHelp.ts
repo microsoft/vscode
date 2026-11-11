@@ -83,7 +83,10 @@ export function getChatThinkingTitleAccessibilityHelp(): string {
 }
 
 export function getChatInputSessionLinkAccessibilityHelp(): string {
-	return localize('chat.inputSessionLinks', "Session links in the chat input can be opened without sending your message. Place the cursor in a session link and run Open Link{0} from the Command Palette, or use the editor's modifier-click gesture.", '<keybinding:editor.action.openLink>');
+	return [
+		localize('chat.inputSessionLinks', "Session links in the chat input can be opened without sending your message. Place the cursor in a session link and run Open Link{0} from the Command Palette, or use the editor's modifier-click gesture.", '<keybinding:editor.action.openLink>'),
+		localize('chat.inputSessionLinkPills', "In the Agents window, when {0} is enabled, a session link becomes a pill that shows the title and status of the session or chat that it opens, while the prompt keeps the link. Place the cursor right after the pill and press Enter{1} to open it, or open its context menu{2} to copy its link.", ChatConfiguration.InlineAttachmentsEnabled, '<keybinding:workbench.action.chat.openInlineAttachment>', '<keybinding:editor.action.showContextMenu>'),
+	].join('\n');
 }
 
 export function getCloudSandboxPreparationAccessibilityHelp(): string {
