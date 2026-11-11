@@ -448,7 +448,8 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 	return !isSessionGroupItem(item) && 'sessions' in item && Array.isArray((item as ISessionSection).sessions);
 }
 
-function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
+/** The icon of a section's header. `sessions` are the section's sessions, which tell a worktree section from a main checkout's. */
+function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] = []): ThemeIcon | undefined {
 	switch (sectionId) {
 		case NEW_SESSION_SECTION_ID:
 			return Codicon.plus;
@@ -482,7 +483,8 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.cloud;
 		default:
 			if (sectionId.startsWith(WORKTREE_SECTION_PREFIX)) {
-				return Codicon.worktree;
+				// A worktree shows the icon of the new-session isolation picker's Branch option; a main checkout, a folder's.
+				return isWorktreeSection(sessions) ? Codicon.gitBranchCheckout : Codicon.folder;
 			}
 			if (sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX)) {
 				return sectionId === `${ENVIRONMENT_SECTION_PREFIX}local` ? Codicon.deviceDesktop
@@ -3039,7 +3041,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else if (!element.pinnedCanvas) {
-			const defaultIcon = getSessionSectionIcon(element.id);
+			const defaultIcon = getSessionSectionIcon(element.id, element.sessions);
 			const appearance = isSessionGroupingSection(element.id) ? this.getAppearance(element.id) : undefined;
 			const icon = appearance ? {
 				id: appearance.icon ?? defaultIcon?.id ?? Codicon.folder.id,
@@ -10088,14 +10090,17 @@ function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
 	};
 }
 
+/** Whether a section of {@link SessionsGrouping.Worktree} with these sessions is a worktree rather than a main checkout or a plain folder. */
+function isWorktreeSection(sessions: readonly ISession[]): boolean {
+	return sessions.length === 0 || !getSessionWorktreeSection(sessions[0]).isMainCheckout;
+}
+
 /**
  * Orders the sections of {@link SessionsGrouping.Worktree}: the main checkouts first, then the worktrees, each by their
  * latest activity, then the sessions without a local folder.
  */
 function compareWorktreeSections(a: ISessionSection, b: ISessionSection): number {
-	const rank = (section: ISessionSection) => section.id === WORKTREE_OTHER_SECTION_ID
-		? 2
-		: section.sessions.length > 0 && getSessionWorktreeSection(section.sessions[0]).isMainCheckout ? 0 : 1;
+	const rank = (section: ISessionSection) => section.id === WORKTREE_OTHER_SECTION_ID ? 2 : isWorktreeSection(section.sessions) ? 1 : 0;
 	const latest = (section: ISessionSection) => Math.max(Number.NEGATIVE_INFINITY, ...section.sessions.map(session => session.updatedAt.get().getTime()));
 	return rank(a) - rank(b) || latest(b) - latest(a);
 }
