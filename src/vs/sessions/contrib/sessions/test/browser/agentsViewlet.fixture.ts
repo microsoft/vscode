@@ -39,8 +39,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentsView/' }, {
 			{ id: 'tools', title: 'Fix failing CI checks', workspace: 'vscode-tools', minutesAgo: 20 },
 		],
 	}, 'The Sessions view in the Primary Side Bar of an editor window, without any class of the Agents window: its title shows the actions of the sessions header, such as New Session, and the list shows the sessions by workspace, as in the Agents window, with no Customizations section.'),
-	ViewletScoped: viewletFixture(scopedSessions, 'The Sessions view of an editor window whose workspace is vscode: the sessions of vscode are listed first, and the three other workspaces are listed behind a collapsed "+3 more workspaces" row.', { scopeWorkspaces: ['vscode'] }),
-	ViewletScopedExpanded: viewletFixture({ ...scopedSessions, view: { height: 460 } }, 'The Sessions view of an editor window whose workspace is vscode, with the "+3 more workspaces" row expanded: the sessions of vscode come first, then the sections of the three other workspaces, then a row to show fewer.', { scopeWorkspaces: ['vscode'], expandMoreWorkspaces: true }),
+	ViewletScoped: viewletFixture(scopedSessions, 'The Sessions view of an editor window whose workspace is vscode: it lists only the two sessions of vscode, and none of the sessions of the three other workspaces, with no row to show more workspaces.', { scopeWorkspaces: ['vscode'] }),
 	ViewletEmpty: viewletFixture({
 		sessions: [],
 	}, 'The Sessions view of an editor window with no sessions: its list is empty, below the title with the actions of the sessions header, such as New Session.'),

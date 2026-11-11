@@ -66,7 +66,7 @@ A caller can acquire a disposable reveal of a session row or its archive action 
 
 User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
-A host can scope the list to folders (the editor window's Agents viewlet passes its workspace folders through the `scopeFolders` option; the Agents window does not). While the scope is non-empty and the grouping is not by date, only the top-level grouping sections holding a session whose folder is, or is inside, a scope folder, or that shares a git repository (such as a worktree) with one, list inline; every other section collapses behind the "+N more" row at the end, whether capping is on or off. Matching reads only the folder and repository metadata providers report.
+A host can scope the list to folders (the editor window's Agents viewlet passes its workspace folders through the `scopeFolders` option; the Agents window does not, nor does an empty window). While the scope is non-empty, the list shows only the sessions whose folder is, or is inside, a scope folder, or that share a git repository (such as a worktree) with one, learned from every session the list knows. Other sessions are left out before grouping, in every grouping, section (Pinned, custom groups, Chats and Done included) and search, and workspace capping hides no section. Matching reads only the folder and repository metadata providers report.
 
 ### Repository grouping
 

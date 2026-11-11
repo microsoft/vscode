@@ -444,7 +444,6 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 }
 
 function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
-	sectionId = toSemanticSectionId(sectionId);
 	switch (sectionId) {
 		case NEW_SESSION_SECTION_ID:
 			return Codicon.plus;
@@ -519,13 +518,11 @@ const ENVIRONMENT_SECTION_PREFIX = 'environment:';
 
 /** Whether a section lists one workspace, repository, or environment and can be reordered among custom groups. */
 function isSessionGroupingSection(sectionId: string): boolean {
-	sectionId = toSemanticSectionId(sectionId);
 	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX);
 }
 
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 function getSessionSectionType(sectionId: string): string {
-	sectionId = toSemanticSectionId(sectionId);
 	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
 }
 
@@ -718,20 +715,6 @@ class SessionsListSearchFilter implements IFindFilter<SessionListItem> {
 export const SessionsListSearchOpenContext = new RawContextKey<boolean>('sessionsListSearchOpen', false, localize('sessionsListSearchOpen', "Whether the search of the Sessions list is open."));
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
-/**
- * Prefix of the grouping sections that a scoped list lists behind its "+N more" row, for the sessions outside its scope.
- * It precedes the grouping prefix (`workspace:`, `repository:`, `environment:`), so no section of a label produces it.
- */
-const OUT_OF_SCOPE_SECTION_PREFIX = 'outOfScope:';
-
-/**
- * The id of a section as drops, group membership and manual order know it: without the presentation-only
- * {@link OUT_OF_SCOPE_SECTION_PREFIX} of a scoped list. Membership and manual order never persist the prefix.
- */
-function toSemanticSectionId(sectionId: string): string {
-	return sectionId.startsWith(OUT_OF_SCOPE_SECTION_PREFIX) ? sectionId.slice(OUT_OF_SCOPE_SECTION_PREFIX.length) : sectionId;
-}
-
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 const INSET_ROW_GAP = 2;
 
@@ -3829,7 +3812,7 @@ function getSectionPlacement(sectionId: string): SessionListPlacement | undefine
 function isSamePlacement(a: SessionListPlacement, b: SessionListPlacement): boolean {
 	const header = getPlacementHeader(a);
 	const other = getPlacementHeader(b);
-	return header.kind === other.kind && toSemanticSectionId(header.id) === toSemanticSectionId(other.id);
+	return header.kind === other.kind && header.id === other.id;
 }
 
 function getPlacementHeader(placement: SessionListPlacement): ISessionDropTargetHeader {
@@ -4445,9 +4428,8 @@ interface ISessionsListControlBaseOptions {
 	readonly findWidgetContainer?: HTMLElement;
 	readonly onDidScroll?: () => void;
 	/**
-	 * Folders the host scopes the list to, such as the folders of the window's workspace. While non-empty, only the
-	 * sections holding a session of these folders, or of their repositories, list inline; the other workspaces collapse
-	 * into the "+N more" row at the end. See {@link getSessionsInScopeFolders}.
+	 * Folders the host scopes the list to, such as the folders of the window's workspace. While there are any, the list
+	 * shows only the sessions of these folders, in every section and search. See {@link getSessionsInScopeFolders}.
 	 */
 	readonly scopeFolders?: IObservable<readonly URI[]>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
@@ -4713,8 +4695,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
 	private expandedMoreFolders = false;
-	/** The sessions of the scope the list last rendered with, see {@link ISessionsListControlOptions.scopeFolders}. */
-	private renderedScope: { includes(session: ISession): boolean } | undefined;
 	/** The grouping sections that capping currently hides behind the "+N more" row. */
 	private hiddenGroupingSections: readonly ISessionSection[] = [];
 	private openWindowSourceFolder: URI | undefined;
@@ -5776,6 +5756,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (inbox) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
 		}
+		// A host scope (the window's workspace folders) shows only its sessions, wherever they are placed. Their repositories
+		// are known from every session, including those filtered out above.
+		const scopeFolders = this.options.scopeFolders?.get() ?? [];
+		const scope = scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
+		if (scope) {
+			filtered = filtered.filter(scope.includes);
+		}
+		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(scope.includes);
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 			return !comparison || !isComparisonLaunchPending(comparison);
@@ -5847,45 +5835,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
-		const groupSessions = (sessions: ISession[]) => groupSessionsForList(sessions, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session));
-		const sections = groupSessions(forSections);
-
-		// A host scope (the window's workspace folders) lists only its workspaces inline, in "All" too. The sessions of the
-		// other top-level grouping sections are grouped again, into sections listed behind the "+N more" row. This happens
-		// before comparisons and groups find their sections, so that they find the sections of their own sessions.
-		const scopeFolders = grouping !== SessionsGrouping.Date && !inbox && !this.hasFindPattern ? this.options.scopeFolders?.get() ?? [] : [];
-		// The scope's repositories are known from every session, including those placed in custom groups or filtered out.
-		const sessionsInScope = scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
-		const scope = sessionsInScope && { includes: (session: ISession) => sessionsInScope.includes(session) || session.sessionId === onboardingSession?.sessionId };
-		this.renderedScope = scope;
-		const getScopedSectionId = (sectionId: string, sessions: readonly ISession[]) =>
-			scope && isSessionGroupingSection(sectionId) && this.getSectionParentId(sectionId) === undefined && !sessions.some(scope.includes)
-				? `${OUT_OF_SCOPE_SECTION_PREFIX}${sectionId}`
-				: sectionId;
-		if (scope) {
-			const outOfScope: ISession[] = [];
-			for (let index = sections.length - 1; index >= 0; index--) {
-				const section = sections[index];
-				if (!isSessionGroupingSection(section.id) || this.getSectionParentId(section.id) !== undefined) {
-					continue;
-				}
-				const inScope = section.sessions.filter(scope.includes);
-				if (inScope.length === section.sessions.length) {
-					continue;
-				}
-				outOfScope.push(...section.sessions.filter(session => !scope.includes(session)));
-				if (inScope.length === 0) {
-					sections.splice(index, 1);
-				} else {
-					sections[index] = { ...section, collapseStateId: section.id.startsWith('workspace:') ? workspaceCollapseStateId(inScope) : section.collapseStateId, sessions: inScope };
-				}
-			}
-			if (outOfScope.length > 0) {
-				sections.push(...groupSessions(outOfScope)
-					.filter(section => isSessionGroupingSection(section.id))
-					.map(section => ({ ...section, id: `${OUT_OF_SCOPE_SECTION_PREFIX}${section.id}` })));
-			}
-		}
+		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session));
 
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
@@ -5899,7 +5849,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (grouping === SessionsGrouping.Date) {
 			const entries: SessionSortEntry[] = [
 				...forSections.filter(session => !session.isArchived.get() && !this.isSessionPinned(session) && !(this.groupExternalSessions && session.isExternal?.get())),
-				...topLevelGroups.filter(group => comparisonsByGroupId.has(group.id)).map(group => this.getComparisonSortEntry(group.id)),
+				...topLevelGroups.filter(group => comparisonsByGroupId.has(group.id) && isComparisonInScope(comparisonsByGroupId.get(group.id)!)).map(group => this.getComparisonSortEntry(group.id)),
 			];
 			const key = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, sortingToMode(sorting));
 			// A comparison counts as one entry when applying the Recent limit.
@@ -5931,7 +5881,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const comparisonSessions = inbox && this.filters.hasInboxScope
 					? sortedMembersByGroupId.get(group.id)!
 					: getComparisonSessions(comparison, this._sessionsManagementService);
-				if (inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) {
+				if ((inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) || !isComparisonInScope(comparison)) {
 					continue;
 				}
 				const environmentId = grouping === SessionsGrouping.Environment
@@ -5949,13 +5899,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				const naturalSectionId = inbox
+				const sectionId = inbox
 					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? SessionInboxSection.Working
 					: grouping === SessionsGrouping.Date
 						? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
 						: environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
-				// A comparison outside a scope joins the sections behind the "+N more" row.
-				const sectionId = naturalSectionId && getScopedSectionId(naturalSectionId, comparisonSessions);
 				if (!sectionId) {
 					continue;
 				}
@@ -5994,8 +5942,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 
-		// Sections behind a scope's "+N more" row are top level, so the sections nested in groups are found by their own ids.
-		const sectionById = new Map(sections.filter(section => !section.id.startsWith(OUT_OF_SCOPE_SECTION_PREFIX)).map(section => [this.getSectionGroupKey(section.id), section]));
+		const sectionById = new Map(sections.map(section => [this.getSectionGroupKey(section.id), section]));
 		const nestedSectionsByGroup = new Map<string, ISessionSection[]>();
 		for (const section of sections) {
 			const parentId = this.getSectionParentId(section.id);
@@ -6080,15 +6027,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// find pattern bypasses partitioning so all matching sessions are visible.
 		// When the user has chosen "Show All Sessions" (uncapped), show every
 		// section inline instead of hiding some behind a "+N more" entry.
-		const partitionFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern && this.workspaceGroupCapped;
+		// A scoped list shows only its own workspaces, so it hides none of them.
+		const partitionFolders = grouping !== SessionsGrouping.Date && !this.hasFindPattern && this.workspaceGroupCapped && !scope;
 		const moreFolderSectionIds = new Set<string>();
-		if (scope) {
-			for (const section of sections) {
-				if (section.id.startsWith(OUT_OF_SCOPE_SECTION_PREFIX)) {
-					moreFolderSectionIds.add(section.id);
-				}
-			}
-		} else if (partitionFolders) {
+		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => isSessionGroupingSection(s.id) && this.getSectionParentId(s.id) === undefined);
 			// With only two workspaces, hiding one behind a "+1 more" row saves no space.
 			if (workspaceSections.length > 2) {
@@ -7158,7 +7100,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (session.isArchived.get() && !state.archived && !destination.restoresArchived) {
 			return false;
 		}
-		if (placement.kind === 'section' && !this.getUngroupedSectionIds(session).includes(toSemanticSectionId(placement.sectionId))) {
+		if (placement.kind === 'section' && !this.getUngroupedSectionIds(session).includes(placement.sectionId)) {
 			return false;
 		}
 		const groupId = this._sessionGroupsService.getGroupOfSession(session.sessionId) ?? null;
@@ -7988,8 +7930,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), undefined);
 				}
 				// A moved grouping section is promoted so it stays visible (escapes the "+N more" capping).
-				const sectionId = toSemanticSectionId(headerId);
-				this._sessionSectionOrderService.reorder(topLevelOrder, sectionId, toSemanticSectionId(drop.targetId), drop.position, groupId === undefined ? sectionId : undefined);
+				this._sessionSectionOrderService.reorder(topLevelOrder, headerId, drop.targetId, drop.position, groupId === undefined ? headerId : undefined);
 				return;
 			}
 		}
@@ -8188,16 +8129,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * comparison groups nested in it, which belong to their group's placement.
 	 */
 	private getComposedPlacementSessions(placement: SessionListPlacement): readonly ISession[] {
-		if (placement.kind === 'group') {
-			const header = this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId);
-			return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
-		}
-		// A scope can list a section's sessions in two sections: of the scope, and behind its "+N more" row.
-		const sectionId = toSemanticSectionId(getPlacementHeader(placement).id);
-		const sections = [sectionId, `${OUT_OF_SCOPE_SECTION_PREFIX}${sectionId}`]
-			.map(id => this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === id) ?? this.hiddenGroupingSections.find(section => section.id === id))
-			.filter(isDefined);
-		return sections.flatMap(section => section.sessions).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
+		const header = placement.kind === 'group'
+			? this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId)
+			: this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === getPlacementHeader(placement).id)
+			?? this.hiddenGroupingSections.find(section => section.id === getPlacementHeader(placement).id);
+		return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
 	}
 
 	/**
@@ -8678,7 +8614,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => section.sessions)]]);
 		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
-			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.getGroupingSectionSessions(section.id, grouping))]]);
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id))]]);
 			const parentId = this.getSectionParentId(section.id);
 			const groupsInDisplayOrder = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
 			if (groupsInDisplayOrder.length > 0) {
@@ -8975,21 +8911,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return parentId !== undefined && this.canHoldSubgroups(parentId) ? parentId : undefined;
 	}
 
-	/** The sessions of a workspace, repository or environment section, including those behind its "show more" row. */
-	private getGroupingSectionSessions(sectionId: string, grouping: SessionsGrouping): ISession[] {
-		const semanticId = toSemanticSectionId(sectionId);
-		const sessions = this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === semanticId);
-		// A scope splits a top-level section into the sessions of the scope and, behind its "+N more" row, the others.
-		const scope = this.renderedScope;
-		if (!scope || this.getSectionParentId(semanticId) !== undefined) {
-			return sessions;
-		}
-		const outOfScope = sectionId !== semanticId;
-		return sessions.filter(session => scope.includes(session) !== outOfScope);
-	}
-
 	private getSectionGroupKey(sectionId: string): string {
-		sectionId = toSemanticSectionId(sectionId);
 		// Repository grouping's workspace fallback has placement independent of Workspace mode.
 		return this.options.grouping() === SessionsGrouping.Repository && sectionId.startsWith('workspace:')
 			? `${REPOSITORY_SECTION_PREFIX}${sectionId}`
@@ -10047,7 +9969,6 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */
 function isGroupingSpecificCollapseStateId(id: string): boolean {
-	id = toSemanticSectionId(id);
 	return id.startsWith('workspace:') || id.startsWith(ENVIRONMENT_SECTION_PREFIX) || id === 'recent' || id === 'older';
 }
 

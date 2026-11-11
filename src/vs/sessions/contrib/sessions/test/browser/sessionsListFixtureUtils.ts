@@ -1257,10 +1257,8 @@ function simulateHover(list: TestSessionsList, item: SessionsListItemReference, 
  * any class of the Agents window, with the sessions of `state`.
  */
 export interface ISessionsViewFixtureOptions {
-	/** The workspaces, by label, of the editor window the list is scoped to: the others are listed behind a "+N more" row. */
+	/** The workspaces, by label, of the editor window the list is scoped to: the sessions of the others are not shown. */
 	readonly scopeWorkspaces?: readonly string[];
-	/** Shows the workspaces behind the "+N more" row, as clicking it does. */
-	readonly expandMoreWorkspaces?: boolean;
 }
 
 export async function renderSessionsViewFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState, options: ISessionsViewFixtureOptions = {}): Promise<SessionsView> {
@@ -1361,14 +1359,6 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 	view.layout(height);
 
 	await timeout(SETTLE_DELAY);
-	if (options.expandMoreWorkspaces) {
-		const moreWorkspaces = [...view.element.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => /more workspaces/i.test(row.getAttribute('aria-label') ?? ''));
-		if (!moreWorkspaces) {
-			throw new Error('The scoped list shows no "+N more" row.');
-		}
-		moreWorkspaces.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-		await timeout(SETTLE_DELAY);
-	}
 	return view;
 }
 
