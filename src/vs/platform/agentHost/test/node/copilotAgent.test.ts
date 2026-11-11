@@ -9,6 +9,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
@@ -328,6 +329,9 @@ function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknow
 	const chatSession = stub as CopilotAgentSession;
 	chatSession.refreshModelConfiguration ??= () => { };
 	chatSession.clientToolsRequireRestart ??= () => false;
+	chatSession.topLevelMcpCustomizations ??= () => [];
+	chatSession.mcpServerOwners ??= () => undefined;
+	chatSession.listInstalledPlugins ??= async () => [];
 	chatEntriesBySdkId(agent).set(sdkSessionId, {
 		chatSession,
 		dispose: () => (stub as { dispose?: () => void }).dispose?.(),
@@ -3021,12 +3025,372 @@ suite('CopilotAgent', () => {
 		];
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		afterTest(() => disposeAgent(agent));
-		assert.deepStrictEqual(await agent.listPluginInstallations(), [
-			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
-			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
-			{ name: 'live', marketplace: 'local', directSourceId: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
+		assert.deepStrictEqual((await agent.listPluginInstallations()).map(({ contentRevision, ...plugin }) => plugin), [
+			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, enabled: false, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
+			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
+			{ name: 'live', marketplace: 'local', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
 		]);
 	});
+
+	test('plugin inventory separates global state from the exact chat and refuses ambiguous direct identities', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ id: 'stable', name: 'spark', marketplace: 'marketplace', enabled: false, rootPath: '/plugins/spark' },
+			{ name: 'direct', marketplace: '', enabled: true, directSourceId: 'first' },
+			{ name: 'direct', marketplace: '', enabled: false, directSourceId: 'second' },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'inventory-context');
+		setDefaultSessionStub(agent, 'inventory-context', {
+			listInstalledPlugins: async () => [{ id: 'stable', name: 'spark', marketplace: 'marketplace', enabled: false }],
+		});
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		setPeerChatStub(agent, chat, {
+			listInstalledPlugins: async () => [
+				{ id: 'stable', name: 'spark', marketplace: 'marketplace', enabled: true },
+				{ name: 'direct', marketplace: '', enabled: true },
+			],
+		}, 'sdk-inventory-peer');
+		const global = await agent.listPluginInstallations();
+		const peer = await agent.listPluginInstallations(session, chat);
+		assert.deepStrictEqual({
+			global: global.map(plugin => [plugin.enabled, plugin.effectiveEnabled]),
+			peer: peer.map(plugin => [plugin.enabled, plugin.effectiveEnabled]),
+			root: peer[0].resource,
+		}, {
+			global: [[false, undefined], [true, undefined], [false, undefined]],
+			peer: [[false, true], [true, undefined], [false, undefined]],
+			root: URI.file('/plugins/spark'),
+		});
+	});
+
+	test('plugin inventory becomes available when the chat starts even when the SDK omits inactive plugins', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ id: 'direct:disabled', name: 'disabled', marketplace: '', enabled: false, directSourceId: 'disabled' },
+			{ id: 'workspace-disabled', name: 'workspace-disabled', marketplace: 'marketplace', enabled: true },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'inventory-readiness');
+		let ready = false;
+		setDefaultSessionStub(agent, 'inventory-readiness', {
+			listInstalledPlugins: async () => ready ? [] : undefined,
+		});
+		const pending = await agent.listPluginInstallations(session);
+		ready = true;
+		const initialized = await agent.listPluginInstallations(session);
+		assert.deepStrictEqual({
+			pending: pending.map(plugin => [plugin.enabled, plugin.effectiveEnabled]),
+			initialized: initialized.map(plugin => [plugin.enabled, plugin.effectiveEnabled]),
+		}, {
+			pending: [[false, undefined], [true, undefined]],
+			initialized: [[false, false], [true, false]],
+		});
+	});
+
+	test('publishes disabled and contentless runtime plugins without forwarding or manufacturing MCP intent', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const workspace = URI.file('/workspace');
+		const native = URI.file('/sdk-installed/native');
+		const empty = URI.file('/sdk-installed/empty');
+		await fileService.writeFile(URI.joinPath(native, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+		await fileService.writeFile(URI.joinPath(native, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+		await fileService.writeFile(URI.joinPath(empty, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"empty"}'));
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ name: 'native', marketplace: 'marketplace', enabled: false, rootPath: native.fsPath },
+			{ name: 'empty', marketplace: 'marketplace', enabled: false, rootPath: empty.fsPath },
+		];
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+			fileService, copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		afterTest(() => disposeAgent(agent));
+		const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+		await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+		stateManager.createSession({
+			resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
+		});
+		const pending = await getDefaultChatCustomizations(agent, sessionUri);
+		agent['_hostCustomizations'].set(sessionUri, pending);
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...pending] });
+		const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+		disposables.add(session);
+		const preInitializationInventory = await session.listInstalledPlugins();
+		const initialIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+		const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+		const snapshot = await activeClient.snapshot(defaultChatUri(sessionUri).toString());
+		const clientCustomization: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'remote-client-copy', uri: native.toString(),
+			name: 'remote-client-copy', clientId: 'remote-client',
+		};
+		const runtimeResolvedPlugin = (pluginDir?: URI) => activeClient.pluginController['_runtimeResolvedPlugin']({
+			customization: clientCustomization, pluginDir,
+		});
+		const clientIdentities = [
+			runtimeResolvedPlugin()?.uri,
+			runtimeResolvedPlugin(URI.file('/materialized/remote-client-copy'))?.uri,
+			runtimeResolvedPlugin(native)?.uri,
+		];
+		const publications: (readonly Customization[])[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.resource.toString() === sessionUri.toString()
+				&& signal.action.type === ActionType.SessionCustomizationsChanged) {
+				publications.push(signal.action.customizations);
+			}
+		}));
+		session.initializeSession = async () => { };
+		session.listInstalledPlugins = async () =>
+			client.pluginInstallations.map(plugin => ({ ...plugin, enabled: plugin.name === 'native' }));
+		const registrationRefresh = spy(activeClient.pluginController, 'publishWhenSettled');
+		try {
+			await agent['_initializeAndRegisterSession'](session, () => {
+				agent['_registerLiveChat'](defaultChatUri(sessionUri), session, activeClient);
+			});
+			await Promise.all(registrationRefresh.returnValues);
+		} finally {
+			await Promise.all(registrationRefresh.returnValues);
+			registrationRefresh.restore();
+		}
+		const settled = publications.at(-1);
+		assert.ok(settled, 'readiness must publish without another customization read');
+		const summarize = (customizations: readonly Customization[]) => customizations.flatMap(customization => {
+			const runtime = readRuntimePluginEnablement(customization);
+			return runtime && customization.type === CustomizationType.Plugin
+				? [{ name: customization.name, global: runtime.globalEnabled, effective: runtime.effectiveEnabled, children: customization.children?.map(child => child.type) }] : [];
+		});
+		assert.deepStrictEqual({
+			pending: summarize(pending), settled: summarize(settled), preInitializationInventory, initialIntent, clientIdentities,
+			forwarded: { plugins: snapshot.plugins, mcpServers: snapshot.mcpServers },
+		}, {
+			pending: [
+				{ name: 'native', global: false, effective: undefined, children: [CustomizationType.McpServer] },
+				{ name: 'empty', global: false, effective: undefined, children: [] },
+			],
+			settled: [
+				{ name: 'native', global: false, effective: true, children: [CustomizationType.McpServer] },
+				{ name: 'empty', global: false, effective: false, children: [] },
+			],
+			preInitializationInventory: undefined, initialIntent: [],
+			clientIdentities: [undefined, undefined, native.toString()],
+			forwarded: { plugins: [], mcpServers: {} },
+		});
+	});
+
+	test('runtime plugin inventory failures preserve unrelated snapshots and invalidate retained activation', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const workspace = URI.file('/workspace');
+		const native = URI.file('/sdk-installed/native');
+		const forwarded = URI.file('/client/forwarded');
+		for (const root of [native, forwarded]) {
+			await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"plugin"}'));
+		}
+		await fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"workspace":{"command":"workspace-server"}}}'));
+		class PluginManager extends TestAgentPluginManager {
+			override async syncCustomizations(_clientId: string, inputs: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+				return inputs.map(customization => ({ customization, pluginDir: URI.parse(customization.uri) }));
+			}
+		}
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'native', marketplace: 'test', enabled: true, rootPath: native.fsPath }];
+		const logService = new NullLogService();
+		const warnings = spy(logService, 'warn');
+		const { agent } = createTestAgentContext(disposables, {
+			fileService, copilotClient: client, pluginManager: new PluginManager(), logService,
+			rootConfig: {
+				[AgentHostConfigKey.Customizations]: [{ uri: native.toString(), displayName: 'Native' }],
+				[AgentHostGitHubMcpServerEnabledConfigKey]: false,
+			},
+		});
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'inventory-failure');
+		setDefaultSessionStub(agent, 'inventory-failure', { listInstalledPlugins: async () => client.pluginInstallations });
+		const active = agent['_getOrCreateActiveClient'](session, workspace);
+		await active.pluginController.sync('client', [{
+			type: CustomizationType.Plugin, id: 'forwarded', name: 'Forwarded', uri: forwarded.toString(),
+		}]);
+		await active.snapshot(defaultChatUri(session).toString());
+		const listing = stub(client.rpc.plugins, 'list').rejects(new Error('inventory unavailable'));
+		try {
+			const failed = await active.snapshot(defaultChatUri(session).toString());
+			const retained = active.pluginController.getCustomizations().find((item): item is PluginCustomization => item.type === CustomizationType.Plugin && item.uri === native.toString())!;
+			listing.restore();
+			const recovered = await active.snapshot(defaultChatUri(session).toString());
+			const restored = active.pluginController.getCustomizations().find(item => item.uri === native.toString())!;
+			assert.deepStrictEqual({
+				forwarded: failed.plugins.map(plugin => plugin.pluginDir?.toString()),
+				workspace: failed.plugins[0].mcpServers.map(server => server.name),
+				retained: [retained.load?.kind, readRuntimePluginEnablement(retained)?.effectiveEnabled, isCustomizationEnabled(retained)],
+				recovered: [recovered.plugins.map(plugin => plugin.pluginDir?.toString()), readRuntimePluginEnablement(restored)?.effectiveEnabled],
+				logged: warnings.args.some(args => args[0] === '[Copilot:SessionPluginController] Failed to read runtime plugin inventory'),
+			}, {
+				forwarded: [undefined, forwarded.toString()], workspace: ['workspace'],
+				retained: [CustomizationLoadStatus.Error, undefined, false],
+				recovered: [[undefined, forwarded.toString()], true], logged: true,
+			});
+		} finally {
+			listing.restore();
+			warnings.restore();
+		}
+	});
+
+	test('caches runtime plugin contents independently of activation and invalidates changes and reinstallations', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const root = URI.file('/sdk-installed/cached');
+		const manifest = URI.joinPath(root, '.plugin', 'plugin.json');
+		await fileService.writeFile(manifest, VSBuffer.fromString('{"name":"cached"}'));
+		const changes = disposables.add(new Emitter<FileChangesEvent>());
+		const watching = stub(fileService, 'onDidFilesChange').value(changes.event);
+		const client = new TestCopilotClient([]);
+		const installation = { name: 'cached', marketplace: 'test', enabled: false, version: '1', rootPath: root.fsPath };
+		client.pluginInstallations = [installation];
+		const agent = createTestAgent(disposables, { fileService, copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'inventory-cache');
+		setDefaultSessionStub(agent, 'inventory-cache', { listInstalledPlugins: async () => client.pluginInstallations });
+		const active = agent['_getOrCreateActiveClient'](session, URI.file('/workspace'));
+		const parsing = spy(agent['_plugins'], 'tryParsePlugin');
+		const publishing = spy(active.pluginController, 'publishWhenSettled');
+		const counts: number[] = [];
+		const read = async () => {
+			await active.snapshot(defaultChatUri(session).toString());
+			counts.push(parsing.args.filter(args => isEqual(args[0], root)).length);
+		};
+		try {
+			await read();
+			await read();
+			installation.enabled = true;
+			await read();
+			const effective = readRuntimePluginEnablement(active.pluginController.getCustomizations().find(item => item.uri === root.toString())!)?.effectiveEnabled;
+			installation.version = '2';
+			await read();
+			await fileService.writeFile(manifest, VSBuffer.fromString('{"name":"changed"}'));
+			changes.fire(new FileChangesEvent([{ resource: manifest, type: FileChangeType.UPDATED }], false));
+			await Promise.all(publishing.returnValues);
+			await read();
+			await active.pluginController.refreshDiscovery();
+			await read();
+			client.pluginInstallations = [];
+			await read();
+			client.pluginInstallations = [installation];
+			await read();
+			assert.deepStrictEqual({ counts, effective }, { counts: [1, 1, 1, 2, 3, 4, 4, 5], effective: true });
+		} finally {
+			await Promise.all(publishing.returnValues);
+			publishing.restore();
+			parsing.restore();
+			watching.restore();
+		}
+	});
+
+	test('publishes shared content revisions through customizations and preserves them across enablement', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const root = URI.file('/sdk-installed/native');
+		await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'native', marketplace: 'test', enabled: true, rootPath: root.fsPath }];
+		const agent = createTestAgent(disposables, { fileService, copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const controllers = ['first', 'second'].map(id =>
+			agent['_getOrCreateActiveClient'](AgentSession.uri('copilotcli', `content-revision-${id}`), URI.file('/workspace')).pluginController);
+		await Promise.all(controllers.map(controller => controller.getCustomizationsSettled()));
+		const revision = (await agent.listPluginInstallations())[0].contentRevision;
+		const published: Array<{ enabled: boolean | undefined; revision: string | undefined }> = [];
+		for (const controller of controllers) {
+			disposables.add(controller.onDidPublish(action => {
+				if (action.type === ActionType.SessionCustomizationsChanged) {
+					const plugin = action.customizations.find(plugin => plugin.uri === root.toString())!;
+					const runtime = readRuntimePluginEnablement(plugin);
+					published.push({ enabled: runtime?.globalEnabled, revision: runtime?.contentRevision });
+				}
+			}));
+		}
+		await agent.setPluginEnabled('native@test', false, 'global');
+		const afterEnablement = (await agent.listPluginInstallations())[0].contentRevision;
+		await agent.installPlugin({ source: 'other@test' });
+		const afterInstall = (await agent.listPluginInstallations())[0].contentRevision;
+		assert.deepStrictEqual({
+			revisionPresent: typeof revision === 'string',
+			activationPreserved: afterEnablement === revision,
+			installInvalidated: afterInstall !== revision,
+			published,
+		}, {
+			revisionPresent: true, activationPreserved: true, installInvalidated: true,
+			published: [
+				{ enabled: false, revision }, { enabled: false, revision },
+				{ enabled: false, revision: afterInstall }, { enabled: false, revision: afterInstall },
+			],
+		});
+	});
+
+	test('readiness refresh does not publish an unchanged empty runtime plugin inventory', async () => {
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		afterTest(() => disposeAgent(agent));
+		const controller = agent['_getOrCreateActiveClient'](AgentSession.uri('copilotcli', 'empty-inventory'), URI.file('/workspace')).pluginController;
+		const published: SessionAction[] = [];
+		disposables.add(controller.onDidPublish(action => published.push(action)));
+		await controller.publishWhenSettled(true);
+		await controller.publishWhenSettled(true);
+		assert.deepStrictEqual(published, []);
+	});
+
+	for (const liveSource of [false, true]) {
+		test(`duplicate runtime MCP declarations prefer the SDK-effective plugin (${liveSource ? 'live source' : 'activation'})`, async () => {
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const roots = [URI.file('/sdk-installed/first'), URI.file('/sdk-installed/second')];
+			for (const root of roots) {
+				await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"plugin"}'));
+				await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"shared":{"command":"server"}}}'));
+			}
+			const client = new TestCopilotClient([]);
+			client.pluginInstallations = roots.map((root, index) => ({ name: index ? 'second' : 'first', marketplace: 'test', rootPath: root.fsPath, enabled: index > 0 || liveSource }));
+			const workspace = URI.file('/workspace');
+			const agent = createTestAgent(disposables, {
+				fileService, copilotClient: client,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				customizationEnablementService: {
+					...createNoopCustomizationEnablementService(),
+					resolve: (_session, target) => ({
+						kind: 'resolved', workingDirectory: { kind: 'directory', uri: workspace },
+						enabled: target.name !== 'shared',
+						enablement: target.name === 'shared' ? [{ kind: CustomizationEnablementKind.Session, enabled: false }] : [],
+					}),
+				},
+			});
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', `duplicate-inventory-${liveSource}`);
+			let live: Customization[] = [];
+			setDefaultSessionStub(agent, AgentSession.id(session), {
+				listInstalledPlugins: async () => client.pluginInstallations,
+				topLevelMcpCustomizations: () => live,
+				mcpServerOwners: () => new Map([['shared', roots[liveSource ? 1 : 0].toString()]]),
+			});
+			const active = agent['_getOrCreateActiveClient'](session, workspace);
+			await active.pluginController.getCustomizationsSettled();
+			if (liveSource) {
+				const child = active.pluginController.getCustomizations().flatMap(plugin => plugin.type === CustomizationType.Plugin ? plugin.children ?? [] : [])
+					.find(child => child.type === CustomizationType.McpServer && child.name === 'shared')!;
+				assert.ok(child.type === CustomizationType.McpServer);
+				live = [{ ...child, id: 'live-shared', state: { kind: McpServerStatus.Ready } }];
+			}
+			const snapshot = await active.snapshot(defaultChatUri(session).toString());
+			const customizations = active.pluginController.getCustomizations();
+			const plugins = customizations.filter(item => item.type === CustomizationType.Plugin);
+			assert.deepStrictEqual({
+				children: plugins.map(plugin => plugin.children?.filter(child => child.type === CustomizationType.McpServer).map(child => [child.name, isCustomizationEnabled(child)])),
+				live: customizations.filter(item => item.type === CustomizationType.McpServer).map(server => [server.id, server.uri, server.state.kind, isCustomizationEnabled(server)]),
+				forwarded: [snapshot.plugins, snapshot.mcpServers],
+			}, {
+				children: [[], [['shared', false]]],
+				live: liveSource ? [['live-shared', URI.joinPath(roots[1], '.mcp.json').toString(), McpServerStatus.Ready, false]] : [],
+				forwarded: [[], {}],
+			});
+		});
+	}
 
 	test('prefers a live session and preserves marketplace revisions', async () => {
 		const client = new TestCopilotClient([]);
@@ -3816,7 +4180,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					servers: customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item.uri] : item.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.uri) ?? []),
 					plugins: customizations.filter(item => item.type === CustomizationType.Plugin).map(item => item.children?.map(child => child.type)),
-				}, { servers: [URI.joinPath(workspace, '.mcp.json').toString()], plugins: hasSkill ? [[CustomizationType.Skill]] : [] });
+				}, { servers: [URI.joinPath(workspace, '.mcp.json').toString()], plugins: hasSkill ? [[CustomizationType.Skill]] : [[]] });
 			});
 		}
 
@@ -3934,7 +4298,7 @@ suite('CopilotAgent', () => {
 					installed = false;
 				});
 				const list = stub(client.rpc.plugins, 'list').callsFake(async () => ({
-					plugins: [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
+					plugins: installed || operation === 'enablement' ? [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }] : [],
 				}));
 				const enable = stub(client.rpc.plugins, 'enable').callsFake(async () => { installed = true; });
 				const disable = stub(client.rpc.plugins, 'disable').callsFake(async () => { installed = false; });
@@ -3969,7 +4333,7 @@ suite('CopilotAgent', () => {
 						results.push({ published: sessions.map(session => published.get(session.toString())), peer: peerNames() });
 					}
 					assert.deepStrictEqual(results, [
-						{ published: [[], []], peer: [] },
+						{ published: operation === 'enablement' ? [['session-timeline'], ['session-timeline']] : [[], []], peer: [] },
 						{ published: [['session-timeline'], ['session-timeline']], peer: ['session-timeline'] },
 					]);
 				} finally {
@@ -4010,6 +4374,7 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client, fileService });
 			const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async () => {
 				installed = false;
+				client.pluginInstallations = [];
 				return undefined;
 			});
 			const published: string[][] = [];
@@ -19444,6 +19809,11 @@ suite('CopilotAgent', () => {
 					resource: identity?.resource?.toString(),
 				});
 				const built = makeForkFake(launchPlan, identity?.chatChannelUri, remaps, revalidateTelemetryBeforeRegistration);
+				Object.assign(built, {
+					ownerRef: identity.owner,
+					ownerSessionUri: identity.owner.get(),
+					resourceUri: identity.resource,
+				});
 				return built;
 			};
 			return { forks, launches, remaps };
@@ -19460,6 +19830,9 @@ suite('CopilotAgent', () => {
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
+				topLevelMcpCustomizations: () => [],
+				mcpServerOwners: () => undefined,
+				listInstalledPlugins: async () => [],
 				mcpServerStates: observableValue('test', []),
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { },
@@ -20806,7 +21179,7 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(syncCalls, 1);
 		});
 
-		test('client plugin states shadow matching discovered plugins without hiding different same-named plugins', async () => {
+		test('client plugin states shadow matching runtime-only discovered plugins without hiding different same-named plugins', async () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
@@ -20868,6 +21241,8 @@ suite('CopilotAgent', () => {
 				pluginManager: new PluginManager(),
 				useRealCustomizationEnablementService: true,
 			});
+			const inventory = stub(agent, 'listPluginInstallations').resolves([]);
+			disposables.add(toDisposable(() => inventory.restore()));
 			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidChatProgress(progress => {
 				if (progress.kind === 'action') {
@@ -22113,6 +22488,9 @@ suite('CopilotAgent', () => {
 				const shouldFail = callIndex === failingCallNumber;
 				return {
 					sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
+					ownerRef: identity.owner,
+					ownerSessionUri: identity.owner.get(),
+					resourceUri: identity.resource,
 					chatChannelUri: identity.chatChannelUri,
 					sessionId: launchPlan.sessionId,
 					extensionLaunchDirectories: [],
@@ -22121,6 +22499,9 @@ suite('CopilotAgent', () => {
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
+					topLevelMcpCustomizations: () => [],
+					mcpServerOwners: () => undefined,
+					listInstalledPlugins: async () => [],
 					mcpServerStates: observableValue('test', []),
 					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> {
@@ -27169,7 +27550,7 @@ suite('CopilotAgent', () => {
 
 		type ConvInternals = {
 			_provisionalSessions: Map<string, unknown>;
-			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity: { owner: IAgentChatOwnerRef; chatChannelUri: URI }) => CopilotAgentSession;
+			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity: { owner: IAgentChatOwnerRef; chatChannelUri: URI; resource: URI }) => CopilotAgentSession;
 		};
 
 		interface IFakeConvRecorder {
@@ -27227,6 +27608,9 @@ suite('CopilotAgent', () => {
 				const chatChannelUri = identity?.chatChannelUri ?? defaultChatUri(sessionUri);
 				return {
 					sessionUri,
+					ownerRef: identity?.owner ?? fixedChatOwnerRef(sessionUri),
+					ownerSessionUri: sessionUri,
+					resourceUri: identity?.resource ?? sessionUri,
 					chatChannelUri,
 					sessionId: launchPlan.sessionId,
 					extensionLaunchDirectories: [],

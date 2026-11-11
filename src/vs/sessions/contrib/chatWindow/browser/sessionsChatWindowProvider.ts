@@ -10,7 +10,6 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
-import { DeepPartial } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,9 +17,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
-import { GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
+import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatFolder, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { getChatWindowMainPartOptions, IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatFolder, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -77,15 +76,6 @@ const RESTORE_SESSION_TIMEOUT = 30_000;
 export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize, gap: number = AGENTS_FLOATING_PANEL_GAP, connectedTabs = true): number {
 	const frameInset = connectedTabs ? Math.min(AgentsPartCard.BORDER_WIDTH, Math.floor(gap / 2)) : 0;
 	return (compact ? 0 : Math.max(0, gap - frameInset)) + MenuActivityBar.getWidth(compact, size);
-}
-
-/**
- * The options of the main part of a chat window: its tabs follow `workbench.editor.showTabs`, live, as the main window's
- * editor area does; `none` shows as `single`, so that the part keeps its title with its actions. Double-clicking a tab
- * does not maximize or expand a group: the window arranges its parts.
- */
-export function getChatWindowMainPartOptions(showTabs: string | undefined): DeepPartial<IEditorPartOptions> {
-	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
 }
 
 /** The options of the groups of the main part of a chat window: those of the main window's editor area of the Agents window. */

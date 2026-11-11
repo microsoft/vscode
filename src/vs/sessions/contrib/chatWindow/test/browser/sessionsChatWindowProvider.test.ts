@@ -22,7 +22,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChat, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { getChatWindowMainPartOptions, IChatWindow, IChatWindowChat, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowsRestoration, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowsRestoration.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { ChatWindow, ChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowService.js';
@@ -67,7 +67,7 @@ import { MenuActivityBar, MenuActivityBarSize } from '../../../../../workbench/b
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
-import { AGENTS_CHAT_WINDOW_CLASS, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { AGENTS_CHAT_WINDOW_CLASS, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { EditorInputCapabilities, GroupIdentifier, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';

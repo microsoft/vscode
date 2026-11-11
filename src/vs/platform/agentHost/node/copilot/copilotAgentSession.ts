@@ -150,6 +150,7 @@ import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/pr
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
 import { readMcpRoutingServers, readMcpServerSource, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
+import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace } from './copilotCustomizationCommandDisplay.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
@@ -1251,7 +1252,11 @@ export class CopilotAgentSession extends Disposable {
 		return (await this._wrapper.session.rpc.plugins.marketplaces.refresh(name ? { name } : {})).results;
 	}
 
-	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins']> {
+	/** Session-effective inventory is unavailable until the SDK backing is active. */
+	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins'] | undefined> {
+		if (!this._wrapper || this._wrapper.lifecycleState !== 'active') {
+			return undefined;
+		}
 		return (await this._wrapper.session.rpc.plugins.list()).plugins;
 	}
 
@@ -7888,7 +7893,7 @@ export class CopilotAgentSession extends Disposable {
 			undefined,
 			this._mcpCustomizations.pluginMcpServerSources,
 		);
-		const enabledById = getSdkMcpServerEnablement(resolved);
+		const enabledById = getSdkMcpServerEnablement(resolved, { ignoreRuntimeOwnedParents: true });
 		const candidates = new Map<string, Array<{ readonly server: McpServerCustomization; readonly applied: boolean; readonly explicit: boolean }>>();
 		const result = new Map<string, boolean>();
 		for (const customization of resolved.customizations) {
@@ -7900,18 +7905,22 @@ export class CopilotAgentSession extends Disposable {
 				const source = customization.type === CustomizationType.Plugin ? customization.uri : owningPluginSource;
 				const applied = source === undefined || this._appliedPluginSources.has(URI.parse(source).toString());
 				const defaultEnabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
-				const sdkDiscovered = defaultEnabled !== undefined;
+				const runtimeOwned = readRuntimePluginEnablement(customization) !== undefined;
+				const sdkDiscovered = defaultEnabled !== undefined || runtimeOwned;
 				// Observing SDK enablement is not a host request to change the runtime.
 				const hostDecision = sdkDiscovered ? this._customizationEnablementService.resolve(this.launchOwner.toString(), {
 					...targetForMcpServer(server, source, false), defaultEnabled: undefined,
 				}) : undefined;
+				if (runtimeOwned && hostDecision?.kind !== 'resolved') {
+					continue;
+				}
 				const hasDecision = hostDecision?.kind === 'resolved' ? hostDecision.enablement.length > 0 : (server.enablement?.length ?? 0) > 0;
 				const hostApplied = this._hostMcpServerEnablement.get(server.name);
-				const needsRestore = sdkDiscovered ? hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
+				const needsRestore = sdkDiscovered ? defaultEnabled !== undefined && hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
 				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
 					|| needsRestore || hasDecision
-					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
-				if (sdkDiscovered && !explicit && hostDecision?.kind === 'resolved') {
+					|| (customization.type === CustomizationType.Plugin && !runtimeOwned && (customization.enablement?.length ?? 0) > 0);
+				if (sdkDiscovered && !explicit && (runtimeOwned || hostDecision?.kind === 'resolved')) {
 					continue;
 				}
 				let namedCandidates = candidates.get(server.name);
