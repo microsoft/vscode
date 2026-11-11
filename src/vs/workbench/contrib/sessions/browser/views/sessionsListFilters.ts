@@ -11,7 +11,6 @@ import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 
@@ -165,7 +164,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	private readonly changeSignal = observableSignalFromEvent(this, this.onDidChange);
 
 	constructor(
-		@ISessionsStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILogService logService: ILogService,
 	) {
 		super();

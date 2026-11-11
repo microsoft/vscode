@@ -45,7 +45,6 @@ import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/action
 import { IAction } from '../../../../../base/common/actions.js';
 import { agentsBackground } from '../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../common/theme.js';
@@ -248,7 +247,7 @@ export class SessionsView extends ViewPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsHostLayoutService private readonly hostLayoutService: ISessionsHostLayoutService,
-		@ISessionsStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,

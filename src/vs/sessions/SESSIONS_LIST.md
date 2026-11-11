@@ -84,7 +84,7 @@ Environment grouping uses the provider-neutral environment identity, combining s
 
 ### Worktree grouping
 
-Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, which shares the stored choice, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
+Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
 
 ### Inbox grouping
 
@@ -180,7 +180,7 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state, kept in the storage of the window's own profile: the editor window's Sessions view does not share it with the Agents window. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree. They are absent while there are no pins.
 

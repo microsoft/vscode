@@ -12,7 +12,6 @@ import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../servi
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IAutomationService } from '../../../chat/common/automations/automationService.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -43,7 +42,6 @@ import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { AgentsProfileSessionsStorageService } from './agentsProfileSessionsStorageService.js';
 import { AgentsViewAgentFeedbackService, AgentsViewAquariumService, AgentsViewAutomationService, AgentsViewCodeReviewService, AgentsViewCustomViewService, AgentsViewPinnedCanvasService } from './agentsViewNullServices.js';
 import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
@@ -87,7 +85,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 // The services of the Sessions view. They are only created once the view shows, which it only does while the setting is on.
-registerSingleton(ISessionsStorageService, AgentsProfileSessionsStorageService, InstantiationType.Delayed);
 registerSingleton(ISessionsNavigationHost, EditorWindowSessionsNavigationHost, InstantiationType.Delayed);
 registerSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);

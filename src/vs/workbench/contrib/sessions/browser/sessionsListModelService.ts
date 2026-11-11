@@ -16,7 +16,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../services/sessions/browser/sessionsStorageService.js';
 import { agentSessionNeedsInputForeground } from '../../../common/agentsColors.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../common/sessionConfig.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -186,7 +185,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private readonly _migratedReadSessionIds: Set<string>;
 
 	constructor(
-		@ISessionsStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ISessionAttentionService private readonly sessionAttentionService: ISessionAttentionService,

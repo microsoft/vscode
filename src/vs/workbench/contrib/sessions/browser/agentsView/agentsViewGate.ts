@@ -32,10 +32,9 @@ import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
-import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from './agentsView.js';
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
-import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
@@ -82,8 +81,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration(sessionsListConfiguration);
 		this._register(toDisposable(() => configurationRegistry.deregisterConfigurations([sessionsListConfiguration])));
-		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows. The state
-		// the list shares with the Agents window loads as the first of them needs it.
+		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows
 		this.registerOnFirstShown(instantiationService, () => {
 			this._register(registerSessionsListActions());
 			this._register(registerAgentsViewNewSessionActions());
@@ -200,18 +198,6 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			when: AgentsViewWhen,
 			windowEnablement: WindowEnablement.Editor,
 		};
-		const loadingView: IViewDescriptor = {
-			id: AGENTS_VIEW_LOADING_VIEW_ID,
-			name: AGENTS_VIEW_TITLE,
-			containerIcon: Codicon.agent,
-			containerTitle: AGENTS_VIEW_TITLE.value,
-			singleViewPaneContainerTitle: AGENTS_VIEW_TITLE.value,
-			ctorDescriptor: new SyncDescriptor(AgentsViewLoadingPane),
-			canToggleVisibility: false,
-			canMoveView: false,
-			when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewStateReadyContext.negate(), AgentsViewNeedsSetup.negate()),
-			windowEnablement: WindowEnablement.Editor,
-		};
 		// Signing in, which the Chat view offered before the chat part replaced it
 		const setupView: IViewDescriptor = {
 			id: AGENTS_VIEW_SETUP_VIEW_ID,
@@ -225,8 +211,8 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup),
 			windowEnablement: WindowEnablement.Editor,
 		};
-		viewsRegistry.registerViews([view, loadingView, setupView], container);
-		this._register(toDisposable(() => viewsRegistry.deregisterViews([view, loadingView, setupView], container)));
+		viewsRegistry.registerViews([view, setupView], container);
+		this._register(toDisposable(() => viewsRegistry.deregisterViews([view, setupView], container)));
 		this._register(viewsRegistry.registerViewWelcomeContent(AGENTS_VIEW_SETUP_VIEW_ID, {
 			content: localize('agentsView.setup', "Sign in to see your agent sessions and start new ones.\n[Sign In](command:workbench.action.chat.triggerSetup)"),
 		}));

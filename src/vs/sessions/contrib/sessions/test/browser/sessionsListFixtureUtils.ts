@@ -52,7 +52,6 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../../../workbench/services/sessions/browser/sessionsStorageService.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -737,9 +736,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IQuickInputService, new TestQuickInputService());
-			const storageService = disposableStore.add(new InMemoryStorageService());
-			reg.defineInstance(IStorageService, storageService);
-			reg.defineInstance(ISessionsStorageService, storageService);
+			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
 				override createPullRequestModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(prModels.get(number)!); }
 				override createPullRequestCIModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(ciModels.get(number)!); }

@@ -14,7 +14,6 @@ import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCopilotReviewAuthor } from '../../../../platform/github/common/pullRequestFeedback.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionsStorageService } from '../../../services/sessions/browser/sessionsStorageService.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
@@ -72,7 +71,7 @@ export class SessionAttentionService extends Disposable implements ISessionAtten
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
-		@ISessionsStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
