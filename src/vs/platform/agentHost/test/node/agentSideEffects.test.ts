@@ -3960,7 +3960,7 @@ suite('AgentSideEffects', () => {
 			}
 
 			test('tells the agent what is attached, the mode and where the work happens, and none of the content', async () => {
-				setupSession(URI.file('/work/shop-checkout').toString(), withSessionGitState(undefined, { uncommittedChanges: 2 }));
+				setupSession(URI.file('/work/shop-checkout').toString(), withSessionGitState(undefined, { uncommittedChanges: 12 }));
 				stateManager.setSessionConfig(sessionUri.toString(), {
 					schema: { type: 'object', properties: { mode: { type: 'string', title: 'Agent Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive', sessionMutable: true } } },
 					values: { mode: 'plan' },
@@ -3980,7 +3980,7 @@ suite('AgentSideEffects', () => {
 
 				assert.deepStrictEqual(situations, [{
 					workspace: 'shop-checkout',
-					uncommittedFiles: 2,
+					uncommittedFiles: 12,
 					attachments: [{ kind: 'document', count: 1 }, { kind: 'image', count: 1 }],
 					mode: 'plan',
 				}]);

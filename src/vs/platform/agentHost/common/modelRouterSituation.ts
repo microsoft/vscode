@@ -28,8 +28,10 @@ export interface IModelRouterSituation {
 	readonly workspace?: string;
 	/** As `owner/repo`. */
 	readonly repository?: string;
+	/** Only when there are enough to say something about the request. */
 	readonly uncommittedFiles?: number;
-	readonly pullRequest?: 'open' | 'closed' | 'merged';
+	/** Only an open one is told. */
+	readonly pullRequest?: 'open';
 }
 
 function attachmentKind(attachment: MessageAttachment): string {
@@ -39,7 +41,7 @@ function attachmentKind(attachment: MessageAttachment): string {
 	switch (attachment.type) {
 		case MessageAttachmentKind.EmbeddedResource: return attachment.contentType.startsWith('image/') ? 'image' : attachment.selection ? 'selection' : 'document';
 		case MessageAttachmentKind.Resource: return attachment.contentType?.startsWith('image/') ? 'image' : attachment.selection ? 'selection' : 'document';
-		case MessageAttachmentKind.Annotations: return 'review comments';
+		case MessageAttachmentKind.Annotations: return 'set of review comments';
 		case MessageAttachmentKind.Chat: return 'chat transcript';
 		default: return 'attachment';
 	}
@@ -59,7 +61,8 @@ export function summarizeModelRouterAttachments(attachments: readonly MessageAtt
 		}
 		byKind.set(kind, entry);
 	}
-	return [...byKind].map(([kind, { count, lines }]) => ({ kind, count, ...(lines ? { lines } : {}) }));
+	// Sorted, so the same attachments read the same in whatever order a client sends them.
+	return [...byKind].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([kind, { count, lines }]) => ({ kind, count, ...(lines ? { lines } : {}) }));
 }
 
 /**
@@ -81,14 +84,17 @@ export function modelRouterWorkspaceSituation(session: Pick<SessionState, '_meta
 	const gitHub = readSessionGitHubState(session._meta, folder);
 	// A stored pull request can be one of a branch the checkout has since left, and the stored state is one pull request's.
 	const branchPullRequest = git?.branchName && gitHub?.pullRequestBranchName === git.branchName ? gitHub.pullRequestUrls?.[0] : undefined;
-	const pullRequest = branchPullRequest && gitHub?.pullRequestStateUrl && getPullRequestUrlKey(gitHub.pullRequestStateUrl) === getPullRequestUrlKey(branchPullRequest) ? gitHub.pullRequestState : undefined;
+	const pullRequestState = branchPullRequest && gitHub?.pullRequestStateUrl && getPullRequestUrlKey(gitHub.pullRequestStateUrl) === getPullRequestUrlKey(branchPullRequest) ? gitHub.pullRequestState : undefined;
 	return {
 		...(workspace ? { workspace } : {}),
 		...(gitHub?.owner && gitHub.repo ? { repository: `${gitHub.owner}/${gitHub.repo}` } : {}),
-		...(git?.uncommittedChanges ? { uncommittedFiles: git.uncommittedChanges } : {}),
-		...(pullRequest ? { pullRequest } : {}),
+		...(git?.uncommittedChanges && git.uncommittedChanges >= MIN_UNCOMMITTED_FILES_TOLD ? { uncommittedFiles: git.uncommittedChanges } : {}),
+		...(pullRequestState === 'open' ? { pullRequest: pullRequestState } : {}),
 	};
 }
+
+/** A smaller count made the decision read a quick question as larger work. */
+const MIN_UNCOMMITTED_FILES_TOLD = 10;
 
 const modeDescriptions: Record<NonNullable<IModelRouterSituation['mode']>, string> = {
 	plan: 'Plan mode: the agent plans first and carries the plan out when the user is ready',
@@ -97,8 +103,21 @@ const modeDescriptions: Record<NonNullable<IModelRouterSituation['mode']>, strin
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
-/** A smaller count made the decision read a quick question as larger work. */
-const MIN_UNCOMMITTED_FILES_TOLD = 10;
+const attachmentKindPlurals: Record<string, string> = {
+	'attachment': 'attachments',
+	'chat transcript': 'chat transcripts',
+	'directory': 'directories',
+	'document': 'documents',
+	'image': 'images',
+	'selection': 'selections',
+	'set of review comments': 'sets of review comments',
+	'symbol': 'symbols',
+};
+
+/** A kind a client names itself has no known plural, so it is left as it is. */
+function countOfKind(count: number, kind: string): string {
+	return `${count} ${count === 1 ? kind : attachmentKindPlurals[kind] ?? kind}`;
+}
 
 const MAX_NAME_LENGTH = 80;
 
@@ -114,7 +133,7 @@ export function describeModelRouterSituation(situation: IModelRouterSituation | 
 	}
 	const lines: string[] = [];
 	if (situation.attachments?.length) {
-		lines.push(`Attached: ${situation.attachments.map(({ kind, count, lines }) => `${plural(count, oneLine(kind) ?? 'attachment')}${lines ? ` (${plural(lines, 'line')})` : ''}`).join(', ')}`);
+		lines.push(`Attached: ${situation.attachments.map(({ kind, count, lines }) => `${countOfKind(count, oneLine(kind) ?? 'attachment')}${lines ? ` (${plural(lines, 'line')})` : ''}`).join(', ')}`);
 	}
 	if (situation.mode) {
 		lines.push(modeDescriptions[situation.mode]);
@@ -127,8 +146,8 @@ export function describeModelRouterSituation(situation: IModelRouterSituation | 
 	const repository = oneLine(situation.repository);
 	const workspace = folder && repository ? `${folder} (${repository})` : folder ?? repository;
 	const workingTree = [
-		...(situation.uncommittedFiles && situation.uncommittedFiles >= MIN_UNCOMMITTED_FILES_TOLD ? [`${plural(situation.uncommittedFiles, 'file')} with uncommitted changes`] : []),
-		...(situation.pullRequest === 'open' ? ['the branch has an open pull request'] : []),
+		...(situation.uncommittedFiles ? [`${plural(situation.uncommittedFiles, 'file')} with uncommitted changes`] : []),
+		...(situation.pullRequest ? ['the branch has an open pull request'] : []),
 	];
 	if (workspace || workingTree.length) {
 		lines.push(`Workspace: ${[...(workspace ? [workspace] : []), ...workingTree].join('; ')}`);

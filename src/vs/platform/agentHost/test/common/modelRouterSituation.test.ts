@@ -32,12 +32,12 @@ suite('modelRouterSituation', () => {
 		];
 		assert.deepStrictEqual({ summary: summarizeModelRouterAttachments(attachments), none: summarizeModelRouterAttachments(undefined) }, {
 			summary: [
-				{ kind: 'document', count: 2 },
-				{ kind: 'selection', count: 5, lines: 48 },
-				{ kind: 'image', count: 1 },
-				{ kind: 'directory', count: 1 },
-				{ kind: 'review comments', count: 1 },
 				{ kind: 'attachment', count: 1 },
+				{ kind: 'directory', count: 1 },
+				{ kind: 'document', count: 2 },
+				{ kind: 'image', count: 1 },
+				{ kind: 'selection', count: 5, lines: 48 },
+				{ kind: 'set of review comments', count: 1 },
 			],
 			none: [],
 		});
@@ -47,15 +47,16 @@ suite('modelRouterSituation', () => {
 		const folder = 'file:///Users/dev/shop-checkout';
 		const other = 'file:///Users/dev/shop-docs';
 		const pullRequestUrl = 'https://github.com/contoso/shop/pull/7';
-		const session = (pullRequestBranchName: string | undefined, pullRequestStateUrl = pullRequestUrl) => ({
-			_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges: 3 }), folder, { owner: 'contoso', repo: 'shop', pullRequestUrls: [pullRequestUrl], pullRequestBranchName, pullRequestState: 'open', pullRequestStateUrl }),
+		const session = (pullRequestBranchName: string | undefined, pullRequestStateUrl = pullRequestUrl, uncommittedChanges = 12, pullRequestState: 'open' | 'merged' = 'open') => ({
+			_meta: withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', uncommittedChanges }), folder, { owner: 'contoso', repo: 'shop', pullRequestUrls: [pullRequestUrl], pullRequestBranchName, pullRequestState, pullRequestStateUrl }),
 			workingDirectories: [folder],
 		});
-		const withPeerFolder = withFolderScopeGitState(withFolderGitHubState(session('feature')._meta, getWorkingDirectoryKey(other), { owner: 'contoso', repo: 'docs' }, other), getWorkingDirectoryScopeId([other]), { branchName: 'main', uncommittedChanges: 12 }, [other]);
+		const withPeerFolder = withFolderScopeGitState(withFolderGitHubState(session('feature')._meta, getWorkingDirectoryKey(other), { owner: 'contoso', repo: 'docs' }, other), getWorkingDirectoryScopeId([other]), { branchName: 'main', uncommittedChanges: 25 }, [other]);
 		// A snapshot stored for the session's folder by a peer, which is not the session's current state.
 		const withPeerSnapshot = { ...session('feature'), _meta: withFolderScopeGitState(session('feature')._meta, getWorkingDirectoryScopeId([folder]), { branchName: 'old-feature', uncommittedChanges: 40 }, [folder]) };
 		assert.deepStrictEqual({
 			full: modelRouterWorkspaceSituation(session('feature'), [folder], true),
+			fewChangedFilesAndMergedPullRequest: modelRouterWorkspaceSituation(session('feature', pullRequestUrl, 9, 'merged'), [folder], true),
 			pullRequestOfAnotherBranch: modelRouterWorkspaceSituation(session('old-feature'), [folder], true),
 			pullRequestWithoutBranch: modelRouterWorkspaceSituation(session(undefined), [folder], true),
 			stateOfAnotherPullRequest: modelRouterWorkspaceSituation(session('feature', 'https://github.com/contoso/shop/pull/3'), [folder], true),
@@ -66,13 +67,14 @@ suite('modelRouterSituation', () => {
 			noFolder: modelRouterWorkspaceSituation(session('feature'), undefined, true),
 			noSession: modelRouterWorkspaceSituation(undefined, [folder], true),
 		}, {
-			full: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
-			pullRequestOfAnotherBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
-			pullRequestWithoutBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
-			stateOfAnotherPullRequest: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3 },
-			defaultChatKeepsSessionState: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 3, pullRequest: 'open' },
+			full: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 12, pullRequest: 'open' },
+			fewChangedFilesAndMergedPullRequest: { workspace: 'shop-checkout', repository: 'contoso/shop' },
+			pullRequestOfAnotherBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 12 },
+			pullRequestWithoutBranch: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 12 },
+			stateOfAnotherPullRequest: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 12 },
+			defaultChatKeepsSessionState: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 12, pullRequest: 'open' },
 			peerChatInSessionFolder: { workspace: 'shop-checkout', repository: 'contoso/shop', uncommittedFiles: 40 },
-			peerChatFolder: { workspace: 'shop-docs', repository: 'contoso/docs', uncommittedFiles: 12 },
+			peerChatFolder: { workspace: 'shop-docs', repository: 'contoso/docs', uncommittedFiles: 25 },
 			folderWithoutState: { workspace: 'elsewhere' },
 			noFolder: {},
 			noSession: {},
@@ -90,7 +92,7 @@ suite('modelRouterSituation', () => {
 				uncommittedFiles: 12,
 				pullRequest: 'open',
 			}),
-			quietTree: describeModelRouterSituation({ workspace: 'shop-checkout', uncommittedFiles: 9, pullRequest: 'merged' }),
+			plurals: describeModelRouterSituation({ attachments: [{ kind: 'directory', count: 2 }, { kind: 'set of review comments', count: 2 }, { kind: 'sketch', count: 3 }] }),
 			longNames: describeModelRouterSituation({ attachments: [{ kind: 'image\n- Workspace: other', count: 1 }], agent: `Reviewer\n- Plan mode${' x'.repeat(100)}`, workspace: ' \n ' }),
 			autopilot: describeModelRouterSituation({ mode: 'autopilot', repository: 'contoso/shop' }),
 			empty: describeModelRouterSituation({}),
@@ -102,7 +104,8 @@ suite('modelRouterSituation', () => {
 				'Custom agent chosen by the user: Reviewer',
 				'Workspace: shop-checkout (contoso/shop); 12 files with uncommitted changes; the branch has an open pull request',
 			],
-			quietTree: ['Workspace: shop-checkout'],
+			// A kind a client names itself is not given a plural.
+			plurals: ['Attached: 2 directories, 2 sets of review comments, 3 sketch'],
 			longNames: ['Attached: 1 image - Workspace: other', `Custom agent chosen by the user: ${`Reviewer - Plan mode${' x'.repeat(100)}`.slice(0, 80)}`],
 			autopilot: ['Autopilot mode: the agent works on its own until the task is done', 'Workspace: contoso/shop'],
 			empty: [],
