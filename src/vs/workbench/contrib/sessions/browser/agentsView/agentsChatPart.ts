@@ -164,6 +164,11 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 	/** Whether its known session was removed, such as deleted: not hidden as its provider goes away, which removes nothing. */
 	private _knownSessionRemoved = false;
 
+	/**
+	 * What the chat shows to its window's host: the session its composer created, from its first send on and also during
+	 * that first turn, before the composer hands over to it, else its {@link shown} chat. `undefined` for a pure draft.
+	 */
+	readonly hostShown: IObservable<IAgentsChatPartChat | undefined>;
 	readonly content: IObservable<ISessionPaneContent | undefined>;
 	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
 		const composer = this._composerModel.read(reader);
@@ -190,8 +195,9 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
+		this.hostShown = derived(this, reader => this._composerModel.read(reader) ? this._composerShown.read(reader) : this._shown.read(reader));
 		this.content = derived(this, reader => {
-			const shown = this._composerModel.read(reader) ? this._composerShown.read(reader) : this._shown.read(reader);
+			const shown = this.hostShown.read(reader);
 			return shown && this._contentOf(shown);
 		});
 		this.input = this._register(new ChatEditorInput(chatResource));
@@ -416,7 +422,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 		this.activeChat = derived(this, reader => {
 			const input = this._activeInput.read(reader);
-			return input ? this._chats.get(input)?.shown.read(reader) : undefined;
+			return input ? this._chats.get(input)?.hostShown.read(reader) : undefined;
 		});
 		// The window's host, as its service, shows the active tab's chat
 		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
