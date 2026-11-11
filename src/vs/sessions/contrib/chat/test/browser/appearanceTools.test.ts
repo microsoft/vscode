@@ -41,7 +41,6 @@ import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
-import { MobilePromptsService } from '../../../mobile/browser/mobilePromptsService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../browser/chatBackground.contribution.js';
 
@@ -50,7 +49,7 @@ const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(Configuratio
 suite('Sessions - Appearance tools', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function setup(enabled: boolean, workspaceSkill = false, mobile = false) {
+	async function setup(enabled: boolean, workspaceSkill = false) {
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: enabled,
 			[PromptsConfig.USE_AGENT_SKILLS]: true,
@@ -90,7 +89,7 @@ suite('Sessions - Appearance tools', () => {
 			...localSkills.map(skill => ({ name: 'generate-chat-background', uri: skill.uri })),
 		].map(({ name, uri }) => files.writeFile(uri, VSBuffer.fromString(`---\nname: ${name}\ndescription: A test skill.\n---\nTest instructions.`))));
 
-		const service = disposables.add(instantiationService.createInstance(mobile ? MobilePromptsService : AgenticPromptsService));
+		const service = disposables.add(instantiationService.createInstance(AgenticPromptsService));
 		const setSetting = async (key: string, value: boolean) => {
 			const skillsChanged = Event.toPromise(service.onDidChangeSkills);
 			const slashCommandsChanged = Event.toPromise(service.onDidChangeSlashCommands);
@@ -173,19 +172,6 @@ suite('Sessions - Appearance tools', () => {
 			enabledOrigin: PromptsStorage.local,
 		});
 	});
-
-	for (const workspaceSkill of [false, true]) {
-		test(`mobile excludes the built-in background skill even when enabled, preserving workspace skills (${workspaceSkill})`, async () => {
-			const t = await setup(true, workspaceSkill, true);
-			const enabled = await t.snapshot();
-			await t.setEnabled(false);
-			const disabled = await t.snapshot();
-			await t.setEnabled(true);
-			const names = workspaceSkill ? ['commit', 'generate-chat-background'] : ['commit'];
-			const expected = { skills: names, slashCommands: names, allFiles: names, builtinFiles: ['commit'], forwarded: names };
-			assert.deepStrictEqual([enabled, disabled, await t.snapshot()], [expected, expected, expected]);
-		});
-	}
 
 	test('gates all tool descriptions on the same setting', async () => {
 		const t = await setup(true);

@@ -104,7 +104,7 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(required.map(([id]) => registrations.find(([service]) => service === id)), required);
 		});
 
-		test(`${entry} selects chat backgrounds only for the regular workbench`, () => {
+		test(`${entry} shares skills while selecting chat backgrounds only for the regular workbench`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
 			const registrations = [
@@ -117,10 +117,12 @@ suite('Sessions presentation entry isolation', () => {
 				backgroundModules: chatBackgroundPresentation.filter(file => dependencies.has(file)),
 				factory: registrations.filter(([id]) => id === 'IChatViewFactory'),
 				backgroundService: registrations.filter(([id]) => id === 'ISessionsChatBackgroundService'),
+				promptsService: registrations.filter(([id]) => id === 'IPromptsService'),
 			}, {
 				backgroundModules: mobile ? [] : chatBackgroundPresentation,
 				factory: [['IChatViewFactory', mobile ? 'MobileChatViewFactory' : 'DefaultChatViewFactory']],
 				backgroundService: mobile ? [] : [['ISessionsChatBackgroundService', 'SessionsChatBackgroundService']],
+				promptsService: [['IPromptsService', 'AgenticPromptsService']],
 			});
 		});
 

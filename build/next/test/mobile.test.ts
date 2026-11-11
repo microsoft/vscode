@@ -408,17 +408,16 @@ suite('isolated mobile package', () => {
 		await assert.rejects(fs.access(path.join(mobileRoot, mobileManifestName)), { code: 'ENOENT' });
 	});
 
-	test('mobile resources include retained built-in skills but not background generation', async t => {
+	test('mobile resources package the same built-in skill definitions as desktop', async t => {
 		const { root, write } = await createFixture(t);
-		for (const skill of ['commit', 'create-pr', 'code-review', 'generate-chat-background']) {
-			await write(`vs/sessions/skills/${skill}/SKILL.md`, `# ${skill}`);
+		const skillFiles = ['code-review', 'commit', 'create-pr', 'generate-chat-background']
+			.map(skill => `vs/sessions/skills/${skill}/SKILL.md`);
+		for (const file of skillFiles) {
+			await write(file, '# Test skill');
 		}
 		await write('vs/sessions/skills/commit/README.md', 'Not a skill definition');
-		assert.deepStrictEqual(await getResourcePaths(root, 'mobile'), [
-			'vs/sessions/skills/code-review/SKILL.md',
-			'vs/sessions/skills/commit/SKILL.md',
-			'vs/sessions/skills/create-pr/SKILL.md',
-		]);
+		assert.deepStrictEqual(await Promise.all((['desktop', 'mobile'] as const)
+			.map(target => getResourcePaths(root, target))), [skillFiles, skillFiles]);
 	});
 
 	test('mobile resources keep worker frames and accessibility audio without shipping a full workbench shell', async t => {

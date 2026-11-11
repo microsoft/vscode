@@ -43,14 +43,16 @@ selects its own implementations; their shared contracts and behavior remain
 available.
 
 Mobile does not include chat-background controls, settings, rendering, tinting
-or built-in background-generation tools and skills. Its resource list is
+or built-in background-generation tools. Its resource list is
 independent of the common workbench list, so background images, including both
 animated and still koi assets, are not copied into the package.
 
-Other built-in `SKILL.md` definitions are packaged under
-`out/vs/sessions/skills/` so the existing prompts service can discover retained
-commands. The background-generation skill is excluded from both resource
-copying and runtime discovery.
+The same built-in `SKILL.md` definitions as desktop are packaged under
+`out/vs/sessions/skills/`, including the background-generation skill. Mobile
+uses the shared prompts service and its existing enablement rules. The
+background skill already instructs the agent to explain when required tools
+are unavailable rather than generating an image it cannot apply; packaging
+the skill does not include the background implementation or enable its tools.
 
 The size limits are experimental regression guards introduced with this target,
 not existing VS Code product requirements or hosting restrictions. Review actual

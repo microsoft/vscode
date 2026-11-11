@@ -22,7 +22,7 @@ For starting browser sessions, each entry registers its `ISessionRepositoryPicke
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
-The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, built-in generation skill, and assets.
+The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, and media. Both entries share built-in skill definitions and discovery; packaging a skill does not register the tools it uses.
 
 View factories receive the owning host's instantiation service for each view. Mobile headers use that same scope; they must not capture a global service or reuse another view's scope.
 
