@@ -161,6 +161,7 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _panelViewBySession = new ResourceMap<string>();
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
+	private readonly _stashLeases = new Set<{ key: URI | undefined }>();
 	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
 	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
@@ -627,6 +628,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(this._sessionManagementService.onDidChangeSessions(e => {
 			const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...e.removed, ...archivedSessions]) {
+				this._forgetStashLeases(session.resource);
 				this._deleteWorkingSet(session.resource);
 				this._viewStateBySession.delete(session.resource);
 				this._editorPartHiddenBySession.delete(session.resource);
@@ -902,6 +904,11 @@ export abstract class BaseLayoutController extends Disposable {
 		if (isEqual(oldKey, newKey)) {
 			return;
 		}
+		for (const lease of this._stashLeases) {
+			if (lease.key && isEqual(lease.key, oldKey)) {
+				lease.key = newKey;
+			}
+		}
 		const workingSet = this._workingSets.get(oldKey);
 		if (workingSet) {
 			const previousAtNewKey = this._workingSets.get(newKey);
@@ -936,6 +943,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _forgetPeerChatState(keys: readonly URI[]): void {
 		for (const key of keys) {
+			this._forgetStashLeases(key);
 			this._deleteWorkingSet(key);
 			this._viewStateBySession.delete(key);
 			this._editorPartHiddenBySession.delete(key);
@@ -1429,6 +1437,8 @@ export abstract class BaseLayoutController extends Disposable {
 		}
 
 		this._workingSets.delete(key);
+		const lease: { key: URI | undefined } = { key };
+		this._stashLeases.add(lease);
 		let settled = false;
 		return {
 			editors: resolved.editors,
@@ -1436,6 +1446,7 @@ export abstract class BaseLayoutController extends Disposable {
 			accept: () => {
 				if (!settled) {
 					settled = true;
+					this._stashLeases.delete(lease);
 					this._releaseWorkingSetReference(workingSet);
 				}
 			},
@@ -1444,14 +1455,23 @@ export abstract class BaseLayoutController extends Disposable {
 					return;
 				}
 				settled = true;
+				this._stashLeases.delete(lease);
 				resolved.editors.forEach(editor => editor.dispose());
-				if (this._workingSets.has(key)) {
+				if (!lease.key || this._workingSets.has(lease.key)) {
 					this._releaseWorkingSetReference(workingSet);
 				} else {
-					this._workingSets.set(key, workingSet);
+					this._workingSets.set(lease.key, workingSet);
 				}
 			}
 		};
+	}
+
+	private _forgetStashLeases(key: URI): void {
+		for (const lease of this._stashLeases) {
+			if (lease.key && isEqual(lease.key, key)) {
+				lease.key = undefined;
+			}
+		}
 	}
 
 	private _deleteWorkingSet(sessionResource: URI): void {

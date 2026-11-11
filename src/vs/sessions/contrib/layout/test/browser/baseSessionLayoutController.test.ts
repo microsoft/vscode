@@ -613,6 +613,56 @@ suite('BaseLayoutController', () => {
 		newer?.dispose();
 	});
 
+	test('a stash whose handoff fails after its session was removed is not resurrected', async () => {
+		createController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		harness.onDidChangeSessions.fire({ added: [], removed: [sessionA], changed: [] });
+		handle?.dispose();
+
+		assert.deepStrictEqual({
+			taken: handle?.editors.length,
+			afterDispose: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
+		}, { taken: 1, afterDispose: undefined });
+	});
+
+	test('a stash whose handoff fails after its session was replaced is restored under the replacement', async () => {
+		createController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const replacement = makeSession(URI.parse('session:a2'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		harness.onDidReplaceSession.fire({ from: sessionA, to: replacement });
+		handle?.dispose();
+		const restored = harness.editorWorkingSetService.takeEditorsFor(replacement, replacement.mainChat.get().resource);
+
+		assert.deepStrictEqual({
+			taken: handle?.editors.length,
+			restored: restored?.editors.map(editor => editor.resource?.path),
+			old: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
+		}, { taken: 1, restored: ['/repo/util.ts'], old: undefined });
+		restored?.dispose();
+	});
+
 	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createController({ useModal: 'some', workspaceFolders });
