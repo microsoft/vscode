@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, getDomNodeZoomLevel, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getActiveDocument, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, getDomNodeZoomLevel, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
-import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
+import { CodeWindow, ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
 import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { registerTestIframe } from './testWindow.js';
 
 suite('dom', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -376,6 +377,36 @@ suite('dom', () => {
 		const event = document.createEvent('MouseEvent');
 		assert.strictEqual(getWindow(event), mainWindow);
 		assert.strictEqual(getDocument(event), mainWindow.document);
+	});
+
+	test('getActiveDocument: of windows that all report focus, such as a macOS panel and the window it took focus from without that window losing it, the one focused last, also one that had focus as it registered; not once it lost focus', () => {
+		const createWindow = (focused: { value: boolean }) => {
+			const iframe = mainWindow.document.createElement('iframe');
+			mainWindow.document.body.appendChild(iframe);
+			store.add(toDisposable(() => iframe.remove()));
+			const targetWindow = iframe.contentWindow as CodeWindow;
+			targetWindow.document.hasFocus = () => focused.value;
+			store.add(registerTestIframe(iframe));
+			return targetWindow;
+		};
+		const focus = (targetWindow: CodeWindow) => targetWindow.dispatchEvent(new targetWindow.FocusEvent('focus'));
+		const owner = createWindow({ value: true });
+		focus(owner);
+		// As a panel that took focus as it opened, before it registered, and so has no focus event
+		const panelFocused = { value: true };
+		const panel = createWindow(panelFocused);
+		const active = () => getActiveDocument() === owner.document ? 'owner' : getActiveDocument() === panel.document ? 'panel' : 'other';
+
+		const panelOpenedFocused = active();
+		focus(owner);
+		const ownerFocusedLast = active();
+		focus(panel);
+		const panelFocusedLast = active();
+		panelFocused.value = false;
+		// The first window that reports focus then, which can be the test runner's window
+		const panelActiveOnceUnfocused = active() === 'panel';
+
+		assert.deepStrictEqual({ panelOpenedFocused, ownerFocusedLast, panelFocusedLast, panelActiveOnceUnfocused }, { panelOpenedFocused: 'panel', ownerFocusedLast: 'owner', panelFocusedLast: 'panel', panelActiveOnceUnfocused: false });
 	});
 
 	suite('disposableWindowInterval', () => {
