@@ -12,7 +12,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js
 import { URI } from '../../../../base/common/uri.js';
 import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionChangeEvent } from '../common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsListingScope } from '../common/sessionsProvider.js';
 
 /** The sessions of a scope, such as the folders of an editor window's workspace. */
 export interface ISessionScope {
@@ -76,17 +76,6 @@ function isWorktreeOf(workingDirectory: URI, repositories: ResourceSet): boolean
 	return !!repository && repositories.has(repository);
 }
 
-/**
- * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: see
- * {@link getSessionsInScopeFolders}. With no folders, it lists every session.
- */
-export interface ISessionsListingScope {
-	readonly folders: IObservable<readonly URI[]>;
-	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
-	readonly repositories: IObservable<readonly URI[]>;
-	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
-	readonly gitHubRepositories?: IObservable<readonly string[]>;
-}
 
 /**
  * The sessions a provider lists in a {@link ISessionsListingScope}, out of all of its sessions, and their changes. It follows

@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ISessionsListingScope } from '../sessionScope.js';
+import { ISessionsListingScope } from '../../common/sessionsProvider.js';
 
 /**
  * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a

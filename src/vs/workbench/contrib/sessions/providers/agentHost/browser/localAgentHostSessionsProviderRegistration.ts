@@ -9,16 +9,14 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
-import { ISessionsListingScope } from '../../../browser/sessionScope.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
 /**
  * Registers the {@link LocalAgentHostSessionsProvider} while the Agent Host is enabled in this runtime, with the working
- * directory resolvers of its session types, until the returned disposable is disposed. With a `listingScope`, it lists
- * only the sessions of that scope, such as of an editor window's folders.
+ * directory resolvers of its session types, until the returned disposable is disposed.
  */
-export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccessor, options?: { readonly listingScope?: ISessionsListingScope }): IDisposable {
+export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccessor): IDisposable {
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
@@ -32,9 +30,6 @@ export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccesso
 		}
 		const store = new DisposableStore();
 		const provider = store.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
-		if (options?.listingScope) {
-			provider.setListingScope(options.listingScope);
-		}
 		store.add(sessionsProvidersService.registerProvider(provider));
 
 		const resolverRegistrations = store.add(new DisposableMap<string>());
