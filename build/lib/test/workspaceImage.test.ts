@@ -5,13 +5,14 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { FAILSAFE_SCHEMA, load } from 'js-yaml';
 import { NATIVE_BUILD_INPUTS } from '../../../.github/workflows/workspace_image/image.ts';
 import { computeNodeModulesBaseCacheKey } from '../../azure-pipelines/common/cacheKeys.ts';
+import { findLinksToRoot } from '../../azure-pipelines/common/workspaceImage.ts';
 import { distroRoots } from '../../npm/dirs.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
@@ -180,5 +181,40 @@ suite('workspace images', () => {
 			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 		]);
+	});
+
+	// The Windows test jobs replace these with junctions, as esbuild can't follow them to the root of
+	// an image, which they mount at the sources directory without a drive letter
+	test('find the relative links of pnpm that go up to the root of the sources directory', () => {
+		const ws = mkdtempSync(path.join(tmpdir(), 'workspace-image-links-'));
+		try {
+			const link = (file: string, target: string) => {
+				mkdirSync(path.dirname(path.join(ws, file)), { recursive: true });
+				symlinkSync(target, path.join(ws, file), 'dir');
+			};
+			mkdirSync(path.join(ws, 'node_modules/.pnpm/which@4.0.0/node_modules/which'), { recursive: true });
+			link('node_modules/which', '.pnpm/which@4.0.0/node_modules/which');
+			link('node_modules/.pnpm/which@4.0.0/node_modules/isexe', '../../isexe@3.1.1/node_modules/isexe');
+			link('node_modules/.pnpm/node_modules/isexe', '../isexe@3.1.1/node_modules/isexe');
+			link('node_modules/.pnpm/x@1.0.0/node_modules/npm', '../../../../extensions/npm');
+			link('node_modules/vscode-git', '../extensions/git');
+			link('extensions/npm/node_modules/which', '../../../node_modules/.pnpm/which@4.0.0/node_modules/which');
+			link('extensions/npm/node_modules/@types/node', '../../../../node_modules/.pnpm/@types+node@22.0.0/node_modules/@types/node');
+			link('extensions/npm/node_modules/absolute', path.join(ws, 'node_modules/.pnpm/which@4.0.0/node_modules/which'));
+			link('build/rspack/node_modules/x', '../../node_modules/.pnpm/x@1.0.0/node_modules/x');
+			link('not-installed/node_modules/x', '../../node_modules/x');
+
+			assert.deepEqual(
+				findLinksToRoot(ws).map(({ link, target }) => [link, target].map(file => path.relative(ws, file).replaceAll(path.sep, '/')).join(' -> ')).sort(),
+				[
+					'extensions/npm/node_modules/@types/node -> node_modules/.pnpm/@types+node@22.0.0/node_modules/@types/node',
+					'extensions/npm/node_modules/which -> node_modules/.pnpm/which@4.0.0/node_modules/which',
+					'node_modules/.pnpm/x@1.0.0/node_modules/npm -> extensions/npm',
+					'node_modules/vscode-git -> extensions/git',
+				]
+			);
+		} finally {
+			rmSync(ws, { recursive: true, force: true });
+		}
 	});
 });

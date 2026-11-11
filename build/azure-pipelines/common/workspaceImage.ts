@@ -24,6 +24,9 @@
 //     Image job: mounts an empty volume over the checkout, at the commit of the checkout.
 //   node workspaceImage.ts pack
 //     Image job: packs the volume into the cache folder, after the install steps.
+//   node workspaceImage.ts junctions
+//     Windows test jobs that mounted an image, after the install steps: replaces the relative links
+//     of pnpm that go up to the root of the image with junctions, which esbuild can follow.
 
 import { spawnSync, type SpawnSyncOptions } from 'child_process';
 import crypto from 'crypto';
@@ -32,6 +35,7 @@ import os from 'os';
 import path from 'path';
 import { abortRestore, isMountPoint, mountDarwinImage, mountLinuxImage, mountWindowsImage, openFileSource } from '../../../.github/workflows/workspace_image/image.ts';
 import { computeNodeModulesBaseCacheKey, computePnpmStoreCacheKey } from './cacheKeys.ts';
+import { dirs } from '../../npm/dirs.ts';
 
 /** Written to the key files when the job must not save an image under its key: no image has it */
 const DISCARDED_KEY = 'discarded';
@@ -617,6 +621,88 @@ function packWindowsVolume(ws: string): void {
 	}
 }
 
+interface IRelativeLink {
+	readonly link: string;
+	/** The absolute path that the link resolves to */
+	readonly target: string;
+}
+
+/**
+ * The relative links of pnpm in the sources directory `ws` that go up to its root, such as
+ * `extensions/npm/node_modules/which`, which links to `../../../node_modules/.pnpm/...`: the packages
+ * in the `node_modules` folders of the install roots and the workspace members, with their scopes and
+ * the virtual stores. pnpm creates relative symbolic links on Windows when it can, and junctions,
+ * which hold absolute paths, otherwise.
+ */
+export function findLinksToRoot(ws: string): IRelativeLink[] {
+	const links: IRelativeLink[] = [];
+	const read = (folder: string): fs.Dirent[] => {
+		try {
+			return fs.readdirSync(folder, { withFileTypes: true });
+		} catch {
+			return [];
+		}
+	};
+	const visit = (folder: string, scopes: boolean) => {
+		for (const entry of read(folder)) {
+			const entryPath = path.join(folder, entry.name);
+			if (entry.isSymbolicLink()) {
+				let target: string;
+				try {
+					target = fs.readlinkSync(entryPath);
+				} catch {
+					continue;
+				}
+				if (path.isAbsolute(target)) {
+					continue;
+				}
+				const depth = path.relative(ws, folder).split(path.sep).length;
+				const segments = path.normalize(target).split(path.sep);
+				let up = 0;
+				while (segments[up] === '..') {
+					up++;
+				}
+				if (up >= depth) {
+					links.push({ link: entryPath, target: path.resolve(folder, target) });
+				}
+			} else if (scopes && entry.isDirectory() && entry.name.startsWith('@')) {
+				visit(entryPath, false);
+			}
+		}
+	};
+	for (const dir of dirs) {
+		const nodeModules = path.join(ws, dir, 'node_modules');
+		visit(nodeModules, true);
+		const store = path.join(nodeModules, '.pnpm');
+		for (const entry of read(store)) {
+			if (entry.isDirectory()) {
+				visit(entry.name === 'node_modules' ? path.join(store, entry.name) : path.join(store, entry.name, 'node_modules'), true);
+			}
+		}
+	}
+	return links;
+}
+
+/**
+ * Replaces the relative links of pnpm that go up to the root of the image with junctions. esbuild
+ * resolves the `..` of a link itself, and when that reaches the root of a volume without a drive
+ * letter, it drops the separator after the volume name (`\\?\Volume{...}node_modules\...`), so it
+ * can't resolve the dependencies of the packages of the workspace members. The GitHub images are
+ * mounted at the parent of the workspace, so the links go up to the workspace folder at most.
+ */
+function junctions(): void {
+	if (process.platform !== 'win32') {
+		throw new Error('Only Windows images need junctions');
+	}
+	const start = Date.now();
+	const links = findLinksToRoot(sourcesDirectory());
+	for (const { link, target } of links) {
+		fs.unlinkSync(link);
+		fs.symlinkSync(target, link, 'junction');
+	}
+	console.log(`Replaced ${links.length} relative links that go up to the root of the image with junctions in ${((Date.now() - start) / 1000).toFixed(1)} s`);
+}
+
 if (import.meta.main) {
 	const command = process.argv[2];
 	try {
@@ -625,6 +711,7 @@ if (import.meta.main) {
 			case 'restore': await restore(); break;
 			case 'create': create(); break;
 			case 'pack': pack(); break;
+			case 'junctions': junctions(); break;
 			default: throw new Error(`Unknown command: ${command}`);
 		}
 	} catch (err) {

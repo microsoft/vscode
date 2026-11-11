@@ -138,6 +138,13 @@ steps:
     ${{ if eq(parameters.VSCODE_WORKSPACE_IMAGE, 'build') }}:
       condition: and(succeeded(), eq(variables['WORKSPACE_IMAGE_USED'], 'true'))
 
+  # esbuild can't follow pnpm's relative links up to the root of the image, which is mounted at the
+  # sources directory without a drive letter (see junctions in workspaceImage.ts)
+  - ${{ if eq(parameters.VSCODE_WORKSPACE_IMAGE, 'use') }}:
+    - powershell: node build/azure-pipelines/common/workspaceImage.ts junctions
+      displayName: Replace links to the root of the workspace image with junctions
+      condition: and(succeeded(), eq(variables['WORKSPACE_IMAGE_USED'], 'true'))
+
   - ${{ if ne(parameters.VSCODE_WORKSPACE_IMAGE, 'build') }}:
     - powershell: node build/azure-pipelines/distro/mixin-npm.ts
       displayName: Mixin distro node modules
