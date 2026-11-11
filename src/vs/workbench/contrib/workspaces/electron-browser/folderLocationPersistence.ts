@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceFolderLocationService, IResolvedFolderLocation } from '../../../../platform/workspace/common/folderLocations.js';
@@ -44,7 +45,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -52,7 +54,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 		const persisted = environmentService.folderLocation;
 		if (persisted) {
-			const cts = this._register(new CancellationTokenSource());
+			const cts = new CancellationTokenSource();
+			this._register(toDisposable(() => cts.dispose(true)));
 			this.restore(persisted, cts.token);
 		}
 	}
@@ -62,75 +65,92 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		this.nativeHostService.setWindowFolderLocation(value);
 	}
 
+	private isAtAlternate(location: URI): boolean {
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
+		return !!folder?.primaryUri && this.uriIdentityService.extUri.isEqual(folder.uri, location);
+	}
+
 	private async restore(persisted: IWindowFolderLocation, token: CancellationToken): Promise<void> {
 		const location = URI.parse(persisted.uri);
 
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		if (!folder?.primaryUri || !this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
+		if (!this.isAtAlternate(location)) {
 
 			// The window could not start at the persisted location, for example because it is gone
 			this.discard(persisted);
 			return;
 		}
 
-		const primary = folder.primaryUri;
+		const primary = this.contextService.getWorkspace().folders[0].primaryUri!;
 		const resolved = await this.resolve(primary, location, token);
-		if (token.isCancellationRequested || this.folderLocationService.currentLocation) {
+		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
 		}
 
-		const current = this.contextService.getWorkspace().folders[0];
-		if (current?.primaryUri && this.uriIdentityService.extUri.isEqual(current.uri, location)) {
-			if (resolved) {
-				this.folderLocationService.setCurrentLocation(resolved);
-			} else {
-				await this.discardAndReturn(persisted, primary);
-			}
+		if (resolved) {
+			this.folderLocationService.setCurrentLocation(resolved);
+		} else {
+			await this.returnToPrimary(persisted, primary, location);
 		}
-	}
-
-	private async resolve(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {
-		const deadline = Date.now() + FOLDER_LOCATION_RESTORE_TIMEOUT;
-
-		while (!token.isCancellationRequested) {
-			const resolved = await this.folderLocationService.resolveLocation(primary, location, token);
-			if (resolved) {
-				return resolved;
-			}
-
-			const remaining = deadline - Date.now();
-			if (remaining <= 0 || !await this.waitForProviders(remaining, token)) {
-				return undefined;
-			}
-		}
-
-		return undefined;
 	}
 
 	/**
-	 * Resolves to `true` once the providers changed, or to `false` after `timeout` or if cancelled.
+	 * Resolves the location through the providers, waiting for providers to register until the
+	 * deadline. The deadline covers the resolution itself, and results arriving after it are dropped.
 	 */
-	private waitForProviders(timeout: number, token: CancellationToken): Promise<boolean> {
-		return new Promise<boolean>(resolve => {
-			const store = new DisposableStore();
-			const done = (changed: boolean) => {
-				store.dispose();
-				resolve(changed);
-			};
+	private async resolve(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {
+		const store = new DisposableStore();
+		try {
+			const source = store.add(new CancellationTokenSource(token));
+			const handle = setTimeout(() => source.cancel(), FOLDER_LOCATION_RESTORE_TIMEOUT);
+			store.add(toDisposable(() => clearTimeout(handle)));
 
-			store.add(this.folderLocationService.onDidChangeProviders(() => done(true)));
-			store.add(token.onCancellationRequested(() => done(false)));
-			const handle = setTimeout(() => done(false), timeout);
-			store.add({ dispose: () => clearTimeout(handle) });
-		});
+			const stopped = new Promise<undefined>(resolve => store.add(source.token.onCancellationRequested(() => resolve(undefined))));
+
+			// Observed before resolving, so that a provider registering meanwhile is never missed
+			let generation = 0;
+			let wake: (() => void) | undefined;
+			store.add(this.folderLocationService.onDidChangeProviders(() => {
+				generation++;
+				wake?.();
+			}));
+
+			while (!source.token.isCancellationRequested) {
+				const seen = generation;
+				const resolved = await Promise.race([this.folderLocationService.resolveLocation(primary, location, source.token).catch(() => undefined), stopped]);
+				if (source.token.isCancellationRequested) {
+					return undefined;
+				}
+				if (resolved) {
+					return resolved;
+				}
+
+				if (generation === seen) {
+					await Promise.race([new Promise<void>(resolve => { wake = resolve; }), stopped]);
+					wake = undefined;
+				}
+			}
+
+			return undefined;
+		} finally {
+			store.dispose();
+		}
 	}
 
-	private async discardAndReturn(persisted: IWindowFolderLocation, primary: URI): Promise<void> {
-		this.discard(persisted);
+	private async returnToPrimary(persisted: IWindowFolderLocation, primary: URI, location: URI): Promise<void> {
 		try {
-			await this.workspaceEditingService.setFolderLocation(primary, undefined);
+
+			// Does nothing while a newer switch is in flight: that one is authoritative
+			await this.workspaceEditingService.setFolderLocation(primary, undefined, { ifIdle: true });
 		} catch (error) {
-			// the workspace changed, nothing to return from
+			if (this.isAtAlternate(location)) {
+				this.logService.error('Failed to return the folder to its primary location', error);
+			}
+			return; // otherwise the workspace changed, nothing to return from
+		}
+
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
+		if (folder && !folder.primaryUri) {
+			this.discard(persisted);
 		}
 	}
 

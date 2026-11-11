@@ -128,8 +128,22 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	private folderLocationRequest = 0;
+	private pendingFolderLocationRequests = 0;
 
-	async setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void> {
+	async setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason }): Promise<void> {
+		if (options?.ifIdle && this.pendingFolderLocationRequests > 0) {
+			return;
+		}
+
+		this.pendingFolderLocationRequests++;
+		try {
+			await this.doSetFolderLocation(primary, location, options?.reason);
+		} finally {
+			this.pendingFolderLocationRequests--;
+		}
+	}
+
+	private async doSetFolderLocation(primary: URI, location: URI | undefined, reason?: FolderLocationChangeReason): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 		}
@@ -186,7 +200,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		validatePrimary();
 
 		await this.contextService.setFolderLocation(primary, location);
-		this.workspaceFolderLocationService.setCurrentLocation(resolved, options?.reason);
+		this.workspaceFolderLocationService.setCurrentLocation(resolved, reason);
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
