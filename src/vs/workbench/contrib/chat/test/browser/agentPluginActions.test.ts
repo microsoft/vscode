@@ -364,6 +364,34 @@ suite('AgentPluginActions', () => {
 		assert.deepStrictEqual(calls, [[session, plugin.id, 'global', true]]);
 	});
 
+	for (const [globalEnabled, effectiveEnabled] of [[false, true], [true, false]] as const) {
+		test(`runtime plugin switch reflects session activation ${effectiveEnabled} instead of global ${globalEnabled}`, async () => {
+			const calls: [URI, string, 'global' | 'repository', boolean | null][] = [];
+			const session = URI.parse('other-session:/opaque');
+			const plugin: PluginCustomization = {
+				type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'other-host:/plugin',
+				_meta: withRuntimePluginEnablement(undefined, {
+					provider: 'other', plugin: 'native@marketplace', globalEnabled,
+					effectiveEnabled, repositorySupported: true, repositoryEnabled: null,
+				}),
+			};
+			const service = new class extends mock<IAgentHostCustomizationService>() {
+				override canSetRuntimePluginEnablement(): boolean { return true; }
+				override async setRuntimePluginEnablement(...args: [URI, string, 'global' | 'repository', boolean | null]): Promise<void> { calls.push(args); }
+			}();
+			const [toggle] = getAgentHostPluginEnablementActions(service, undefined, session, plugin, true);
+			const writesBeforeToggle = calls.length;
+			await toggle.run();
+			assert.deepStrictEqual({
+				checked: toggle.checked, label: toggle.label, scope: toggle.scope, enabled: toggle.enabled,
+				writesBeforeToggle, calls,
+			}, {
+				checked: effectiveEnabled, label: effectiveEnabled ? 'Disable Globally' : 'Enable Globally', scope: 'global', enabled: true,
+				writesBeforeToggle: 0, calls: [[session, plugin.id, 'global', !effectiveEnabled]],
+			});
+		});
+	}
+
 	test('runtime-owned plugins remain read-only on hosts without the management capability', async () => {
 		const customization: PluginCustomization = {
 			type: CustomizationType.Plugin, id: 'opaque-plugin', name: 'Native', uri: 'file:///plugins/native',
@@ -431,14 +459,14 @@ suite('AgentPluginActions', () => {
 		assert.deepStrictEqual({ results, calls: calls.map(call => call.slice(2)) }, {
 			results: [
 				{ checked: true, scope: 'global', label: 'Manage Enablement for This Workspace', available: true },
-				{ checked: true, scope: 'global', label: 'Manage Enablement for This Workspace', available: true },
+				{ checked: false, scope: 'global', label: 'Manage Enablement for This Workspace', available: true },
 				{ checked: true, scope: 'workspace', label: 'Use Global Enablement', available: true },
 				{ checked: false, scope: 'workspace', label: 'Use Global Enablement', available: true },
 				{ checked: true, scope: 'global', label: 'Manage Enablement for This Workspace', available: false },
 			],
 			calls: [
 				['repository', true], ['global', false],
-				['repository', false], ['global', false],
+				['repository', false], ['global', true],
 				['repository', null], ['repository', false],
 				['repository', null], ['repository', true],
 				['global', false],

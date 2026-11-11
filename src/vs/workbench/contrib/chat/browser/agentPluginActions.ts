@@ -260,7 +260,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 }
 
 /**
- * Builds enablement actions for a plugin customization published by an agent host.
+ * Builds scoped enablement actions whose switch reflects the host-reported effective activation.
  * Legacy VS Code-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
  */
 export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
@@ -270,7 +270,7 @@ export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAg
 		const managed = runtime.managedDesiredEnabled !== undefined;
 		const ready = runtime.effectiveEnabled !== undefined;
 		const workspaceScope = hasWorkspace && runtime.repositorySupported && typeof runtime.repositoryEnabled === 'boolean';
-		const checked = workspaceScope ? runtime.effectiveEnabled ?? runtime.repositoryEnabled ?? runtime.globalEnabled : runtime.globalEnabled;
+		const checked = runtime.effectiveEnabled ?? (workspaceScope ? runtime.repositoryEnabled : undefined) ?? runtime.globalEnabled;
 		const create = (scope: 'global' | 'repository', enabled: boolean | null, supported: boolean): ICustomizationItemAction => ({
 			id: `agentPlugin.runtime.${enabled === null ? 'inherit' : enabled ? 'enable' : 'disable'}.${scope}`,
 			label: scope === 'global'
