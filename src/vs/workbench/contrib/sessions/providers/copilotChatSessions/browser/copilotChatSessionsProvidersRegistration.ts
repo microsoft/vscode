@@ -10,17 +10,15 @@ import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/age
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ISessionsListingScope } from '../../../browser/sessionScope.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 /**
  * Registers the {@link CopilotChatSessionsProvider} of Copilot Cloud sessions, and on the web also its cloud sandbox
  * provider while cloud sandboxes are enabled, until the returned disposable is disposed. Local Copilot CLI sessions are
- * owned by the agent host providers. With a `listingScope`, they list only the sessions of that scope, such as of an
- * editor window's folders.
+ * owned by the agent host providers.
  */
-export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor, options?: { readonly listingScope?: ISessionsListingScope }): IDisposable {
+export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -28,9 +26,6 @@ export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor,
 
 	const disposables = new DisposableStore();
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider, 'default'));
-	if (options?.listingScope) {
-		provider.setListingScope(options.listingScope);
-	}
 	disposables.add(sessionsProvidersService.registerProvider(provider));
 
 	if (isWeb) {
@@ -42,9 +37,6 @@ export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor,
 				const store = new DisposableStore();
 				sandboxRegistration.value = store;
 				const sandboxProvider = store.add(instantiationService.createInstance(CopilotChatSessionsProvider, 'sandbox'));
-				if (options?.listingScope) {
-					sandboxProvider.setListingScope(options.listingScope);
-				}
 				store.add(sessionsProvidersService.registerProvider(sandboxProvider));
 			}
 		};

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -85,7 +85,7 @@ suite('WorkspaceFolderRepositories', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
-		const settled = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve(); } };
+		const settled = () => timeout(0);
 		const changeFolders = (next: URI[]) => {
 			folders = next;
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
@@ -118,6 +118,9 @@ suite('WorkspaceFolderRepositories', () => {
 			httpsWithUser: origin('https://user@github.com/microsoft/vscode.git'),
 			scp: origin('git@github.com:microsoft/vscode.git'),
 			ssh: origin('ssh://git@github.com/microsoft/vscode'),
+			quoted: origin('"https://github.com/microsoft/vscode.git"'),
+			comment: origin('https://github.com/microsoft/vscode.git # the main repository'),
+			quotedWithComment: origin('"git@github.com:microsoft/vscode.git" ; a comment'),
 			otherHost: origin('https://gitlab.com/microsoft/vscode.git'),
 			otherRemote: origin('https://github.com/microsoft/vscode.git', 'upstream'),
 		}, {
@@ -126,6 +129,9 @@ suite('WorkspaceFolderRepositories', () => {
 			httpsWithUser: 'microsoft/vscode',
 			scp: 'microsoft/vscode',
 			ssh: 'microsoft/vscode',
+			quoted: 'microsoft/vscode',
+			comment: 'microsoft/vscode',
+			quotedWithComment: 'microsoft/vscode',
 			otherHost: undefined,
 			otherRemote: undefined,
 		});
@@ -168,7 +174,7 @@ suite('WorkspaceFolderRepositories', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
-		const settled = async () => { for (let i = 0; i < 20; i++) { await Promise.resolve(); } };
+		const settled = () => timeout(0);
 		const snapshot = () => ({ repositories: scope.repositories.get().map(uri => uri.path), gitHub: scope.gitHubRepositories.get(), configReads: reads.filter(path => path.endsWith('/config')).sort(), warnings: warnings.length });
 
 		await settled();
@@ -205,7 +211,7 @@ suite('WorkspaceFolderRepositories', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
-		const settled = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve(); } };
+		const settled = () => timeout(0);
 		const published = () => repositories.repositories.get().map(uri => uri.path);
 
 		await settled();

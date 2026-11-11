@@ -275,6 +275,11 @@ suite('Sessions - SessionsList', () => {
 					reads++;
 					return super.getSessions();
 				}
+				// Also a read of the catalogue, such as to keep the order of every live section
+				override getAllSessions(): ISession[] {
+					reads++;
+					return [...this.sessions, ...this.unlistedSessions];
+				}
 			}([original]);
 			const harness = createListHarness(disposables, [original], instantiationService => {
 				instantiationService.stub(ISessionsManagementService, management);
@@ -3630,6 +3635,27 @@ suite('Sessions - SessionsList', () => {
 				moved: [featureId, checkoutId],
 				afterGroupChange: [featureId, checkoutId],
 			});
+		});
+
+		test('keeps the order of sections of sessions that the providers do not list, such as of another folder, when groups change', () => {
+			const first: ISessionGroup = { id: 'first', name: 'First', createdAt: 1 };
+			const second: ISessionGroup = { id: 'second', name: 'Second', createdAt: 2 };
+			const checkout = createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo' }, 1);
+			const feature = createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 2);
+			const harness = createListHarness(disposables, [checkout, feature], { groups: [first, second], liveGroups: true });
+			const orderService = harness.store.add(new SessionSectionOrderService(harness.instantiationService.get(IStorageService)));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			const { list } = openWorktreeList(harness);
+			const checkoutId = 'worktree:file:///work/repo';
+			const featureId = 'worktree:file:///work/repo.worktrees/feature';
+			list.moveHeaderTo(featureId, undefined, { siblingId: checkoutId, position: 'before' });
+
+			// The providers stop listing the feature session, which lookups still find
+			harness.managementService.sessions = [checkout];
+			harness.managementService.unlistedSessions = [feature];
+			list.moveHeaderTo(getSessionGroupSectionId(second.id), getSessionGroupSectionId(first.id), undefined);
+
+			assert.deepStrictEqual(orderService.resolveOrder([checkoutId, featureId]), [featureId, checkoutId]);
 		});
 	});
 

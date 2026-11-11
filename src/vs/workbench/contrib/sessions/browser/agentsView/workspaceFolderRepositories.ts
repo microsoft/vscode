@@ -14,7 +14,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ISessionsListingScope } from '../sessionScope.js';
+import { ISessionsListingScope } from '../../common/sessionsProvider.js';
+import { parseGitHubRepositoryFromGitConfig } from '../gitHubRepositoryResolver.js';
 
 /**
  * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a
@@ -50,24 +51,16 @@ export async function readFolderGitRepository(fileService: IFileService, folder:
 }
 
 /**
+/** The hosts of the GitHub repositories that Copilot Cloud sessions work in (`github-remote-file://github/...`). */
+const GITHUB_HOSTS = ['github.com'];
+
+/**
  * The GitHub repository, as lowercase `owner/repo`, that the `origin` remote of a git `config` names, such as
  * `https://github.com/owner/repo.git` or `git@github.com:owner/repo`; `undefined` for another host or without `origin`.
  */
 export function parseGitHubOrigin(config: string): string | undefined {
-	let inOrigin = false;
-	for (const line of config.split(/\r?\n/)) {
-		const section = /^\s*\[(?<section>[^\]]+)\]/.exec(line)?.groups?.section;
-		if (section !== undefined) {
-			inOrigin = /^remote\s+"origin"$/i.test(section.trim());
-			continue;
-		}
-		const url = inOrigin ? /^\s*url\s*=\s*(?<url>\S+)\s*$/i.exec(line)?.groups?.url : undefined;
-		if (url) {
-			const match = /^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/git@github\.com(?::\d+)?\/|git@github\.com:|git:\/\/github\.com\/)(?<owner>[^/]+)\/(?<repo>[^/]+?)(?:\.git)?\/?$/i.exec(url);
-			return match?.groups ? `${match.groups.owner}/${match.groups.repo}`.toLowerCase() : undefined;
-		}
-	}
-	return undefined;
+	const repository = parseGitHubRepositoryFromGitConfig(config, GITHUB_HOSTS, 'origin');
+	return repository && `${repository.owner}/${repository.repo}`.toLowerCase();
 }
 
 /**

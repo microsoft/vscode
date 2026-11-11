@@ -237,7 +237,8 @@ class AgentsChatPartChat extends Disposable implements ISessionChatViewHost {
 		// Once it knows its session, only sessions added or removed can change where its chat is: what changes in its session
 		// it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
 		const sessionsChanged = observableSignal(this);
-		this._register(_sessionsManagementService.onDidChangeSessions(e => {
+		// Of every session, also one the providers' listing scope hides, such as of another folder, which it can show
+		this._register(_sessionsManagementService.onDidChangeAllSessions(e => {
 			const known = this._knownSession;
 			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
 				this._knownSessionRemoved = true;
@@ -748,7 +749,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const store = new DisposableStore();
 		try {
 			return await raceTimeout(new Promise<ISession | undefined>(resolve => {
-				store.add(this._sessionsManagementService.onDidChangeSessions(() => {
+				store.add(this._sessionsManagementService.onDidChangeAllSessions(() => {
 					const session = find();
 					if (session) {
 						resolve(session);

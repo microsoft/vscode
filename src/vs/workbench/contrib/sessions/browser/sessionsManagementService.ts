@@ -94,8 +94,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
-	private readonly _onDidChangeAllSessions = this._register(new Emitter<void>());
-	readonly onDidChangeAllSessions: Event<void> = Event.any(Event.signal(this._onDidChangeSessions.event), this._onDidChangeAllSessions.event);
+	private readonly _onDidChangeAllSessions = this._register(new Emitter<ISessionsChangeEvent>());
+	readonly onDidChangeAllSessions: Event<ISessionsChangeEvent> = this._onDidChangeAllSessions.event;
 	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
 	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
@@ -225,26 +225,33 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		for (const provider of e.removed) {
 			this._providerListeners.deleteAndDispose(provider.id);
 		}
-		const added = this._subscribeToProviders(e.added);
+		const added: ISession[] = [];
+		const allAdded: ISession[] = [];
+		this._subscribeToProviders(e.added, added, allAdded);
 		// Provider disappearance hides sessions; reporting removals would trigger deletion cleanup.
-		this._onDidChangeSessions.fire({ added, removed: [], changed: [] });
+		this._fireDidChangeSessions({ added, removed: [], changed: [] }, { added: allAdded, removed: [], changed: [] });
 	}
 
-	private _subscribeToProviders(providers: readonly ISessionsProvider[]): ISession[] {
-		const added: ISession[] = [];
+	/** Fires the change of the listed sessions, and of all sessions: the same, unless a provider's listing scope hides some. */
+	private _fireDidChangeSessions(listed: ISessionsChangeEvent, all: ISessionsChangeEvent = listed): void {
+		this._onDidChangeSessions.fire(listed);
+		this._onDidChangeAllSessions.fire(all);
+	}
+
+	private _subscribeToProviders(providers: readonly ISessionsProvider[], added: ISession[] = [], allAdded: ISession[] = []): ISession[] {
 		for (const provider of providers) {
 			// Reading can synchronously announce cache population, so seed before subscribing.
 			const sessions = provider.getSessions();
+			const allSessions = provider.getAllSessions?.() ?? sessions;
 			if (this.sessionsProvidersService.getProvider(provider.id) !== provider) {
 				continue;
 			}
 			const disposables = new DisposableStore();
 			this._providerListeners.set(provider.id, disposables);
 			added.push(...sessions);
+			allAdded.push(...allSessions);
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
-			if (provider.onDidChangeAllSessions) {
-				disposables.add(provider.onDidChangeAllSessions(() => this._onDidChangeAllSessions.fire()));
-			}
+			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._onDidChangeAllSessions.fire(e)));
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
@@ -268,7 +275,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
-		this._onDidChangeSessions.fire({
+		this._fireDidChangeSessions({
 			added: [],
 			removed: from.sessionId === to.sessionId ? [] : [from],
 			changed: [to],
@@ -361,7 +368,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				count: 1,
 			});
 			if (published) {
-				this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+				this._fireDidChangeSessions({ added: [session], removed: [], changed: [] });
 			}
 		}
 
@@ -372,7 +379,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				if (current.published) {
 					const listedSession = this._getMergedSessions().find(candidate =>
 						this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource));
-					this._onDidChangeSessions.fire(listedSession
+					this._fireDidChangeSessions(listedSession
 						? { added: [], removed: [], changed: [listedSession] }
 						: { added: [], removed: [], changed: [] });
 				}

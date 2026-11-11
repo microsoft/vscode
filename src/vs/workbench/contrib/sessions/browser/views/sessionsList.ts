@@ -8309,7 +8309,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
 			ids.add(getSessionGroupSectionId(group.id));
 		}
-		for (const session of this._sessionsManagementService.getSessions()) {
+		// Every live session, also those a provider's listing scope hides: their sections keep their order, which the Agents
+		// window shares
+		for (const session of this._sessionsManagementService.getAllSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 			ids.add(`${ENVIRONMENT_SECTION_PREFIX}${session.environment}`);
 			ids.add(getSessionWorktreeSection(session).id);
