@@ -437,12 +437,58 @@ suite('WorkbenchAssignmentService polling', () => {
 					cancelled,
 				}, {
 					urls: signedOutEndpoints.slice(0, count),
-					starts: [0, 250, 500].slice(0, count),
-					elapsed: winner === undefined ? 10_000 : winner * 250,
+					starts: [0, 1000, 2000].slice(0, count),
+					elapsed: winner === undefined ? 5000 : winner * 1000,
 					cancelled: signedOutEndpoints.slice(0, winner ?? 3),
 				});
 			} finally {
 				service.dispose();
+			}
+		}));
+	}
+
+	test('does not hedge a remembered host and rediscovers after it stops responding', () => runWithFakedTimers({}, async () => {
+		const { service, ready, requestedUrls, setResponse } = createService(true, 'signedOut');
+		let hangPreferred = false;
+		setResponse(async (options, token) => {
+			if (hangPreferred && options.url === signedOutEndpoints[0]) {
+				return new Promise<IRequestContext>((_resolve, reject) => {
+					const listener = store.add(token.onCancellationRequested(() => {
+						listener.dispose();
+						reject(new Error('Aborted'));
+					}));
+				});
+			}
+			return response(200, '{"featureVariables":{},"assignmentContext":""}');
+		});
+		try {
+			await ready();
+			hangPreferred = true;
+			await service['refetchAssignments']();
+			await service['refetchAssignments']();
+			assert.deepStrictEqual(requestedUrls, [signedOutEndpoints[0], signedOutEndpoints[0], signedOutEndpoints[0], signedOutEndpoints[1]]);
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	for (const { name, accountState, plan, resolvesLate, urls } of [
+		{ name: 'a managed account without an endpoint resolves after startup', accountState: 'signedOut', plan: 'enterprise', resolvesLate: true, urls: [] },
+		{ name: 'an account with an endpoint is known before initialization', accountState: 'signedIn', plan: 'individual', resolvesLate: false, urls: ['https://assignments.example.com/api/v1/assignments'] },
+	] as const) {
+		test(`creates a single client when ${name}`, () => runWithFakedTimers({}, async () => {
+			const accountReady = new DeferredPromise<void>();
+			const { service, ready, requestedUrls, changeAccount } = createService(true, accountState, { plan, accountReady });
+			try {
+				if (resolvesLate) {
+					changeAccount(undefined);
+				}
+				await accountReady.complete();
+				await ready();
+				assert.deepStrictEqual({ clients: service['setupGeneration'], urls: requestedUrls }, { clients: 1, urls });
+			} finally {
+				service.dispose();
+				await accountReady.complete();
 			}
 		}));
 	}

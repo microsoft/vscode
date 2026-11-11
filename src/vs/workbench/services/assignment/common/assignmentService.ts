@@ -60,8 +60,8 @@ const SIGNED_OUT_ASSIGNMENTS_ENDPOINTS = [
 	'https://exp.business.githubcopilot.com/api/v1/assignments',
 	'https://exp.individual.githubcopilot.com/api/v1/assignments',
 ];
-const SIGNED_OUT_ASSIGNMENTS_TIMEOUT = 10_000;
-const SIGNED_OUT_ASSIGNMENTS_STAGGER = 250;
+const SIGNED_OUT_ASSIGNMENTS_TIMEOUT = 5_000;
+const SIGNED_OUT_ASSIGNMENTS_STAGGER = 1_000;
 
 /**
  * Resolves a treatment value preferring the `/vscode/`-scoped key emitted by the new TAS
@@ -306,7 +306,11 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.defaultAccountService.getDefaultAccount().then(() => {
 				if (!this._store.isDisposed) {
 					this.accountInitialized = true;
+					const client = this.tasClient;
 					this.recreateTasClientIfAccountChanged();
+					if (client === this.tasClient && this.defaultAccountService.currentDefaultAccount && !this.assignmentsEndpoint) {
+						this.logMissingAssignmentsEndpoint();
+					}
 				}
 			}, error => {
 				if (!this._store.isDisposed) {
@@ -399,10 +403,11 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	/** Signed-out requests discover a reachable endpoint; signed-in routing remains account-specific. */
 	private getAssignmentsEndpoint(): string | undefined {
-		if (!this.accountInitialized) {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		// A known account can be routed before initialization completes; null is ambiguous until then.
+		if (!this.accountInitialized && !account) {
 			return undefined;
 		}
-		const account = this.defaultAccountService.currentDefaultAccount;
 		if (!account) {
 			return SIGNED_OUT_ASSIGNMENTS_ENDPOINTS[0];
 		}
@@ -418,14 +423,21 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		return `${exp.replace(/\/+$/, '')}/api/v1/assignments`;
 	}
 
-	/** Account changes invalidate assignments even when the endpoint stays the same. */
+	private logMissingAssignmentsEndpoint(): void {
+		this.logService.warn('WorkbenchAssignmentService: Waiting for an account-provided TAS endpoint from account updates.');
+	}
+
+	/** Account changes invalidate new-endpoint assignments even when the endpoint stays the same. */
 	private recreateTasClientIfAccountChanged(): void {
 		if (this._store.isDisposed || !this.accountInitialized) {
 			return;
 		}
 		const next = this.getAssignmentsEndpoint();
 		const account = this.defaultAccountService.currentDefaultAccount;
-		if (next !== this.assignmentsEndpoint || account?.sessionId !== this.assignmentsAccount?.sessionId || account?.authenticationProvider.id !== this.assignmentsAccount?.authenticationProvider.id) {
+		// Without a new endpoint no account identity is sent, so only an endpoint change matters.
+		const accountChanged = (next !== undefined || this.assignmentsEndpoint !== undefined)
+			&& (account?.sessionId !== this.assignmentsAccount?.sessionId || account?.authenticationProvider.id !== this.assignmentsAccount?.authenticationProvider.id);
+		if (next !== this.assignmentsEndpoint || accountChanged) {
 			this.tasClient = this.setupTASClient();
 		}
 	}
@@ -450,9 +462,12 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	};
 
 	private async fetchSignedOutAssignments(init: Parameters<typeof this.assignmentsFetch>[1], isRevoked: () => boolean): Promise<{ status: number; json(): Promise<unknown> }> {
-		const endpoints = this.signedOutAssignmentsEndpoint
-			? [this.signedOutAssignmentsEndpoint, ...SIGNED_OUT_ASSIGNMENTS_ENDPOINTS.filter(endpoint => endpoint !== this.signedOutAssignmentsEndpoint)]
+		const preferred = this.signedOutAssignmentsEndpoint;
+		const endpoints = preferred
+			? [preferred, ...SIGNED_OUT_ASSIGNMENTS_ENDPOINTS.filter(endpoint => endpoint !== preferred)]
 			: SIGNED_OUT_ASSIGNMENTS_ENDPOINTS;
+		// A remembered host only fails over on errors; time-based hedging is limited to discovery.
+		const hedge = !preferred;
 		const disposables = new DisposableStore();
 		const cancellation = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cancellation.dispose(true)));
@@ -469,7 +484,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			}
 			const endpoint = endpoints[next++];
 			pending++;
-			if (next < endpoints.length) {
+			if (hedge && next < endpoints.length) {
 				scheduler.schedule();
 			}
 			try {
@@ -512,6 +527,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const scheduler = disposables.add(new RunOnceScheduler(() => { void launchNext(); }, SIGNED_OUT_ASSIGNMENTS_STAGGER));
 		disposableTimeout(() => {
 			this.logService.warn('WorkbenchAssignmentService: Signed-out TAS discovery timed out');
+			// An unresponsive remembered host never fails over, so rediscover with hedging next time.
+			if (preferred && this.signedOutAssignmentsEndpoint === preferred) {
+				this.signedOutAssignmentsEndpoint = undefined;
+			}
 			result.error(new Error('Signed-out TAS discovery timed out'));
 		}, SIGNED_OUT_ASSIGNMENTS_TIMEOUT, disposables);
 		try {
@@ -594,8 +613,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const signedOut = !this.defaultAccountService.currentDefaultAccount;
 		this.assignmentsEndpoint = assignmentsEndpoint;
 		this.assignmentsAccount = this.defaultAccountService.currentDefaultAccount;
-		if (this.accountInitialized && !assignmentsEndpoint) {
-			this.logService.warn('WorkbenchAssignmentService: Waiting for an account-provided TAS endpoint from account updates.');
+		if (this.assignmentsAccount && !assignmentsEndpoint) {
+			this.logMissingAssignmentsEndpoint();
 		}
 		const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
 			this.productService.version,

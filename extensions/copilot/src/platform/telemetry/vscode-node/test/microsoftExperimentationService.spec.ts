@@ -279,7 +279,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 			});
 			const pending = fetchAssignments();
 			if (failure === 'timeout') {
-				await vi.advanceTimersByTimeAsync(250);
+				await vi.advanceTimersByTimeAsync(1000);
 			}
 			const result = await pending;
 			await fetchAssignments();
@@ -322,7 +322,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 			const checked = winner === undefined
 				? expect(pending).rejects.toThrow('Signed-out TAS discovery timed out')
 				: expect(pending).resolves.toMatchObject({ status: 200 });
-			await vi.advanceTimersByTimeAsync(9999);
+			await vi.advanceTimersByTimeAsync(4999);
 			const beforeDeadline = settledAt;
 			await vi.advanceTimersByTimeAsync(1);
 			await checked;
@@ -337,9 +337,9 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 				timers: vi.getTimerCount(),
 			}).toEqual({
 				urls: endpoints.slice(0, count),
-				starts: [0, 250, 500].slice(0, count),
-				beforeDeadline: winner === undefined ? undefined : winner * 250,
-				settledAt: winner === undefined ? 10_000 : winner * 250,
+				starts: [0, 1000, 2000].slice(0, count),
+				beforeDeadline: winner === undefined ? undefined : winner * 1000,
+				settledAt: winner === undefined ? 5000 : winner * 1000,
 				cancelled: endpoints.slice(0, winner ?? 3),
 				timers: 0,
 			});
@@ -353,12 +353,28 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		let complete: ((response: Response) => void) | undefined;
 		fetcher.fetch.mockImplementationOnce(() => new Promise<Response>(resolve => { complete = resolve; }));
 		const pending = fetchAssignments();
-		await vi.advanceTimersByTimeAsync(250);
+		await vi.advanceTimersByTimeAsync(1000);
 		await pending;
 		complete!(response());
 		await vi.advanceTimersByTimeAsync(0);
 		await fetchAssignments();
 		expect(fetcher.fetch.mock.calls.map(([url]) => url)).toEqual([endpoints[0], endpoints[1], endpoints[1]]);
+	});
+
+	it('does not hedge a remembered host and rediscovers after it stops responding', async () => {
+		const { service, fetcher } = createService();
+		await service.hasTreatments();
+		vi.useFakeTimers();
+		await fetchAssignments();
+		fetcher.fetch.mockImplementationOnce(() => new Promise<Response>(() => { }));
+		const timedOut = expect(fetchAssignments()).rejects.toThrow('Signed-out TAS discovery timed out');
+		await vi.advanceTimersByTimeAsync(5000);
+		await timedOut;
+		fetcher.fetch.mockImplementationOnce(() => new Promise<Response>(() => { }));
+		const rediscovered = fetchAssignments();
+		await vi.advanceTimersByTimeAsync(1000);
+		await rediscovered;
+		expect(fetcher.fetch.mock.calls.map(([url]) => url)).toEqual([endpoints[0], endpoints[0], endpoints[0], endpoints[1]]);
 	});
 
 	it('rejects after one attempt per host, retries on the next fetch, and replaces a failed preferred host', async () => {
