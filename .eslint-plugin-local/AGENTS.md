@@ -1,6 +1,6 @@
 # Writing lint rules
 
-See [README.md](README.md) for how to add a rule. The rules here run in oxlint (CI, pre-commit hook, `pnpm run oxlint`), which loads them as ESLint-compatible JS plugins, and in ESLint (editor, the Copilot extension's `pnpm run lint`, and the rule tests). A rule must report the same problems in both.
+See [README.md](README.md) for how to add a rule. The rules here run in oxlint (CI, pre-commit hook, `pnpm run oxlint`, the oxc editor extension), which loads them as ESLint-compatible JS plugins, and in ESLint (the editor outside `src/`, the Copilot extension's `pnpm run lint`, and the rule tests). A rule must report the same problems in both.
 
 ## Keep rules fast
 
