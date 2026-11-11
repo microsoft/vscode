@@ -42,7 +42,7 @@ import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/se
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
-import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow } from '../browser/chatWindowLinkSource.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from '../browser/chatLinkRouting.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
@@ -331,13 +331,15 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			}
 		}
 
-		const chatId = parseOpenSessionLinkChatId(sessionLink);
-		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		const chatResource = await resolveLinkedChat(this.agentHostConnectionsService, session, parseOpenSessionLinkChatId(sessionLink));
 		if (token.isCancellationRequested) {
 			return;
 		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
 		if (linkSource && await openLinkedChatInChatWindow(this.chatWindowService, linkSource, session, chatResource, false)) {
+			return;
+		}
+		if (token.isCancellationRequested) {
 			return;
 		}
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });

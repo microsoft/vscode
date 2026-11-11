@@ -10,7 +10,7 @@ import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '..
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -24,7 +24,7 @@ import { ISession, SessionStatus } from '../../../../workbench/services/sessions
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
-import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow } from './chatWindowLinkSource.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from './chatLinkRouting.js';
 
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
@@ -89,12 +89,6 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			: undefined;
 	}
 
-	/** Whether `chatId` addresses the session's advertised default chat, which is the main chat. */
-	private async _isDefaultChatId(session: ISession, chatId: string): Promise<boolean> {
-		const resolution = this._connectionsService.resolveSessionResource(session.resource);
-		return !!resolution && await isDefaultChatLinkId(resolution.connection, resolution.backendSession, chatId);
-	}
-
 	/**
 	 * The chat window the user activated the link in, if one. Only a user gesture redirects: a link a tool, an extension
 	 * or a command opens keeps opening in the main window, whichever window has focus. So does any link while chat windows
@@ -115,7 +109,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		}
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
-		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		const chatResource = await resolveLinkedChat(this._connectionsService, session, chatId);
 		if (source && await openLinkedChatInChatWindow(this._chatWindowService, source, session, chatResource, openToSide)) {
 			return true;
 		}

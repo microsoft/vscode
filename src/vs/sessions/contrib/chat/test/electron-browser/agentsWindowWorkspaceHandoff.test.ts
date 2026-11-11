@@ -39,6 +39,9 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatWindow, IChatWindowOpenOptions } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
+import { IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 
 const getSessionForResource = Reflect.get(SelectAgentsFolderContribution.prototype, 'getSessionForResource') as (
 	chatResource: URI,
@@ -423,6 +426,8 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const chatWindow = upcastPartial<IChatWindow>({ windowId: 42, chat: activeChat });
 		let activeWindow: IChatWindow | undefined;
 		let resolvesInWindow = true;
+		let pendingWindowOpen: DeferredPromise<IChatWindow | undefined> | undefined;
+		let resolution: IAgentHostSessionResolution | undefined;
 		const log: string[] = [];
 		const harness = {
 			lifecycleService,
@@ -432,11 +437,12 @@ suite('Agents Window workspace handoff telemetry', () => {
 			resolveAndOpenSessionLink: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenSessionLink'),
 			waitForSessionLinkAvailable: async () => session,
 			sessionsProvidersService: { getProvider: () => undefined },
+			agentHostConnectionsService: { resolveSessionResource: () => resolution },
 			chatWindowService: {
 				get activeWindow() { return activeWindow; },
 				open: async (resource: URI, options?: IChatWindowOpenOptions) => {
 					log.push(`window:${resource}:tabOf=${options?.tabOf}:beside=${options?.beside}:in=${options?.window === chatWindow}:exact=${options?.exactChat}`);
-					return resolvesInWindow ? chatWindow : undefined;
+					return pendingWindowOpen ? pendingWindowOpen.p : resolvesInWindow ? chatWindow : undefined;
 				},
 			},
 			sessionsService: { openChat: async (_session: ISession, resource: URI) => { log.push(`main:${resource}`); } },
@@ -459,6 +465,26 @@ suite('Agents Window workspace handoff telemetry', () => {
 		resolvesInWindow = false;
 		await openExistingSession.call(harness, link, CancellationToken.None);
 		resolvesInWindow = true;
+		// A chat id that names the session's advertised default chat opens its main chat, as a click on the link does
+		const backendSession = URI.parse('copilotcli:/session-1');
+		resolution = upcastPartial<IAgentHostSessionResolution>({
+			backendSession,
+			connection: upcastPartial<IAgentConnection>({
+				getSubscriptionUnmanaged: () => undefined,
+				listSessions: async () => [upcastPartial<IAgentSessionMetadata>({ session: backendSession, chats: [{ chat: URI.parse('ahp-chat:/11111111-1111-4111-8111-111111111111'), kind: 'default' }] })],
+			}),
+		});
+		await openExistingSession.call(harness, URI.parse(buildOpenSessionLinkUri(backendSession, '11111111-1111-4111-8111-111111111111')), CancellationToken.None);
+		resolution = undefined;
+		// A newer opening supersedes the link while the chat window opens it, which then fails
+		const superseded = disposables.add(new CancellationTokenSource());
+		pendingWindowOpen = new DeferredPromise<IChatWindow | undefined>();
+		const opening = openExistingSession.call(harness, link, superseded.token);
+		await timeout(0);
+		superseded.cancel();
+		await pendingWindowOpen.complete(undefined);
+		await opening;
+		pendingWindowOpen = undefined;
 		// Chat windows are off
 		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, false);
 		await openExistingSession.call(harness, link, CancellationToken.None);
@@ -468,6 +494,8 @@ suite('Agents Window workspace handoff telemetry', () => {
 			`main:${chatResource}`,
 			`window:${chatResource}:tabOf=${activatedChat}:beside=undefined:in=true:exact=true`,
 			`main:${chatResource}`,
+			`window:${sessionResource}:tabOf=${activatedChat}:beside=undefined:in=true:exact=true`,
+			`window:${chatResource}:tabOf=${activatedChat}:beside=undefined:in=true:exact=true`,
 			`main:${chatResource}`,
 		]);
 	});

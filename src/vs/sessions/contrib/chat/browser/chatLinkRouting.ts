@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
@@ -25,6 +26,20 @@ export function getChatWindowLinkSource(window: IChatWindow | undefined, configu
 		return undefined;
 	}
 	return { window, chat: window.chat.get() };
+}
+
+/**
+ * The chat a link names in `session`: the chat of its chat id, or the main chat without one, or when the id names the
+ * session's advertised default chat, as an opaque id or the chat's resource.
+ */
+export async function resolveLinkedChat(connectionsService: IAgentHostConnectionsService, session: ISession, chatId: string | undefined): Promise<URI> {
+	if (chatId) {
+		const resolution = connectionsService.resolveSessionResource(session.resource);
+		if (!resolution || !await isDefaultChatLinkId(resolution.connection, resolution.backendSession, chatId)) {
+			return session.resource.with({ fragment: chatId });
+		}
+	}
+	return session.mainChat.get().resource;
 }
 
 /**
