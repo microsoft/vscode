@@ -15,6 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import { writeSync } from 'fs';
+import { getHeapStatistics } from 'node:v8';
 import * as inspector from 'inspector';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
@@ -25,6 +26,7 @@ import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService, seedMultipleChatProvidersFromEnvironment } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
@@ -66,14 +68,23 @@ import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
-import { formatAgentHostExit, formatAgentHostStartupFailure, identifyAgentHostExitCaller } from '../common/agentHostProcessExit.js';
+import { AgentHostStartupPhase, formatAgentHostExit, formatAgentHostStartupFailure, formatAgentHostStartupPhase, identifyAgentHostExitCaller, toAgentHostHeartbeatMessage } from '../common/agentHostProcessExit.js';
+import { AgentHostExitHeartbeat } from './agentHostExitHeartbeat.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
 // When VSCODE_AGENT_HOST_PORT or VSCODE_AGENT_HOST_SOCKET_PATH env vars
 // are set, also starts a WebSocket server for external clients.
 
+/**
+ * The parent port of an agent host launched as an Electron utility process.
+ * Only the Electron starter launches the host that way, and it collects exit
+ * diagnostics from startup phases and heartbeats.
+ */
+const diagnosticsParentPort = isUtilityProcess(process) ? process.parentPort : undefined;
+
 installExitDiagnostics();
+markStartupPhase('main');
 
 void startAgentHost().catch(err => {
 	console.error(err);
@@ -99,6 +110,16 @@ function installExitDiagnostics(): void {
 	};
 	process.exit = recordingExit;
 	process.once('exit', () => writeStderrSync(formatAgentHostExit(exitCaller === undefined ? 'eventLoopDrained' : 'processExit', exitCaller)));
+}
+
+/**
+ * Reports a startup phase synchronously on stderr, so the parent learns how far
+ * startup got even if the process then crashes before IPC is ready.
+ */
+function markStartupPhase(phase: AgentHostStartupPhase): void {
+	if (diagnosticsParentPort) {
+		writeStderrSync(formatAgentHostStartupPhase(phase));
+	}
 }
 
 /** Writes to stderr before the process exits. */
@@ -167,6 +188,7 @@ async function startAgentHost(): Promise<void> {
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
 			// On-device models run only in this local utility-process host, never in agentHostServerMain.
 			localModel: { kind: 'localUtilityProcess' },
+			onStartupPhase: markStartupPhase,
 		});
 		disposables.add(runtime);
 		agentService = runtime.agentService;
@@ -180,6 +202,7 @@ async function startAgentHost(): Promise<void> {
 			providerService: accessor.get(IAgentHostProviderService),
 			stateManager: accessor.get(IAgentHostStateManager),
 			completions: accessor.get(IAgentHostCompletions),
+			clientConnections: accessor.get(IAgentHostClientConnectionService),
 		}));
 		const agentConfigurationService = runtimeServices.configurationService;
 		// The starter forwards the multiple-chat-providers setting when it is on: seeded before the first handshake, so the
@@ -193,6 +216,18 @@ async function startAgentHost(): Promise<void> {
 		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
+		if (diagnosticsParentPort) {
+			const parentPort = diagnosticsParentPort;
+			const clientConnections = runtimeServices.clientConnections;
+			disposables.add(new AgentHostExitHeartbeat({
+				onDidEmitEnvelope: stateManager.onDidEmitEnvelope,
+				get activeTurnCount() { return stateManager.activeTurnCount; },
+				get loadedSessionCount() { return stateManager.loadedSessionCount; },
+				get connectedClientCount() { return clientConnections.getConnectedClientCount(); },
+				getRunningToolCalls: () => stateManager.getRunningToolCalls(),
+			}, heartbeat => parentPort.postMessage(toAgentHostHeartbeatMessage(heartbeat)), { heapLimitBytes: getHeapStatistics().heap_size_limit }));
+		}
+		markStartupPhase('providers');
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
@@ -264,6 +299,7 @@ async function startAgentHost(): Promise<void> {
 	}
 
 	// The child-process IPC handshake must wait until runtime initialization can no longer delay channel registration.
+	markStartupPhase('ipc');
 	const server = utilityProcessServer ?? new ChildProcessServer(AgentHostIpcChannels.AgentHost);
 
 	// Retain the imperative bridge only for the child-process server consumers.
@@ -356,6 +392,7 @@ async function startAgentHost(): Promise<void> {
 			// The external local endpoint (out-of-process local clients such as the
 			// CLI) is not on the renderer's path; start it after registration and
 			// give it its own handler.
+			markStartupPhase('localEndpoint');
 			const localEndpoint = await startLocalAgentHostEndpoint(
 				environmentService.userDataPath,
 				logService,
@@ -490,6 +527,7 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
+	markStartupPhase('management');
 	const missionControl = protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
 		hostLaunchKind,
 		clientFileSystemProvider,
@@ -544,6 +582,7 @@ async function startAgentHost(): Promise<void> {
 		startupOutcome = 'error';
 		logService.error('Failed to start WebSocket server', err);
 	}).finally(() => {
+		markStartupPhase('ready');
 		agentService.markStartupComplete(startupOutcome);
 		markNodeCompileCacheReady(message => logService.info(message));
 	});
