@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SESSION_WORKTREE_ICON } from '../../../common/sessionWorktreeIcon.js';
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -149,6 +150,14 @@ suite('AgentsViewFolderLocation', () => {
 		service.start();
 		return { service, moves, trusted, notifications, hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
+
+	test('a linked checkout shows with the icon of a worktree section of the Sessions list', async () => {
+		const provider = new AgentsViewFolderLocationProvider(fileService, labelService);
+
+		const location = await provider.resolveLocation(URI.file('/work/vscode'), URI.file('/work/vscode.worktrees/feature'), CancellationToken.None);
+
+		assert.strictEqual(location?.icon, SESSION_WORKTREE_ICON);
+	});
 
 	test('the alternate locations of a folder are its linked checkouts, which git links both ways', async () => {
 		const provider = new AgentsViewFolderLocationProvider(fileService, labelService);

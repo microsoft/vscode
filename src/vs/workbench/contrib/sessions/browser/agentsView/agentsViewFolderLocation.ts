@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SESSION_WORKTREE_ICON } from '../../common/sessionWorktreeIcon.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -82,7 +83,7 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 		if (!backlink || !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), locationGitFile)) {
 			return undefined;
 		}
-		return { uri: location, label: basename(location), description: this._labelService.getUriLabel(location, { noPrefix: true }), icon: Codicon.folder };
+		return { uri: location, label: basename(location), description: this._labelService.getUriLabel(location, { noPrefix: true }), icon: SESSION_WORKTREE_ICON };
 	}
 
 	/** The path a link file names, absolute and normalized: its content, or the `pattern`'s `path` group of it, relative to `base`. */
