@@ -1307,6 +1307,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
 		const parentWindow = this.codeWindowById(windowId);
 		if (!parentWindow) {
 			return;
