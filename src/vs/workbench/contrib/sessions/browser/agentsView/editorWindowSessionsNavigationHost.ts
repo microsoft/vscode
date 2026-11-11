@@ -3,50 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from '../../../../../base/browser/window.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
-import { ISessionHost, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
+import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
+import { IAgentsChatPartService } from './agentsChatPart.js';
 
 /**
- * The navigation of an editor window with the Sessions view. It shows no session of its own yet: the sessions list
- * reveals none, and opening a session or a chat shows nothing until the chat part shows them.
+ * The navigation of an editor window with the Sessions view: sessions and chats open in tabs of its chat part, beside the
+ * editor area. The window has no grid of sessions: the active tab of the chat part is its active session.
  */
 export class EditorWindowSessionsNavigationHost implements ISessionsNavigationHost {
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly mainWindowHost: ISessionHost;
 	readonly slotPanes: IObservable<readonly ISessionGridPane[]> = constObservable([]);
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
-		this.mainWindowHost = new SessionHost({
-			kind: SessionHostKind.MainWindow,
-			parent: undefined,
-			session: constObservable(undefined),
-			chat: constObservable(undefined),
-			contextKeyService,
-			windowId: constObservable(mainWindow.vscodeWindowId),
-		});
+	constructor(
+		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+	) { }
+
+	get mainWindowHost(): ISessionHost {
+		return this._chatPart.mainWindowHost;
 	}
 
-	async openSession(_sessionResource: URI): Promise<void> { }
+	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		if (session) {
+			await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+		}
+	}
 
-	async openSessionToSide(_session: ISession): Promise<void> { }
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions): Promise<void> {
+		await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus, sideBySide: true });
+	}
 
-	async openChat(_session: ISession, _chatUri: URI): Promise<void> { }
+	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
+		await this._chatPart.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
+	}
 
-	async openChatToSide(_session: ISession, _chatResource: URI): Promise<void> { }
+	async openChatToSide(session: ISession, chatResource: URI, options?: { readonly preserveFocus?: boolean }): Promise<void> {
+		await this._chatPart.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
+	}
 
 	async canOpenSession(_session: ISession): Promise<boolean> {
 		return true;
 	}
 
-	focusActiveSession(): void { }
+	focusActiveSession(): void {
+		this._chatPart.focus();
+	}
 
-	async closeArchivedChat(_session: ISession, _chat: IChat): Promise<void> { }
+	async closeArchivedChat(_session: ISession, chat: IChat): Promise<void> {
+		await this._chatPart.closeChat(chat.resource);
+	}
 }

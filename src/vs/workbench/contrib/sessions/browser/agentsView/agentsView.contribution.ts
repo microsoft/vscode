@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
@@ -43,7 +43,30 @@ import { ISessionAttentionService } from '../../common/sessionAttentionService.j
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { AgentsProfileSessionsStorageService } from './agentsProfileSessionsStorageService.js';
-import { AgentsViewAutomationService, AgentsViewCustomViewService, AgentsViewPinnedCanvasService } from './agentsViewNullServices.js';
+import { AgentsViewAgentFeedbackService, AgentsViewAquariumService, AgentsViewAutomationService, AgentsViewCodeReviewService, AgentsViewCustomViewService, AgentsViewPinnedCanvasService } from './agentsViewNullServices.js';
+import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
+import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
+import { EditorWindowSessionsService } from './editorWindowSessionsService.js';
+import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
+import { ISessionsService } from '../sessionsService.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
+import { ChatViewFactory } from '../chat/chatView.js';
+import { ISessionsChatViewStateService, SessionsChatViewStateService } from '../chat/chatViewStateService.js';
+import { ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../chatBackgroundService.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
+import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../chat/sessionChatInputToolbarDebug.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../newSessionComposerService.js';
+import { ISessionArchiveNudgeService, SessionArchiveNudgeService } from '../chat/sessionArchiveNudge.js';
+import { IWorktreeSuggestionService, WorktreeSuggestionService } from '../worktreeSuggestion/worktreeSuggestionService.js';
+import { IAgentFeedbackService } from '../agentFeedback.js';
+import { IAquariumService } from '../aquarium.js';
+import { ICodeReviewService } from '../codeReviewService.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../common/sessionActivityBarActivityService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../sessionChanges/browser/sessionChangesService.js';
+import { ChangesViewService } from '../../../sessionChanges/browser/changesViewService.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
+import { IDiffEditorOptionsService } from '../../../../services/editor/common/diffEditorOptionsService.js';
+import { DiffEditorOptionsService } from '../../../../services/editor/browser/diffEditorOptionsService.js';
 import { AgentsViewGate } from './agentsViewGate.js';
 import { EditorWindowSessionsHostLayout } from './editorWindowSessionsHostLayout.js';
 import { EditorWindowSessionsNavigationHost } from './editorWindowSessionsNavigationHost.js';
@@ -90,5 +113,27 @@ registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensio
 registerSingleton(ICustomViewService, AgentsViewCustomViewService, InstantiationType.Delayed);
 registerSingleton(IAutomationService, AgentsViewAutomationService, InstantiationType.Delayed);
 registerSingleton(IPinnedCanvasService, AgentsViewPinnedCanvasService, InstantiationType.Delayed);
+registerSingleton(IAgentFeedbackService, AgentsViewAgentFeedbackService, InstantiationType.Delayed);
+registerSingleton(IAquariumService, AgentsViewAquariumService, InstantiationType.Delayed);
+registerSingleton(ICodeReviewService, AgentsViewCodeReviewService, InstantiationType.Delayed);
+
+// The chat part, and the chats it shows
+registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);
+registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
+// Not delayed: hosts are compared by identity, which a delayed proxy would not keep
+registerSingleton(ISessionHost, EditorWindowMainSessionHost, InstantiationType.Eager);
+registerSingleton(ISessionsService, EditorWindowSessionsService, InstantiationType.Delayed);
+registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);
+registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);
+registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
+registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
+registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, InstantiationType.Delayed);
+registerSingleton(INewSessionComposerService, NewSessionComposerService, InstantiationType.Delayed);
+registerSingleton(ISessionArchiveNudgeService, SessionArchiveNudgeService, InstantiationType.Delayed);
+registerSingleton(IWorktreeSuggestionService, WorktreeSuggestionService, InstantiationType.Delayed);
+registerSingleton(ISessionActivityBarActivityService, SessionActivityBarActivityService, InstantiationType.Delayed);
+registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
+registerSingleton(IDiffEditorOptionsService, DiffEditorOptionsService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AgentsViewGate.ID, AgentsViewGate, WorkbenchPhase.BlockStartup);

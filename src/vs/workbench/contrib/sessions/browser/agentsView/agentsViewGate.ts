@@ -16,6 +16,8 @@ import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneConta
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation, WindowEnablement } from '../../../../common/views.js';
 import { ISessionsStorageService } from '../../../../services/sessions/browser/sessionsStorageService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -53,8 +55,15 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		this._register(registerSessionsListActions());
 		this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
 
-		// Starts loading the state the list shares with the Agents window, so that the view shows once it has
-		instantiationService.invokeFunction(accessor => accessor.get(ISessionsStorageService));
+		instantiationService.invokeFunction(accessor => {
+			// Starts loading the state the list shares with the Agents window, so that the view shows once it has
+			accessor.get(ISessionsStorageService);
+
+			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
+			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
+				this._register(instantiationService.createInstance(AgentsChatPartContribution));
+			}
+		});
 	}
 
 	private registerView(): void {

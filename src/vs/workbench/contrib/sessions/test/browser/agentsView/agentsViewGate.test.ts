@@ -20,6 +20,12 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer } from '../../../../../common/views.js';
 import { ISessionsStorageService } from '../../../../../services/sessions/browser/sessionsStorageService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
 import { AgentsViewGate } from '../../../browser/agentsView/agentsViewGate.js';
@@ -50,16 +56,27 @@ suite('AgentsViewGate', () => {
 		}
 	});
 
-	function createGate(enabled: boolean): AgentsViewGate {
+	let createdChatParts: number;
+
+	function createGate(enabled: boolean, remoteAuthority?: string): AgentsViewGate {
 		createdStorageServices = 0;
+		createdChatParts = 0;
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ISessionsStorageService, new SyncDescriptor(class extends mock<IStorageService>() {
 			constructor() {
 				super();
 				createdStorageServices++;
 			}
+		})], [IAgentsChatPartFrame, new SyncDescriptor(class {
+			constructor() {
+				createdChatParts++;
+			}
 		})])));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.AgentsViewEnabled]: enabled }));
 		instantiationService.stub(IViewsService, { onDidChangeViewVisibility: Event.None });
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
+		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		return disposables.add(instantiationService.createInstance(AgentsViewGate));
 	}
 
@@ -94,6 +111,7 @@ suite('AgentsViewGate', () => {
 			view: view?.id,
 			when: view?.when?.serialize(),
 			createdStorageServices,
+			createdChatParts,
 		}, {
 			title: { value: 'Sessions', original: 'Sessions' },
 			icon: Codicon.agent,
@@ -101,10 +119,17 @@ suite('AgentsViewGate', () => {
 			view: SessionsViewId,
 			when: AgentsViewWhen.serialize(),
 			createdStorageServices: 1,
+			createdChatParts: 1,
 		});
 
 		gate.dispose();
 		assert.deepStrictEqual(registered(), { container: undefined, view: undefined });
+	});
+
+	test('creates no chat part in a remote window', () => {
+		createGate(true, 'ssh-remote+host');
+
+		assert.deepStrictEqual({ createdChatParts }, { createdChatParts: 0 });
 	});
 
 	test('offers no action of the Sessions view that opens the Agents window', () => {

@@ -36,9 +36,10 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { registerSessionsListActions, registerSessionsListReadStateActions, SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 
 registerSessionsListActions();
+registerSessionsListReadStateActions();
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 

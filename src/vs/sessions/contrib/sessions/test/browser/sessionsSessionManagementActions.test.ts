@@ -79,7 +79,7 @@ suite('Sessions - Session management actions', () => {
 					sessionsList: rule.when.evaluate(context(sessionsList)),
 					nestedSession: rule.when.evaluate(context({ ...sessionsList, [SessionsListFocusedChatItemContext.key]: true })),
 					input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
-					editorWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: false })),
+					otherWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: false })),
 					otherView: rule.when.evaluate(context({ ...sessionsList, [FocusedViewContext.key]: 'otherView' })),
 					noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
 				}, {
@@ -87,7 +87,7 @@ suite('Sessions - Session management actions', () => {
 					sessionsList: true,
 					nestedSession: true,
 					input: false,
-					editorWindow: true,
+					otherWindow: false,
 					otherView: false,
 					noListFocus: false,
 				});

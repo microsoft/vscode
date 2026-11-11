@@ -13,6 +13,8 @@ import { IConfigurationOverrides, IConfigurationService } from '../../../../../.
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { ChatConfiguration } from '../../../../../chat/common/constants.js';
 import { SessionsViewId } from '../../../../browser/views/sessionsView.js';
 import { AgentsViewProvidersContribution } from '../../browser/agentsViewProviders.contribution.js';
@@ -38,9 +40,9 @@ suite('AgentsViewProvidersContribution', () => {
 		assert.deepStrictEqual(reads, [ChatConfiguration.AgentsViewEnabled]);
 	});
 
-	test('registers the providers only once, when the Sessions view first shows, while the setting is on', () => {
+	test('registers the providers only once, when the Sessions view or the chat part first shows, while the setting is on', async () => {
 		const onDidChangeViewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
-		const viewsService = upcastPartial<IViewsService>({ onDidChangeViewVisibility: onDidChangeViewVisibility.event });
+		const onDidChangePartVisibility = disposables.add(new Emitter<{ partId: string; visible: boolean }>());
 		const registered: string[] = [];
 		// Records the providers registered, instead of starting them
 		const providersInstantiationService = upcastPartial<IInstantiationService>({
@@ -49,18 +51,27 @@ suite('AgentsViewProvidersContribution', () => {
 				return upcastPartial<IDisposable>({ dispose: () => { } }) as R;
 			},
 		});
+		const services = new Map<unknown, unknown>([
+			[IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: onDidChangeViewVisibility.event })],
+			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: onDidChangePartVisibility.event, isVisible: () => false })],
+			[ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() })],
+			[IInstantiationService, providersInstantiationService],
+		]);
 		const instantiationService = upcastPartial<IInstantiationService>({
 			invokeFunction: <R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R => fn(upcastPartial<ServicesAccessor>({
-				get: <T>(id: unknown): T => (id === IViewsService ? viewsService : providersInstantiationService) as T,
+				get: <T>(id: unknown): T => services.get(id) as T,
 			}), ...args),
 		});
-		disposables.add(new AgentsViewProvidersContribution(configuration(true, []), instantiationService));
+		const contribution = disposables.add(new AgentsViewProvidersContribution(configuration(true, []), instantiationService));
+		await Promise.resolve();
 
 		onDidChangeViewVisibility.fire({ id: 'other', visible: true });
 		onDidChangeViewVisibility.fire({ id: SessionsViewId, visible: false });
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
 		const beforeShown = [...registered];
+		onDidChangePartVisibility.fire({ partId: Parts.CHAT_PART, visible: true });
 		onDidChangeViewVisibility.fire({ id: SessionsViewId, visible: true });
-		onDidChangeViewVisibility.fire({ id: SessionsViewId, visible: true });
+		contribution.dispose();
 
 		assert.deepStrictEqual({ beforeShown, afterShown: registered }, {
 			beforeShown: [],

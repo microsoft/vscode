@@ -47,8 +47,13 @@ export class WelcomeName extends Disposable {
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
 	}
 
-	private _getWelcomeName(gitHubName: string | undefined, configuredName = this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()): string | undefined {
+	private _getWelcomeName(gitHubName: string | undefined, configuredName = this._getConfiguredName()): string | undefined {
 		return configuredName.trim() || this._getFirstName(gitHubName);
+	}
+
+	/** The configured name; none where the setting is not registered, such as in an editor window. */
+	private _getConfiguredName(): string {
+		return this.configurationService.getValue<string | undefined>(NEW_SESSION_WELCOME_NAME_SETTING)?.trim() ?? '';
 	}
 
 	private _getFirstName(name: string | undefined): string | undefined {
@@ -56,14 +61,14 @@ export class WelcomeName extends Disposable {
 	}
 
 	private async _refreshGitHubProfileName(): Promise<void> {
-		if (!this.enabled.get() || this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()) {
+		if (!this.enabled.get() || this._getConfiguredName()) {
 			this._githubProfileAccountKey = undefined;
 			this._githubProfileName.set(undefined, undefined);
 			return;
 		}
 
 		const account = this.defaultAccountService.currentDefaultAccount ?? await this.defaultAccountService.getDefaultAccount();
-		if (!this.enabled.get() || this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()) {
+		if (!this.enabled.get() || this._getConfiguredName()) {
 			this._githubProfileAccountKey = undefined;
 			this._githubProfileName.set(undefined, undefined);
 			return;
@@ -93,7 +98,7 @@ export class WelcomeName extends Disposable {
 			&& currentAccount?.authenticationProvider.id === account.authenticationProvider.id
 			&& currentAccount.sessionId === account.sessionId
 			&& this.enabled.get()
-			&& !this.configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim()
+			&& !this._getConfiguredName()
 		) {
 			this._githubProfileName.set(resolvedProfileName, undefined);
 		}

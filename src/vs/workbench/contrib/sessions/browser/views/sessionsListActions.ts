@@ -769,6 +769,109 @@ export class SessionsArchiveActionsContribution extends Disposable implements IW
 }
 
 /**
+ * Registers Mark as Read and Mark as Unread of the sessions list, until the returned disposable is disposed. Only the
+ * Agents window registers them: they share their command ids with those of the agent sessions of an editor window, so
+ * that keybindings apply to both.
+ */
+export function registerSessionsListReadStateActions(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(CommandsRegistry.registerCommandAlias('sessionsViewPane.markRead', MARK_SESSION_READ_COMMAND_ID));
+
+	store.add(CommandsRegistry.registerCommandAlias('sessionsViewPane.markUnread', MARK_SESSION_UNREAD_COMMAND_ID));
+
+	store.add(registerAction2(class MarkSessionReadAction extends Action2 {
+		constructor() {
+			super({
+				id: MARK_SESSION_READ_COMMAND_ID,
+				title: localize2('markRead', "Mark as Read"),
+				keybinding: {
+					weight: KeybindingWeight.SessionsContrib,
+					when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+					primary: KeyMod.Shift | KeyCode.KeyI,
+				},
+				menu: [{
+					id: SessionItemContextMenuId,
+					group: '1_state',
+					order: 1,
+					when: ContextKeyExpr.and(
+						SessionIsReadContext.negate(),
+						SessionIsArchivedContext.negate(),
+					),
+				}, {
+					id: Menus.SessionChatItemContext,
+					group: '1_state',
+					order: 1,
+					when: ContextKeyExpr.and(
+						SessionChatItemCanSetReadStateContext,
+						SessionChatItemIsReadContext.negate(),
+						SessionChatItemIsArchivedContext.negate(),
+					),
+				}, ...SessionHeaderMenus.map(id => ({
+					id,
+					group: 'secondary/1_state',
+					order: 10,
+					when: ContextKeyExpr.and(
+						SessionIsCreatedContext,
+						SessionIsReadContext.negate(),
+						SessionIsArchivedContext.negate(),
+					),
+				}))]
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
+			return markSessionListTargetsRead(accessor, context, true);
+		}
+	}));
+
+	store.add(registerAction2(class MarkSessionUnreadAction extends Action2 {
+		constructor() {
+			super({
+				id: MARK_SESSION_UNREAD_COMMAND_ID,
+				title: localize2('markUnread', "Mark as Unread"),
+				keybinding: {
+					weight: KeybindingWeight.SessionsContrib,
+					when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+					primary: KeyMod.Shift | KeyCode.KeyU,
+				},
+				menu: [{
+					id: SessionItemContextMenuId,
+					group: '1_state',
+					order: 1,
+					when: ContextKeyExpr.and(
+						SessionIsReadContext,
+						SessionIsArchivedContext.negate(),
+					),
+				}, {
+					id: Menus.SessionChatItemContext,
+					group: '1_state',
+					order: 1,
+					when: ContextKeyExpr.and(
+						SessionChatItemCanSetReadStateContext,
+						SessionChatItemIsReadContext,
+						SessionChatItemIsArchivedContext.negate(),
+					),
+				}, ...SessionHeaderMenus.map(id => ({
+					id,
+					group: 'secondary/1_state',
+					order: 10,
+					when: ContextKeyExpr.and(
+						SessionIsCreatedContext,
+						SessionIsReadContext,
+						SessionIsArchivedContext.negate(),
+					),
+				}))]
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
+			return markSessionListTargetsRead(accessor, context, false);
+		}
+	}));
+
+	return store;
+}
+
+/**
  * Registers the actions of the sessions list that do not depend on the window it shows in: its filters, grouping and
  * sorting, finding, and the actions of its sections, groups, sessions and chats. Until every returned disposable is
  * disposed: the Agents window and the Sessions view of an editor window share one registration.
@@ -1709,98 +1812,6 @@ function createSessionsListActions(): DisposableStore {
 					? localize('deleteSession.error', "Failed to delete the session: {0}", toErrorMessage(err))
 					: localize('deleteSessions.error', "Failed to delete the sessions: {0}", toErrorMessage(err)));
 			}
-		}
-	}));
-
-	store.add(CommandsRegistry.registerCommandAlias('sessionsViewPane.markRead', MARK_SESSION_READ_COMMAND_ID));
-
-	store.add(CommandsRegistry.registerCommandAlias('sessionsViewPane.markUnread', MARK_SESSION_UNREAD_COMMAND_ID));
-
-	store.add(registerAction2(class MarkSessionReadAction extends Action2 {
-		constructor() {
-			super({
-				id: MARK_SESSION_READ_COMMAND_ID,
-				title: localize2('markRead', "Mark as Read"),
-				keybinding: {
-					weight: KeybindingWeight.SessionsContrib,
-					when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-					primary: KeyMod.Shift | KeyCode.KeyI,
-				},
-				menu: [{
-					id: SessionItemContextMenuId,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionIsReadContext.negate(),
-						SessionIsArchivedContext.negate(),
-					),
-				}, {
-					id: Menus.SessionChatItemContext,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionChatItemCanSetReadStateContext,
-						SessionChatItemIsReadContext.negate(),
-						SessionChatItemIsArchivedContext.negate(),
-					),
-				}, ...SessionHeaderMenus.map(id => ({
-					id,
-					group: 'secondary/1_state',
-					order: 10,
-					when: ContextKeyExpr.and(
-						SessionIsCreatedContext,
-						SessionIsReadContext.negate(),
-						SessionIsArchivedContext.negate(),
-					),
-				}))]
-			});
-		}
-		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
-			return markSessionListTargetsRead(accessor, context, true);
-		}
-	}));
-
-	store.add(registerAction2(class MarkSessionUnreadAction extends Action2 {
-		constructor() {
-			super({
-				id: MARK_SESSION_UNREAD_COMMAND_ID,
-				title: localize2('markUnread', "Mark as Unread"),
-				keybinding: {
-					weight: KeybindingWeight.SessionsContrib,
-					when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-					primary: KeyMod.Shift | KeyCode.KeyU,
-				},
-				menu: [{
-					id: SessionItemContextMenuId,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionIsReadContext,
-						SessionIsArchivedContext.negate(),
-					),
-				}, {
-					id: Menus.SessionChatItemContext,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionChatItemCanSetReadStateContext,
-						SessionChatItemIsReadContext,
-						SessionChatItemIsArchivedContext.negate(),
-					),
-				}, ...SessionHeaderMenus.map(id => ({
-					id,
-					group: 'secondary/1_state',
-					order: 10,
-					when: ContextKeyExpr.and(
-						SessionIsCreatedContext,
-						SessionIsReadContext,
-						SessionIsArchivedContext.negate(),
-					),
-				}))]
-			});
-		}
-		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
-			return markSessionListTargetsRead(accessor, context, false);
 		}
 	}));
 
