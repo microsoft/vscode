@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IHoverOptions, IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
 import { IStatusbarEntry, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
@@ -29,14 +31,10 @@ suite('FolderLocationStatusBarContribution', () => {
 	function createFixture() {
 		const entries: IStatusbarEntry[] = [];
 		let visible = false;
-		const hovers: IHoverOptions[] = [];
-		const highlighted = new Set<string>();
-		const element = { classList: { add: (c: string) => highlighted.add(c), remove: (c: string) => highlighted.delete(c) } };
 		const executed: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 
-		let stored = false;
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false);
 
@@ -50,14 +48,12 @@ suite('FolderLocationStatusBarContribution', () => {
 					return { update: (e: IStatusbarEntry) => { entries.push(e); }, dispose: () => { visible = false; } };
 				}
 			} as unknown as IStatusbarService,
-			{ showInstantHover(options: IHoverOptions) { hovers.push(options); } } as unknown as IHoverService,
-			{ mainContainer: { ownerDocument: { getElementById: () => element } } } as unknown as ILayoutService,
-			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
-			{ getBoolean: () => stored, store: () => { stored = true; } } as unknown as IStorageService
+			{ mainContainer: { ownerDocument: mainWindow.document } } as unknown as ILayoutService,
+			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService
 		));
 
 		return {
-			contribution, entries, hovers, highlighted, executed,
+			contribution, entries, executed,
 			isVisible: () => visible,
 			switchTo() {
 				currentLocation = location;
@@ -85,23 +81,27 @@ suite('FolderLocationStatusBarContribution', () => {
 		assert.strictEqual(fixture.isVisible(), false);
 	});
 
-	test('the introduction hover is shown once, highlights the entry and can return to the primary', async () => {
+	test('the introduction is a spotlight on the entry that can return to the primary', async () => {
 		const fixture = createFixture();
+		const scenario = () => onboardingScenarioRegistry.getScenario('workbench.folderLocation.introduction')!;
+		const signal = () => scenario().trigger.kind === 'observable' && scenario().trigger.signal.get();
+		assert.strictEqual(signal(), false);
 
 		fixture.switchTo();
+		const element = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		element.id = 'status.workspace.folderLocation';
+		element.style.cssText = 'width: 10px; height: 10px';
+		ds.add({ dispose: () => element.remove() });
+		const [step] = await (scenario().presentation.payload as ISpotlightPayload).resolveSteps!();
 		assert.deepStrictEqual(
-			{ hovers: fixture.hovers.length, sticky: fixture.hovers[0].persistence?.sticky, actions: fixture.hovers[0].actions?.map(a => a.label), highlighted: [...fixture.highlighted] },
-			{ hovers: 1, sticky: true, actions: ['Return to project', 'Got It'], highlighted: ['folder-location-highlight'] });
+			{ signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel },
+			{ signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It' });
 
-		fixture.hovers[0].onDidHide?.();
-		assert.deepStrictEqual([...fixture.highlighted], []);
-
-		await fixture.hovers[0].actions![0].run(undefined as never);
+		await step.primaryAction!.run(undefined as never);
 		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
 
 		fixture.returnToPrimary();
-		fixture.switchTo();
-		assert.strictEqual(fixture.hovers.length, 1);
+		assert.strictEqual(signal(), false);
 	});
 
 	test('return command switches back to the primary location', async () => {
