@@ -102,8 +102,8 @@ suite('AgentsViewProvidersService', () => {
 			hasComposer: () => composer.open,
 			// Closing an editor is asynchronous, as its group confirms it first
 			closeIdleComposers: async () => {
-				await timeout(10);
 				if (composer.open && composer.idle) {
+					await timeout(10);
 					composer.open = false;
 					events.push('close idle composer');
 				}
@@ -142,7 +142,8 @@ suite('AgentsViewProvidersService', () => {
 		const service = createService({ open: true, idle: true }, events);
 
 		service.acquire().dispose();
-		await timeout(AGENTS_VIEW_PROVIDERS_RELEASE_DELAY + 10);
+		// Released as the composer closes, not a delay later
+		await timeout(AGENTS_VIEW_PROVIDERS_RELEASE_DELAY + 20);
 
 		assert.deepStrictEqual(events, [...providers.map(name => `register ${name}`), 'close idle composer', ...providers.map(name => `release ${name}`)]);
 	}));

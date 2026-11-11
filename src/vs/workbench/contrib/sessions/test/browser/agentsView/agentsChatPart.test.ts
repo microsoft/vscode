@@ -37,6 +37,8 @@ import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js'
 import { INewSessionDraftSlot, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 
 /** An editor group that keeps its editors in memory, as the chat part's groups do, without rendering them. */
 class FakeGroup {
@@ -228,6 +230,7 @@ suite('AgentsChatPartService', () => {
 				return upcastPartial<INewSessionDraftSlot & IDisposable>({ id: `slot-${nextSlot++}`, newSession: constObservable(undefined), dispose: () => { liveSlots--; } });
 			},
 		}));
+		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
 		const host = new EditorWindowMainSessionHost(contextKeyService);
