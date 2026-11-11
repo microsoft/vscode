@@ -46,6 +46,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { AgentsProfileSessionsStorageService } from './agentsProfileSessionsStorageService.js';
 import { AgentsViewAgentFeedbackService, AgentsViewAquariumService, AgentsViewAutomationService, AgentsViewCodeReviewService, AgentsViewCustomViewService, AgentsViewPinnedCanvasService } from './agentsViewNullServices.js';
 import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
+import { AgentsViewFolderLocationService, IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { EditorWindowSessionsService } from './editorWindowSessionsService.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
@@ -121,6 +122,7 @@ registerSingleton(ICodeReviewService, AgentsViewCodeReviewService, Instantiation
 // The chat part, and the chats it shows
 registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);
 registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
+registerSingleton(IAgentsViewFolderLocationService, AgentsViewFolderLocationService, InstantiationType.Delayed);
 // Not delayed: hosts are compared by identity, which a delayed proxy would not keep
 registerSingleton(ISessionHost, EditorWindowMainSessionHost, InstantiationType.Eager);
 registerSingleton(ISessionsService, EditorWindowSessionsService, InstantiationType.Delayed);
