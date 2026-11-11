@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../base/common/async.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -40,6 +40,8 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	private currentKey: string | undefined;
 
+	private disposed = false;
+
 	constructor(
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -51,6 +53,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	) {
 		super();
 
+		this._register(toDisposable(() => this.disposed = true));
 		this.workingSets = this.load();
 		this.currentKey = this.getCurrentKey();
 
@@ -71,19 +74,23 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 			return;
 		}
 
-		this.sequencer.queue(() => this.switchWorkingSet(leaving, entering)).catch(error => this.logService.error('[folderLocation] Failed to switch the editors', error));
+		this.sequencer.queue(() => this.disposed || !this.configurationService.getValue<boolean>(FOLDER_LOCATION_RESTORE_EDITORS_SETTING) ? Promise.resolve() : this.switchWorkingSet(leaving, entering)).catch(error => this.logService.error('[folderLocation] Failed to switch the editors', error));
 	}
 
 	private async switchWorkingSet(leaving: string, entering: string): Promise<void> {
 
 		// Save the editors of the location being left. Nothing is saved for an empty editor
 		// area so that the location restores to what it had before the editors were closed.
-		if (this.editorGroupsService.mainPart.groups.some(group => group.count > 0)) {
-			this.save(leaving);
+		// The editors of the main part and of the windows that are part of working sets count.
+		if (this.editorGroupsService.parts.some(part => !part.isTransient && part.groups.some(group => group.count > 0))) {
+			this.save(leaving, entering);
 		}
 
 		// Apply the editors of the location being entered. A failure keeps the current editors.
 		const target = this.workingSets.find(entry => entry.key === entering)?.workingSet;
+		if (this.disposed) {
+			return;
+		}
 		try {
 			await this.editorGroupsService.applyWorkingSet(target ?? 'empty', { preserveFocus: true });
 		} catch (error) {
@@ -91,7 +98,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		}
 	}
 
-	private save(key: string): void {
+	private save(key: string, protectedKey: string): void {
 		const previous = this.workingSets.find(entry => entry.key === key);
 		const workingSet = this.editorGroupsService.saveWorkingSet(key);
 
@@ -101,8 +108,10 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 			this.editorGroupsService.deleteWorkingSet(previous.workingSet);
 		}
 
+		// The location being entered is about to be restored, so it is the last to be evicted
 		while (this.workingSets.length > FOLDER_LOCATION_MAX_WORKING_SETS) {
-			const evicted = this.workingSets.shift()!;
+			const index = this.workingSets.findIndex(entry => entry.key !== protectedKey);
+			const [evicted] = this.workingSets.splice(index, 1);
 			this.editorGroupsService.deleteWorkingSet(evicted.workingSet);
 		}
 

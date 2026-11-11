@@ -23,28 +23,34 @@ suite('FolderLocationWorkingSetsContribution', () => {
 	const primary = URI.file('/work/project');
 	const alternate = URI.file('/work/project-alt');
 
-	function createFixture(options?: { enabled?: boolean; editors?: number; storage?: InMemoryStorageService; existingSets?: string[] }) {
+	function createFixture(options?: { enabled?: boolean; editors?: number; auxiliaryEditors?: number; storage?: InMemoryStorageService; existingSets?: string[] }) {
 		const calls: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 		const storage = options?.storage ?? ds.add(new InMemoryStorageService());
 		let folderUri = primary;
 		let editors = options?.editors ?? 1;
+		let enabled = options?.enabled ?? true;
+		let gate: Promise<void> | undefined;
 		let counter = 0;
 		const sets = new Set(options?.existingSets ?? []);
 
 		const editorGroupsService = {
-			mainPart: { get groups() { return [{ count: editors }]; } },
+			parts: [
+				{ get groups() { return [{ count: editors }]; } },
+				{ get groups() { return [{ count: options?.auxiliaryEditors ?? 0 }]; } },
+				{ isTransient: true, groups: [{ count: 5 }] }
+			],
 			saveWorkingSet: (name: string): IEditorWorkingSet => { const id = `set-${++counter}`; sets.add(id); calls.push(`save ${name}`); return { id, name }; },
 			getWorkingSets: () => [...sets].map(id => ({ id, name: id })),
 			deleteWorkingSet: (ws: IEditorWorkingSet) => { sets.delete(ws.id); calls.push(`delete ${ws.id}`); },
-			applyWorkingSet: async (ws: IEditorWorkingSet | 'empty', applyOptions?: { preserveFocus?: boolean }) => { calls.push(`apply ${ws === 'empty' ? ws : ws.id} focus=${applyOptions?.preserveFocus}`); return true; }
+			applyWorkingSet: async (ws: IEditorWorkingSet | 'empty', applyOptions?: { preserveFocus?: boolean }) => { calls.push(`apply ${ws === 'empty' ? ws : ws.id} focus=${applyOptions?.preserveFocus}`); await gate; return true; }
 		} as unknown as IEditorGroupsService;
 
 		const contribution = ds.add(new FolderLocationWorkingSetsContribution(
 			{ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
 			editorGroupsService,
-			{ getValue: () => options?.enabled ?? true } as unknown as IConfigurationService,
+			{ getValue: () => enabled } as unknown as IConfigurationService,
 			storage as unknown as IStorageService,
 			{ asCanonicalUri: (uri: URI) => uri } as unknown as IUriIdentityService,
 			{ error: (message: string) => calls.push(`error ${message}`) } as unknown as ILogService
@@ -53,7 +59,9 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		return {
 			calls, storage, contribution, sets,
 			switchTo(uri: URI) { folderUri = uri; onDidChangeCurrentLocation.fire({ reason: 'programmatic' }); },
-			setEditors(count: number) { editors = count; }
+			setEditors(count: number) { editors = count; },
+			setEnabled(value: boolean) { enabled = value; },
+			holdApply() { let release!: () => void; gate = new Promise<void>(resolve => release = resolve); return () => { gate = undefined; release(); }; }
 		};
 	}
 
@@ -91,6 +99,54 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		await settle();
 
 		assert.deepStrictEqual(fixture.calls, ['apply empty focus=true']);
+	});
+
+	test('editors that are only in another window are saved, the ones of parts owned by someone else do not count', async () => {
+		const inWindow = createFixture({ editors: 0, auxiliaryEditors: 1 });
+		inWindow.switchTo(alternate);
+		await settle();
+
+		assert.deepStrictEqual(inWindow.calls, [`save ${primary.toString()}`, 'apply empty focus=true']);
+	});
+
+	test('returning to the oldest location at capacity keeps its working set', async () => {
+		const fixture = createFixture();
+		for (let i = 0; i < FOLDER_LOCATION_MAX_WORKING_SETS; i++) {
+			fixture.switchTo(URI.file(`/work/alt-${i}`));
+			await settle();
+		}
+		fixture.calls.length = 0;
+
+		fixture.switchTo(primary);
+		await settle();
+
+		assert.deepStrictEqual({ sets: fixture.sets.size, calls: fixture.calls }, {
+			sets: FOLDER_LOCATION_MAX_WORKING_SETS,
+			calls: [`save ${URI.file(`/work/alt-${FOLDER_LOCATION_MAX_WORKING_SETS - 1}`).toString()}`, 'delete set-2', 'apply set-1 focus=true']
+		});
+	});
+
+	test('queued switches do not run once the contribution is disposed or the setting was turned off', async () => {
+		const fixture = createFixture();
+		const release = fixture.holdApply();
+		fixture.switchTo(alternate);
+		await settle();
+		fixture.switchTo(primary);
+		fixture.setEnabled(false);
+		fixture.switchTo(alternate);
+		release();
+		await settle();
+		assert.deepStrictEqual(fixture.calls, [`save ${primary.toString()}`, 'apply empty focus=true']);
+
+		const disposedFixture = createFixture();
+		const releaseDisposed = disposedFixture.holdApply();
+		disposedFixture.switchTo(alternate);
+		await settle();
+		disposedFixture.switchTo(primary);
+		disposedFixture.contribution.dispose();
+		releaseDisposed();
+		await settle();
+		assert.deepStrictEqual(disposedFixture.calls, [`save ${primary.toString()}`, 'apply empty focus=true']);
 	});
 
 	test('a quick back and forth leaves the last location with its working set', async () => {
