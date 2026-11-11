@@ -17,7 +17,7 @@ import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../.
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
-import { IStatusbarEntry, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
 
@@ -31,6 +31,7 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	function createFixture() {
 		const entries: IStatusbarEntry[] = [];
+		const added: { alignment: unknown; priority: unknown }[] = [];
 		let visible = false;
 		const executed: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
@@ -43,7 +44,8 @@ suite('FolderLocationStatusBarContribution', () => {
 			{ get currentLocation() { return currentLocation; }, onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
 			{
-				addEntry(entry: IStatusbarEntry) {
+				addEntry(entry: IStatusbarEntry, _id: string, alignment: unknown, priority: unknown) {
+					added.push({ alignment, priority });
 					entries.push(entry);
 					visible = true;
 					return { update: (e: IStatusbarEntry) => { entries.push(e); }, dispose: () => { visible = false; } };
@@ -54,7 +56,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		));
 
 		return {
-			contribution, entries, executed,
+			contribution, entries, executed, added,
 			isVisible: () => visible,
 			switchTo() {
 				currentLocation = location;
@@ -68,6 +70,12 @@ suite('FolderLocationStatusBarContribution', () => {
 			}
 		};
 	}
+
+	test('entry sits after the remote indicator and before the SCM entries', () => {
+		const fixture = createFixture();
+		fixture.switchTo();
+		assert.deepStrictEqual(fixture.added, [{ alignment: StatusbarAlignment.LEFT, priority: 10000.1 }]);
+	});
 
 	test('entry is prominent and shown only at an alternate location', () => {
 		const fixture = createFixture();
