@@ -117,7 +117,7 @@ import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreati
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../browser/editor.js';
 import { PaneComposite, PaneCompositeDescriptor, Extensions as PaneCompositeExtensions } from '../../browser/panecomposite.js';
 import { Part } from '../../browser/part.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, GroupTransferKind, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
 import { EditorPane } from '../../browser/parts/editor/editorPane.js';
 import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
 import { EditorParts } from '../../browser/parts/editor/editorParts.js';
@@ -682,6 +682,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	hasFocus(_part: Parts): boolean { return false; }
 	isFloatingPanelsEnabled(): boolean { return false; }
 	isModernUICompact(): boolean { return false; }
+	getPanelSpacing(): number { return this.isModernUICompact() ? 0 : 4; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
@@ -1064,6 +1065,8 @@ export class TestEditorGroupAccessor implements IEditorGroupsView {
 	activateGroup(identifier: number | IEditorGroupView): IEditorGroupView { throw new Error('Method not implemented.'); }
 	restoreGroup(identifier: number | IEditorGroupView): IEditorGroupView { throw new Error('Method not implemented.'); }
 	addGroup(location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
+	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView { return location; }
+	getTransferTarget(_kind: GroupTransferKind, _source: IEditorGroupView | number, location: IEditorGroupView): IEditorGroupView { return location; }
 	mergeGroup(group: number | IEditorGroupView, target: number | IEditorGroupView, options?: IMergeGroupOptions | undefined): boolean { throw new Error('Method not implemented.'); }
 	moveGroup(group: number | IEditorGroupView, location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
 	copyGroup(group: number | IEditorGroupView, location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
@@ -1670,6 +1673,13 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 			return this.moveDisabledReason;
 		}
 		return super.canMove(sourceGroup, targetGroup);
+	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): string | true {
+		if (typeof this.moveDisabledReason === 'string') {
+			return this.moveDisabledReason;
+		}
+		return super.canMoveToNewWindow(sourceGroup);
 	}
 }
 

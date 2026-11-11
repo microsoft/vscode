@@ -200,10 +200,13 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, context?: IMarshalledAgentSessionContext) {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
-		const sessionsToMarkRead = agentSessionsService.model.sessions.filter(session => !session.isArchived() && !session.isRead());
+		const sessions = isMarshalledAgentSessionContext(context) && context.showAutomationRuns
+			? agentSessionsService.model.sessionsIncludingAutomationRuns ?? agentSessionsService.model.sessions
+			: agentSessionsService.model.sessions;
+		const sessionsToMarkRead = sessions.filter(session => !session.isArchived() && !session.isRead());
 		if (sessionsToMarkRead.length === 0) {
 			return;
 		}

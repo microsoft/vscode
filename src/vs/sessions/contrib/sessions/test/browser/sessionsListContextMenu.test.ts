@@ -30,29 +30,31 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import type { SessionView } from '../../../../browser/parts/sessionView.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionGroup } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
-import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../../chatWindow/browser/openChatInWindow.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -116,6 +118,9 @@ suite('Sessions list context menus', () => {
 			pinnedSessionIds,
 		});
 		const commandService = harness.instantiationService.get(ICommandService);
+		if (grouping === SessionsGrouping.Inbox) {
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+		}
 		harness.instantiationService.stub(IContextKeyService, contextKeyService);
 		harness.instantiationService.stub(IContextMenuService, contextMenuService);
 		harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
@@ -203,6 +208,15 @@ suite('Sessions list context menus', () => {
 				menuDisposed: true,
 			});
 		}
+	});
+
+	test('inbox does not offer unsupported group creation in empty space or category menus', () => {
+		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Inbox);
+		dispatchContextMenu(container.querySelector<HTMLElement>('.monaco-list-rows')!);
+		const empty = contextMenuService.delegate?.getActions().some(action => action.id === 'sessions.createGroup') ?? false;
+		dispatchContextMenu(container.querySelector<HTMLElement>('.session-section')!);
+		const section = contextMenuService.delegate?.getActions().some(action => action.id === 'sessions.createGroup') ?? false;
+		assert.deepStrictEqual({ empty, section }, { empty: false, section: false });
 	});
 
 	test('multiselection disables single-session context menu actions', async () => {
@@ -1049,7 +1063,8 @@ suite('Sessions list context menus', () => {
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable(undefined);
-				override readonly visibleSessions = constObservable([]);
+				readonly gridShown = constObservable([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				override async canOpenSession(): Promise<boolean> { return true; }
 				override showSession(): void { }
 				override async openChatToSide(_session: ISession, chatResource: URI): Promise<void> {

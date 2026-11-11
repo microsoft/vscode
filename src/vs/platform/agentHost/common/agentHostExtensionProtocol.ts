@@ -5,7 +5,7 @@
 
 import { ValidatorBase, vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
@@ -28,8 +28,9 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKe
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
 import { AgentHostWorktreeCleanupCapabilityMetaKey } from './meta/agentHostWorktreeCleanupMeta.js';
-import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
+import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, PrepareSessionWorktreeCleanupExtensionMethod, prepareSessionWorktreeCleanupParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostSideChatWithoutContextMetaKey } from './meta/agentHostSideChatMeta.js';
 import { AgentHostCreateSessionImportCapabilityMetaKey, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport } from './meta/agentHostCreateSessionImportMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNoticesCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
@@ -112,7 +113,7 @@ export const ClientArtifactIntegrationUpdateExtensionMethod = 'vscode/clientArti
 export const ClientArtifactIntegrationExtensionMethod = 'vscode/clientArtifactIntegrations';
 export const ListAgentExtensionsExtensionMethod = 'vscode/listAgentExtensions';
 export const SetAgentExtensionEnabledExtensionMethod = 'vscode/setAgentExtensionEnabled';
-const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
+export const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
@@ -129,6 +130,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	/** Present when `createChat` honors a requested chat workspace (folder, worktree or scratch folder). */
 	readonly [AgentHostCreateChatWorkspaceCapabilityMetaKey]?: true;
+	/** Present when side chats can retain their origin without inheriting source context. */
+	readonly [AgentHostSideChatWithoutContextMetaKey]?: true;
 	/** Present when `createSession` honors an imported conversation on `_meta`. */
 	readonly [AgentHostCreateSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
@@ -164,6 +167,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
+		[AgentHostSideChatWithoutContextMetaKey]: true,
 		[AgentHostCreateSessionImportCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
@@ -294,6 +298,10 @@ export interface IAgentHostExtensionCommandMap {
 		params: ValidatorType<typeof sessionWorktreeCleanupParamsValidator>;
 		result: IAgentHostWorktreeCleanupStatus;
 	};
+	[PrepareSessionWorktreeCleanupExtensionMethod]: {
+		params: ValidatorType<typeof prepareSessionWorktreeCleanupParamsValidator>;
+		result: void;
+	};
 	[MeasureWorktreeDiskUsageExtensionMethod]: {
 		params: ValidatorType<typeof measureWorktreeDiskUsageParamsValidator>;
 		/** Allocated regular-file bytes on the root volume, excluding files with links outside the measured worktree. */
@@ -418,6 +426,10 @@ export interface IAgentHostExtensionServerCommandMap {
 	[LookupClientProxyKerberosAuthorizationExtensionMethod]: {
 		params: ValidatorType<typeof lookupClientProxyKerberosAuthorizationParamsValidator>;
 		result: ValidatorType<typeof lookupClientProxyKerberosAuthorizationResultValidator>;
+	};
+	[LookupClientProxyBasicAuthorizationExtensionMethod]: {
+		params: ValidatorType<typeof lookupClientProxyBasicAuthorizationParamsValidator>;
+		result: ValidatorType<typeof lookupClientProxyBasicAuthorizationResultValidator>;
 	};
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;

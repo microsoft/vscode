@@ -103,6 +103,10 @@ parameters:
     displayName: "🎯 Web"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_WEB_MOBILE
+    displayName: "Build the optional mobile web archive"
+    type: boolean
+    default: false
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -215,6 +219,10 @@ variables:
       value: 1es-ubuntu-22.04-x64
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  # The day of the workspace images of the CI test jobs (see build/azure-pipelines/common/workspaceImage.ts):
+  # the first CI build of a day builds a new one. The same in every job of a run, unlike the clock.
+  - name: VSCODE_WORKSPACE_IMAGE_DAY
+    value: $[format('{0:yyyyMMdd}', pipeline.startTime)]
   - name: VSCODE_PUBLISH_COUNTER_PREFIX
     value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
@@ -327,6 +335,8 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      antimalwareScan:
+        scanTimeoutInMinutes: '10'
       sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
@@ -335,6 +345,9 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
+
+      - ${{ if and(eq(parameters.VSCODE_BUILD_WEB_MOBILE, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
+        - 'Mobile web requires a Product build with VSCODE_BUILD_WEB=true': error
 
       # Reject at template expansion, before allocating agents. Web uploads the matching
       # commit's webview bootstrap assets even when VSCODE_PUBLISH is false.
@@ -352,17 +365,6 @@ extends:
               # Batched CI builds check only the files that their commits change.
               # Scheduled and manual builds check every file.
               VSCODE_CHECK_CHANGED_FILES: ${{ eq(variables['Build.Reason'], 'BatchedCI') }}
-
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_UBUNTU_POOL }}
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -394,11 +396,10 @@ extends:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
-                    - copilot
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -435,6 +436,15 @@ extends:
                   VSCODE_TEST_IDS:
                     - smoke-electron
                     - smoke-wsl-kerberos-proxy
+                    - smoke-wsl-basic-proxy
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: build/azure-pipelines/win32/product-build-win32.yml@self
@@ -458,11 +468,10 @@ extends:
                     VSCODE_ARCH: x64
                     VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                     VSCODE_JOB_NAME: Unit
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                     VSCODE_TEST_IDS:
                       - unit-node
                       - unit-browser-chromium
-                      - copilot
                 - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                   parameters:
                     VSCODE_ARCH: x64
@@ -499,7 +508,16 @@ extends:
                     VSCODE_TEST_IDS:
                       - smoke-electron
                       - smoke-wsl-kerberos-proxy
+                      - smoke-wsl-basic-proxy
                     VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
+                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: Copilot
+                    VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                    VSCODE_TEST_IDS:
+                      - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64
@@ -557,11 +575,10 @@ extends:
                   NPM_ARCH: x64
                   VSCODE_ARCH: x64
                   VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
-                    - copilot
               - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
                 parameters:
                   NPM_ARCH: x64
@@ -597,6 +614,14 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
+              - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:
         - stage: LinuxARM64
@@ -655,10 +680,16 @@ extends:
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              # The test jobs start from its workspace image when the cache has one, without waiting for it
+              - template: build/azure-pipelines/linux/product-build-linux-workspace-image.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: UnitElectron
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -667,16 +698,17 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
-                    - copilot
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -688,6 +720,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -696,6 +729,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: AgentHostE2E
                   VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -704,10 +738,20 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Smoke
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
+                  VSCODE_JOB_NAME: Copilot
+                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                  VSCODE_TEST_IDS:
+                    - copilot
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
@@ -753,9 +797,14 @@ extends:
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
+            # The test jobs start from its workspace image when the cache has one, without waiting for it
+            - template: build/azure-pipelines/darwin/product-build-darwin-workspace-image.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: UnitElectron
                 VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -763,15 +812,16 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
-                  - copilot
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: BrowserRemote
                 VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                 VSCODE_TEST_IDS:
@@ -782,6 +832,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: Integration
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -789,6 +840,7 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: AgentHostE2E
                 VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -796,12 +848,14 @@ extends:
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_WORKSPACE_IMAGE: use
                 VSCODE_JOB_NAME: Smoke
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
                   - smoke-electron
                   - smoke-agents-pac-proxy
                   - smoke-agents-kerberos-pac-proxy
+                  - smoke-agents-basic-proxy
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
         - stage: macOSX64
@@ -863,11 +917,10 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-webkit
-                    - copilot
               - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -905,6 +958,7 @@ extends:
                     - smoke-electron
                     - smoke-agents-pac-proxy
                     - smoke-agents-kerberos-pac-proxy
+                    - smoke-agents-basic-proxy
 
       # The universal job waits for the unsigned x64 and arm64 client artifacts
       # instead of depending on their stages, so that it runs in parallel.
@@ -929,6 +983,7 @@ extends:
             - template: build/azure-pipelines/web/product-build-web.yml@self
               parameters:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
@@ -1513,32 +1568,6 @@ extends:
                     - vscode_cli_linux_armhf_cli
                     - vscode_client_linux_armhf_archive-unsigned
                     - vscode_client_linux_armhf_deb-package
-
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
         - stage: APIScan

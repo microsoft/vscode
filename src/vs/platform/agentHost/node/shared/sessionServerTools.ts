@@ -272,9 +272,11 @@ const getSessionContextInputSchema: ToolDefinition['inputSchema'] = {
 		detail: {
 			type: 'string',
 			enum: [...sessionContextDetailValues],
-			description: 'How much conversation detail to return. `summary` (default): status and a short per-turn gist (the message plus a compact snippet of the reply). `digest`: adds the full assistant reply text and tool-call names. `full`: adds tool-call inputs. Higher levels return more tokens.',
+			description: 'How much conversation detail to return. `summary` (default): status and a short per-turn gist. `digest`: longer reply excerpts and tool-call names. `full`: longer excerpts and tool-call inputs. All levels are bounded; use responseTurnId to page through a shortened reply.',
 		},
 		transcriptLimit: { type: 'number', description: 'Maximum number of most-recent turns to include. Defaults to 10; capped at 50.' },
+		responseTurnId: { type: 'string', description: 'Read one completed turn\'s complete assistant reply in pages of up to 8000 characters instead of a transcript. Use the exact responseTurnId returned for a shortened reply. Follow nextResponseOffset until truncated is false before treating the reply as fully read.' },
+		responseOffset: { type: 'integer', minimum: 0, description: 'Character offset for responseTurnId, initially 0. Continue with the returned nextResponseOffset. Requires responseTurnId.' },
 	},
 	required: ['session'],
 };
@@ -340,7 +342,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetSessionContext,
 		title: 'Get Session Context',
-		description: 'Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
+		description: 'Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns bounded excerpts at every detail level. For a shortened assistant reply, pass its responseTurnId and follow nextResponseOffset until truncated is false to read the complete reply. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -1769,6 +1771,7 @@ type SessionContextDetail = (typeof sessionContextDetailValues)[number];
 
 const defaultTranscriptLimit = 10;
 const maxTranscriptLimit = 50;
+const responsePageLength = 8000;
 
 /** Per-detail truncation caps (characters); a value of 0 omits the field. */
 const contextCaps: Record<SessionContextDetail, { user: number; assistant: number; toolInput: number }> = {
@@ -1783,6 +1786,8 @@ interface ISessionContextArgs {
 	readonly session?: unknown;
 	readonly detail?: unknown;
 	readonly transcriptLimit?: unknown;
+	readonly responseTurnId?: unknown;
+	readonly responseOffset?: unknown;
 }
 
 export interface IResolvedSessionContextArgs {
@@ -1790,6 +1795,8 @@ export interface IResolvedSessionContextArgs {
 	readonly chatId?: string;
 	readonly detail: SessionContextDetail;
 	readonly transcriptLimit: number;
+	readonly responseTurnId?: string;
+	readonly responseOffset?: number;
 }
 
 /** Validates and resolves get-session-context arguments against the known sessions. */
@@ -1815,7 +1822,16 @@ export function getSessionContextArgs(rawArgs: unknown, sessions: readonly IAgen
 		transcriptLimit = Math.min(Math.floor(args.transcriptLimit), maxTranscriptLimit);
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
-	return { session, detail, transcriptLimit, ...(chatId !== undefined ? { chatId } : {}) };
+	const responseTurnId = args.responseTurnId === undefined ? undefined : getRequiredString(args.responseTurnId, 'responseTurnId', SessionServerToolName.GetSessionContext);
+	const responseOffset = args.responseOffset === undefined ? 0 : args.responseOffset;
+	if (typeof responseOffset !== 'number' || !Number.isSafeInteger(responseOffset) || responseOffset < 0 || args.responseOffset !== undefined && responseTurnId === undefined) {
+		throw new Error(`Invalid ${SessionServerToolName.GetSessionContext} input: responseOffset must be a nonnegative safe integer and requires responseTurnId.`);
+	}
+	return {
+		session, detail, transcriptLimit,
+		...(chatId !== undefined ? { chatId } : {}),
+		...(responseTurnId !== undefined ? { responseTurnId, responseOffset } : {}),
+	};
 }
 
 /** Truncates {@link text} to {@link max} characters, appending an ellipsis when cut. */
@@ -1842,6 +1858,8 @@ interface ISerializedContextTurn {
 	readonly state: string;
 	readonly user?: string;
 	readonly assistant?: string;
+	readonly assistantTruncated?: boolean;
+	readonly responseTurnId?: string;
 	readonly toolCalls?: readonly (string | { readonly name: string; readonly input?: string })[];
 }
 
@@ -1887,8 +1905,8 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		return result.text || undefined;
 	};
 
-	const entries: { message: Message; parts: readonly ResponsePart[]; state: TurnState | 'inProgress' }[] =
-		snapshot.turns.map(t => ({ message: t.message, parts: t.responseParts, state: t.state }));
+	const entries: { id?: string; message: Message; parts: readonly ResponsePart[]; state: TurnState | 'inProgress' }[] =
+		snapshot.turns.map(t => ({ id: t.id, message: t.message, parts: t.responseParts, state: t.state }));
 	if (snapshot.activeTurn) {
 		entries.push({ message: snapshot.activeTurn.message, parts: snapshot.activeTurn.responseParts, state: 'inProgress' });
 	}
@@ -1900,7 +1918,9 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 
 	const transcript: ISerializedContextTurn[] = windowed.map((entry, index): ISerializedContextTurn => {
 		const user = trunc(entry.message.text, caps.user);
-		const assistant = trunc(assistantTextOf(entry.parts), caps.assistant);
+		const assistantText = assistantTextOf(entry.parts);
+		const assistant = trunc(assistantText, caps.assistant);
+		const assistantTruncated = assistantText.length > caps.assistant;
 		const toolCalls = toolCallsOf(entry.parts);
 		let serializedToolCalls: (string | { name: string; input?: string })[] | undefined;
 		if (detail !== 'summary' && toolCalls.length > 0) {
@@ -1917,6 +1937,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 			state: describeTurnState(entry.state),
 			...(user !== undefined ? { user } : {}),
 			...(assistant !== undefined ? { assistant } : {}),
+			...(assistantTruncated ? { assistantTruncated: true, ...(entry.id !== undefined ? { responseTurnId: entry.id } : {}) } : {}),
 			...(serializedToolCalls ? { toolCalls: serializedToolCalls } : {}),
 		};
 	});
@@ -1947,22 +1968,35 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 /** Reads and serializes the context of an existing session/chat. */
 export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
 	const sessions = await accessor.listSessions();
-	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
+	const { session, chatId, detail, transcriptLimit, responseTurnId, responseOffset = 0 } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
+	if (!snapshot) {
+		throw new Error('The requested chat transcript is unavailable. Use list_sessions to check the session and chat target, then retry.');
+	}
 	const metadata = sessions.find(candidate => candidate.session.toString() === session.toString());
 	const harness = metadata && chatId !== undefined ? chatHarness(metadata, metadata.chats?.find(chat => chat.chat.toString() === chatId || getAgentHostChatId(chat.chat) === chatId)) : undefined;
-	if (!snapshot) {
-		// No live conversation state (e.g. a cold/unsubscribed session): return the
-		// identity + an empty transcript. Metadata is available via list_sessions.
+	if (responseTurnId !== undefined) {
+		const turn = snapshot.turns.find(candidate => candidate.id === responseTurnId);
+		if (!turn) {
+			throw new Error(`The requested response turn is unavailable. Read the session context again for current responseTurnId values.`);
+		}
+		const assistant = assistantTextOf(turn.responseParts);
+		if (responseOffset > assistant.length) {
+			throw new Error(`Invalid ${SessionServerToolName.GetSessionContext} input: responseOffset exceeds the response length.`);
+		}
+		const end = Math.min(responseOffset + responsePageLength, assistant.length);
 		return JSON.stringify({
 			session: session.toString(),
 			openLink: buildOpenSessionLinkUri(session, chatId),
 			...(harness !== undefined ? { harness } : {}),
-			detail,
-			transcript: [],
-			hasMoreHistory: false,
-			truncated: false,
-		} satisfies ISerializedSessionContext);
+			responseTurnId,
+			responseOffset,
+			state: describeTurnState(turn.state),
+			assistant: assistant.slice(responseOffset, end),
+			responseLength: assistant.length,
+			...(end < assistant.length ? { nextResponseOffset: end } : {}),
+			truncated: end < assistant.length,
+		});
 	}
 	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel ? URI.parse(currentChannel) : undefined, harness);
 }

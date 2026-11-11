@@ -161,6 +161,9 @@ importers:
       mime:
         specifier: ^1.4.1
         version: 1.6.0
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
       source-map:
         specifier: 0.6.1
         version: 0.6.1

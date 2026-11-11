@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { clamp } from '../../../../base/common/numbers.js';
+import { deepClone } from '../../../../base/common/objects.js';
 import { Mutable } from '../../../../base/common/types.js';
 
 export type ChatPetJumpDirection = -1 | 0 | 1;
@@ -42,6 +43,18 @@ interface IChatPetJumpPlayer {
 	platform: number | undefined;
 }
 
+interface IChatPetJumpCheckpoint {
+	readonly width: number;
+	readonly player: IChatPetJumpPlayer;
+	readonly platforms: IChatPetJumpPlatformState[];
+	readonly walls: IChatPetJumpWall[];
+	readonly steps: number;
+	readonly direction: ChatPetJumpDirection;
+	readonly bestHeight: number;
+	readonly highestPlatform: number;
+	readonly hops: number;
+}
+
 const STEP = 1 / 120;
 const CHARGE_DURATION = 900;
 const GRAVITY = 1800;
@@ -63,6 +76,7 @@ export class ChatPetJumpGameModel {
 	private steps = 0;
 	private highestPlatform = 0;
 	private _hops = 0;
+	private checkpoint: IChatPetJumpCheckpoint;
 
 	constructor(
 		width: number,
@@ -80,6 +94,7 @@ export class ChatPetJumpGameModel {
 		const platformWidth = Math.min(petSize * 3, width);
 		const left = clamp(x - platformWidth / 2, 0, width - platformWidth);
 		this._platforms = [{ id: 0, left, originLeft: left, width: platformWidth, height: 0, kind: 'static', approachDirection: 0, collapseProgress: 0, fallDistance: 0, collapseDelay: 0 }];
+		this.checkpoint = this.createCheckpoint();
 	}
 
 	get width(): number { return this._width; }
@@ -117,10 +132,53 @@ export class ChatPetJumpGameModel {
 	}
 
 	private jump(charge: number): void {
+		this.checkpoint = this.createCheckpoint();
 		this._player.velocityX = this._direction * this.horizontalSpeed(charge);
 		this._player.velocityY = this.jumpSpeed(charge);
 		this._player.platform = undefined;
 		this.chargeSteps = 0;
+	}
+
+	private createCheckpoint(): IChatPetJumpCheckpoint {
+		return deepClone({
+			width: this._width,
+			player: this._player,
+			platforms: this._platforms,
+			walls: this._walls,
+			steps: this.steps,
+			direction: this._direction,
+			bestHeight: this._bestHeight,
+			highestPlatform: this.highestPlatform,
+			hops: this._hops,
+		});
+	}
+
+	resetToCheckpoint(): void {
+		const width = this._width;
+		const checkpoint = deepClone(this.checkpoint);
+		this._width = checkpoint.width;
+		Object.assign(this._player, checkpoint.player);
+		this._platforms.splice(0, this._platforms.length, ...checkpoint.platforms);
+		this._walls.splice(0, this._walls.length, ...checkpoint.walls);
+		this.steps = checkpoint.steps;
+		this._direction = checkpoint.direction;
+		this._bestHeight = checkpoint.bestHeight;
+		this.highestPlatform = checkpoint.highestPlatform;
+		this._hops = checkpoint.hops;
+		this.accumulator = 0;
+		this.cancelCharge();
+		for (const platform of this._platforms) {
+			if (platform.kind === 'crumbling') {
+				if (platform.id === this._player.platform) {
+					platform.collapseStep = this.steps;
+				} else {
+					delete platform.collapseStep;
+				}
+				platform.collapseProgress = 0;
+				platform.fallDistance = 0;
+			}
+		}
+		this.resize(width);
 	}
 
 	private jumpSpeed(charge: number): number {
@@ -142,6 +200,7 @@ export class ChatPetJumpGameModel {
 		if (!Number.isFinite(height)) {
 			throw new RangeError('The jump game generation height must be finite.');
 		}
+		const platformCount = this._platforms.length;
 		let previous = this._platforms[this._platforms.length - 1];
 		while (previous.height < height) {
 			const id = previous.id + 1;
@@ -179,6 +238,10 @@ export class ChatPetJumpGameModel {
 				previous.left += Math.sin(this.steps * STEP * previous.movement.speed) * previous.movement.amplitude;
 			}
 			this._platforms.push(previous);
+		}
+		// Keep Retry from regenerating a course created before the first jump.
+		if (this._player.platform !== undefined && this._platforms.length !== platformCount) {
+			this.checkpoint = this.createCheckpoint();
 		}
 	}
 
@@ -368,6 +431,7 @@ export class ChatPetJumpGameModel {
 				player.velocityX = 0;
 				player.velocityY = 0;
 				player.platform = -wallLanding.id;
+				this.checkpoint = this.createCheckpoint();
 				return;
 			} else if (collision === 'vertical') {
 				player.velocityY *= -1;
@@ -384,6 +448,7 @@ export class ChatPetJumpGameModel {
 					this.highestPlatform = collision.id;
 					this._hops++;
 				}
+				this.checkpoint = this.createCheckpoint();
 				return;
 			}
 		}

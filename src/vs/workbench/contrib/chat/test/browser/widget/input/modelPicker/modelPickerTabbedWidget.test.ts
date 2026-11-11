@@ -301,7 +301,7 @@ suite('TabbedModelPicker', () => {
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			comparisonModels: options.comparisonModels,
-			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
+			pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: options.manageSettingsUrl, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
@@ -820,6 +820,8 @@ suite('TabbedModelPicker', () => {
 					: undefined,
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
+			anchor.style.left = 'calc(100% - 500px)';
+			picker.show(anchor, context);
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
 			popup.style.setProperty('--vscode-strokeThickness', '1px');
 			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
@@ -860,6 +862,8 @@ suite('TabbedModelPicker', () => {
 			picker.show(anchor, context);
 			const reopened = bounds();
 			assert.deepStrictEqual({
+				initiallyBesideAnchor: first.bottom <= anchor.getBoundingClientRect().top || first.top >= anchor.getBoundingClientRect().bottom,
+				initiallyAligned: first.left === anchor.getBoundingClientRect().left,
 				sameListViewport: firstRows === initialRows,
 				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
 				stableHeight: reopened.height === first.height,
@@ -867,9 +871,46 @@ suite('TabbedModelPicker', () => {
 				aligned: reopened.left === anchor.getBoundingClientRect().left,
 				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
 				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
-			}, { sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
+			}, { initiallyBesideAnchor: true, initiallyAligned: true, sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
 		});
 	}
+
+	test('comparison stays vertically anchored when its list fills the fractional space above the trigger', () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select two or more models to compare their responses side by side.',
+				summary: '', selectedModelIds: [], multiple: true, maxSelections: 10,
+				canGoBack: false, canGoNext: false, canFinish: true,
+			}, undefined),
+			cancel: () => { }, reset: () => { }, select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const manyModels = Array.from({ length: 25 }, (_, index) => model(`Model-${index}`));
+		const { picker, popup, anchor, context, dismiss } = createPicker({
+			comparison, realContextView: true, anchorTop: '400.5px', models: manyModels,
+			pinnedModelIds: manyModels.map(model => model.identifier),
+			controlModels: Object.fromEntries(manyModels.map(model => [model.metadata.id, { label: model.metadata.name, exists: true, featured: true }])),
+		});
+		dismiss();
+		for (const size of [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36]) {
+			anchor.parentElement!.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+		}
+		anchor.parentElement!.style.setProperty('--vscode-strokeThickness', '1px');
+		anchor.parentElement!.style.setProperty('--vscode-fontSize-label1', '13px');
+		anchor.style.left = 'calc(100% - 500px)';
+		picker.show(anchor, context);
+		element(popup, '[aria-label="Compare Models"]').click();
+		const bounds = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
+		const trigger = anchor.getBoundingClientRect();
+		assert.ok(bounds.height > 300, `Expected a constrained list, got ${bounds.height}`);
+		assert.deepStrictEqual({
+			aligned: bounds.left === trigger.left,
+			above: bounds.bottom <= trigger.top,
+			fits: bounds.top >= 0,
+		}, { aligned: true, above: true, fits: true });
+	});
 
 	test('comparison shows every harness tab and selects attempts, judge, and synthesizer across them', () => {
 		const copilot = models[0];
@@ -1030,6 +1071,51 @@ suite('TabbedModelPicker', () => {
 		}, {
 			checked: ['First'],
 			comparisonSelections: ['copilot/First'],
+		});
+	});
+
+	test('comparison offers Fusion and its tiers without standalone HydraFusion or single-model selection', async () => {
+		const fusion = createFusionModel();
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id] }, undefined),
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { popup, selections, values } = createPicker({
+			models: [fusion, createHydraFusionModel(), createHydraFusionMaxModel(), ...models],
+			selectedModelId: 'copilot/hydrafusion',
+			comparison,
+		});
+		element(popup, '[aria-label="Compare Models"]').click();
+		const rows = listRows(popup);
+		element(popup, '.chat-model-picker-model').click();
+		openDetails(popup, copilotFusionName);
+		const tiers = [...popup.querySelectorAll<HTMLElement>('.chat-model-card [role="radio"]')].map(tier => tier.textContent);
+		element(popup, '.chat-model-card [role="radio"]:last-child').click();
+		await timeout(0);
+		goBack(popup);
+
+		assert.deepStrictEqual({
+			fusionVisible: rows.includes(copilotFusionName),
+			standaloneHydraFusion: rows.some(label => label === 'HydraFusion' || label === 'HydraFusion Max'),
+			tiers,
+			configuration: values.get(fusion.identifier),
+			checked: selectedModels(popup),
+			selections,
+		}, {
+			fusionVisible: true,
+			standaloneHydraFusion: false,
+			tiers: ['Standard', 'High', 'Max'],
+			configuration: { tier: 'hydrafusion-max' },
+			checked: [copilotFusionName],
+			selections: [],
 		});
 	});
 
@@ -2279,7 +2365,9 @@ suite('TabbedModelPicker', () => {
 			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
 			icon: !!welcome.querySelector(`.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(Codicon.workspaceUntrusted)}`),
 			text: Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent),
-			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'), action => action.dataset.id),
+			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'))
+				.filter(action => action.style.display !== 'none')
+				.map(action => action.dataset.id),
 			trustRequests,
 		}, {
 			tabs: ['Copilot'],
@@ -2469,6 +2557,21 @@ suite('TabbedModelPicker', () => {
 			],
 			selections: [qwen.identifier],
 			visible: false,
+		});
+	});
+
+	test('an on-device row too slow for Auto names Copilot Fusion when Auto is presented that way', () => {
+		const status = onDeviceStatus();
+		const localModels = onDevicePresentation({ ...status, active: { ...status.active!, autoEligible: false } });
+		const label = (auto: ILanguageModelChatMetadataAndIdentifier) => {
+			const { popup, dismiss } = createPicker({ models: [auto, ...models, exampleFlash, qwen], selectedModelId: exampleFlash.identifier, localModels });
+			const row = Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-tabbed .monaco-list-row.action')).find(candidate => candidate.querySelector('.title')?.textContent === exampleFlash.metadata.name);
+			dismiss();
+			return row?.getAttribute('aria-label');
+		};
+		assert.deepStrictEqual({ auto: label(createAutoModel()), fusion: label(createFusionModel()) }, {
+			auto: 'Example Flash 1.0, Active, Effort Level: Medium, Context: 128K, Too slow for Auto',
+			fusion: 'Example Flash 1.0, Active, Effort Level: Medium, Context: 128K, Too slow for Copilot Fusion',
 		});
 	});
 
@@ -2745,7 +2848,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			rows: [
 				{ name: 'First', summary: 'Low · 32K', details: 'First Details, Low · 32K', infoIcon: false },
-				{ name: 'Fixed', summary: 'Max 200K', details: 'Fixed Details, Max 200K', infoIcon: false },
+				{ name: 'Fixed', summary: '200K', details: 'Fixed Details, 200K', infoIcon: false },
 				{ name: 'Second', summary: 'Low · 32K', details: 'Second Details, Low · 32K', infoIcon: false },
 				{ name: 'Unknown', summary: 'Details', details: 'Unknown Details', infoIcon: false },
 			],
