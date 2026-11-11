@@ -96,6 +96,12 @@ const modeDescriptions: Record<NonNullable<IModelRouterSituation['mode']>, strin
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
+/**
+ * How many changed files are worth telling. Most working trees have a few, and telling a small
+ * count made the decision read a quick question as larger work.
+ */
+const MIN_UNCOMMITTED_FILES_TOLD = 10;
+
 /** The lines a decision is given about a turn, or none when nothing is known. */
 export function describeModelRouterSituation(situation: IModelRouterSituation | undefined): string[] {
 	if (!situation) {
@@ -112,9 +118,10 @@ export function describeModelRouterSituation(situation: IModelRouterSituation | 
 		lines.push(`Custom agent chosen by the user: ${situation.agent}`);
 	}
 	const workspace = situation.workspace && situation.repository ? `${situation.workspace} (${situation.repository})` : situation.workspace ?? situation.repository;
+	// Only what bears on a request is told: many changed files, and a pull request that is still open.
 	const workingTree = [
-		...(situation.uncommittedFiles ? [`${plural(situation.uncommittedFiles, 'file')} with uncommitted changes`] : []),
-		...(situation.pullRequest ? [`the branch has ${situation.pullRequest === 'open' ? 'an open' : `a ${situation.pullRequest}`} pull request`] : []),
+		...(situation.uncommittedFiles && situation.uncommittedFiles >= MIN_UNCOMMITTED_FILES_TOLD ? [`${plural(situation.uncommittedFiles, 'file')} with uncommitted changes`] : []),
+		...(situation.pullRequest === 'open' ? ['the branch has an open pull request'] : []),
 	];
 	if (workspace || workingTree.length) {
 		lines.push(`Workspace: ${[...(workspace ? [workspace] : []), ...workingTree].join('; ')}`);
