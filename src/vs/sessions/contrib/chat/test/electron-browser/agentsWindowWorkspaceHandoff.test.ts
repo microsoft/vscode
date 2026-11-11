@@ -19,7 +19,7 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowRequestActivity, SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -35,6 +35,10 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { RemoteAgentHostHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { IChatWindow, IChatWindowOpenOptions } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 
 const getSessionForResource = Reflect.get(SelectAgentsFolderContribution.prototype, 'getSessionForResource') as (
 	chatResource: URI,
@@ -403,4 +407,68 @@ suite('Agents Window workspace handoff telemetry', () => {
 			});
 		}
 	}
+
+	test('a session link that arrives while a chat window has focus, such as from its canvas, opens in that window as a click there does', async () => {
+		const lifecycleService = disposables.add(new TestLifecycleService());
+		lifecycleService.usePhases = true;
+		const configurationService = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
+		const chatResource = sessionResource.with({ fragment: 'chat-2' });
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource, isArchived: observableValue('archived', false) });
+		const chat = upcastPartial<IChat>({ resource: chatResource, isArchived: observableValue('archived', false) });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [mainChat, chat]), loading: observableValue('loading', false) });
+		const activatedChat = URI.parse('agent-host-copilotcli:/session-0');
+		const activeChat = observableValue('activeChat', activatedChat);
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 42, chat: activeChat });
+		let activeWindow: IChatWindow | undefined;
+		let resolvesInWindow = true;
+		const log: string[] = [];
+		const harness = {
+			lifecycleService,
+			configurationService,
+			logService: new NullLogService(),
+			sessionsPartService: { getProgressIndicator: () => ({ showWhile: (promise: Promise<void>) => promise }) },
+			resolveAndOpenSessionLink: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenSessionLink'),
+			waitForSessionLinkAvailable: async () => session,
+			sessionsProvidersService: { getProvider: () => undefined },
+			chatWindowService: {
+				get activeWindow() { return activeWindow; },
+				open: async (resource: URI, options?: IChatWindowOpenOptions) => {
+					log.push(`window:${resource}:tabOf=${options?.tabOf}:beside=${options?.beside}:in=${options?.window === chatWindow}:exact=${options?.exactChat}`);
+					return resolvesInWindow ? chatWindow : undefined;
+				},
+			},
+			sessionsService: { openChat: async (_session: ISession, resource: URI) => { log.push(`main:${resource}`); } },
+		};
+		const openExistingSession = Reflect.get(SelectAgentsFolderContribution.prototype, 'openExistingSession') as (this: typeof harness, resource: URI, token: CancellationToken) => Promise<'unsupported' | undefined>;
+		const link = URI.parse(buildOpenSessionLinkUri(URI.parse('copilotcli:/session-1'), 'chat-2'));
+
+		// Focus and the active chat of the window change while the window restores: the link opens where it arrived.
+		activeWindow = chatWindow;
+		const restoring = openExistingSession.call(harness, link, CancellationToken.None);
+		activeWindow = undefined;
+		activeChat.set(URI.parse('agent-host-copilotcli:/session-9'), undefined);
+		lifecycleService.phase = LifecyclePhase.Restored;
+		await restoring;
+		activeChat.set(activatedChat, undefined);
+		// No chat window has focus: a canvas of the main window, or a link from another app while this one has no focus.
+		await openExistingSession.call(harness, link, CancellationToken.None);
+		// A chat the chat window cannot resolve
+		activeWindow = chatWindow;
+		resolvesInWindow = false;
+		await openExistingSession.call(harness, link, CancellationToken.None);
+		resolvesInWindow = true;
+		// Chat windows are off
+		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, false);
+		await openExistingSession.call(harness, link, CancellationToken.None);
+
+		assert.deepStrictEqual(log, [
+			`window:${chatResource}:tabOf=${activatedChat}:beside=undefined:in=true:exact=true`,
+			`main:${chatResource}`,
+			`window:${chatResource}:tabOf=${activatedChat}:beside=undefined:in=true:exact=true`,
+			`main:${chatResource}`,
+			`main:${chatResource}`,
+		]);
+	});
 });

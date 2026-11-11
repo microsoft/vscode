@@ -42,6 +42,7 @@ import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/se
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow } from '../browser/chatWindowLinkSource.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
@@ -55,6 +56,7 @@ import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult } from '../../../common/remoteWorkspaceHandoff.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
@@ -113,6 +115,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
+		@IChatWindowService private readonly chatWindowService: IChatWindowService,
 	) {
 		super();
 		// Session providers register in contributions instantiated after restore.
@@ -261,6 +264,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	private async openExistingSession(sessionResource: URI, token: CancellationToken, remoteAuthority?: string): Promise<'unsupported' | undefined> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
+		const backendSession = parseOpenSessionLinkUri(sessionResource);
+		// The chat window that has focus as the link arrives is the one it was activated in, such as from its canvas:
+		// read it before waiting, as focus can move meanwhile. No chat window has focus while another app has it.
+		const linkSource = backendSession && getChatWindowLinkSource(this.chatWindowService.activeWindow, this.configurationService);
+
 		// Wait until initial restore has started so opening the target can cancel it,
 		// without delaying the handoff until the intentionally deferred Eventually phase.
 		await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
@@ -269,9 +277,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
-		const backendSession = parseOpenSessionLinkUri(sessionResource);
 		if (backendSession) {
-			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
+			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token, linkSource));
 			return undefined;
 		}
 
@@ -295,7 +302,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		return undefined;
 	}
 
-	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
+	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken, linkSource: IChatWindowLinkSource | undefined): Promise<void> {
 		const authority = parseOpenSessionLinkConnectionAuthority(sessionLink);
 		const session = await this.waitForSessionLinkAvailable(backendSession, token, undefined, authority);
 		if (token.isCancellationRequested) {
@@ -330,6 +337,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			return;
 		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
+		if (linkSource && await openLinkedChatInChatWindow(this.chatWindowService, linkSource, session, chatResource, false)) {
+			return;
+		}
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
 	}
 
