@@ -511,6 +511,7 @@ async function resolveAuthenticationSessionForResource(
 	let hasUnavailableProvider = false;
 	let hasLoadingProvider = false;
 	let accountMismatch = false;
+	let scopedAcquisitionFailure: { readonly error: unknown } | undefined;
 	const requestedSet = new Set(scopes);
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
@@ -619,9 +620,9 @@ async function resolveAuthenticationSessionForResource(
 					account, authorizationServer: serverUri, silent: true,
 				}, true);
 			} catch (error) {
-				hasUnavailableProvider = true;
-				hasLoadingProvider ||= !authenticationService.isAuthenticationProviderRegistered(providerId);
-				logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
+				// Another authorization server may still satisfy the resource; the first failure is rethrown if none does.
+				scopedAcquisitionFailure ??= { error };
+				logService.trace(`${logPrefix} Scoped session acquisition from provider '${providerId}' failed for server: ${server}`, error);
 				continue;
 			}
 			throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
@@ -637,6 +638,9 @@ async function resolveAuthenticationSessionForResource(
 			accountMismatch = true;
 			logService.trace(`${logPrefix} Default account cannot satisfy ${resourceServer.toString(true)} and other accounts are signed in for server: ${server}`);
 		}
+	}
+	if (scopedAcquisitionFailure) {
+		throw scopedAcquisitionFailure.error;
 	}
 	if (hasUnavailableProvider) {
 		return { kind: 'unavailable', reason: hasLoadingProvider ? 'provider' : 'sessions' };
