@@ -20,15 +20,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
-import { getWorktreeSectionFolder, ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { getWorktreeSectionFolder, ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 /** Whether the chat part of the editor window shows. */
 export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat part beside the editor area shows."));
 
 /**
  * Registers the actions of the chat part of an editor window with the Sessions view, until the returned disposable is
- * disposed: a new session in a tab of its own, and focusing, toggling and closing the chat part.
+ * disposed: a new session or a new chat without a workspace in a tab of its own, and focusing, toggling and closing the
+ * chat part.
  */
 export function registerAgentsChatPartActions(): IDisposable {
 	const store = new DisposableStore();
@@ -48,6 +50,32 @@ export function registerAgentsChatPartActions(): IDisposable {
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
 			await chatPart.openComposer(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+		}
+	}));
+
+	// A chat without a workspace, as the Agents window has it: from the Chats section of the Sessions list and the Command
+	// Palette, without the Agents window's keybinding, which an editor window has for its editors
+	const quickChatEnabled = ContextKeyExpr.and(ChatContextKeys.enabled, AGENT_HOST_ENABLED_CONTEXT_KEY);
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.agentsView.newQuickChat',
+				title: localize2('agentsView.newQuickChat', "New Quick Chat"),
+				icon: Codicon.add,
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: quickChatEnabled,
+				menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
+					id,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(quickChatEnabled, ContextKeyExpr.equals(SessionSectionTypeContext.key, QUICK_CHATS_SECTION_ID)),
+				})),
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			// A target without a folder is a chat without a workspace
+			await accessor.get(IAgentsChatPartService).openComposer({}, { newComposer: true });
 		}
 	}));
 

@@ -85,7 +85,8 @@ suite('AgentsViewProvidersContribution', () => {
 suite('AgentsViewProvidersService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const providers = isWeb ? ['registerCopilotChatSessionsProviders'] : ['registerLocalAgentHostSessionsProvider', 'registerCopilotChatSessionsProviders'];
+	// The composer controls come and go with the providers whose sessions they act on
+	const providers = isWeb ? ['registerAgentsViewComposerControls', 'registerCopilotChatSessionsProviders'] : ['registerAgentsViewComposerControls', 'registerLocalAgentHostSessionsProvider', 'registerCopilotChatSessionsProviders'];
 
 	function createService(composer: { open: boolean; idle: boolean }, events: string[]) {
 		// Records the providers registered and released, instead of starting them

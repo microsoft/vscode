@@ -68,7 +68,7 @@ import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contri
 import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 // The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
 import '../../../browser/agentHostSessionConfigPicker.contribution.js';
-import { InSessionHostScopeContext, ISessionHost } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, testChatSourceOf, testGridPanes } from '../../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/common/chatSessionFileChange.js';
 
@@ -368,6 +368,7 @@ function setupServices(
 			return undefined;
 		}
 	})());
+	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable([]) }));
 	instantiationService.stub(IViewsService, new (class extends mock<IViewsService>() {
 		override async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 			actionWidget.events.push(`openView:${id}:${focus}`);
@@ -747,6 +748,37 @@ suite('Agent Host Session Config Picker', () => {
 		});
 
 		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
+	});
+
+	test('contributes the repository controls of a session that only a composer or pane outside the grid shows, such as an editor window\'s chat part', () => {
+		const services = setupServices(store);
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly slotPanes = testGridPanes(constObservable([]));
+		}());
+		const hosts = observableValue<readonly ISessionHost[]>('hosts', []);
+		services.instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts }));
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+		const repositoryItems = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const host = (kind: SessionHostKind) => upcastPartial<ISessionHost>({ ...testChatSourceOf(constObservable(services.activeSession)), kind });
+		const none = repositoryItems();
+		hosts.set([host(SessionHostKind.MainWindow)], undefined);
+		const windowHost = repositoryItems();
+		hosts.set([host(SessionHostKind.Composer)], undefined);
+		const composer = repositoryItems();
+		hosts.set([host(SessionHostKind.Pane)], undefined);
+		const pane = repositoryItems();
+
+		assert.deepStrictEqual({ none, windowHost, composer, pane }, { none: [], windowHost: [], composer: ['Isolation', 'Base Branch'], pane: ['Isolation', 'Base Branch'] });
 	});
 
 	test('refreshes repository menu items only for configuration changes of visible sessions', () => {

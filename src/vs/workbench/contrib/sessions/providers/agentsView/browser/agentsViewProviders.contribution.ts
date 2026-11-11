@@ -20,16 +20,19 @@ import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPa
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import { registerCopilotChatSessionsProviders } from '../../copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
+import { registerAgentsViewComposerControls } from './agentsViewComposerControls.js';
 import { DevContainerAgentHostService } from '../../remoteAgentHost/browser/devContainerAgentHostService.js';
 
 /**
  * Registers the sessions providers whose sessions the Sessions view of an editor window lists: those of the local agent
  * host, on desktop, and those of Copilot Cloud. As every provider of the window, they list only the sessions of its
- * folders (see `EditorWindowSessionsProvidersService`).
+ * folders (see `EditorWindowSessionsProvidersService`). The pickers of the chat part's composers and session chats,
+ * which act on the sessions of these providers, come and go with them.
  */
 function registerAgentsViewProviders(accessor: ServicesAccessor): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const disposables = new DisposableStore();
+	disposables.add(instantiationService.invokeFunction(registerAgentsViewComposerControls));
 	if (!isWeb) {
 		disposables.add(instantiationService.invokeFunction(registerLocalAgentHostSessionsProvider));
 	}

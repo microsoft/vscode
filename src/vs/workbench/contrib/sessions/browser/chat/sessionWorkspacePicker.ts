@@ -1788,7 +1788,7 @@ export class WorkspacePicker extends Disposable {
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const allowedFolders = this._getAllowedFolders();
 		if (allowedFolders) {
-			return this._buildAllowedFolderItems(allowedFolders);
+			return this._withNoWorkspaceItem(this._buildAllowedFolderItems(allowedFolders));
 		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 		const environment = this._getEnvironment();
@@ -2235,6 +2235,11 @@ export class WorkspacePicker extends Disposable {
 				item: {},
 			});
 		}
+		return this._withNoWorkspaceItem(items);
+	}
+
+	/** Puts the No Workspace choice before `items`, when the composer offers one. */
+	private _withNoWorkspaceItem(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
 		const noWorkspaceOption = this._getNoWorkspaceOption();
 		const hideNoWorkspaceOption = this._activeTriggerElement
 			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
@@ -2271,7 +2276,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
-		return this._getAllowedFolders() ? undefined : this.options.getNoWorkspaceOption?.();
+		return this.options.getNoWorkspaceOption?.();
 	}
 
 	protected _getNoWorkspaceLabel(): string {
@@ -2755,10 +2760,10 @@ export class WorkspacePicker extends Disposable {
 		return !allowedFolders || allowedFolders.some(folder => this.uriIdentityService.extUri.isEqual(folder, folderUri));
 	}
 
-	/** Whether the picker only shows its one allowed folder, without offering any other. */
+	/** Whether the picker only shows its one allowed folder, without offering any other choice, such as No Workspace. */
 	protected _isReadOnly(): boolean {
 		const allowedFolders = this._getAllowedFolders();
-		return !!allowedFolders && allowedFolders.length <= 1;
+		return !!allowedFolders && allowedFolders.length <= 1 && !this._getNoWorkspaceOption();
 	}
 
 	/** The items of a picker restricted to its allowed folders: one for each folder a provider resolves. */

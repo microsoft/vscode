@@ -71,14 +71,14 @@ import { ISessionsProvidersService, SessionsProvidersService } from '../../../..
 import { ISessionModelsSnapshot } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { MobileChatPhoneInputPresenterContribution } from '../../browser/mobile/mobileChatPhoneInputPresenter.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
-import { ModelPicker } from '../../../../chat/browser/modelPicker.js';
+import { ModelPicker } from '../../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
 import { ISessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { createModelSelectionState, normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
-import { ISessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind, ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { MobilePermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/mobilePermissionPicker.js';
 import { MobileAgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
@@ -250,6 +250,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			[ICommandService, upcastPartial<ICommandService>({})],
 			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container })],
 			[ISessionsService, upcastPartial<ISessionsService>({ slotPanes: constObservable([]) })],
+			[ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable([]) })],
 			[ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				getSessionForChatResource: resource => {
 					for (const session of provider.getSessions()) {
