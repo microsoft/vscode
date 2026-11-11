@@ -26,6 +26,9 @@ suite('AI customization shortcuts header', () => {
 	let container: HTMLElement;
 	let header: HTMLElement;
 
+	// A cycle invalidates the token without inheriting a value from the surrounding theme.
+	const invalidateToken = (name: string) => container.style.setProperty(name, `var(${name})`);
+
 	setup(() => {
 		container = DOM.append(mainWindow.document.body, DOM.$('div'));
 		container.style.cssText = 'position: fixed; top: 0; left: 0; width: 300px; height: 200px; z-index: 10000;';
@@ -68,24 +71,50 @@ suite('AI customization shortcuts header', () => {
 	test('keeps both edges clickable while the hover remains inset', () => {
 		header.classList.add('hovered');
 		const toolbar = container.querySelector<HTMLElement>('.ai-customization-toolbar');
-		assert.ok(toolbar);
+		const label = header.querySelector<HTMLElement>('.ai-customization-header-label');
+		assert.ok(toolbar && label);
 		const bounds = toolbar.getBoundingClientRect();
 		const headerBounds = header.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
 		const clickAt = (x: number) => {
 			const target = mainWindow.document.elementFromPoint(x, headerBounds.top + headerBounds.height / 2);
-			if (target instanceof HTMLElement) {
-				target.click();
-			}
-			return { header: target === header, expanded: header.getAttribute('aria-expanded') };
+			target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			return { target, expanded: header.getAttribute('aria-expanded') };
 		};
-		const left = clickAt(bounds.left + 1);
-		const right = clickAt(bounds.right - 1);
+		const clicks = [bounds.left + 1, bounds.right - 1, labelBounds.left + labelBounds.width / 2].map(clickAt);
 		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
 
-		assert.deepStrictEqual({ left, right, hoverInsets: [hoverStyle.left, hoverStyle.right] }, {
-			left: { header: true, expanded: 'false' },
-			right: { header: true, expanded: 'true' },
+		assert.deepStrictEqual({
+			insideHeader: clicks.map(({ target }) => header.contains(target)),
+			lastHitIsDescendant: clicks[2].target !== header,
+			expanded: clicks.map(({ expanded }) => expanded),
+			hoverInsets: [hoverStyle.left, hoverStyle.right],
+		}, {
+			insideHeader: [true, true, true],
+			lastHitIsDescendant: true,
+			expanded: ['false', 'true', 'false'],
 			hoverInsets: ['4px', '4px'],
+		});
+	});
+
+	test('keeps the hover geometry when size tokens are unavailable', () => {
+		for (const token of ['--vscode-spacing-size40', '--vscode-spacing-size60', '--vscode-spacing-size100', '--vscode-cornerRadius-small', '--vscode-strokeThickness']) {
+			invalidateToken(token);
+		}
+		header.classList.add('hovered');
+		const headerStyle = mainWindow.getComputedStyle(header);
+		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
+
+		assert.deepStrictEqual({
+			padding: [headerStyle.paddingTop, headerStyle.paddingRight],
+			insets: [hoverStyle.left, hoverStyle.right],
+			radius: hoverStyle.borderTopLeftRadius,
+			outline: [hoverStyle.outlineStyle, hoverStyle.outlineWidth, hoverStyle.outlineOffset],
+		}, {
+			padding: ['6px', '10px'],
+			insets: ['4px', '4px'],
+			radius: '4px',
+			outline: ['dashed', '1px', '-1px'],
 		});
 	});
 
@@ -106,7 +135,7 @@ suite('AI customization shortcuts header', () => {
 		const themed = colors();
 		const background = hoverStyle.backgroundColor;
 		const outline = [hoverStyle.outlineStyle, hoverStyle.outlineColor];
-		container.style.setProperty('--vscode-list-hoverForeground', 'initial');
+		invalidateToken('--vscode-list-hoverForeground');
 		const fallback = colors();
 
 		assert.deepStrictEqual({ background, outline, themed, fallback }, {
@@ -117,13 +146,24 @@ suite('AI customization shortcuts header', () => {
 		});
 	});
 
-	test('preserves the hover outline after pointer focus and the keyboard focus ring', () => {
+	test('preserves the hover outline after pointer focus and the keyboard focus ring', function () {
+		// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+		if (!mainWindow.document.hasFocus()) {
+			this.skip();
+		}
+
 		header.classList.add('hovered');
 		container.style.setProperty('--vscode-focusBorder', 'rgb(0, 0, 255)');
 
+		// Avoid inheriting focus-visible from a previously focused test element.
+		const activeElement = mainWindow.document.activeElement;
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
+		}
 		const pointerFocus = { preventScroll: true, focusVisible: false };
 		header.focus(pointerFocus);
 		const pointer = {
+			focused: mainWindow.document.activeElement === header,
 			focusVisible: header.matches(':focus-visible'),
 			headerOutline: mainWindow.getComputedStyle(header).outlineStyle,
 			hoverOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
@@ -133,6 +173,7 @@ suite('AI customization shortcuts header', () => {
 		const keyboardFocus = { preventScroll: true, focusVisible: true };
 		header.focus(keyboardFocus);
 		const keyboard = {
+			focused: mainWindow.document.activeElement === header,
 			focusVisible: header.matches(':focus-visible'),
 			headerOutline: mainWindow.getComputedStyle(header).outlineStyle,
 			headerOutlineColor: mainWindow.getComputedStyle(header).outlineColor,
@@ -140,8 +181,8 @@ suite('AI customization shortcuts header', () => {
 		};
 
 		assert.deepStrictEqual({ pointer, keyboard }, {
-			pointer: { focusVisible: false, headerOutline: 'none', hoverOutline: 'dashed' },
-			keyboard: { focusVisible: true, headerOutline: 'solid', headerOutlineColor: 'rgb(0, 0, 255)', hoverOutline: 'none' },
+			pointer: { focused: true, focusVisible: false, headerOutline: 'none', hoverOutline: 'dashed' },
+			keyboard: { focused: true, focusVisible: true, headerOutline: 'solid', headerOutlineColor: 'rgb(0, 0, 255)', hoverOutline: 'none' },
 		});
 	});
 });
