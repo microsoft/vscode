@@ -839,7 +839,14 @@ export class ChatWindowGrid extends Disposable {
 			this._createdPartsChanging = false;
 			this._arranged = this._grid.value?.describe();
 		}
-		this._terminalsVisible.set(!!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals), undefined);
+		const terminalsVisible = !!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals);
+		this._terminalsVisible.set(terminalsVisible, undefined);
+		if (!terminalsVisible) {
+			this._lastTerminalsHeight = undefined;
+		} else if (this._lastTerminalsHeight === undefined) {
+			// As they show, at the height they have by default, before a part dropped at an edge of the window shrinks them
+			this._rememberTerminalsHeight(this._dimension);
+		}
 		this._adoptTerminalPosition();
 		this._updateBeforeTerminalsShow();
 	}

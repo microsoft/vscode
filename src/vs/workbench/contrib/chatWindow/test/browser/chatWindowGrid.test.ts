@@ -1509,6 +1509,18 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ arranged: arranged < 400, same, widthOnly: height() }, { arranged: true, same: arranged, widthOnly: arranged });
 	});
 
+	test('the terminals at their default height, shrunk as a part was dropped at an edge of the window, take it back as the window grows', () => {
+		const { grid, position, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		const arranged = height();
+		grid.layout(1000, 1000);
+
+		assert.deepStrictEqual({ arranged: arranged < initial, grown: height() }, { arranged: true, grown: initial });
+	});
+
 	test('a row among the parts above the terminals gives room to them as a unit, in proportion to the parts beside it', () => {
 		const { grid, open, userResize, height } = setupWithTerminals();
 		open();
