@@ -8,7 +8,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFind.js';
 import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import './media/review.css';
 import { ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -27,7 +27,7 @@ import { ICommentInfo, ICommentService } from './commentService.js';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from './commentThreadZoneWidget.js';
 import { CommentWidgetFocus, ICommentThreadEditorWidget } from './commentThreadEditorWidget.js';
 import { ICommentThreadFloatingWidgetHost, ReviewFloatingWidget } from './commentThreadFloatingWidget.js';
-import { ICommentThreadFloatingWidgetLayout, IRect } from './commentThreadFloatingWidgetLayout.js';
+import { ICommentThreadFloatingWidgetLayout } from './commentThreadFloatingWidgetLayout.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -484,19 +484,15 @@ export class CommentController extends Disposable implements IEditorContribution
 	private _activeEditorHasCommentingRange: IContextKey<boolean>;
 	private _commentWidgetVisible: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
+	private readonly _floatingWidgets = new Set<ReviewFloatingWidget>();
 	private readonly _floatingWidgetHost: ICommentThreadFloatingWidgetHost = {
 		getLayout: widget => CommentController._floatingWidgetLayouts.get(this._getFloatingWidgetLayoutKey(widget)),
 		setLayout: (widget, layout) => CommentController._floatingWidgetLayouts.set(this._getFloatingWidgetLayoutKey(widget), layout),
-		getOccupiedRects: widget => {
-			const rects: IRect[] = [];
-			for (const other of this._commentWidgets) {
-				const rect = other !== widget && other instanceof ReviewFloatingWidget ? other.getDocumentRect() : undefined;
-				if (rect) {
-					rects.push(rect);
-				}
-			}
-			return rects;
-		}
+		addWidget: widget => {
+			this._floatingWidgets.add(widget);
+			return toDisposable(() => this._floatingWidgets.delete(widget));
+		},
+		getOtherWidgets: widget => Array.from(this._floatingWidgets).filter(other => other !== widget)
 	};
 
 	constructor(
@@ -1029,6 +1025,7 @@ export class CommentController extends Disposable implements IEditorContribution
 				}
 			}
 			const editorId = this.editor?.getId();
+			this.sortThreadsForDisplay(added, thread => thread.range);
 			for (const thread of added) {
 				await this.handleCommentAdded(editorId, e.uniqueOwner, thread);
 			}
@@ -1136,6 +1133,17 @@ export class CommentController extends Disposable implements IEditorContribution
 
 	private _getFloatingWidgetLayoutKey(widget: ReviewFloatingWidget): string {
 		return JSON.stringify([widget.editor.getModel()?.uri.toString(), widget.uniqueOwner, widget.commentThread.threadId]);
+	}
+
+	/**
+	 * Sorts threads that are about to be displayed by where their code starts when they are shown in floating widgets.
+	 * A floating widget moves the widgets for later code that are in its way, so showing them in the order of their code
+	 * places each one once.
+	 */
+	private sortThreadsForDisplay<T>(threads: T[], getRange: (thread: T) => IRange | undefined): void {
+		if (this.configurationService.getValue<CommentThreadStyle>(COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING) === 'floating') {
+			threads.sort((a, b) => Range.compareRangesUsingStarts(getRange(a), getRange(b)));
+		}
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
@@ -1413,6 +1421,7 @@ export class CommentController extends Disposable implements IEditorContribution
 		this.removeCommentWidgetsAndStoreCache();
 
 		let hasCommentingRanges = false;
+		const threadsToDisplay: { uniqueOwner: string; thread: languages.CommentThread; pendingComment: languages.PendingComment | undefined; pendingEdits: { [key: number]: languages.PendingComment } | undefined }[] = [];
 		for (const info of this._commentInfos) {
 			if (!hasCommentingRanges && (info.commentingRanges.ranges.length > 0 || info.commentingRanges.fileComments)) {
 				hasCommentingRanges = true;
@@ -1422,18 +1431,14 @@ export class CommentController extends Disposable implements IEditorContribution
 			const providerEditsCacheStore = this._pendingEditsCache[info.uniqueOwner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			for (const thread of info.threads) {
-				let pendingComment: languages.PendingComment | undefined = undefined;
-				if (providerCacheStore) {
-					pendingComment = providerCacheStore[thread.threadId];
-				}
-
-				let pendingEdits: { [key: number]: languages.PendingComment } | undefined = undefined;
-				if (providerEditsCacheStore) {
-					pendingEdits = providerEditsCacheStore[thread.threadId];
-				}
-
-				await this.displayCommentThread(info.uniqueOwner, thread, false, pendingComment, pendingEdits);
+				threadsToDisplay.push({ uniqueOwner: info.uniqueOwner, thread, pendingComment: providerCacheStore?.[thread.threadId], pendingEdits: providerEditsCacheStore?.[thread.threadId] });
 			}
+		}
+		this.sortThreadsForDisplay(threadsToDisplay, ({ thread }) => thread.range);
+		for (const { uniqueOwner, thread, pendingComment, pendingEdits } of threadsToDisplay) {
+			await this.displayCommentThread(uniqueOwner, thread, false, pendingComment, pendingEdits);
+		}
+		for (const info of this._commentInfos) {
 			for (const thread of info.pendingCommentThreads ?? []) {
 				this.resumePendingComment(this.editor.getModel()!.uri, thread);
 			}
