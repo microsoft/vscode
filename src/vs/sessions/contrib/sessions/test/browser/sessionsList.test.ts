@@ -4179,6 +4179,7 @@ suite('Sessions - SessionsList', () => {
 				createFolderSession('ownWorktree', 'y', { root: 'file:///repo.worktrees/y', repository: 'file:///repo.worktrees/y', worktree: 'file:///repo.worktrees/y' }),
 				createFolderSession('other', 'other', { root: 'file:///other', repository: 'file:///other' }),
 				createFolderSession('remote', 'repo', { root: 'vscode-agent-host://host/repo', repository: 'vscode-agent-host://host/repo' }),
+				// A workspace-less quick chat is in every scope.
 				createTestSession('quickChat', { isQuickChat: true }).session,
 			];
 			const scoped = (...folders: string[]) => {
@@ -4193,11 +4194,11 @@ suite('Sessions - SessionsList', () => {
 				multiRoot: scoped('file:///repo', 'file:///other'),
 				empty: scoped(),
 			}, {
-				checkout: ['checkout', 'nested', 'worktree', 'ownWorktree'],
-				worktree: ['checkout', 'worktree', 'ownWorktree'],
-				ownWorktree: ['checkout', 'worktree', 'ownWorktree'],
-				multiRoot: ['checkout', 'nested', 'worktree', 'ownWorktree', 'other'],
-				empty: [],
+				checkout: ['checkout', 'nested', 'worktree', 'ownWorktree', 'quickChat'],
+				worktree: ['checkout', 'worktree', 'ownWorktree', 'quickChat'],
+				ownWorktree: ['checkout', 'worktree', 'ownWorktree', 'quickChat'],
+				multiRoot: ['checkout', 'nested', 'worktree', 'ownWorktree', 'other', 'quickChat'],
+				empty: ['quickChat'],
 			});
 		});
 
