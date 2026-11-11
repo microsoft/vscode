@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -50,6 +51,8 @@ class FakeGroup {
 	activeEditor: EditorInput | null = null;
 	readonly onDidActiveEditorChangeEmitter = new Emitter<void>();
 	readonly onDidActiveEditorChange = this.onDidActiveEditorChangeEmitter.event;
+	readonly onWillCloseEditorEmitter = new Emitter<void>();
+	readonly onWillCloseEditor = this.onWillCloseEditorEmitter.event;
 	readonly onDidCloseEditorEmitter = new Emitter<void>();
 	readonly onDidCloseEditor = this.onDidCloseEditorEmitter.event;
 	get isEmpty() { return this.editors.length === 0; }
@@ -65,6 +68,7 @@ class FakeGroup {
 		}
 	}
 	async closeEditor(editor: EditorInput): Promise<boolean> {
+		this.onWillCloseEditorEmitter.fire();
 		this.editors = this.editors.filter(candidate => candidate !== editor);
 		if (this.activeEditor === editor) {
 			this.activeEditor = this.editors.at(-1) ?? null;
@@ -77,6 +81,7 @@ class FakeGroup {
 	focus(): void { }
 	dispose(): void {
 		this.onDidActiveEditorChangeEmitter.dispose();
+		this.onWillCloseEditorEmitter.dispose();
 		this.onDidCloseEditorEmitter.dispose();
 	}
 }
@@ -239,6 +244,10 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
+		// The sessions whose opening asked to move the window's folder to where they work
+		const switchedTo: ISession[] = [];
+		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ switchToSession: async session => { switchedTo.push(session); } }));
+
 		const host = new EditorWindowMainSessionHost(contextKeyService);
 		instantiationService.stub(ISessionHost, host);
 		const service = store.add(instantiationService.createInstance(AgentsChatPartService));
@@ -262,6 +271,7 @@ suite('AgentsChatPartService', () => {
 			},
 			/** Changes of sessions that the providers' listing scope hides, such as of another folder: they are not listed. */
 			fireHiddenSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => allSessionsChanged.fire({ added, removed, changed: [] } as never),
+			switchedTo,
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),
 			/** The tabs of each group, the active one of each, and whether the layout shows the chat part. */
 			layout: () => ({
@@ -304,6 +314,25 @@ suite('AgentsChatPartService', () => {
 		status.set(SessionStatus.InProgress, undefined);
 
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
+	});
+
+	test('opening a session or picking its tab moves the window\'s folder to where it works; tabs that open, close or restore do not', async () => {
+		const first = buildTestSession({ id: 'first', title: 'First' });
+		const second = buildTestSession({ id: 'second', title: 'Second' });
+		const { service, part, switchedTo } = createService({ sessions: () => [first.session, second.session] });
+		const switched = () => switchedTo.splice(0).map(session => session === first.session ? 'first' : session === second.session ? 'second' : 'other');
+
+		await service.openChat(first.session, undefined);
+		await service.openChat(second.session, undefined);
+		const opened = switched();
+		// Picking the first tab, as a click does
+		part.activeGroup.open(part.activeGroup.editors[0]);
+		const picked = switched();
+		// Closing it activates the other tab, which the user did not pick
+		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
+		await timeout(0);
+
+		assert.deepStrictEqual({ opened, picked, closed: switched() }, { opened: ['first', 'second'], picked: ['first'], closed: [] });
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {
