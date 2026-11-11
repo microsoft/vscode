@@ -17,7 +17,7 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -90,9 +90,7 @@ suite('PermissionPickerActionItem', () => {
 			new class extends mock<IDialogService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
 			store.add(new InMemoryStorageService()),
-			new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return { dispose: () => { } }; }
-			}(),
+			{ ...NullHoverService },
 		));
 		const container = document.createElement('div');
 		picker.render(container);
@@ -202,9 +200,7 @@ suite('PermissionPickerActionItem', () => {
 			new class extends mock<IDialogService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
 			store.add(new InMemoryStorageService()),
-			new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return { dispose: () => { } }; }
-			}(),
+			{ ...NullHoverService },
 		));
 		picker.render(document.createElement('div'));
 		const read = () => items.filter(item => item.item?.id.startsWith('chat.permissions.') && !['chat.permissions.sandbox', 'chat.permissions.learnMore'].includes(item.item.id)).map(item => ({
@@ -249,7 +245,7 @@ suite('PermissionPickerActionItem', () => {
 		assert.deepStrictEqual({ restricted, hover: isMarkdownString(hover) ? hover.value : hover, hidesAfterRefresh, withheld, removed, writes: fixture.writes }, {
 			restricted: [
 				{ label: 'Default permissions', ...enabled },
-				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
+				{ label: 'Assisted permissions', ...enabled, badge: 'Recommended' },
 				{ label: 'Allow all', ...policy },
 			],
 			hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
@@ -261,7 +257,7 @@ suite('PermissionPickerActionItem', () => {
 			],
 			removed: [
 				{ label: 'Default permissions', ...enabled },
-				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
+				{ label: 'Assisted permissions', ...enabled, badge: 'Recommended' },
 				{ label: 'Allow all', ...enabled },
 			],
 			writes: [],

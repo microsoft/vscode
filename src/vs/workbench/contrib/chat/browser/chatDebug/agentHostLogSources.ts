@@ -506,6 +506,7 @@ export async function readRemoteAgentHostLog(
 		return undefined;
 	}
 	const authority = agentHostAuthority(connection.address);
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- addresses the remote host's log filesystem through the Agent Host filesystem provider
 	const homeUri = toAgentHostUri(URI.from({ scheme: 'file', path: homePath }), authority);
 
 	// Possible server data folder candidates. The renderer's own

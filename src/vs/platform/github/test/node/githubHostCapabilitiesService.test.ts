@@ -6,20 +6,12 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
 import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
-
-class RecordingLogService extends NullLogService {
-	readonly warnings: string[] = [];
-
-	override warn(message: string): void {
-		this.warnings.push(message);
-	}
-}
+import { TestWarningLogService } from '../../../log/test/common/testWarningLogService.js';
 
 suite('GitHubHostCapabilitiesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -137,7 +129,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				}]),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
-			const logService = disposables.add(new RecordingLogService());
+			const logService = disposables.add(new TestWarningLogService());
 			const service = disposables.add(new GitHubHostCapabilitiesService(undefined, undefined, transport, server.createEndpointService(), logService));
 			const signal = new AbortController().signal;
 

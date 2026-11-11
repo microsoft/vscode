@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -54,7 +55,7 @@ export function createCodexSkillCustomizations(): DirectoryCustomization[] {
 
 export async function assertCodexSkillItems(service: IAgentHostCustomizationService, sessionResource: URI, store: Pick<DisposableStore, 'add'>): Promise<void> {
 	const provider = store.add(new AgentCustomizationItemProvider(
-		'local',
+		{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 		undefined,
 		undefined,
 		new class extends mock<IFileService>() { }(),

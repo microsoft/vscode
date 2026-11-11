@@ -28,9 +28,9 @@ import { getAutomationCronValidationError } from '../../../../workbench/contrib/
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { logAutomationConfigureOutcome } from './automationTelemetry.js';
 
 export const ListAutomationsToolId = 'vscode_listAutomations';
@@ -709,7 +709,7 @@ The change uses the current tool-approval policy. When approval is required, the
 					expectedAutomationId: proposal.existing.id,
 					expectedEditableState: serializeAutomationEditableState(proposal.existing),
 				}
-				: undefined,
+				: { kind: 'input', rawInput: context.parameters, editable: false },
 		};
 	}
 
@@ -893,7 +893,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			target = this.resolveAvailableTarget(target, existing);
 		}
 		if (schedule?.interval === 'cron' && this.automationService.getProviderConfiguration?.(target?.providerId ?? existing?.target.providerId)?.timeZone === 'UTC') {
-			throw new AutomationToolInputError('CRON schedules are not supported by Cloud automations.');
+			throw new AutomationToolInputError('Cron schedules are not supported by Cloud automations.');
 		}
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
 		const mode = readOptionalNullableNonEmptyString(input, 'mode');
@@ -1053,7 +1053,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		const cronExpression = readOptionalRequiredText(value, 'cronExpression') ?? existing?.cronExpression;
 		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
 		if (!cronExpression?.trim()) {
-			throw new AutomationToolInputError('"schedule.cronExpression" is required for CRON schedules.');
+			throw new AutomationToolInputError('"schedule.cronExpression" is required for cron schedules.');
 		}
 		const error = getAutomationCronValidationError(cronExpression, cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
 		if (error) {

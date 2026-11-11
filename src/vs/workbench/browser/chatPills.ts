@@ -102,16 +102,35 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
-	/** Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. */
+	/**
+	 * Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. Its view
+	 * item receives {@link IChatInlinePillViewItemOptions}, so it can show the entry's promoted action like the other
+	 * renderings of a lone entry do.
+	 */
 	readonly inlinePill?: IChatPill;
 	/** Starts resolving metadata for this entry without opening it. */
 	readonly prefetch?: () => void;
+	/**
+	 * Whether the pill showing this entry is pressed, such as while the entry is shown in the chat; it then acts as a
+	 * toggle button. Absent for entries whose pill opens them.
+	 */
+	readonly checked?: boolean;
 	open(): void;
 }
 
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;
+}
+
+/** View item options of an entry's {@link IChatPillEntry.inlinePill}. */
+export interface IChatInlinePillViewItemOptions extends IActionViewItemOptions {
+	/**
+	 * The entry's {@link IChatPillEntry.promotedAction}, such as Unpin, to show as the pill's trailing button with
+	 * {@link promotedActionIcon}. Present when the pill showing the entry shows its promoted action.
+	 */
+	readonly promotedAction?: IObservable<IChatPillAction | undefined>;
+	readonly promotedActionIcon?: ThemeIcon;
 }
 
 export type ChatReferenceKind = 'pullRequest' | 'issue';
@@ -138,7 +157,8 @@ export function getChatReferencePillPresentation(kind: ChatReferenceKind, refere
 			preserveLabelOnRefresh: title !== undefined,
 			ariaLabel: localize('chatPills.openResource', "Open {0}", resourceLabel),
 			dropdownAriaLabel,
-		} satisfies Pick<IChatPillEntry, 'label' | 'badge' | 'badgeBeforeLabel' | 'pillLabel' | 'className' | 'preserveLabelOnRefresh' | 'ariaLabel' | 'dropdownAriaLabel'>,
+			ariaDescription: undefined,
+		} satisfies Pick<IChatPillEntry, 'label' | 'badge' | 'badgeBeforeLabel' | 'pillLabel' | 'className' | 'preserveLabelOnRefresh' | 'ariaLabel' | 'dropdownAriaLabel' | 'ariaDescription'>,
 	};
 }
 
@@ -831,6 +851,16 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 
 	protected onDidClickButton(): void {
 		this.actionRunner.run(this._action, this._context);
+	}
+
+	/** Shows whether the pill's entry is pressed; see {@link IChatPillEntry.checked}. */
+	protected updateEntryChecked(checked: boolean | undefined): void {
+		this.element?.classList.toggle('chat-pill-checked', !!checked);
+		if (checked === undefined) {
+			this.button?.element.removeAttribute('aria-pressed');
+		} else {
+			this.button?.element.setAttribute('aria-pressed', String(checked));
+		}
 	}
 
 	protected updatePromotedAction(action: IChatPillAction | undefined, icon: ThemeIcon | undefined, hoverService?: IHoverService): void {

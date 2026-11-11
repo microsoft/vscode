@@ -140,23 +140,34 @@ suite('code-prefer-event-or-observable configuration', () => {
 			.map(message => message.messageId)), ['constructorCallback', 'methodCallback']);
 	});
 
-	test('enforces only the migrated API modules', async () => {
+	test('enforces errors only in migrated areas', async () => {
 		const eslint = new ESLint();
 		const files = [
 			'src/vs/workbench/api/browser/mainThreadMcp.ts',
 			'src/vs/workbench/api/common/extHostQuickOpen.ts',
+			'src/vs/platform/agentHost/node/claude/claudeAgentSession.ts',
+			'src/vs/platform/agentHost/node/claude/customizations/claudeSessionCustomizationDiscovery.ts',
+			'src/vs/platform/agentHost/node/claude/future/nested/example.ts',
+			'src/vs/platform/agentHost/node/copilot/copilotAgent.ts',
+			'src/vs/platform/agentHost/node/codex/codexAgent.ts',
 			'src/vs/workbench/api/common/extHostMcp.ts',
 			'src/vs/workbench/api/browser/mainThreadAuthentication.ts',
 			'src/vs/workbench/api/test/browser/mainThreadMcp.test.ts',
 		];
+		const errors = [{ messageId: 'constructorCallback', severity: 2 }, { messageId: 'methodCallback', severity: 2 }];
 		assert.deepStrictEqual(await Promise.all(files.map(async file => {
 			const results = await eslint.lintText(code, { filePath: resolve(import.meta.dirname, '../..', file) });
 			return results.flatMap(result => result.messages
 				.filter(message => message.ruleId === 'local/code-prefer-event-or-observable')
 				.map(message => ({ messageId: message.messageId, severity: message.severity })));
 		})), [
-			[{ messageId: 'constructorCallback', severity: 1 }, { messageId: 'methodCallback', severity: 1 }],
-			[{ messageId: 'constructorCallback', severity: 1 }, { messageId: 'methodCallback', severity: 1 }],
+			errors,
+			errors,
+			errors,
+			errors,
+			errors,
+			[],
+			[],
 			[],
 			[],
 			[],

@@ -31,16 +31,17 @@ import { IRequestService } from '../../request/common/request.js';
 import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDiscoveredDevContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
+import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
 	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
+	formatAgentHostUrlHost,
 	getRemoteCLIDataDir,
 	ISshExec,
 	resolveRemotePlatform,
@@ -54,14 +55,29 @@ import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCo
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
+function getDevContainerShellArgs(workspaceFolder: string | readonly string[]): readonly string[] {
+	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh'];
+}
+
 export function getDevContainerExecArgs(workspaceFolder: string | readonly string[], command: string): readonly string[] {
-	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh', '-c', command];
+	return [...getDevContainerShellArgs(workspaceFolder), '-c', command];
+}
+
+function toDevContainerExec(run: (command: string) => Promise<IDevContainerShellResult>): ISshExec {
+	return async (command, options) => {
+		const result = await run(command);
+		if (result.code !== 0 && !options?.ignoreExitCode) {
+			throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
+		}
+		return result;
+	};
 }
 
 function getSourceKey(source: string | IDevContainerSampleSource): string {
@@ -135,6 +151,10 @@ interface IDevContainerMount {
 interface IGitIdentity {
 	readonly name: string | undefined;
 	readonly email: string | undefined;
+}
+
+export interface IDevContainerShellExec extends IDisposable {
+	readonly exec: ISshExec;
 }
 
 const devContainerUpResultValidator = vObj({
@@ -304,7 +324,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
-			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token, sandboxEnvironment);
+			// The container ID skips the CLI's container lookup.
+			const execSelector = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, '--container-id', upResult.containerId];
+			const shell = store.add(await this._startShell(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment));
+			const exec = shell.exec;
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
 				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
@@ -350,25 +373,17 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			const sessionId = this._telemetryService.sessionId;
-			const ownedStandalones = await Promise.all(live
-				.filter(candidate => candidate.type === 'standalone')
-				.map(async candidate => ({
-					candidate,
-					sessionId: await this._readProcessSessionId(exec, candidate.pid),
-				})));
-			let endpoint = ownedStandalones
-				.filter(candidate => candidate.sessionId === sessionId)
-				.map(candidate => candidate.candidate)
-				.sort((a, b) => a.instanceId.localeCompare(b.instanceId))[0];
+			let endpoint = selectAgentHostEndpoint(live, this._productService.quality, undefined);
 			if (!endpoint) {
+				const sessionId = this._telemetryService.sessionId;
 				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
 					cliBin,
-					cliDataDir,
+					serverDataFolderName,
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 				)}`;
-				void exec(spawnCommand, { ignoreExitCode: true }).catch(error => {
+				// The Agent Host keeps this command running, so it cannot share the startup shell.
+				void this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment)(spawnCommand, { ignoreExitCode: true }).catch(error => {
 					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
 				});
 				this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register...`);
@@ -386,10 +401,11 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				);
 			}
 
-			const relayCommand = buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath);
+			const relayCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(this._telemetryService.sessionId)} ${buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath)}`;
+			store.delete(shell);
 			const relay = await this._createRelay(
 				config.connectionId,
-				workspaceSelector,
+				execSelector,
 				relayCommand,
 				endpoint.endpoint,
 				endpoint.connectionToken,
@@ -412,7 +428,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
 				sandboxSupported,
-				...await this._shouldForwardCertificates(tokenSource.token) ? { forwardClientCertificates: true } : {},
+				...await this._sharesClientNetwork(tokenSource.token) ? { sharesClientNetwork: true } : {},
 				...(repository ? { repository } : {}),
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
@@ -660,18 +676,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected _createExec(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
-		return async (command, options) => {
-			const result = await this._runDevContainer(
-				connectionId,
-				getDevContainerExecArgs(workspaceFolder, command),
-				token,
-				environment,
-			);
-			if (result.code !== 0 && !options?.ignoreExitCode) {
-				throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
-			}
-			return result;
-		};
+		return toDevContainerExec(command => this._runDevContainer(connectionId, getDevContainerExecArgs(workspaceFolder, command), token, environment));
+	}
+
+	/** Starts one container shell for all startup commands; each separate Dev Container CLI exec takes seconds to start. */
+	protected async _startShell(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environmentOverride?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
+		const environment = environmentOverride ?? await this._resolveDevContainerEnvironment();
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const args = getDevContainerShellArgs(workspaceFolder);
+		this._reportOutput(connectionId, `$ devcontainer ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+		const shell = new DevContainerShell(this._spawnDevContainer(args, environment), token, text => this._reportOutput(connectionId, text));
+		return { exec: toDevContainerExec(command => shell.run(command)), dispose: () => shell.dispose() };
 	}
 
 	protected _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -747,7 +764,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		});
 		const duplex = Duplex.from({ readable: child.stdout, writable: child.stdin });
 		const WS = nativeRequire('ws') as typeof WebSocket;
-		const urlHost = endpoint.type === 'tcp' ? endpoint.host : '127.0.0.1';
+		const urlHost = endpoint.type === 'tcp' ? formatAgentHostUrlHost(endpoint.host) : '127.0.0.1';
 		const urlPort = endpoint.type === 'tcp' ? endpoint.port : 80;
 		let url = `ws://${urlHost}:${urlPort}`;
 		if (connectionToken) {
@@ -853,7 +870,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return true;
 	}
 
-	protected async _shouldForwardCertificates(_token: CancellationToken): Promise<boolean> {
+	protected async _sharesClientNetwork(_token: CancellationToken): Promise<boolean> {
 		return false;
 	}
 
@@ -935,31 +952,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return this._dockerAvailable;
 	}
 
-	async listDevContainers(token: CancellationToken): Promise<readonly IDiscoveredDevContainer[]> {
-		if (!await this.isDockerAvailable()) {
-			return [];
-		}
-		const result = await this._runDocker(['ps', '--all', '--no-trunc', '--format',
-			'{"id":{{json .ID}},"name":{{json .Names}},"workspaceFolder":{{json (.Label "devcontainer.local_folder")}},"legacyFolder":{{json (.Label "vsch.local.folder")}},"metadata":{{json (.Label "devcontainer.metadata")}}}',
-		], token);
-		if (result.code !== 0) {
-			throw new Error(localize('devContainerAgentHost.discoveryFailed', "Could not list Dev Containers (exit {0}): {1}", result.code, result.stderr.trim()));
-		}
-		const schema = vObj({ id: vString(), name: vString(), workspaceFolder: vString(), legacyFolder: vString(), metadata: vString() });
-		const containers: IDiscoveredDevContainer[] = [];
-		for (const line of result.stdout.split(/\r?\n/).filter(line => line.trim())) {
-			const container = schema.validateOrThrow(JSON.parse(line));
-			if (container.workspaceFolder || container.legacyFolder || container.metadata) {
-				containers.push({
-					id: container.id,
-					name: container.name,
-					workspaceFolder: container.workspaceFolder || container.legacyFolder || undefined,
-				});
-			}
-		}
-		return containers;
-	}
-
 	async stopContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
 	}
@@ -1006,11 +998,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			throw new Error(localize('devContainerAgentHost.containerSessionCheckFailed', "Unable to check active VS Code sessions in Dev Container '{0}' (exit {1}): {2}", containerId, result.code, result.stderr.trim()));
 		}
 		return [...new Set(result.stdout.split('\n').map(value => value.trim()).filter(value => value.length > 0))];
-	}
-
-	private async _readProcessSessionId(exec: ISshExec, pid: number): Promise<string | undefined> {
-		const result = await exec(`tr '\\0' '\\n' < /proc/${pid}/environ 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p' | head -n 1`, { ignoreExitCode: true });
-		return result.code === 0 ? result.stdout.trim() || undefined : undefined;
 	}
 
 	protected async _runDocker(args: readonly string[], token: CancellationToken = CancellationToken.None): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -1093,7 +1080,7 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
 	}
 
-	protected override async _shouldForwardCertificates(token: CancellationToken): Promise<boolean> {
+	protected override async _sharesClientNetwork(token: CancellationToken): Promise<boolean> {
 		try {
 			const environment = await this._resolveShellEnvironment();
 			if (environment.VSCODE_DOCKER_HOST) {
@@ -1104,7 +1091,7 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 			if (!host) {
 				const result = await this._runDocker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], token);
 				if (result.code !== 0 || !result.stdout.trim()) {
-					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, result.stderr);
+					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; treating it as remote`, result.stderr);
 					return false;
 				}
 				host = result.stdout.trim();
@@ -1114,7 +1101,7 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, getErrorMessage(error));
+			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; treating it as remote`, getErrorMessage(error));
 			return false;
 		}
 	}

@@ -22,9 +22,10 @@ import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,11 +36,13 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService, MODEL_ROUTER_TELEMETRY_ID, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
@@ -281,7 +284,8 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelFusion?: boolean;
 	/**
 	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
-	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 * effort level is selected. Absent when the host pins no tier there. Inline chat offers no Fusion
+	 * effort level either way.
 	 */
 	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
@@ -345,6 +349,8 @@ export interface ILanguageModelChatMetadata {
 		 */
 		readonly sourceId?: string;
 	};
+	/** A file that the model picker's Details opens instead of its details card, such as a model router's file. */
+	readonly detailsResource?: UriComponents;
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
@@ -647,8 +653,11 @@ export interface IModelConfigurationAccess {
 	/** Applies values in this scope without persisting them or reporting them as a selection. */
 	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
 	getModelConfigurationActions(modelId: string): IAction[];
-	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
-	readonly onDidChange?: Event<string>;
+	/**
+	 * Configuration changes within this scope, once per update with the models it changed, so an update covering
+	 * many models (such as a chat's snapshot) notifies once. Global access uses `onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<readonly string[]>;
 }
 
 /** Where a pin change was made, for telemetry. */
@@ -741,23 +750,9 @@ export interface ILanguageModelsService {
 	migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void>;
 
 	/**
-	 * Returns the most recently used model identifiers, ordered by most-recent-first.
-	 * @param maxCount Maximum number of entries to return (default 7).
-	 */
-	getRecentlyUsedModelIds(): string[];
-
-	/**
-	 * Records that a model was used, updating the recently used list.
-	 */
-	addToRecentlyUsedList(modelIdentifier: string): void;
-
-	/**
-	 * Clears the recently used model list.
-	 */
-	clearRecentlyUsedList(): void;
-
-	/**
-	 * Returns the pinned model identifiers, in the order they were pinned.
+	 * Returns the identifiers of available pinned models, in the order they were pinned.
+	 * A pinned model is returned under every vendor that offers a copy of it, such as
+	 * the extension and agent-host copies.
 	 */
 	getPinnedModelIds(): string[];
 
@@ -772,7 +767,8 @@ export interface ILanguageModelsService {
 	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void;
 
 	/**
-	 * Returns whether the given model is pinned.
+	 * Returns whether the given model is pinned, including a copy of it pinned under
+	 * another vendor.
 	 */
 	isModelPinned(modelIdentifier: string): boolean;
 
@@ -1068,9 +1064,10 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 	}
 });
 
-const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
 const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
 const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
+/** Application-scoped marker set once the Agents window's own model preferences were merged into application storage. */
+const CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY = 'chatModelPreferences.agentsWindowMigrated';
 
 /**
  * The identifier for the Auto model which dynamically routes to the best backend.
@@ -1130,7 +1127,10 @@ export function getTelemetryModelIdentifier(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	languageModelsService: ILanguageModelsService,
 ): string | TelemetryTrustedValue<string> {
-	return model && !isUserProvidedModel(model, languageModelsService) ? new TelemetryTrustedValue(model.identifier) : 'unknown';
+	if (!model || isUserProvidedModel(model, languageModelsService)) {
+		return 'unknown';
+	}
+	return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model.metadata.id) === MODEL_ROUTER_TELEMETRY_ID ? MODEL_ROUTER_TELEMETRY_ID : model.identifier);
 }
 
 export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
@@ -1257,7 +1257,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
-	private _recentlyUsedModelIds: string[] = [];
+	/** Where pinned and hidden models are stored, see the constructor. */
+	private readonly _modelPreferencesScope: StorageScope.APPLICATION | StorageScope.PROFILE;
 	private _pinnedModelIds: string[] = [];
 
 	private _hiddenModelIds = new Set<string>();
@@ -1293,12 +1294,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
-		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+
+		// The Agents window always runs in its own `agents` profile, which has separate profile storage.
+		// It keeps model preferences in application storage instead, which is the default profile's
+		// storage, so they are shared with editor windows using the default profile.
+		const profile = userDataProfileService.currentProfile;
+		this._modelPreferencesScope = profile.isAgentsWindowProfile ? StorageScope.APPLICATION : StorageScope.PROFILE;
+		if (profile.isAgentsWindowProfile) {
+			this._mergeAgentsWindowModelPreferences(profile);
+		}
 		this._pinnedModelIds = this._readPinnedModels();
-		this._readVisibility();
+		this._hiddenModelIds = new Set(this._readHiddenModelIds());
+		this._listenForModelPreferenceChanges();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
@@ -2594,79 +2605,126 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
 
-	//#region Recently used models
+	//#region Model preferences shared across windows
 
-	private _readRecentlyUsedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, StorageScope.PROFILE, []);
+	/**
+	 * Picks up pinned and hidden models that other windows changed, so this window
+	 * shows them and does not overwrite them with a stale list on its next write.
+	 */
+	private _listenForModelPreferenceChanges(): void {
+		const scope = this._modelPreferencesScope;
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_PINNED_STORAGE_KEY, this._store)(() => {
+			const pinnedModelIds = this._readPinnedModels();
+			if (!equals(pinnedModelIds, this._pinnedModelIds)) {
+				this._pinnedModelIds = pinnedModelIds;
+				this._onDidChangePinnedModels.fire();
+			}
+		}));
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_VISIBILITY_STORAGE_KEY, this._store)(() => {
+			const hiddenModelIds = this._readHiddenModelIds();
+			if (!equals(hiddenModelIds, Array.from(this._hiddenModelIds))) {
+				this._hiddenModelIds = new Set(hiddenModelIds);
+				this._onDidChangeModelVisibility.fire();
+			}
+		}));
 	}
 
-	private _saveRecentlyUsedModels(): void {
-		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, StorageScope.PROFILE, StorageTarget.USER);
-	}
-
-	getRecentlyUsedModelIds(): string[] {
-		// Filter to only include models that still exist in the cache
-		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id) && id !== AUTO_MODEL_IDENTIFIER)
-			.slice(0, 4);
-	}
-
-	addToRecentlyUsedList(modelIdentifier: string): void {
-		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
+	/**
+	 * The Agents window used to keep model preferences in its own profile storage. Merges them
+	 * into application storage once so they are not lost. Profile values are left in place for
+	 * older builds.
+	 */
+	private _mergeAgentsWindowModelPreferences(profile: IUserDataProfile): void {
+		if (isProfileUsingDefaultStorage(profile) || this._storageService.getBoolean(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
 			return;
 		}
 
-		// Remove if already present (to move to front)
-		const index = this._recentlyUsedModelIds.indexOf(modelIdentifier);
-		if (index !== -1) {
-			this._recentlyUsedModelIds.splice(index, 1);
-		}
-		// Add to front
-		this._recentlyUsedModelIds.unshift(modelIdentifier);
-		// Cap at a reasonable max to avoid unbounded growth
-		if (this._recentlyUsedModelIds.length > 20) {
-			this._recentlyUsedModelIds.length = 20;
-		}
-		this._saveRecentlyUsedModels();
+		const merge = (key: string, read: (scope: StorageScope) => string[], toStorageValue: (ids: string[]) => object) => {
+			const profileIds = read(StorageScope.PROFILE);
+			if (profileIds.length === 0) {
+				return;
+			}
+			const applicationIds = read(StorageScope.APPLICATION);
+			const merged = [...applicationIds, ...profileIds.filter(id => !applicationIds.includes(id))];
+			this._storageService.store(key, toStorageValue(merged), StorageScope.APPLICATION, StorageTarget.USER);
+		};
+		merge(CHAT_MODEL_PINNED_STORAGE_KEY, scope => this._readPinnedModels(scope), ids => ids);
+		merge(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope => this._readHiddenModelIds(scope), ids => ({ hiddenModels: ids }));
+
+		this._storageService.store(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	clearRecentlyUsedList(): void {
-		this._recentlyUsedModelIds = [];
-		this._saveRecentlyUsedModels();
+	private _readModelIds(key: string, scope: StorageScope): string[] {
+		const value = this._storageService.getObject<unknown[]>(key, scope, []);
+		return Array.isArray(value) ? value.filter(isString) : [];
 	}
 
 	//#endregion
 
 	//#region Pinned models
 
-	private _readPinnedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_PINNED_STORAGE_KEY, StorageScope.PROFILE, []);
+	private _readPinnedModels(scope: StorageScope = this._modelPreferencesScope): string[] {
+		return this._readModelIds(CHAT_MODEL_PINNED_STORAGE_KEY, scope);
 	}
 
 	private _savePinnedModels(): void {
-		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, this._modelPreferencesScope, StorageTarget.USER);
+	}
+
+	/**
+	 * The identity a pin is stored and matched under, so a pin applies to every copy of a
+	 * model. The built-in provider's models reach the picker under several vendors (the
+	 * extension, the CLI harness and agent-host copies), so they share the extension's
+	 * identifier. Harnesses that reach a model through several providers qualify its id
+	 * with the provider, so that is decoded first; their other providers' copies group
+	 * elsewhere and keep their own identifiers. An agent-host copy of an extension-provided
+	 * model the user brought shares the original model's identifier. Auto routes differently
+	 * per harness, so it keeps its own identifier, like every other model.
+	 */
+	private _getPinIdentity(modelIdentifier: string): string {
+		const metadata = this._modelCache.get(modelIdentifier);
+		if (!metadata) {
+			return modelIdentifier;
+		}
+		const byokModelIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata);
+		if (byokModelIdentifier !== undefined) {
+			return byokModelIdentifier;
+		}
+		if (!BUILT_IN_GROUP_IDS.has(metadata.modelGroup?.id ?? metadata.vendor)) {
+			return modelIdentifier;
+		}
+		const modelId = parseProviderQualifiedModelId(metadata.id)?.modelId ?? metadata.id;
+		return modelId === AUTO_RAW_MODEL_ID ? modelIdentifier : `${COPILOT_VENDOR_ID}/${modelId}`;
 	}
 
 	getPinnedModelIds(): string[] {
-		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
+		const identifiersByIdentity = new Map<string, string[]>();
+		for (const identifier of this._modelCache.keys()) {
+			if (identifier !== AUTO_MODEL_IDENTIFIER) {
+				const identity = this._getPinIdentity(identifier);
+				identifiersByIdentity.set(identity, [...identifiersByIdentity.get(identity) ?? [], identifier]);
+			}
+		}
+		return [...new Set(this._pinnedModelIds.flatMap(id => identifiersByIdentity.get(this._getPinIdentity(id)) ?? []))];
 	}
 
 	pinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
-		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this.isModelPinned(modelIdentifier)) {
 			return;
 		}
-		this._pinnedModelIds.push(modelIdentifier);
+		this._pinnedModelIds.push(this._getPinIdentity(modelIdentifier));
 		this._savePinnedModels();
 		this._logPinChange(modelIdentifier, true, telemetry);
 		this._onDidChangePinnedModels.fire();
 	}
 
 	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
-		const index = this._pinnedModelIds.indexOf(modelIdentifier);
-		if (index === -1) {
+		const identity = this._getPinIdentity(modelIdentifier);
+		const remaining = this._pinnedModelIds.filter(id => this._getPinIdentity(id) !== identity);
+		if (remaining.length === this._pinnedModelIds.length) {
 			return;
 		}
-		this._pinnedModelIds.splice(index, 1);
+		this._pinnedModelIds = remaining;
 		this._savePinnedModels();
 		this._logPinChange(modelIdentifier, false, telemetry);
 		this._onDidChangePinnedModels.fire();
@@ -2694,7 +2752,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	isModelPinned(modelIdentifier: string): boolean {
-		return modelIdentifier !== AUTO_MODEL_IDENTIFIER && this._pinnedModelIds.includes(modelIdentifier);
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
+			return false;
+		}
+		const identity = this._getPinIdentity(modelIdentifier);
+		return this._pinnedModelIds.some(id => this._getPinIdentity(id) === identity);
 	}
 
 	//#endregion
@@ -2727,16 +2789,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private _readVisibility(): void {
-		const raw = this._storageService.getObject<{ hiddenModels?: string[] }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, StorageScope.PROFILE, {});
-		this._hiddenModelIds = new Set(Array.isArray(raw?.hiddenModels) ? raw.hiddenModels : []);
+	private _readHiddenModelIds(scope: StorageScope = this._modelPreferencesScope): string[] {
+		const raw = this._storageService.getObject<{ hiddenModels?: unknown }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope, {});
+		return Array.isArray(raw?.hiddenModels) ? raw.hiddenModels.filter(isString) : [];
 	}
 
 	private _saveVisibility(): void {
 		this._storageService.store(
 			CHAT_MODEL_VISIBILITY_STORAGE_KEY,
 			{ hiddenModels: Array.from(this._hiddenModelIds) },
-			StorageScope.PROFILE,
+			this._modelPreferencesScope,
 			StorageTarget.USER,
 		);
 	}

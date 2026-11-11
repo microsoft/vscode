@@ -26,6 +26,8 @@ import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -48,6 +50,7 @@ import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterDat
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 class TestContextViewService implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -83,6 +86,8 @@ suite('IssueReporterOverlay', () => {
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
 		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
+		const telemetry = new TestTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		const hovers = new Map<HTMLElement, string>();
 		instantiation.stub(IHoverService, {
 			...NullHoverService,
@@ -155,7 +160,7 @@ suite('IssueReporterOverlay', () => {
 			menu?.onHide?.(false);
 			await action.run();
 		};
-		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
+		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, telemetry, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
 	}
 
 	function insertNativeText(editor: HTMLTextAreaElement, text: string): void {
@@ -251,7 +256,7 @@ suite('IssueReporterOverlay', () => {
 	});
 
 	test('validates title and description before emitting a submission', () => {
-		const { overlay, container, setText, editor, preview } = createReporter({ issueTitle: '', issueBody: '' });
+		const { overlay, container, setText, editor, preview, telemetry } = createReporter({ issueTitle: '', issueBody: '' });
 		const submitted: string[] = [];
 		store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
 		preview.click();
@@ -261,7 +266,48 @@ suite('IssueReporterOverlay', () => {
 		const focusedDescription = document.activeElement === editor;
 		setText('A description');
 		preview.click();
-		assert.deepStrictEqual({ initialErrors, focusedDescription, submitted }, { initialErrors: 2, focusedDescription: true, submitted: ['A title'] });
+		assert.deepStrictEqual({ initialErrors, focusedDescription, submitted, events: telemetry.events }, {
+			initialErrors: 2,
+			focusedDescription: true,
+			submitted: ['A title'],
+			events: [
+				{ name: 'issueReporter.previewClicked', data: undefined },
+				{ name: 'issueReporter.previewClicked', data: undefined },
+				{ name: 'issueReporter.previewClicked', data: undefined },
+			],
+		});
+	});
+
+	for (const activation of [{ key: 'Enter', keyCode: 13 }, { key: ' ', keyCode: 32 }]) {
+		test(`records one preview activation with keyCode ${activation.keyCode}`, () => {
+			const { preview, telemetry } = createReporter();
+			preview.dispatchEvent(new KeyboardEvent('keydown', { ...activation, bubbles: true, cancelable: true }));
+			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: undefined }]);
+		});
+	}
+
+	test('does not count Markdown preview or disabled preview activations', () => {
+		const { overlay, preview, previewTab, telemetry } = createReporter();
+		previewTab.click();
+		overlay.setUploading(true);
+		preview.click();
+		preview.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		const ignored = telemetry.events.slice();
+		overlay.setUploading(false);
+		preview.click();
+		assert.deepStrictEqual({ ignored, events: telemetry.events }, {
+			ignored: [],
+			events: [{ name: 'issueReporter.previewClicked', data: undefined }],
+		});
+	});
+
+	test('does not count opening an external reporter as a GitHub preview', () => {
+		const { preview, telemetry } = createReporter({ uri: URI.parse('https://example.com/issues/new') });
+		preview.click();
+		assert.deepStrictEqual({ action: preview.textContent, events: telemetry.events }, {
+			action: 'Open External Issue Reporter',
+			events: [],
+		});
 	});
 
 	test('keeps the selected report dirty if it changes while its preview is opening', () => {
@@ -495,6 +541,7 @@ suite('IssueReporterOverlay', () => {
 			instantiation.stub(IEditorService, {});
 			instantiation.stub(ITreeViewsDnDService, {});
 			instantiation.stub(IWorkspaceContextService, {});
+			instantiation.stub(IDialogService, {});
 			store.add(instantiation.createInstance(EditorDropTarget, groupsView, container, { supportsSplitting: false }));
 			const transfer = new DataTransfer();
 			transfer.items.add(images(1)[0]);
@@ -1110,15 +1157,12 @@ suite('IssueReporterOverlay', () => {
 		test(`releases closed annotation editors after ${action}`, () => {
 			const { overlay, container } = createReporter();
 			const disposed = spy(ScreenshotAnnotationEditor.prototype, 'dispose');
-			try {
-				overlay.addScreenshot({ ...screenshot });
-				closeAnnotation(container, action);
-				disposed.resetHistory();
-				overlay.dispose();
-				assert.strictEqual(disposed.callCount, 0);
-			} finally {
-				disposed.restore();
-			}
+			store.add(toDisposable(() => disposed.restore()));
+			overlay.addScreenshot({ ...screenshot });
+			closeAnnotation(container, action);
+			disposed.resetHistory();
+			overlay.dispose();
+			assert.strictEqual(disposed.callCount, 0);
 		});
 	}
 

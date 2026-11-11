@@ -117,8 +117,7 @@ suite('ExtHostTextEditorOptions', () => {
 		assert.deepStrictEqual(actual, expected);
 	}
 
-	test('can set tabSize to the same value', () => {
-		opts.value.tabSize = 4;
+	function assertDefaultState(opts: ExtHostTextEditorOptions): void {
 		assertState(opts, {
 			tabSize: 4,
 			indentSize: 4,
@@ -126,6 +125,11 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
+	}
+
+	test('can set tabSize to the same value', () => {
+		opts.value.tabSize = 4;
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
@@ -167,73 +171,37 @@ suite('ExtHostTextEditorOptions', () => {
 
 	test('tabSize can request indentation detection', () => {
 		opts.value.tabSize = 'auto';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, [{ tabSize: 'auto' }]);
 	});
 
 	test('ignores invalid tabSize 1', () => {
 		opts.value.tabSize = null!;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid tabSize 2', () => {
 		opts.value.tabSize = -5;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid tabSize 3', () => {
 		opts.value.tabSize = 'hello';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid tabSize 4', () => {
 		opts.value.tabSize = '-17';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can set indentSize to the same value', () => {
 		opts.value.indentSize = 4;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, [{ indentSize: 4 }]);
 	});
 
@@ -276,88 +244,46 @@ suite('ExtHostTextEditorOptions', () => {
 
 	test('indentSize can request to use tabSize', () => {
 		opts.value.indentSize = 'tabSize';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, [{ indentSize: 'tabSize' }]);
 	});
 
 	test('indentSize cannot request indentation detection', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'auto';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 1', () => {
 		opts.value.indentSize = null!;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 2', () => {
 		opts.value.indentSize = -5;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 3', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'hello';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('ignores invalid indentSize 4', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		opts.value.indentSize = <any>'-17';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
 	test('can set insertSpaces to the same value', () => {
 		opts.value.insertSpaces = false;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
@@ -375,13 +301,7 @@ suite('ExtHostTextEditorOptions', () => {
 
 	test('can set insertSpaces to false string', () => {
 		opts.value.insertSpaces = 'false';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
@@ -399,25 +319,13 @@ suite('ExtHostTextEditorOptions', () => {
 
 	test('insertSpaces can request indentation detection', () => {
 		opts.value.insertSpaces = 'auto';
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, [{ insertSpaces: 'auto' }]);
 	});
 
 	test('can set cursorStyle to same value', () => {
 		opts.value.cursorStyle = TextEditorCursorStyle.Line;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
@@ -435,13 +343,7 @@ suite('ExtHostTextEditorOptions', () => {
 
 	test('can set lineNumbers to same value', () => {
 		opts.value.lineNumbers = TextEditorLineNumbersStyle.On;
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, []);
 	});
 
@@ -465,13 +367,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: TextEditorLineNumbersStyle.On
 		});
-		assertState(opts, {
-			tabSize: 4,
-			indentSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		});
+		assertDefaultState(opts);
 		assert.deepStrictEqual(calls, [{ indentSize: 4 }]);
 	});
 

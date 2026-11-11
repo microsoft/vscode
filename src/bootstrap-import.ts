@@ -12,12 +12,28 @@
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promises } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 // SEE https://nodejs.org/docs/latest/api/module.html#initialize
 
 const _specifierToUrl: Record<string, string> = {};
 const _specifierToFormat: Record<string, string> = {};
+
+/**
+ * Returns the `type` of the `package.json` closest to `entryDir`, stopping at the
+ * package root. Like Node.js, this honors nested `package.json` files that mark only
+ * a subfolder as ESM (e.g. `@hpke/core`'s `esm/` folder).
+ */
+async function getNearestPackageType(entryDir: string, packageRoot: string, rootType: unknown): Promise<unknown> {
+	for (let dir = entryDir; dir !== packageRoot && dir.startsWith(packageRoot); dir = dirname(dir)) {
+		try {
+			return JSON.parse(String(await promises.readFile(join(dir, 'package.json')))).type;
+		} catch {
+			// no package.json in this folder, continue with the parent
+		}
+	}
+	return rootType;
+}
 
 export async function initialize(injectPath: string): Promise<void> {
 	// populate mappings
@@ -65,14 +81,17 @@ export async function initialize(injectPath: string): Promise<void> {
 			if (!main.endsWith('.js') && !main.endsWith('.mjs') && !main.endsWith('.cjs')) {
 				main += '.js';
 			}
-			const mainPath = join(injectPackageJSONPath, `../node_modules/${name}/${main}`);
+			// Use the real path like Node.js does, so that ESM entries can resolve their
+			// own dependencies next to symlinked (e.g. pnpm) packages.
+			const packageRoot = await promises.realpath(join(injectPackageJSONPath, `../node_modules/${name}`));
+			const mainPath = join(packageRoot, main);
 			_specifierToUrl[name] = pathToFileURL(mainPath).href;
-			// Determine module format: .mjs is always ESM, .cjs always CJS, otherwise check type field
+			// Determine module format: .mjs is always ESM, .cjs always CJS, otherwise check the nearest type field
 			const isModule = main.endsWith('.mjs')
 				? true
 				: main.endsWith('.cjs')
 					? false
-					: pkgJson.type === 'module';
+					: await getNearestPackageType(dirname(mainPath), packageRoot, pkgJson.type) === 'module';
 			_specifierToFormat[name] = isModule ? 'module' : 'commonjs';
 
 		} catch (err) {

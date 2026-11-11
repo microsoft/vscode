@@ -73,9 +73,9 @@ export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 }
 
 /**
- * How one artifact contributes to a grouped presentation of several artifacts of the same integration.
- * Only the artifact's main integration is consulted, and priorities are compared only among that integration's
- * artifacts: the group shows the icon with the highest priority, and ties keep the earlier artifact.
+ * How one artifact contributes to a grouped presentation of several artifacts sharing a {@link ArtifactContributionView.groupId}.
+ * Only the artifact's main integration is consulted, and priorities are compared only among the group's artifacts:
+ * the group shows the icon with the highest priority, and ties keep the earlier artifact.
  */
 export interface ArtifactGroupPresentation {
 	readonly icon: ArtifactIcon;
@@ -104,7 +104,14 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
 	readonly main?: ArtifactPartPresentation;
-	/** This artifact's contribution to a group of several artifacts of the same integration. */
+	/**
+	 * Gives the artifact a pill of its own, shared with the other artifacts whose main integration assigns the same ID,
+	 * including those of other integrations. Without one, the artifact is listed in the pill for its kind, such as
+	 * Artifacts, with the other artifacts. References are always listed in the References pill. Only the main
+	 * integration's ID is consulted.
+	 */
+	readonly groupId?: string;
+	/** This artifact's contribution to a group of several artifacts sharing its {@link groupId}. */
 	readonly group?: ArtifactGroupPresentation;
 	readonly sections: readonly ArtifactSectionPresentation[];
 	/** Independent state lists, including lists without a compact pill section. */
@@ -136,6 +143,15 @@ export interface ArtifactItemActionInput {
 	readonly [key: string]: string;
 	readonly detailsId: string;
 	readonly itemId: string;
+}
+
+/** Whether a run's input names the details item it runs for, as an item action's registered action receives. */
+export function isArtifactItemActionInput(value: ArtifactJsonValue | undefined): value is ArtifactItemActionInput {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return false;
+	}
+	const fields = value as { readonly [key: string]: ArtifactJsonValue };
+	return typeof fields.detailsId === 'string' && typeof fields.itemId === 'string';
 }
 
 export interface ArtifactDetailsItem {
@@ -270,7 +286,7 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly label: string;
 	/** Plain text naming the recorded resources this integration supports, so agents know when to use it. */
 	readonly description?: string;
-	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they are grouped. */
+	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they share a group ID. */
 	readonly groupLabel?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */
@@ -397,6 +413,8 @@ export interface ArtifactRun {
 	readonly source: 'manual' | 'automation';
 	/** Who asked for a manual run. */
 	readonly requestedBy?: ArtifactActor;
+	/** Whether a manual run was requested through a general action, recorded because the presentation may later change. */
+	readonly generalAction?: boolean;
 	readonly requestId: string;
 	readonly state: ArtifactRunState;
 	readonly createdAt: number;

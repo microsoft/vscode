@@ -8,7 +8,7 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { AgentHostCompletionReferenceKind, chatReferenceVariableEntryId, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue, type IAgentHostCompletionVariableValue, type IChatReferenceDynamicVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, chatReferenceVariableEntryId, getAgentHostCompletionReferenceKindFromValue, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue, type IAgentHostCompletionVariableValue, type IChatReferenceDynamicVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
@@ -43,8 +43,8 @@ import { getPromptSlashCommandFilterText } from './chatInputCompletionUtils.js';
  * connection can announce its own trigger characters via the protocol's
  * `InitializeResult.completionTriggerCharacters`. When a content provider
  * is registered, we ask it for its trigger chars and register a Monaco
- * completion provider scoped to that scheme; when it is unregistered we
- * tear the registration down.
+ * completion provider scoped to that scheme. Capability changes refresh that
+ * registration; unregistering the content provider tears it down.
  *
  * The provider uses the same `_addReferenceCmd` pattern as
  * `BuiltinDynamicCompletions`: when an item is accepted, a command runs
@@ -58,6 +58,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 
 	/** Per-scheme registrations of the Monaco completion provider. */
 	private readonly _registrations = this._register(new DisposableMap<string>());
+	private readonly _pendingRegistrations = new Map<string, Promise<readonly string[] | undefined>>();
 
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
@@ -79,7 +80,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				fullName: arg.displayName,
 				data: arg.data,
 				_meta: arg._meta,
-			});
+			}, getAgentHostCompletionReferenceKindFromValue(arg.data) !== undefined);
 			if (arg.submitOnAccept) {
 				await arg.widget.acceptInput();
 			} else if (arg.retriggerSuggestions) {
@@ -126,11 +127,12 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		for (const scheme of this._chatSessionsService.getContentProviderSchemes()) {
 			void this._registerForScheme(scheme);
 		}
-		this._register(this._chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
+		this._register(this._chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed, changed }) => {
 			for (const scheme of removed) {
+				this._pendingRegistrations.delete(scheme);
 				this._registrations.deleteAndDispose(scheme);
 			}
-			for (const scheme of added) {
+			for (const scheme of [...added, ...changed ?? []]) {
 				void this._registerForScheme(scheme);
 			}
 		}));
@@ -140,14 +142,21 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		if (!isAgentHostTarget(scheme)) {
 			return;
 		}
-		const triggerCharacters = await this._chatSessionsService.getChatInputCompletionTriggerCharacters(scheme);
-		if (!triggerCharacters || triggerCharacters.length === 0) {
+		const pending = this._chatSessionsService.getChatInputCompletionTriggerCharacters(scheme);
+		this._pendingRegistrations.set(scheme, pending);
+		const triggerCharacters = await pending;
+		if (this._store.isDisposed || this._pendingRegistrations.get(scheme) !== pending) {
 			return;
 		}
+		this._pendingRegistrations.delete(scheme);
 
 		// The provider may have been removed while we were awaiting the
 		// trigger characters. Re-check before registering.
 		if (!this._chatSessionsService.getContentProviderSchemes().includes(scheme)) {
+			return;
+		}
+		this._registrations.deleteAndDispose(scheme);
+		if (!triggerCharacters?.length) {
 			return;
 		}
 

@@ -12,7 +12,7 @@ import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js
 import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
@@ -126,6 +126,13 @@ export class QuickInputController extends Disposable {
 		this._container = options.container;
 		this.styles = options.styles;
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
+		// It is created as it is first used: windows registered before then, such as an auxiliary window opened earlier, need
+		// their modifier keys tracked too, else accepting there never sees them (Alt+Enter to the side accepts as Enter).
+		for (const { window, disposables } of dom.getWindows()) {
+			if (window !== mainWindow) {
+				this.registerKeyModsListeners(window, disposables);
+			}
+		}
 		this._register(dom.onWillUnregisterWindow(window => {
 			if (this.ui && dom.getWindow(this.ui.container) === window) {
 				// The window this quick input is contained in is about to
@@ -166,6 +173,7 @@ export class QuickInputController extends Disposable {
 		}
 
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
+		this._register(toDisposable(() => container.remove()));
 		container.tabIndex = -1;
 		container.style.display = 'none';
 		this._register(dom.addDisposableListener(container, 'animationend', (e: AnimationEvent) => {
@@ -182,7 +190,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
@@ -192,7 +201,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
@@ -230,7 +240,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
@@ -579,7 +590,6 @@ export class QuickInputController extends Disposable {
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
-			input.useNeutralSelection = !!options.useNeutralSelection;
 			input.contextKey = options.contextKey;
 			input.anchor = options.anchor;
 			input.anchorPosition = options.anchorPosition;
@@ -870,7 +880,9 @@ export class QuickInputController extends Disposable {
 		controller.willHide(reason);
 
 		const container = this.ui?.container;
-		const focusChanged = container && !dom.isAncestorOfActiveElement(container);
+		// The active element of the container's own root: not the deep active element,
+		// because focus inside a menu hosted in the container is in a nested shadow root
+		const focusChanged = container && !dom.isAncestor((dom.getShadowRoot(container) ?? container.ownerDocument).activeElement, container);
 		this.controller = null;
 		this.onHideEmitter.fire();
 		if (container) {

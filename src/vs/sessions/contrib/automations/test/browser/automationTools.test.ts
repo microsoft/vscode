@@ -16,38 +16,25 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId, RunAutomationTool, RunAutomationToolId } from '../../browser/automationTools.js';
+import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const SESSION_RESOURCE = URI.parse('agent-session://local/session');
 const CHAT_RESOURCE = URI.parse('agent-chat://local/chat');
 const NOW = '2026-01-01T00:00:00.000Z';
 const progress: ToolProgress = { report: () => { } };
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 function createConfigureAutomationTool(
 	automationService: IAutomationService,
@@ -990,12 +977,13 @@ suite('AutomationTools', () => {
 			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
 			createConfigurationService(),
 		);
+		const createParameters = {
+			name: 'Morning review',
+			prompt: 'Review open pull requests',
+			schedule: { interval: 'daily' },
+		};
 		const createPrepared = await tool.prepareToolInvocation!({
-			parameters: {
-				name: 'Morning review',
-				prompt: 'Review open pull requests',
-				schedule: { interval: 'daily' },
-			},
+			parameters: createParameters,
 			toolCallId: 'create-call',
 			chatSessionResource: SESSION_RESOURCE,
 		}, CancellationToken.None);
@@ -1026,7 +1014,7 @@ suite('AutomationTools', () => {
 			create: {
 				title: 'Create Automation?',
 				message: 'Create the automation **Morning review**?',
-				toolSpecificData: undefined,
+				toolSpecificData: { kind: 'input', rawInput: createParameters, editable: false },
 			},
 			update: {
 				title: 'Update Automation?',
@@ -1470,9 +1458,11 @@ suite('AutomationTools', () => {
 		const rejected = [];
 		for (const fields of [{}, { cronExpression: ' ' }, { cronExpression: '*/2 * * * *', cronTimeZone: 'Invalid/Zone' }]) {
 			const result = await invoke(tool, { name: 'Cron', prompt: 'Review', schedule: { interval: 'cron', ...fields } });
-			rejected.push(!!result.toolResultError);
+			rejected.push({ error: !!result.toolResultError, missingExpression: getText(result).includes('"schedule.cronExpression" is required for cron schedules.') });
 		}
-		assert.deepStrictEqual({ rejected, creates: service.created }, { rejected: [true, true, true], creates: [] });
+		assert.deepStrictEqual({ rejected, creates: service.created }, {
+			rejected: [{ error: true, missingExpression: true }, { error: true, missingExpression: false }, { error: true, missingExpression: false }], creates: [],
+		});
 	});
 
 	test('configureAutomation rejects Cloud cron creation and updates before approval or mutation', async () => {
@@ -1493,8 +1483,8 @@ suite('AutomationTools', () => {
 		const results = [];
 		for (const parameters of inputs) {
 			const result = await invoke(tool, parameters);
-			results.push({ error: !!result.toolResultError, message: getText(result).includes('CRON schedules are not supported by Cloud automations.') });
-			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /CRON schedules are not supported by Cloud automations\./);
+			results.push({ error: !!result.toolResultError, message: getText(result).includes('Cron schedules are not supported by Cloud automations.') });
+			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /Cron schedules are not supported by Cloud automations\./);
 		}
 		assert.deepStrictEqual({ results, creates: service.created, updates: service.updated }, {
 			results: [{ error: true, message: true }, { error: true, message: true }, { error: true, message: true }], creates: [], updates: [],
@@ -1641,7 +1631,7 @@ suite('AutomationTools', () => {
 	});
 
 	test('configureAutomation reports persisted, blocked, and failed outcomes without identifiers', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const sessionsManagementService = new FakeSessionsManagementService(createSession({ workspace: FOLDER }));
 		const configurationService = createConfigurationService();
 		await invoke(createConfigureAutomationTool(

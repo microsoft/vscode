@@ -66,7 +66,11 @@ export function getConnectionTelemetryError(error: IConnectionDiagnosticError | 
 			errorCategory = category;
 		}
 	}
-	if (errorCategory === 'unknown' && errorCode !== undefined) {
+	if (errorCategory === 'unknown' && (error.name === 'InitialAuthenticationError' || error.name === 'CloudSandboxAuthenticationRequiredError')) {
+		errorCategory = 'authentication';
+	} else if (errorCategory === 'unknown' && error.name === 'CloudSandboxNetworkError') {
+		errorCategory = 'network';
+	} else if (errorCategory === 'unknown' && errorCode !== undefined) {
 		errorCategory = 'protocol';
 	}
 	return {

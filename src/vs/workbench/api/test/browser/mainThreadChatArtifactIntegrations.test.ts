@@ -259,16 +259,16 @@ suite('Chat artifact integration extension bridge', () => {
 		});
 	});
 
-	test('carries the provider group label and each observation group icon and priority', async () => {
+	test('carries the provider group label and each observation group ID, icon and priority', async () => {
 		const { extHost, service } = bridge();
 		const { observations } = register(extHost, { groupLabel: 'Experiments' });
 		const model = store.add(await service.acquireArtifact('vendor-session://opaque', 'record')).object;
 		const observation = observations[0];
 		const ungrouped = model.snapshot.get().contributions[0].view.group;
-		observation.update({ ...observation.state, group: { icon: new ThemeIcon('beaker', new ThemeColor('charts.red')), priority: 3 } });
+		observation.update({ ...observation.state, groupId: 'experiments', group: { icon: new ThemeIcon('beaker', new ThemeColor('charts.red')), priority: 3 } });
 		const contribution = model.snapshot.get().contributions[0];
-		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, ungrouped, group: contribution.view.group }, {
-			groupLabel: 'Experiments', ungrouped: undefined, group: { icon: { id: 'beaker', colorId: 'charts.red' }, priority: 3 },
+		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, ungrouped, groupId: contribution.view.groupId, group: contribution.view.group }, {
+			groupLabel: 'Experiments', ungrouped: undefined, groupId: 'experiments', group: { icon: { id: 'beaker', colorId: 'charts.red' }, priority: 3 },
 		});
 		assert.throws(() => extHost.registerProvider(nullExtensionDescription, 'invalidGroup', {
 			label: 'Invalid', groupLabel: 'Two\nlines', match: () => undefined, createArtifactIntegration: () => undefined,
@@ -602,14 +602,15 @@ suite('Chat artifact integration extension bridge', () => {
 			items: details.details.get().items.map(item => ({ id: item.id, actions: item.actions })),
 			direct: observation.itemActionRuns, rejected, reused,
 			prepared: prepared.map(context => context.input),
-			prompts: prompts.map(request => request.chat),
+			prompts: prompts.map(request => ({ chat: request.chat, action: request.presentation?.action, items: request.presentation?.details.flatMap(details => details.items.map(item => item.id)) })),
 			invalid: errors.filter(error => error.includes('Invalid extension details')).length,
 		}, {
 			itemActions: [{ id: 'fix', label: 'Fix', iconId: 'sparkle', actionId: 'analyze' }, { id: 'copyLink', label: 'Copy Link', iconId: 'link' }],
 			items: [{ id: 'one', actions: ['fix', 'copyLink'] }, { id: 'two', actions: ['copyLink'] }],
 			direct: ['two:copyLink'], rejected: ['rejected', 'rejected'], reused: 'rejected',
 			prepared: [input],
-			prompts: ['vendor-chat://invoking'],
+			// The list was added after the integration was created, yet the request presents the item it ran for.
+			prompts: [{ chat: 'vendor-chat://invoking', action: { label: 'Fix', iconId: 'sparkle' }, items: ['one'] }],
 			invalid: 1,
 		});
 	});

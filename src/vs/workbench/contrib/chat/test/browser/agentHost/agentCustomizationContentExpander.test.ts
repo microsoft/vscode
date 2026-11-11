@@ -17,8 +17,8 @@ import { AICustomizationSource, AICustomizationSources } from '../../../common/a
 import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
-const REMOTE_HOST_GROUP = 'remote-host';
-const REMOTE_CLIENT_GROUP = 'remote-client';
+const HOST_OWNED = undefined;
+const SYNCED_FROM_CLIENT = 'syncedFromClient';
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
@@ -32,8 +32,8 @@ class TestLogService extends NullLogService {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function expand(expander: AgentCustomizationContentExpander, pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken, pluginLabel?: string): Promise<readonly ICustomizationItem[]> {
-	return expander.expandPluginContents(pluginUri, groupKey, isBundleItem, source, pluginLabel, token);
+function expand(expander: AgentCustomizationContentExpander, pluginUri: URI, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken, pluginLabel?: string): Promise<readonly ICustomizationItem[]> {
+	return expander.expandPluginContents(pluginUri, delivery, isBundleItem, source, pluginLabel, token);
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ suite('AgentCustomizationContentExpander', () => {
 
 			const logService = new TestLogService();
 			const expander = new AgentCustomizationContentExpander(fileService, logService);
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				items: items.map(i => ({ type: i.type, name: i.name, description: i.description })),
@@ -112,7 +112,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			assert.strictEqual(items.length, 1);
 			assert.strictEqual(items[0].name, 'unnamed-skill');
 			assert.strictEqual(items[0].description, undefined);
@@ -131,7 +131,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			assert.strictEqual(items.length, 1);
 			assert.ok(items[0].uri.path.endsWith('/SKILL.md'), `expected SKILL.md URI, got ${items[0].uri}`);
 		});
@@ -157,7 +157,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const invocable = items.find(i => i.name === 'Invocable');
 			const silent = items.find(i => i.name === 'Silent');
 			assert.ok(invocable, 'should have invocable item');
@@ -187,7 +187,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			// Only the folder-based skill should appear; the flat file is not a directory, so it is skipped
 			assert.deepStrictEqual(items.map(i => i.name), ['Folder Skill']);
 		});
@@ -207,8 +207,8 @@ suite('AgentCustomizationContentExpander', () => {
 				{ path: '/plugins/bundle/agents/legacy.agent.md', contents: ['---', 'name: Legacy', '---'] },
 			]);
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const bundled = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true, AICustomizationSources.plugin, CancellationToken.None);
-			const regular = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const bundled = await expand(expander, pluginRoot, SYNCED_FROM_CLIENT, true, AICustomizationSources.plugin, CancellationToken.None);
+			const regular = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			assert.deepStrictEqual({
 				bundled: bundled.map(item => [item.name, item.uri.path]).sort(),
 				regular: regular.map(item => item.name),
@@ -243,7 +243,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const agentItems = items.filter(i => i.type === PromptsType.agent);
 			assert.deepStrictEqual(
 				agentItems.map(i => ({ name: i.name, description: i.description, userInvocable: i.userInvocable })).sort((a, b) => a.name.localeCompare(b.name)),
@@ -277,7 +277,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const agentItems = items.filter(i => i.type === PromptsType.agent);
 			assert.deepStrictEqual(agentItems.map(i => i.name), ['Valid']);
 		});
@@ -302,7 +302,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const agentItems = items.filter(i => i.type === PromptsType.agent);
 			// Only flat.agent.md; the nested/ directory is skipped
 			assert.deepStrictEqual(agentItems.map(i => i.name), ['Flat']);
@@ -334,7 +334,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const ruleItems = items.filter(i => i.type === PromptsType.instructions);
 			assert.deepStrictEqual(
 				ruleItems.map(i => ({ name: i.name, description: i.description })).sort((a, b) => a.name.localeCompare(b.name)),
@@ -359,7 +359,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const ruleItems = items.filter(i => i.type === PromptsType.instructions);
 			assert.strictEqual(ruleItems.length, 1);
 			assert.strictEqual(ruleItems[0].userInvocable, undefined, 'rules must not expose userInvocable');
@@ -375,7 +375,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const ruleItems = items.filter(i => i.type === PromptsType.instructions);
 			assert.deepStrictEqual(
 				ruleItems.map(i => i.name).sort(),
@@ -408,7 +408,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const cmdItems = items.filter(i => i.type === PromptsType.prompt);
 			assert.deepStrictEqual(
 				cmdItems.map(i => i.name).sort(),
@@ -459,7 +459,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None);
 			const byType = (t: PromptsType) => items.filter(i => i.type === t).map(i => i.name);
 
 			assert.deepStrictEqual(byType(PromptsType.agent), ['Bot']);
@@ -470,11 +470,11 @@ suite('AgentCustomizationContentExpander', () => {
 	});
 
 	// -----------------------------------------------------------------------
-	// expandPluginContents — groupKey and pluginUri propagation
+	// expandPluginContents — delivery and pluginUri propagation
 	// -----------------------------------------------------------------------
 
-	suite('expandPluginContents – groupKey and pluginUri', () => {
-		test('all child items carry the groupKey passed to expand', async () => {
+	suite('expandPluginContents – delivery and pluginUri', () => {
+		test('all child items carry the delivery passed to expand', async () => {
 			const pluginRoot = URI.file('/plugins/gk');
 			await mockFiles(fileService, [
 				{
@@ -492,9 +492,9 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, SYNCED_FROM_CLIENT, false, AICustomizationSources.plugin, CancellationToken.None);
 			for (const item of items) {
-				assert.strictEqual(item.groupKey, REMOTE_CLIENT_GROUP, `item ${item.name} should carry remote-client groupKey`);
+				assert.strictEqual(item.delivery, SYNCED_FROM_CLIENT, `item ${item.name} should be marked as synced from the client`);
 			}
 		});
 
@@ -511,7 +511,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const bundleItems = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true /* isBundleItem */, AICustomizationSources.plugin, CancellationToken.None, 'bundle-plugin');
+			const bundleItems = await expand(expander, pluginRoot, SYNCED_FROM_CLIENT, true /* isBundleItem */, AICustomizationSources.plugin, CancellationToken.None, 'bundle-plugin');
 
 			for (const item of bundleItems) {
 				assert.deepStrictEqual({ pluginUri: item.pluginUri, pluginLabel: item.pluginLabel }, { pluginUri: undefined, pluginLabel: undefined }, `bundle item ${item.name} must have no plugin provenance`);
@@ -531,7 +531,7 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None, 'Datadog');
+			const items = await expand(expander, pluginRoot, HOST_OWNED, false, AICustomizationSources.plugin, CancellationToken.None, 'Datadog');
 			assert.strictEqual(items.length, 1);
 			assert.deepStrictEqual({ pluginUri: items[0].pluginUri?.toString(), pluginLabel: items[0].pluginLabel }, { pluginUri: pluginRoot.toString(), pluginLabel: 'Datadog' });
 		});

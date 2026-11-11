@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DebugSession, ThreadStatusScheduler } from '../../browser/debugSession.js';
 import { RawDebugSession } from '../../browser/rawDebugSession.js';
 import { MockDebugAdapter } from '../common/mockDebug.js';
+import { ExceptionBreakpoint } from '../../common/debugModel.js';
 import { createTestSession } from './callStack.test.js';
 import { createMockDebugModel } from './mockDebugModel.js';
 
@@ -206,5 +207,60 @@ suite('DebugSession - continued events', () => {
 		await continued;
 
 		assert.strictEqual(session.getStoppedDetails(), undefined);
+	});
+});
+
+suite('DebugSession - exception breakpoints', () => {
+	let session: DebugSession | undefined;
+
+	teardown(async () => {
+		await session?.disconnect();
+		session = undefined;
+	});
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createSession() {
+		const model = createMockDebugModel(ds);
+		session = ds.add(createTestSession(model));
+		model.addSession(session);
+		const exceptionFilterOptions: DebugProtocol.ExceptionFilterOptions[][] = [];
+		const adapter = ds.add(new class extends MockDebugAdapter {
+			override sendMessage(message: DebugProtocol.ProtocolMessage): void {
+				if (message.type === 'request') {
+					const request = message as DebugProtocol.Request;
+					if (request.command === 'setExceptionBreakpoints') {
+						exceptionFilterOptions.push((request.arguments as DebugProtocol.SetExceptionBreakpointsArguments).filterOptions ?? []);
+					}
+				}
+				super.sendMessage(message);
+			}
+		});
+		const raw = ds.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!));
+		const initialized = Event.toPromise(raw.onDidInitialize);
+		adapter.sendEventBody('capabilities', { capabilities: { supportsExceptionFilterOptions: true } });
+		adapter.sendEventBody('initialized', {});
+		await initialized;
+		session.initializeForTest(raw);
+		return { session, exceptionFilterOptions };
+	}
+
+	test('sends the condition and mode of exception breakpoints', async () => {
+		const { session, exceptionFilterOptions } = await createSession();
+		const options = { label: 'Label', supportsCondition: true, enabled: true, description: undefined, conditionDescription: undefined };
+
+		await session.sendExceptionBreakpoints([
+			new ExceptionBreakpoint({ ...options, filter: 'plain' }),
+			new ExceptionBreakpoint({ ...options, filter: 'conditional', condition: 'x > 1' }),
+			new ExceptionBreakpoint({ ...options, filter: 'moded', mode: 'userUnhandled' }),
+			new ExceptionBreakpoint({ ...options, filter: 'both', condition: 'y', mode: 'always' }),
+		]);
+
+		assert.deepStrictEqual(exceptionFilterOptions, [[
+			{ filterId: 'plain' },
+			{ filterId: 'conditional', condition: 'x > 1' },
+			{ filterId: 'moded', mode: 'userUnhandled' },
+			{ filterId: 'both', condition: 'y', mode: 'always' },
+		]]);
 	});
 });

@@ -384,7 +384,7 @@ suite('Artifact Integration Protocol', () => {
 		], [true, false, false, false, false, false, false, false, false, false, false, true, true]);
 	});
 
-	test('wire snapshots accept an integration group label and per-artifact group icon with a finite priority', () => {
+	test('wire snapshots accept an integration group label and per-artifact group ID and icon with a finite priority', () => {
 		const view = { availability: { kind: 'available' as const }, sections: [], stateActions: [], generalActions: [], automationAvailability: [] };
 		const contribution = { integrationId: 'test', label: 'Test', actions: [], options: [], view, configuration: { revision: 0, values: {}, generations: {}, disablements: {} } };
 		const snapshot = { ...model().snapshot.get(), mainIntegrationId: 'test', contributions: [contribution] };
@@ -398,7 +398,10 @@ suite('Artifact Integration Protocol', () => {
 			isArtifactSnapshot(withGroup({ icon: { id: 'beaker' }, priority: '2' })),
 			isArtifactSnapshot(withGroup({ icon: { id: 'not an icon' }, priority: 1 })),
 			isArtifactSnapshot(withGroup({ priority: 1 })),
-		], [true, false, false, false, false, false, false]);
+			isArtifactSnapshot(withContribution({ view: { ...view, groupId: 'tests' } })),
+			isArtifactSnapshot(withContribution({ view: { ...view, groupId: '' } })),
+			isArtifactSnapshot(withContribution({ view: { ...view, groupId: 1 } })),
+		], [true, false, false, false, false, false, false, true, false, false]);
 	});
 
 	test('detail pages have an explicit bounded shape', () => {

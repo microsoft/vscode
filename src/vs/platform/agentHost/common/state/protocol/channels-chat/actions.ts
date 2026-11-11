@@ -678,7 +678,8 @@ export interface ChatUsageAction {
  * Reasoning/thinking text from the model, appended to a specific reasoning response part.
  *
  * The server MUST first emit a `chat/responsePart` to create the target
- * reasoning part, then use this action to append text to it.
+ * reasoning part, then use this action to append text or record its timing.
+ * An empty `content` updates only the supplied timing fields.
  *
  * @category Chat Actions
  * @version 1
@@ -691,6 +692,10 @@ export interface ChatReasoningAction {
 	partId: string;
 	/** Reasoning text chunk */
 	content: string;
+	/** Producer-recorded ISO 8601 start of the reasoning interval; omitted to preserve the existing value. */
+	startedAt?: string;
+	/** Final elapsed reasoning time in non-negative integer milliseconds, measured by the producer's clock; omitted to preserve the existing value. Zero is a recorded duration, not unknown. */
+	duration?: number;
 	/**
 	 * Additional provider-specific metadata for this action.
 	 *

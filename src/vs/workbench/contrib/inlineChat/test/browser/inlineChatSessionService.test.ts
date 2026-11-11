@@ -4,41 +4,56 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../services/policies/common/accountPolicyService.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ChatAttachmentModel } from '../../../chat/browser/attachments/chatAttachmentModel.js';
 import { ChatEditingService } from '../../../chat/browser/chatEditing/chatEditingServiceImpl.js';
 import { ChatEditingSession } from '../../../chat/browser/chatEditing/chatEditingSession.js';
 import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSessions.contribution.js';
-import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
-import { IChatEditingService } from '../../../chat/common/editing/chatEditingService.js';
-import { ChatModel } from '../../../chat/common/model/chatModel.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, SessionTypeSelectionReason } from '../../../chat/common/constants.js';
+import { IChatEditingService, IChatEditReviewSession } from '../../../chat/common/editing/chatEditingService.js';
+import { ChatModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../chat/common/model/chatModel.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../../chat/common/model/chatUri.js';
+import { storeUserSelectedSessionType } from '../../../chat/common/chatSessionTypePreference.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentService, ChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../chat/common/chatSessionsService.js';
 import { IChatDebugService } from '../../../chat/common/chatDebugService.js';
@@ -46,7 +61,8 @@ import { ChatDebugServiceImpl } from '../../../chat/common/chatDebugServiceImpl.
 import { IChatSlashCommandService } from '../../../chat/common/participants/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/attachments/chatVariables.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ModelSelectionReason } from '../../../chat/common/modelSelection.js';
 import { ICustomizationMigrationService } from '../../../chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
@@ -60,7 +76,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InlineChatEditReviewSession } from '../../browser/inlineChatEditReviewSession.js';
-import { IInlineChatSession } from '../../browser/inlineChatSessionService.js';
+import { continueInPanelChat, IInlineChatSession, IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { IInlineChatSessionResolver, IInlineChatSessionResolution } from '../../browser/inlineChatSessionResolver.js';
 import { TestWorkerService } from './testWorkerService.js';
@@ -382,4 +398,186 @@ suite('InlineChatSessionService', () => {
 		}
 		session.dispose();
 	}
+});
+
+suite('Inline Chat panel handoff', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createHandoff(options: { sourceType?: string; modelTarget?: string } = {}) {
+		const services = store.add(new TestInstantiationService());
+		const storage = store.add(new TestStorageService());
+		const disposedEditing = store.add(new Emitter<void>());
+		const sessionsChanged = store.add(new Emitter<IInlineChatSessionService>());
+		const acquired: { type: string; reason: SessionTypeSelectionReason | undefined }[] = [];
+		const localReasons: (SessionTypeSelectionReason | undefined)[] = [];
+		const stateUpdates: Partial<IChatModelInputState>[] = [];
+		const files: { uri: URI; range: IRange | undefined }[] = [];
+		const sent: (string | undefined)[] = [];
+		const opened: URI[] = [];
+		let sourceDisposed = false;
+		let targetDisposed = false;
+		const uri = URI.file('/workspace/file.ts');
+		const selection = new Selection(2, 1, 3, 5);
+		const state: IChatModelInputState = {
+			attachments: [{ kind: 'file', id: 'context', name: 'context.ts', value: URI.file('/workspace/context.ts') }],
+			inputText: 'unsent draft',
+			selections: [new Selection(1, 1, 1, 6)],
+			selectedModel: { identifier: 'source-model', metadata: upcastPartial<ILanguageModelChatMetadata>({ id: 'source-model', targetChatSessionType: options.modelTarget }) },
+			modelConfiguration: { reasoningEffort: 'low' },
+			modelConfigurationIsTransient: true,
+			selectedModelReason: ModelSelectionReason.UserSelection,
+			mode: { id: 'ask', kind: ChatModeKind.Ask },
+			contrib: { inlineChat: { context: 'preserved' } },
+		};
+		const sourceModel: IChatModel = new class extends mock<IChatModel>() {
+			override readonly sessionResource = getNewChatSessionResource(options.sourceType ?? SessionType.Local);
+			override readonly inputModel = new class extends mock<IInputModel>() {
+				override readonly state = constObservable(state);
+			}();
+			override getRequests(): IChatRequestModel[] { return [request]; }
+		}();
+		const request: IChatRequestModel = new class extends mock<IChatRequestModel>() {
+			override readonly session = sourceModel;
+			override readonly message = { text: 'fix the selection', parts: [] };
+		}();
+		const target = new class extends mock<IChatModel>() {
+			override readonly sessionResource = getNewChatSessionResource(SessionType.AgentHostCopilot);
+			override readonly inputModel = new class extends mock<IInputModel>() {
+				override setState(value: Partial<IChatModelInputState>) { stateUpdates.push(value); }
+			}();
+		}();
+		const reference = Object.assign(store.add(toDisposable(() => targetDisposed = true)), { object: target });
+		let acquire: () => Promise<IChatModelReference | undefined> = async () => reference;
+		services.stub(IChatService, {
+			startNewLocalSession: (_location, startOptions) => {
+				localReasons.push(startOptions?.sessionTypeSelectionReason);
+				return reference;
+			},
+			acquireOrLoadSession: async (resource, _location, _token, _owner, reason) => {
+				acquired.push({ type: getChatSessionType(resource), reason });
+				return acquire();
+			},
+		});
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly attachmentModel = new class extends mock<ChatAttachmentModel>() {
+				override async addFile(resource: URI, range?: IRange) { files.push({ uri: resource, range }); }
+			}();
+			override async acceptInput(query?: string) { sent.push(query); return undefined; }
+		}();
+		services.stub(IChatWidgetService, { openSession: async resource => { opened.push(resource); return widget; } });
+		services.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+		}));
+		services.stub(IChatSessionsService, { getChatSessionContribution: () => undefined, getAllChatSessionContributions: () => [] });
+		services.stub(IStorageService, storage);
+		services.stub(IWorkspaceContextService, new TestContextService());
+		services.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+		services.stub(IManagedSettingsService, new NullManagedSettingsService());
+		services.stub(IAccountPolicyGateService, { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
+		const session: IInlineChatSession = new class extends mock<IInlineChatSession>() {
+			override readonly chatModel = sourceModel;
+			override readonly uri = uri;
+			override readonly initialSelection = selection;
+			override readonly editingSession = new class extends mock<IChatEditReviewSession>() {
+				override readonly onDidDispose = disposedEditing.event;
+			}();
+			override dispose() {
+				sourceDisposed = true;
+				sessionsChanged.fire(inlineSessionService);
+				disposedEditing.fire();
+			}
+		}();
+		const inlineSessionService: IInlineChatSessionService = services.stub(IInlineChatSessionService, {
+			onDidChangeSessions: sessionsChanged.event,
+			getSessionBySessionUri: () => sourceDisposed ? undefined : session,
+		});
+		return {
+			services, storage, session, state, uri, selection, acquired, localReasons, stateUpdates, files, sent, opened, reference,
+			setAcquisition: (value: typeof acquire) => acquire = value,
+			cancel: () => session.dispose(),
+			disposed: () => ({ source: sourceDisposed, target: targetDisposed }),
+		};
+	}
+
+	test('uses Copilot and preserves the prompt, draft context and selected code', async () => {
+		const fixture = createHandoff();
+		await continueInPanelChat(fixture.services, fixture.session);
+		assert.deepStrictEqual({
+			acquired: fixture.acquired,
+			local: fixture.localReasons,
+			state: fixture.stateUpdates,
+			files: fixture.files,
+			sent: fixture.sent,
+			disposed: fixture.disposed(),
+		}, {
+			acquired: [{ type: SessionType.AgentHostCopilot, reason: 'copilotPreference' }],
+			local: [],
+			state: [{
+				inputText: fixture.state.inputText,
+				selections: fixture.state.selections,
+				attachments: fixture.state.attachments,
+				contrib: fixture.state.contrib,
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+			}],
+			files: [{ uri: fixture.uri, range: fixture.selection }],
+			sent: ['fix the selection'],
+			disposed: { source: true, target: true },
+		});
+	});
+
+	test('preserves model configuration only for the same harness or a model targeting the destination', async () => {
+		const results = [];
+		const expected = [];
+		for (const options of [{ sourceType: SessionType.AgentHostCopilot }, { modelTarget: SessionType.AgentHostCopilot }]) {
+			const fixture = createHandoff(options);
+			await continueInPanelChat(fixture.services, fixture.session);
+			results.push(fixture.stateUpdates);
+			expected.push([{ ...fixture.state, mode: { id: 'agent', kind: ChatModeKind.Agent } }]);
+		}
+		assert.deepStrictEqual(results, expected);
+	});
+
+	test('preserves remembered Claude and Codex choices and their selection reason', async () => {
+		const results = [];
+		for (const type of [SessionType.AgentHostClaude, SessionType.AgentHostCodex]) {
+			const fixture = createHandoff();
+			storeUserSelectedSessionType(fixture.storage, type);
+			await continueInPanelChat(fixture.services, fixture.session);
+			results.push(fixture.acquired);
+		}
+		assert.deepStrictEqual(results, [SessionType.AgentHostClaude, SessionType.AgentHostCodex].map(type => [{ type, reason: 'rememberedSelection' }]));
+	});
+
+	test('failed acquisition preserves inline chat and never falls back to Local', async () => {
+		const fixture = createHandoff();
+		fixture.setAcquisition(async () => undefined);
+		await assert.rejects(continueInPanelChat(fixture.services, fixture.session), /Could not start the selected chat session/);
+		assert.deepStrictEqual({
+			local: fixture.localReasons,
+			opened: fixture.opened,
+			sent: fixture.sent,
+			disposed: fixture.disposed(),
+		}, { local: [], opened: [], sent: [], disposed: { source: false, target: false } });
+	});
+
+	test('disposing inline chat during acquisition releases the target without sending', async () => {
+		const fixture = createHandoff();
+		const acquisition = new DeferredPromise<IChatModelReference>();
+		const started = new DeferredPromise<void>();
+		fixture.setAcquisition(() => {
+			void started.complete();
+			return acquisition.p;
+		});
+		const handoff = continueInPanelChat(fixture.services, fixture.session);
+		await started.p;
+		fixture.cancel();
+		await acquisition.complete(fixture.reference);
+		await assert.rejects(handoff, isCancellationError);
+		assert.deepStrictEqual({
+			opened: fixture.opened,
+			sent: fixture.sent,
+			disposed: fixture.disposed(),
+		}, { opened: [], sent: [], disposed: { source: true, target: true } });
+	});
 });

@@ -215,6 +215,11 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**
+	 * When true, a docked DevTools panel is included in the capture of the whole view.
+	 * Only meant for UI placeholders: DevTools content must not reach agents or other consumers.
+	 */
+	includeDevTools?: boolean;
+	/**
 	 * When true, capture the full scrollable document, not just the visible viewport.
 	 * Ignored when `screenRect` or `pageRect` is set.
 	 */
@@ -277,9 +282,12 @@ export const enum BrowserViewPresentation {
 	Unlisted = 'unlisted',
 }
 
-export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
+export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean, remoteNetwork = false): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
 	if (presentation === BrowserViewPresentation.Listed) {
 		return { action: 'integrated', consumeUserGesture: false };
+	}
+	if (remoteNetwork) {
+		return { action: 'deny', consumeUserGesture: hasRecentUserGesture };
 	}
 	if (hasRecentUserGesture && matchesSomeScheme(url, Schemas.http, Schemas.https)) {
 		return { action: 'external', consumeUserGesture: true };

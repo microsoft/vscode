@@ -12,12 +12,12 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSettingsFileSystemProvider.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 MenuRegistry.appendMenuItem(Menus.SessionItemContextMenu, {
 	submenu: Menus.SessionItemSettings,
@@ -77,8 +77,7 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
-		const session = (Array.isArray(context) ? context[0] : context) ?? sessionsService.activeSession.get();
+		const session = resolveSessionCommandTarget(accessor, Array.isArray(context) ? context.slice(0, 1) : [context])?.session;
 		if (!session) {
 			return;
 		}

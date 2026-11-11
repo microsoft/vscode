@@ -93,7 +93,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private _windowId: number | undefined = undefined;
 	private get window() { return typeof this._windowId === 'number' ? getWindowById(this._windowId)?.window : undefined; }
 
-	private _encodedWebviewOriginPromise?: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
 
 	protected get platform(): string { return 'browser'; }
@@ -167,6 +166,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	public extension: WebviewExtensionDescription | undefined;
 	private readonly _options: WebviewOptions;
+	public get options(): WebviewOptions { return this._options; }
 
 	constructor(
 		initInfo: WebviewInitInfo,
@@ -481,6 +481,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
+	protected hashParentOrigin(parentOrigin: string): Promise<string> {
+		return parentOriginHash(parentOrigin, this.origin);
+	}
+
 	public mountTo(element: HTMLElement, targetWindow: CodeWindow) {
 		if (!this.element) {
 			return;
@@ -488,9 +492,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._windowId = targetWindow.vscodeWindowId;
 		this._mountId = generateUuid();
-		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
-		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
-			if (!this._disposed) {
+		const mountId = this._mountId;
+		const originPromise = this.hashParentOrigin(targetWindow.origin).then(id => {
+			if (this._mountId === mountId) {
+				this._encodedWebviewOrigin = id;
+			}
+			return id;
+		});
+		originPromise.then(encodedWebviewOrigin => {
+			if (!this._disposed && this._mountId === mountId) {
 				this._initElement(encodedWebviewOrigin, this.extension, this._options, targetWindow);
 			}
 		});

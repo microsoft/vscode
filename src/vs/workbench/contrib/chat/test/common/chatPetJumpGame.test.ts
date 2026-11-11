@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 
@@ -21,6 +22,13 @@ suite('ChatPetJumpGame', () => {
 		model.hop(direction);
 		advance(model, milliseconds);
 		model.setChargeHeld(false);
+	}
+
+	function createRandom(seed = 42): () => number {
+		return () => {
+			seed = (seed * 1664525 + 1013904223) >>> 0;
+			return seed / 0x100000000;
+		};
 	}
 
 	function climbTo(platformId: number, size = 48): ChatPetJumpGameModel {
@@ -181,14 +189,52 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
+	for (const height of [600, 1800]) {
+		test(`retry before the first jump preserves the generated course (height: ${height})`, () => {
+			const model = new ChatPetJumpGameModel(1000, 48, 500, createRandom());
+			model.ensurePlatforms(600);
+			model.ensurePlatforms(height);
+			const before = deepClone({ player: model.player, platforms: model.platforms, walls: model.walls });
+			advance(model, 450);
+			model.resetToCheckpoint();
+			model.ensurePlatforms(height);
+			assert.deepStrictEqual({ player: model.player, platforms: model.platforms, walls: model.walls }, before);
+		});
+	}
+
+	test('generating platforms in flight preserves the grounded retry point', () => {
+		const model = new ChatPetJumpGameModel(1000, 48, 500, createRandom());
+		model.ensurePlatforms(600);
+		const before = deepClone({ player: model.player, platforms: model.platforms, walls: model.walls });
+		model.hop(1);
+		advance(model, 100);
+		model.ensurePlatforms(1800);
+		model.resetToCheckpoint();
+		assert.deepStrictEqual({ player: model.player, platforms: model.platforms, walls: model.walls }, before);
+	});
+
+	test('retry restores the last takeoff position after a fall without a stuck charge', () => {
+		const model = new ChatPetJumpGameModel(1000, 48, 500);
+		model.hop(1);
+		advance(model, 400);
+		model.hop(1);
+		advance(model, 400);
+		const before = { ...model.player };
+		chargeJump(model, 900, 1);
+		advance(model, 2000);
+		const fell = model.hasFallen;
+		model.setChargeHeld(true);
+		model.resetToCheckpoint();
+		model.setChargeHeld(false);
+		assert.deepStrictEqual({
+			fell, player: model.player, direction: model.direction, charge: model.charge, charging: model.charging, fallen: model.hasFallen,
+		}, { fell: true, player: before, direction: 1, charge: 0, charging: false, fallen: false });
+	});
+
 	test('generated platforms stay in bounds with a reachable charged-jump path across sizes', () => {
 		for (const size of [24, 48, 96]) {
 			for (const width of [size * 2, size * 5, size * 20]) {
-				let seed = 42;
-				const model = new ChatPetJumpGameModel(width, size, width / 2, () => {
-					seed = (seed * 1664525 + 1013904223) >>> 0;
-					return seed / 0x100000000;
-				});
+				const model = new ChatPetJumpGameModel(width, size, width / 2, createRandom());
 				model.ensurePlatforms(size * 200);
 				const platforms = model.platforms;
 				for (let i = 1; i < platforms.length; i++) {
@@ -268,6 +314,35 @@ suite('ChatPetJumpGame', () => {
 		}, { moving: true, carried: true, grounded: 5, charge: 0.5, hops: 5 });
 	});
 
+	test('retry rewinds moving platforms and progress and supports repeated restores', () => {
+		const model = climbTo(5);
+		model.setChargeHeld(true);
+		advance(model, 450);
+		model.hop(-1);
+		const snapshot = () => ({
+			player: { ...model.player },
+			left: model.platforms[5].left,
+			hops: model.hops,
+			bestHeight: model.bestHeight,
+		});
+		const before = snapshot();
+		model.setChargeHeld(false);
+		advance(model, 250);
+		model.resetToCheckpoint();
+		const restored = snapshot();
+		advance(model, 100);
+		const carried = snapshot();
+		model.resetToCheckpoint();
+		const restoredAgain = snapshot();
+		advance(model, 100);
+		assert.deepStrictEqual({
+			restored, restoredAgain,
+			sameMovement: snapshot(),
+			offsetPreserved: Math.abs(carried.player.x - carried.left - (before.player.x - before.left)) < 1e-6,
+			charge: model.charge,
+		}, { restored: before, restoredAgain: before, sameMovement: carried, offsetPreserved: true, charge: 0 });
+	});
+
 	test('crumbling ledges allow a full charge, then fall and release the pet without a phantom jump', () => {
 		const model = climbTo(9);
 		model.setChargeHeld(true);
@@ -284,6 +359,72 @@ suite('ChatPetJumpGame', () => {
 		}, {
 			before: { platform: 9, charge: 1, crumbling: true },
 			collapsed: 1, ledgeFalling: true, petFalling: true, platform: undefined, charge: 0, hops: 9,
+		});
+	});
+
+	test('retry restores a collapsed platform and gives enough time to charge again', () => {
+		const model = climbTo(9);
+		const before = { ...model.player };
+		advance(model, 1600);
+		const collapsed = model.platforms[9].collapseProgress;
+		model.resetToCheckpoint();
+		const restored = { player: { ...model.player }, progress: model.platforms[9].collapseProgress, fall: model.platforms[9].fallDistance };
+		model.setChargeHeld(true);
+		advance(model, 900);
+		model.setChargeHeld(false);
+		advance(model, 100);
+		model.resetToCheckpoint();
+		model.setChargeHeld(true);
+		advance(model, 900);
+		assert.deepStrictEqual({
+			collapsed, restored,
+			platform: model.player.platform,
+			canChargeAgain: model.charge === 1 && model.platforms[9].collapseProgress < 1,
+			hops: model.hops,
+		}, {
+			collapsed: 1, restored: { player: before, progress: 0, fall: 0 },
+			platform: 9, canChargeAgain: true, hops: 9,
+		});
+	});
+
+	test('retry restores all crumbling platforms in the same course across repeated attempts', () => {
+		const model = climbTo(18);
+		const snapshot = () => ({
+			player: { ...model.player },
+			platforms: model.platforms.map(({ id, left, width, height, kind, collapseProgress, fallDistance }) => ({ id, left, width, height, kind, collapseProgress, fallDistance })),
+			walls: [...model.walls],
+			hops: model.hops,
+			bestHeight: model.bestHeight,
+		});
+		const crumblingState = () => model.platforms.filter(platform => platform.kind === 'crumbling')
+			.map(({ id, collapseProgress, fallDistance }) => ({ id, collapseProgress, fallDistance }));
+		advance(model, 2000);
+		assert.deepStrictEqual(crumblingState().filter(platform => platform.fallDistance >= model.petSize * 4).map(platform => platform.id), [9, 17]);
+		const before = snapshot();
+		const restored = {
+			...before,
+			platforms: before.platforms.map(platform => ({ ...platform, collapseProgress: 0, fallDistance: 0 })),
+		};
+		const intact = crumblingState().map(platform => ({ ...platform, collapseProgress: 0, fallDistance: 0 }));
+		model.hop(0);
+		advance(model, 100);
+		for (let attempt = 0; attempt < 3; attempt++) {
+			model.resetToCheckpoint();
+			assert.deepStrictEqual(snapshot(), restored);
+			advance(model, 2000);
+			assert.deepStrictEqual(crumblingState(), intact);
+		}
+
+		const platform = model.platforms[9];
+		Object.assign(model.player, {
+			x: platform.left + platform.width / 2, height: platform.height + model.petSize,
+			velocityX: 0, velocityY: 0, platform: undefined,
+		});
+		advance(model, 250);
+		const landed = { platform: model.player.platform, crumbling: platform.collapseProgress > 0, hops: model.hops };
+		advance(model, 1600);
+		assert.deepStrictEqual({ landed, collapsed: platform.collapseProgress, falling: platform.fallDistance > 0 }, {
+			landed: { platform: 9, crumbling: true, hops: 18 }, collapsed: 1, falling: true,
 		});
 	});
 
@@ -337,6 +478,20 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
+	test('retry returns to a wall checkpoint and keeps the same generated surfaces', () => {
+		const model = new ChatPetJumpGameModel(600, 48, 300, () => 0.5);
+		model.ensurePlatforms(1500);
+		const wall = model.walls[0];
+		Object.assign(model.player, { x: wall.left + wall.width / 2, height: wall.top, platform: undefined });
+		advance(model, 100);
+		const before = { ...model.player };
+		const walls = [...model.walls];
+		model.hop(-1);
+		advance(model, 100);
+		model.resetToCheckpoint();
+		assert.deepStrictEqual({ player: model.player, walls: model.walls, hops: model.hops }, { player: before, walls, hops: 0 });
+	});
+
 	test('hopping on a reached platform or falling back never increases the score', () => {
 		const model = climbTo(3);
 		model.hop(0);
@@ -371,5 +526,23 @@ suite('ChatPetJumpGame', () => {
 			platformsInside: model.platforms.every(platform => platform.left >= 0 && platform.left + platform.width <= 120),
 			petInside: model.player.x >= 24 && model.player.x <= 96,
 		}, { heights, platformsInside: true, petInside: true });
+	});
+
+	test('retry keeps a moving-platform checkpoint grounded after resizing', () => {
+		const model = climbTo(5);
+		const height = model.player.height;
+		chargeJump(model, 900, 1);
+		advance(model, 100);
+		model.resize(120);
+		model.resetToCheckpoint();
+		const platform = model.platforms[5];
+		assert.deepStrictEqual({
+			width: model.width,
+			height: model.player.height,
+			platform: model.player.platform,
+			onPlatform: model.player.x >= platform.left && model.player.x <= platform.left + platform.width,
+			inside: model.player.x >= model.petSize / 2 && model.player.x <= model.width - model.petSize / 2,
+			hops: model.hops,
+		}, { width: 120, height, platform: 5, onPlatform: true, inside: true, hops: 5 });
 	});
 });
