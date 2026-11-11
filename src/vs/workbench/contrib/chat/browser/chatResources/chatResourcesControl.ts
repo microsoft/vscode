@@ -389,7 +389,7 @@ class ChatShownResourceFrame extends Disposable {
 			handle.classList.add('active');
 			const drag = new DisposableStore();
 			// Like the workbench sash: webview iframes would otherwise swallow the pointer while it passes over them.
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const iframes = [...handle.ownerDocument.getElementsByTagName('iframe')];
 			for (const iframe of iframes) {
 				iframe.classList.add('pointer-events-disabled');
