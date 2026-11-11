@@ -69,6 +69,7 @@ suite('Open Chat', () => {
 		const prepared = URI.from({ scheme: AgentSessionProviders.AgentHostCopilot, path: '/untitled-prepared' });
 		const materialized = URI.from({ scheme: AgentSessionProviders.AgentHostCopilot, path: '/session-1' });
 		const listed = [materialized.toString()];
+		let composerAvailable = true;
 		const composer = upcastPartial<IChatWidget>({
 			setInput: (query?: string) => { calls.push({ composerInput: query }); },
 			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ addContext: (...entries: IChatRequestVariableEntry[]) => { calls.push({ composerContext: entries.map(entry => entry.id) }); } }),
@@ -76,12 +77,13 @@ suite('Open Chat', () => {
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			chatViewHostDelegate: upcastPartial<IChatViewHostDelegate>({
 				openSession: async resource => { calls.push({ show: resource.toString() }); return listed.includes(resource.toString()) ? upcastPartial<IChatWidget>({}) : undefined; },
-				newSession: async sessionType => { calls.push({ composer: sessionType }); return composer; },
+				newSession: async sessionType => { calls.push({ composer: sessionType }); return composerAvailable ? composer : undefined; },
 			}),
 		}));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
 			info: () => { calls.push('notification'); return upcastPartial<INotificationHandle>({}); },
 			warn: () => { calls.push('requestRestoredNotice'); return upcastPartial<INotificationHandle>({}); },
+			error: () => { calls.push('requestNotSentError'); return upcastPartial<INotificationHandle>({}); },
 		}));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
 			acquireOrLoadSession: async resource => { calls.push({ load: resource.toString() }); return upcastPartial<IChatModelReference>({ dispose: () => calls.push('release') }); },
@@ -128,19 +130,36 @@ suite('Open Chat', () => {
 		sendKind = 'failed';
 		const failed = await open(AgentSessionProviders.AgentHostCopilot, sendOptions);
 		const failedCalls = calls.splice(0);
+		const plainOptions = { prompt: 'review this', attachedContext: sendOptions.attachedContext };
+		const failedPlain = await open(AgentSessionProviders.AgentHostCopilot, plainOptions);
+		const failedPlainCalls = calls.splice(0);
+		composerAvailable = false;
+		await open(AgentSessionProviders.AgentHostCopilot, plainOptions);
+		const failedPlainNoComposerCalls = calls.splice(0);
+		composerAvailable = true;
 		const others = [await open(AgentSessionProviders.AgentHostCopilot), await open(AgentSessionProviders.Local, { prompt: 'hi' })];
 
-		assert.deepStrictEqual({ sent, sentCalls, rejected, rejectedCalls, failed, failedCalls, others, othersCalls: calls }, {
+		assert.deepStrictEqual({ sent, sentCalls, rejected, rejectedCalls, failed, failedCalls, failedPlain, failedPlainCalls, failedPlainNoComposerCalls, others, othersCalls: calls }, {
 			sent: { resource: materialized, sendOutcome: 'sent' },
 			sentCalls: [...prologue, { toolsMovedTo: materialized.toString() }, { show: materialized.toString() }, 'release'],
 			// A rejected request whose session became real shows that session
 			rejected: { resource: materialized, sendOutcome: 'rejected' },
 			rejectedCalls: [...prologue, { toolsMovedTo: materialized.toString() }, 'toolsCleared', { show: materialized.toString() }, 'release'],
-			// A failed send of a session that is not listed keeps the request in the input of a new session, without the copied conversation
+			// A failed send of a session that is not listed, whose copied conversation, options and tools a composer cannot
+			// carry, opens none: it says the request was not sent, for its caller to report
 			failed: { resource: prepared, sendOutcome: 'failed' },
-			failedCalls: [
-				...prologue, 'toolsCleared', { show: prepared.toString() },
+			failedCalls: [...prologue, 'toolsCleared', { show: prepared.toString() }, 'importDropped', 'requestNotSentError', 'release'],
+			// A request of only a prompt and attachments stays in the input of a new session, to send again
+			failedPlain: { resource: prepared, sendOutcome: 'failed' },
+			failedPlainCalls: [
+				{ load: prepared.toString() }, { send: 'review this', to: prepared.toString() }, { show: prepared.toString() },
 				'importDropped', { composer: AgentSessionProviders.AgentHostCopilot }, { composerInput: 'review this' }, { composerContext: ['file'] }, 'requestRestoredNotice',
+				'release',
+			],
+			// Without a composer, it only says the request was not sent
+			failedPlainNoComposerCalls: [
+				{ load: prepared.toString() }, { send: 'review this', to: prepared.toString() }, { show: prepared.toString() },
+				'importDropped', { composer: AgentSessionProviders.AgentHostCopilot }, 'requestNotSentError',
 				'release',
 			],
 			others: [undefined, undefined],

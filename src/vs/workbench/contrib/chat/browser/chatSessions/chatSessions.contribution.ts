@@ -2115,16 +2115,20 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 			const shown = (ran || openOptions.sessionResource || !resources.isEqual(openedSessionResource, sessionResource))
 				&& await chatViewHostDelegate.openSession(openedSessionResource, false);
 			if (!ran && !shown && chatSendOptions) {
-				// The request stays, in the input of a new session of the type, to send again
 				importConversationStore.take(sessionResource);
-				const composer = await chatViewHostDelegate.newSession(openOptions.type, false);
+				// Only a request of a prompt and attachments can be sent again from a composer: one with a copied
+				// conversation, session options or tools would start a different session, so its caller reports it instead
+				const restorable = !chatSendOptions.importConversation && !chatSendOptions.initialSessionOptions && !chatSendOptions.sessionToolIds?.length;
+				const composer = restorable ? await chatViewHostDelegate.newSession(openOptions.type, false) : undefined;
 				if (composer) {
 					composer.setInput(chatSendOptions.prompt);
 					if (chatSendOptions.attachedContext?.length) {
 						composer.attachmentModel.addContext(...chatSendOptions.attachedContext);
 					}
+					notificationService.warn(localize('chatSessions.requestRestored', "The request could not be sent. It was restored in a new session so you can send it again."));
+				} else {
+					notificationService.error(localize('chatSessions.requestNotSent', "The request could not be sent."));
 				}
-				notificationService.warn(localize('chatSessions.requestRestored', "The request could not be sent. It was restored in a new session so you can send it again."));
 			}
 		} finally {
 			chatViewHostModel?.dispose();
