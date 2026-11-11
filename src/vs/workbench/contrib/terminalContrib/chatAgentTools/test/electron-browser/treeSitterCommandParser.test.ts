@@ -259,9 +259,13 @@ suite('TreeSitterCommandParser', () => {
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff -- package.json pnpm-lock.yaml'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'npm exec -- tsc --noEmit --pretty false'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff --'),
+				// PowerShell rejects a stray `--` at parse time, so these never run and need no special handling.
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; --'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '-- git status'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; -- git diff'),
+				// Masking `--flag=` must not create a standalone `--` that is then masked away.
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git log --format=--'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; --=x'),
 			]), [
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
@@ -269,9 +273,43 @@ suite('TreeSitterCommandParser', () => {
 				{ subCommands: ['git diff -- package.json pnpm-lock.yaml'], hasUnanalyzableSyntax: false },
 				{ subCommands: ['npm exec -- tsc --noEmit --pretty false'], hasUnanalyzableSyntax: false },
 				{ subCommands: ['git diff --'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status', 'git diff'], hasUnanalyzableSyntax: false },
+				{ subCommands: [], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
-				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
-				{ subCommands: ['git status', 'git diff'], hasUnanalyzableSyntax: true },
+			]);
+		});
+
+		test('ignores standalone double dashes inside PowerShell strings', async () => {
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, `git status; 'a -- b'`),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, `(Get-Content f) -replace ' -- ', ' '`),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, `if ($a -eq ' -- ') { git status }`),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, `git status\n@'\n-- note\n'@`),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; "a -- b"'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; "x $(git diff -- f) y"'),
+			]), [
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['Get-Content f'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status', 'git diff -- f'], hasUnanalyzableSyntax: false },
+			]);
+		});
+
+		test('keeps PowerShell decrement expressions analyzable', async () => {
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '$val --'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '-- $val'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; $val --'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff -- f; $val --'),
+			]), [
+				{ subCommands: [], hasUnanalyzableSyntax: false },
+				{ subCommands: [], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git diff -- f'], hasUnanalyzableSyntax: false },
 			]);
 		});
 
@@ -284,13 +322,10 @@ suite('TreeSitterCommandParser', () => {
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; # -- note'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; <# -- #>; git diff'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff -- f; # -- note'),
-				// A real stray `--` outside of any comment must still fail closed.
-				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; # -- note\n--'),
 			]), [
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
 				{ subCommands: ['git status', 'git diff'], hasUnanalyzableSyntax: false },
 				{ subCommands: ['git diff -- f'], hasUnanalyzableSyntax: false },
-				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 			]);
 		});
 
