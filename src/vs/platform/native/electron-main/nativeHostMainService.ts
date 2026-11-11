@@ -467,7 +467,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async setWindowFolderLocation(windowId: number | undefined, location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
+		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
 		if (window?.config) {
 			window.config.folderLocation = location;
 		}

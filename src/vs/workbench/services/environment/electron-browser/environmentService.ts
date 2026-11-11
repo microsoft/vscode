@@ -5,7 +5,7 @@
 
 import { PerformanceMark } from '../../../../base/common/performance.js';
 import { IBrowserWorkbenchEnvironmentService } from '../browser/environmentService.js';
-import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from '../../../../platform/window/common/window.js';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor, IWindowFolderLocation } from '../../../../platform/window/common/window.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AbstractNativeEnvironmentService } from '../../../../platform/environment/common/environmentService.js';
@@ -44,6 +44,10 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly devDeviceId: string;
 	readonly isPortable: boolean;
 
+	// --- Folder Location
+	/** The alternate location the window was started at, if any. */
+	readonly folderLocation?: IWindowFolderLocation;
+
 	// --- Paths
 	readonly execPath: string;
 	readonly backupPath?: string;
@@ -72,6 +76,8 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get isPortable() { return this.configuration.isPortable; }
+
+	get folderLocation() { return this.configuration.folderLocation; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
