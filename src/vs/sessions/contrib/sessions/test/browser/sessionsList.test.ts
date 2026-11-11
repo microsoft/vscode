@@ -3986,6 +3986,88 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
+		test('marks only the sessions of the scope read from a section of a workspace name shared elsewhere', async () => {
+			const harness = createListHarness(disposables, [
+				createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1), { isRead: false }),
+				createFolderSession('outsider', 'repo', { root: 'file:///elsewhere/repo' }, hoursAgo(2), { isRead: false }),
+			]);
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
+			const markSectionRead = async (scopeFolders: IObservable<readonly URI[]> | undefined) => {
+				harness.managementService.readSessions.length = 0;
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					scopeFolders,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-section-label')?.textContent === 'repo');
+				assert.ok(row);
+				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+				return harness.managementService.readSessions.map(session => session.sessionId).sort();
+			};
+
+			assert.deepStrictEqual({
+				unscoped: await markSectionRead(undefined),
+				scoped: await markSectionRead(constObservable([URI.parse('file:///work/repo')])),
+			}, {
+				unscoped: ['here', 'outsider'],
+				scoped: ['here'],
+			});
+		});
+
+		test('leaves out a comparison of other folders nested in a custom group', () => {
+			const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
+			const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', { root: 'file:///other' }, hoursAgo(2 + index)));
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: comparisonGroup.id,
+				title: 'Elsewhere',
+				createdAt: 1,
+				workspace: URI.parse('file:///other'),
+				prompt: 'Elsewhere',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [createFolderSession('here', 'repo', { root: 'file:///work/repo' }, hoursAgo(1)), ...attempts], {
+				groups: [work, comparisonGroup],
+				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+				comparisons: [comparison],
+			});
+			const render = (scopeFolders: IObservable<readonly URI[]> | undefined) => {
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					scopeFolders,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				return {
+					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+					comparison: !!container.querySelector('.session-comparison-group'),
+					placeholder: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].some(row => row.textContent?.includes('No session')),
+				};
+			};
+
+			assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable([URI.parse('file:///work/repo')])) }, {
+				unscoped: { sessions: ['attempt-1', 'attempt-2', 'here'], comparison: true, placeholder: false },
+				scoped: { sessions: ['here'], comparison: false, placeholder: true },
+			});
+		});
+
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
 			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
 				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>

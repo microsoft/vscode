@@ -66,7 +66,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionsInScopeFolders } from '../sessionScope.js';
+import { getSessionsInScopeFolders, ISessionScope } from '../sessionScope.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -5758,8 +5758,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		// A host scope (the window's workspace folders) shows only its sessions, wherever they are placed. Their repositories
 		// are known from every session, including those filtered out above.
-		const scopeFolders = this.options.scopeFolders?.get() ?? [];
-		const scope = scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
+		const scope = this.getHostScope();
 		if (scope) {
 			filtered = filtered.filter(scope.includes);
 		}
@@ -6198,6 +6197,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const subgroup = groupItemsById.get(id);
 				if (subgroup) {
 					if (subgroup.comparison) {
+						const comparison = comparisonsByGroupId.get(id);
+						if (comparison && !isComparisonInScope(comparison)) {
+							return [];
+						}
 						comparisonChildren.push(renderGroup(subgroup));
 						return [];
 					}
@@ -8591,12 +8594,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	/** The sessions of the host's scope folders, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scopeFolders}. */
+	private getHostScope(): ISessionScope | undefined {
+		const scopeFolders = this.options.scopeFolders?.get() ?? [];
+		return scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
+	}
+
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
 		return toAction({
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				const sessions = getSessions().filter(session => this.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
+				// A scoped list does not show the other sessions, such as those of a workspace of the same name elsewhere.
+				const scope = this.getHostScope();
+				const sessions = getSessions().filter(session => this.isSessionListed(session) && (!scope || scope.includes(session)) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});
