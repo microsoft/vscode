@@ -27,7 +27,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
@@ -80,15 +80,21 @@ const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
 	icon: Codicon.home,
 };
 
-async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, options?: IOpenAICustomizationsCommandOptions, targetSession?: ISession, targetResource?: URI): Promise<void> {
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, options?: IOpenAICustomizationsCommandOptions, targetSession?: ISession, targetResource?: URI): Promise<void> {
 	const session = targetSession ?? (targetResource ? undefined : focusedSessionHostService.focusedHost.get().session.get());
 	const resource = targetResource ?? session?.resource;
 	if (resource) {
 		harnessService.setActiveSession(resource);
 	}
+	workspaceService.setActiveSessionResource?.(targetResource);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	const targetLabels = workspaceService.activeTargetLabels?.get();
+	input.setTargetLabels(
+		targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+		targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+		targetLabels?.environment,
+	);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		if (options?.migration) {
@@ -99,14 +105,20 @@ async function openCustomizationOverviewPage(editorService: IEditorService, harn
 	}
 }
 
-async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
 	const session = focusedSessionHostService.focusedHost.get().session.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
 	}
+	workspaceService.setActiveSessionResource?.(undefined);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	const targetLabels = workspaceService.activeTargetLabels?.get();
+	input.setTargetLabels(
+		targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+		targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+		targetLabels?.environment,
+	);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);
@@ -296,13 +308,15 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				const hostService = accessor.get(IFocusedSessionHostService);
 				const editorService = accessor.get(IEditorService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
+				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
 				const sessionsService = accessor.get(ISessionsManagementService);
 				const hover = accessor.get(IInstantiationService).createInstance(ChatCustomizationsHover);
-				const resource = hover.getSessionResource(context);
+				const explicitResource = hover.getExplicitSessionResource(context);
+				const resource = explicitResource ?? hover.getSessionResource();
 				const target = sessionsService.getSession(resource) ?? sessionsService.getSessionForChatResource(resource)?.session;
 				const ignored = getIgnoredCustomizationMigrationGroups(accessor.get(IStorageService), getChatSessionType(resource), hover.getProjectRoot(resource));
 				const hint = await accessor.get(ICustomizationMigrationService).computeMigrationHint(resource, CancellationToken.None, ignored);
-				await openCustomizationOverviewPage(editorService, harnessService, hostService, { migration: !!hint }, target, resource);
+				await openCustomizationOverviewPage(editorService, harnessService, hostService, workspaceService, { migration: !!hint }, target, explicitResource);
 			}
 		}));
 		for (const menu of [Menus.SessionBarToolbar, Menus.NewSessionGlobalToolbar, Menus.SidebarCustomizationsEntryPoint, MenuId.ChatExecute]) {
@@ -397,6 +411,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					accessor.get(IEditorService),
 					accessor.get(ICustomizationHarnessService),
 					accessor.get(IFocusedSessionHostService),
+					accessor.get(IAICustomizationWorkspaceService),
 					options,
 				);
 			}
@@ -440,7 +455,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
-					await openCustomizationSectionPage(editorService, harnessService, accessor.get(IFocusedSessionHostService), section);
+					await openCustomizationSectionPage(editorService, harnessService, accessor.get(IFocusedSessionHostService), accessor.get(IAICustomizationWorkspaceService), section);
 				}
 			}));
 		}
