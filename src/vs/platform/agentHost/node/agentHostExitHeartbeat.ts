@@ -53,6 +53,8 @@ const unreportedActionTypes: ReadonlySet<string> = new Set([
 /** Action types that may change the activity a heartbeat reports. */
 const activityActionTypes: ReadonlySet<string> = new Set([
 	ActionType.ChatTurnStarted,
+	ActionType.ChatTurnResume,
+	ActionType.ChatTruncated,
 	ActionType.ChatTurnComplete,
 	ActionType.ChatTurnCancelled,
 	ActionType.ChatError,

@@ -24,6 +24,7 @@ import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService, seedMultipleChatProvidersFromEnvironment } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
@@ -199,6 +200,7 @@ async function startAgentHost(): Promise<void> {
 			providerService: accessor.get(IAgentHostProviderService),
 			stateManager: accessor.get(IAgentHostStateManager),
 			completions: accessor.get(IAgentHostCompletions),
+			clientConnections: accessor.get(IAgentHostClientConnectionService),
 		}));
 		const agentConfigurationService = runtimeServices.configurationService;
 		// The starter forwards the multiple-chat-providers setting when it is on: seeded before the first handshake, so the
@@ -214,11 +216,12 @@ async function startAgentHost(): Promise<void> {
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		if (diagnosticsParentPort) {
 			const parentPort = diagnosticsParentPort;
+			const clientConnections = runtimeServices.clientConnections;
 			disposables.add(new AgentHostExitHeartbeat({
 				onDidEmitEnvelope: stateManager.onDidEmitEnvelope,
 				get activeTurnCount() { return stateManager.activeTurnCount; },
 				get loadedSessionCount() { return stateManager.loadedSessionCount; },
-				get connectedClientCount() { return protocolHandlers.reduce((count, handler) => count + handler.connectedClientCount, 0); },
+				get connectedClientCount() { return clientConnections.getConnectedClientCount(); },
 				getRunningToolCalls: () => stateManager.getRunningToolCalls(),
 			}, heartbeat => parentPort.postMessage(toAgentHostHeartbeatMessage(heartbeat)), { heapLimitBytes: getHeapStatistics().heap_size_limit }));
 		}

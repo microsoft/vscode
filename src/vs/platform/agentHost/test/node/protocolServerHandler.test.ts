@@ -10634,10 +10634,11 @@ suite('ProtocolServerHandler', () => {
 			}));
 		}
 
-		assert.deepStrictEqual(tracker.getConnectionCounts('shared-client'), {
+		assert.deepStrictEqual({ ...tracker.getConnectionCounts('shared-client'), hostConnectedClientCount: tracker.getConnectedClientCount() }, {
 			connectedClientCount: 1,
 			connectedTransportCount: 2,
 			clientTransportCount: 2,
+			hostConnectedClientCount: 1,
 		});
 	});
 

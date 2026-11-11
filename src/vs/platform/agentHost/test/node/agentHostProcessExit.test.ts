@@ -160,7 +160,8 @@ suite('AgentHostProcessExit', () => {
 		disposables.add(collector.onDidExit(e => exits.push(e)));
 
 		source.spawn.fire(42);
-		source.stderr.fire('FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory\n');
+		// Unterminated, so it is still the incomplete last line at exit.
+		source.stderr.fire('FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory');
 		await timeout(2000);
 		source.exit.fire({ code: 3221225477, signal: 'unknown' });
 		await timeout(500);

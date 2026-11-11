@@ -418,7 +418,7 @@ export class AgentHostProcessExitDiagnosticsCollector extends Disposable {
 	private readonly _exitTimer = this._register(new TimeoutTimer());
 	private readonly _stderr: { readonly time: number; readonly text: string }[] = [];
 	private _stderrLength = 0;
-	/** The incomplete last line of stderr output. */
+	/** The incomplete last line of stderr output, kept to recognize startup phase markers split across chunks. */
 	private _partialStderrLine = '';
 	private _spawnTime: number | undefined;
 	private _crashReason: string | undefined;
@@ -449,16 +449,18 @@ export class AgentHostProcessExitDiagnosticsCollector extends Disposable {
 	}
 
 	/**
-	 * Keeps the latest startup phase as it arrives, because it can be older than
-	 * the exit window, and retains other output for classification at exit.
+	 * Retains output with its arrival time for classification at exit, and keeps
+	 * the latest startup phase as it arrives, because it can be older than the
+	 * exit window.
 	 */
 	private _recordStderr(text: string): void {
 		const lines = (this._partialStderrLine + text).split('\n');
 		this._partialStderrLine = lines.pop()!.slice(-this._options.maxStderrLength);
-		const retained = lines.filter(line => !this._recordStartupPhase(line)).map(line => `${line}\n`).join('').slice(-this._options.maxStderrLength);
-		if (!retained) {
-			return;
+		for (const line of lines) {
+			this._recordStartupPhase(line);
 		}
+
+		const retained = text.slice(-this._options.maxStderrLength);
 		this._stderr.push({ time: Date.now(), text: retained });
 		this._stderrLength += retained.length;
 		while (this._stderrLength > this._options.maxStderrLength && this._stderr.length > 1) {
@@ -466,12 +468,11 @@ export class AgentHostProcessExitDiagnosticsCollector extends Disposable {
 		}
 	}
 
-	private _recordStartupPhase(line: string): boolean {
+	private _recordStartupPhase(line: string): void {
 		const phase = parseStartupPhase(line);
 		if (phase) {
 			this._lastStartupPhase = { time: Date.now(), phase };
 		}
-		return phase !== undefined;
 	}
 
 	private _recordMessage(message: unknown): void {
@@ -511,7 +512,7 @@ export class AgentHostProcessExitDiagnosticsCollector extends Disposable {
 		const recentStderr = this._stderr
 			.filter(chunk => chunk.time >= exitTime - this._options.stderrWindowMs)
 			.map(chunk => chunk.text)
-			.join('') + this._partialStderrLine;
+			.join('');
 		const memorySample = this._lastMemorySample;
 		const startupPhase = this._lastStartupPhase;
 		const heartbeat = this._lastHeartbeat;
