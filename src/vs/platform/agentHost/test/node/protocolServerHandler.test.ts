@@ -67,7 +67,6 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { rootReducer } from '../../common/state/sessionReducers.js';
-import { AgentHostMultipleChatProvidersMetaKey } from '../../common/meta/agentHostMultipleChatProvidersMeta.js';
 import { getAgentHostClientProtocolVersions } from '../../common/agentHostProtocolCompatibility.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
@@ -354,7 +353,6 @@ class MockAgentService extends Disposable implements IAgentService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	automationCapabilities: AutomationCapabilities | undefined;
 	multipleChatProvidersEnabled = false;
-	enableMultipleChatProviders(): void { this.multipleChatProvidersEnabled = true; }
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
 	async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
 		this.automationRunRequests.push(params);
@@ -9519,24 +9517,6 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({ off: advertised('offer-off', false), on: advertised('offer-on', true) }, {
 				off: { negotiated: '1.0.0', multipleChatProviders: undefined },
 				on: { negotiated: PROTOCOL_VERSION, multipleChatProviders: {} },
-			});
-		});
-
-		test('a client offering multipleChatProviders in initialize _meta turns the host gate on before the handshake answers (regression: remote hosts re-initialized after mirroring)', () => {
-			const initialize = (clientId: string, meta: Record<string, unknown> | undefined) => {
-				const transport = disposables.add(new MockProtocolTransport());
-				server.simulateConnection(transport);
-				transport.simulateMessage(request(1, 'initialize', { protocolVersions: getAgentHostClientProtocolVersions(true), clientId, _meta: meta }));
-				const resp = findResponse(transport.sent, 1);
-				const result = resp && hasKey(resp, { result: true }) ? resp.result as InitializeResult : undefined;
-				return { multipleChatProviders: result?.multipleChatProviders, hostEnabled: agentService.multipleChatProvidersEnabled };
-			};
-			assert.deepStrictEqual({
-				without: initialize('meta-without', undefined),
-				with: initialize('meta-with', { [AgentHostMultipleChatProvidersMetaKey]: true }),
-			}, {
-				without: { multipleChatProviders: undefined, hostEnabled: false },
-				with: { multipleChatProviders: {}, hostEnabled: true },
 			});
 		});
 

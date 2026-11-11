@@ -43,7 +43,6 @@ import { readSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
-import { requestsAgentHostMultipleChatProviders } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentModelInfo, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -1059,11 +1058,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ${supportedVersions.join(', ')}).`,
 				data,
 			);
-		}
-
-		// Turning the gate on before answering spares a client with the setting on a re-initialize after mirroring it.
-		if (!this._config.relayRoots && requestsAgentHostMultipleChatProviders(params)) {
-			this._agentService.enableMultipleChatProviders?.();
 		}
 
 		const previousRecord = this._clients.get(params.clientId);
