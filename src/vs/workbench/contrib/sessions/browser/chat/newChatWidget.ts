@@ -29,7 +29,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getSessionIsolationProperty, getSessionWorkspaceProperties, readSessionIsolation, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
@@ -43,7 +43,8 @@ import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAN
 import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
-import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
 import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
@@ -171,6 +172,8 @@ export class NewChatWidget extends Disposable {
 	private readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	private readonly _environments: IObservable<readonly ISessionCreationEnvironment[]>;
 	private readonly _environmentPicker: SessionEnvironmentPicker;
+	/** New Worktree, for a composer restricted to its folders, such as an editor window's. */
+	private readonly _newWorktree: NewWorktreeChoice | undefined;
 	private _changingEnvironment = false;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _worktreeSuggestion: WorktreeSuggestionController | undefined;
@@ -390,6 +393,7 @@ export class NewChatWidget extends Disposable {
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
 		// {@link WorkspacePicker} is fine — phones never run there.
+		this._newWorktree = this._draftHost?.allowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session);
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			environment: this._environment,
@@ -417,7 +421,7 @@ export class NewChatWidget extends Disposable {
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
-			newWorktree: this._draftHost?.allowedFolders && this._createNewWorktreeOption(),
+			newWorktree: this._newWorktree,
 		}));
 		this._register(this._workspacePicker.onDidChangeSelection(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._register(this._workspacePicker.onDidChangeDevContainerAvailability(() => this._environmentWorkspaceChanged.trigger(undefined)));
@@ -426,6 +430,7 @@ export class NewChatWidget extends Disposable {
 			providersChanged.read(reader);
 			const activeSession = this._session.read(reader);
 			activeSession?.isQuickChat?.read(reader);
+			this._newWorktree?.applyDefault();
 			this._workspacePicker.refreshTriggerLabel();
 			if (!activeSession) {
 				return;
@@ -441,6 +446,7 @@ export class NewChatWidget extends Disposable {
 				this._syncWorkspacePickerDevContainerMode(activeSession, false, WorkspaceSelectionOrigin.SessionSync);
 				this._environmentWorkspaceChanged.trigger(undefined);
 				// Its isolation, such as New Worktree, shows in the trigger
+				this._newWorktree?.applyDefault();
 				this._workspacePicker.refreshTriggerLabel();
 			}));
 		}));
@@ -2111,41 +2117,6 @@ export class NewChatWidget extends Disposable {
 		if (this._pickedEnvironment.get() === environment) {
 			this.accessibilityService.status(localize('environmentPicker.selected', "Environment: {0}", environment.label));
 		}
-	}
-
-	/**
-	 * New Worktree for a composer restricted to its folders: its draft works in a new worktree of the selected folder,
-	 * through the agent's isolation setting, which its own isolation picker sets in the Agents window.
-	 */
-	private _createNewWorktreeOption(): IWorkspacePickerNewWorktreeOption {
-		const isolationOf = () => {
-			const session = this._session.get();
-			if (!session || isSessionCreated(session) || session.isQuickChat?.get()) {
-				return undefined;
-			}
-			const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
-			const values = provider && isAgentHostProvider(provider) ? provider.getCreateSessionConfig(session.sessionId) : undefined;
-			const chat = session.mainChat.get().resource;
-			const config = values && provider && isAgentHostProvider(provider) ? provider.getSessionConfig(session.sessionId, chat) : undefined;
-			const property = config && getSessionIsolationProperty(config.schema);
-			if (!provider || !isAgentHostProvider(provider) || !values || !property || writeSessionIsolation(property, 'worktree') === undefined) {
-				return undefined;
-			}
-			return { provider, session, chat, property, isolation: readSessionIsolation(property, values[property.key] ?? property.schema.default) };
-		};
-		return {
-			isAvailable: () => !!isolationOf(),
-			isSelected: () => isolationOf()?.isolation === 'worktree',
-			setSelected: selected => {
-				const target = isolationOf();
-				const value = target && writeSessionIsolation(target.property, selected ? 'worktree' : 'folder');
-				if (target && value !== undefined && target.isolation !== (selected ? 'worktree' : 'folder')) {
-					const operation = target.provider.setSessionConfigValue(target.session.sessionId, target.chat, target.property.key, value);
-					target.provider.trackSessionConfigOperation(target.session.sessionId, operation);
-					operation.catch(onUnexpectedError);
-				}
-			},
-		};
 	}
 
 	private _getComparisonBranch(session = this._session.get(), reader?: IReader): string | undefined {

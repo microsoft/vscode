@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -40,6 +41,7 @@ suite('AgentsChatPartComposerFolders', () => {
 		}));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: options.remote ? 'ssh-remote+host' : undefined }));
 		const composerFolders = store.add(instantiationService.createInstance(AgentsChatPartComposerFolders));
+		composerFolders.refresh();
 		return {
 			composerFolders,
 			asked,
@@ -84,6 +86,30 @@ suite('AgentsChatPartComposerFolders', () => {
 			empty: [],
 			asked: [],
 		});
+	});
+
+	test('cancels a read under way as it is disposed, and does not take its result', async () => {
+		const read = new DeferredPromise<IFolderLocation[]>();
+		let token: CancellationToken | undefined;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: Event.None,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') })] }),
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeProviders: Event.None,
+			getLocations: (_primary, cancellation) => { token = cancellation; return read.p; },
+		}));
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: undefined }));
+		const composerFolders = instantiationService.createInstance(AgentsChatPartComposerFolders);
+		composerFolders.refresh();
+		composerFolders.dispose();
+		const cancelled = token?.isCancellationRequested;
+		read.complete([worktree('/work/vscode.worktrees/a', 'feature-a')]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ cancelled, folders: composerFolders.folders.get().map(uri => uri.path) }, { cancelled: true, folders: ['/work/vscode'] });
 	});
 
 	test('reads the locations again as providers change', async () => {
