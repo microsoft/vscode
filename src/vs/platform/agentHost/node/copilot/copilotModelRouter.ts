@@ -270,7 +270,9 @@ export class CopilotModelRouter {
 	private async _routeFollowUp(context: IRouteContext, current: IResolvedModelRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, router, routes } = context;
 		const stay = decision(context, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
-		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !hasRequest(request) || CONTINUATION.test(request.text)) {
+		// "Continue" alone keeps the model, but not when it brings a new attachment a route can go by.
+		const continues = CONTINUATION.test(request.text) && !request.situation?.attachments?.length;
+		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !hasRequest(request) || continues) {
 			return stay;
 		}
 		const { previousTurns } = request;

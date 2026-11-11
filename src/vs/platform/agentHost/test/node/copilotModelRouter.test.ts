@@ -220,20 +220,33 @@ suite('CopilotModelRouter', () => {
 		]);
 	});
 
-	test('routes a message that is only an attachment, and not one with nothing in it', async () => {
+	test('routes a message that is only an attachment or a "continue" with one, and not one with nothing in it', async () => {
 		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
-		const route = (previousTurns: Turn[], situation: IModelRouterSituation) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile('switching: auto\n'), text: ' ', models, previousTurns, picker, situation });
+		const route = (previousTurns: Turn[], situation: IModelRouterSituation, text = ' ') => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile('switching: auto\n'), text, models, previousTurns, picker, situation });
 		const image: IModelRouterSituation = { attachments: [{ kind: 'image', count: 1 }] };
+		const onHaiku = () => [routedTurn({ router: 'daily', chosenModel: 'haiku' })];
 		const first = await route([], image);
-		const followUp = await route([routedTurn({ router: 'daily', chosenModel: 'haiku' })], image);
+		const followUp = await route(onHaiku(), image);
+		const continueWithImage = await route(onHaiku(), image, 'continue');
 		const nothing = await route([], { mode: 'plan' });
-		const nothingLater = await route([routedTurn({ router: 'daily', chosenModel: 'haiku' })], {});
-		assert.deepStrictEqual({ asked: picker.requests.length, first: first.routed?.chosenModel, followUp: followUp.routed?.chosenModel, nothing: nothing.routed, nothingLater: nothingLater.routed?.kept }, {
-			asked: 2,
+		const nothingLater = await route(onHaiku(), {});
+		const continueAlone = await route(onHaiku(), { mode: 'plan' }, 'continue');
+		assert.deepStrictEqual({
+			asked: picker.requests.length,
+			first: first.routed?.chosenModel,
+			followUp: followUp.routed?.chosenModel,
+			continueWithImage: continueWithImage.routed?.chosenModel,
+			nothing: nothing.routed,
+			nothingLater: nothingLater.routed?.kept,
+			continueAlone: continueAlone.routed?.kept,
+		}, {
+			asked: 3,
 			first: 'opus',
 			followUp: 'opus',
+			continueWithImage: 'opus',
 			nothing: { router: 'daily', chosenModel: 'haiku', defaulted: true },
 			nothingLater: true,
+			continueAlone: true,
 		});
 	});
 
