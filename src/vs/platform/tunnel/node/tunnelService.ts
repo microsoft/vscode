@@ -142,7 +142,7 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			this._mirrorGenericSocket(localSocket, remoteSocket);
 		}
 
-		if (localSocket.localAddress) {
+		if (!localSocket.destroyed) {
 			this._socketsDispose.set(localSocket, () => {
 				// Need to end instead of unpipe, otherwise whatever is connected locally could end up "stuck" with whatever state it had until manually exited.
 				localSocket.end();
