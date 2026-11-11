@@ -138,7 +138,10 @@ suite('Folder Location in Window Title and Command Center', () => {
 			atLocation: getCommandCenterLabelText({ ...base, atFolderLocation: true }),
 			atPrimaryCustom: getCommandCenterLabelText({ ...base, atFolderLocation: false }),
 			atPrimaryFile: getCommandCenterLabelText({ workspaceName: 'repo', fileName: 'file.ts', atFolderLocation: false }),
+			constantTitle: getCommandCenterLabelText({ workspaceName: 'repo', customTitle: 'constant', atFolderLocation: true }),
+			activeEditorTitle: getCommandCenterLabelText({ workspaceName: 'repo', customTitle: 'a.ts', atFolderLocation: true }),
+			noTabsEditorChanged: getCommandCenterLabelText({ workspaceName: 'repo', fileName: 'b.ts', atFolderLocation: true }),
 			decorated: getCommandCenterLabelText({ ...base, atFolderLocation: true, prefix: '[x]', suffix: '(y)' }),
-		}, { atLocation: 'repo', atPrimaryCustom: 'Custom Title', atPrimaryFile: 'file.ts', decorated: '[x] repo (y)' });
+		}, { atLocation: 'repo', constantTitle: 'repo', activeEditorTitle: 'repo', noTabsEditorChanged: 'repo', atPrimaryCustom: 'Custom Title', atPrimaryFile: 'file.ts', decorated: '[x] repo (y)' });
 	});
 });
