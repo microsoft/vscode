@@ -168,6 +168,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	readonly onWillDispose = this._onWillDispose.event;
 	/** Keeps the chat out of the main window's grid while the window shows it. */
 	private readonly _gridHold = this._register(new MutableDisposable());
+	private _heldSession: ISession | undefined;
 
 	/** The views of its editor, the last of which shows it; see {@link view}. */
 	private readonly _attachedViews: ChatEditorContent[] = [];
@@ -308,11 +309,11 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			}
 			const shown = this._shown.get();
 			if (shown?.session !== owner.session || shown.chat !== owner.chat) {
-				const sessionChanged = shown?.session.sessionId !== owner.session.sessionId;
 				this._shown.set({ session: owner.session, chat: owner.chat }, undefined);
-				if (sessionChanged) {
-					this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
-				}
+			}
+			if (this.window.read(reader) && this._heldSession?.sessionId !== owner.session.sessionId) {
+				this._heldSession = owner.session;
+				this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
 			}
 			return;
 		}
