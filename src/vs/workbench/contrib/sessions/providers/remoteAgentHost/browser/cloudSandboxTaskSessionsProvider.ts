@@ -173,7 +173,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	}
 	resolveWorkspace(): ISessionWorkspace | undefined { return undefined; }
 
-	override getSessions(): ISession[] {
+	override getAllSessions(): ISession[] {
 		return [
 			...[...this._tasks.values()].map(entry => entry.session),
 			...[...this._runtimeSessions.values()].filter(session => session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME),

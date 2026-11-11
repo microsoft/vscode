@@ -94,6 +94,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeAllSessions = this._register(new Emitter<void>());
+	readonly onDidChangeAllSessions: Event<void> = Event.any(Event.signal(this._onDidChangeSessions.event), this._onDidChangeAllSessions.event);
 	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
 	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
@@ -240,6 +242,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._providerListeners.set(provider.id, disposables);
 			added.push(...sessions);
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
+			if (provider.onDidChangeAllSessions) {
+				disposables.add(provider.onDidChangeAllSessions(() => this._onDidChangeAllSessions.fire()));
+			}
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
@@ -322,7 +327,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessions(): ISession[] {		// Dedup only affects the displayed list; lookups (`getSession`,
-		// `getSessionForChatResource`) use the raw merged set so a hidden EH row can
+		// `getSessionForChatResource`) use every session, unscoped and undeduped, so a hidden row can
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
 		const sessions = this._getMergedSessions();
@@ -385,6 +390,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessions;
 	}
 
+	getAllSessions(): ISession[] {
+		const sessions: ISession[] = [];
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
+			sessions.push(...(provider.getAllSessions?.() ?? provider.getSessions()));
+		}
+		return sessions;
+	}
+
 	/**
 	 * A legacy Copilot CLI session migrated in place to the agent host is briefly
 	 * listed by BOTH the extension-host provider (`copilotcli:/<id>`) and the
@@ -405,14 +418,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getMergedSessions().find(s =>
+		return this.getAllSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getMergedSessions()) {
+		for (const session of this.getAllSessions()) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };

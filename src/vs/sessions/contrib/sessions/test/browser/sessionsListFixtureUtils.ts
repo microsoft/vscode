@@ -95,7 +95,7 @@ import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/s
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { buildTestSession, buildTestWorkspace, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ISessionAttentionService, IInboxSessionAttention } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
@@ -1257,12 +1257,17 @@ function simulateHover(list: TestSessionsList, item: SessionsListItemReference, 
  * any class of the Agents window, with the sessions of `state`.
  */
 export interface ISessionsViewFixtureOptions {
-	/** The workspaces, by label, of the editor window the list is scoped to: the sessions of the others are not shown. */
+	/** The workspaces, by label, of the editor window whose providers list only their sessions: the others are not listed. */
 	readonly scopeWorkspaces?: readonly string[];
 }
 
 export async function renderSessionsViewFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState, options: ISessionsViewFixtureOptions = {}): Promise<SessionsView> {
 	const { container, disposableStore } = context;
+	const scopeWorkspaces = options.scopeWorkspaces;
+	if (scopeWorkspaces) {
+		// The providers of a scoped editor window list only the sessions of its workspaces
+		state = { ...state, sessions: state.sessions.filter(spec => !!spec.workspace && scopeWorkspaces.includes(spec.workspace)) };
+	}
 	const { instantiationService } = await createSessionsListFixtureServices(context, state);
 	const width = state.view?.width ?? 300;
 	const height = state.view?.height ?? 360;
@@ -1348,7 +1353,7 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 		showCustomizations: false,
 		minimumBodySize: 0,
 		maximumBodySize: Number.POSITIVE_INFINITY,
-		scopeFolders: options.scopeWorkspaces && constObservable(options.scopeWorkspaces.map(label => buildTestWorkspace(label).folders[0].root)),
+		scoped: scopeWorkspaces && constObservable(true),
 	} satisfies ISessionsViewOptions));
 	view.render();
 	paneView.appendChild(view.element);

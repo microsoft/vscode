@@ -10,7 +10,6 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -182,11 +181,8 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 	/** Whether it offers the customizations, such as a Customizations section; it does by default. */
 	readonly showCustomizations?: boolean;
 
-	/** Folders the list is scoped to, such as the folders of an editor window's workspace. See the `scopeFolders` option of the sessions list. */
-	readonly scopeFolders?: IObservable<readonly URI[]>;
-
-	/** The repositories the {@link scopeFolders} are checkouts of. See the `scopeRepositories` option of the sessions list. */
-	readonly scopeRepositories?: IObservable<readonly URI[]>;
+	/** Whether the sessions providers list only the sessions of a scope, such as of an editor window's folders. See the `scoped` option of the sessions list. */
+	readonly scoped?: IObservable<boolean>;
 
 	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
 	readonly allowWorktreeGrouping?: boolean;
@@ -231,8 +227,7 @@ export class SessionsView extends ViewPane {
 	private readonly headerInTitle: boolean;
 	private readonly hideCustomizations: boolean;
 	private readonly allowWorktreeGrouping: boolean;
-	private readonly scopeFolders: IObservable<readonly URI[]> | undefined;
-	private readonly scopeRepositories: IObservable<readonly URI[]> | undefined;
+	private readonly scoped: IObservable<boolean> | undefined;
 
 	constructor(
 		options: ISessionsViewOptions,
@@ -263,8 +258,7 @@ export class SessionsView extends ViewPane {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
 		this.hideCustomizations = options.showCustomizations === false;
-		this.scopeFolders = options.scopeFolders;
-		this.scopeRepositories = options.scopeRepositories;
+		this.scoped = options.scoped;
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
@@ -392,8 +386,7 @@ export class SessionsView extends ViewPane {
 			pinnedCanvases: this.pinnedCanvasService,
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
-			scopeFolders: this.scopeFolders,
-			scopeRepositories: this.scopeRepositories,
+			scoped: this.scoped,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {

@@ -80,12 +80,19 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.sessions = sessions;
 	}
 
+	/** The sessions a provider's listing scope hides, such as of other folders: lookups find them, the listing does not. */
+	unlistedSessions: ISession[] = [];
+
 	override getSessions(): ISession[] {
 		return this.sessions;
 	}
 
+	override getAllSessions(): ISession[] {
+		return [...this.sessions, ...this.unlistedSessions];
+	}
+
 	override getSession(resource: URI): ISession | undefined {
-		return this.sessions.find(session => session.resource.toString() === resource.toString());
+		return this.getAllSessions().find(session => session.resource.toString() === resource.toString());
 	}
 
 	override async markRead(session: ISession): Promise<void> {

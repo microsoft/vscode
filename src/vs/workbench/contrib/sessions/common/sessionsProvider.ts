@@ -383,6 +383,13 @@ export interface ISessionsProvider {
 	 */
 	getSessions(): ISession[];
 
+	/**
+	 * Every session known to the provider, also those its listing scope hides from {@link getSessions}, such as the
+	 * sessions of other folders in an editor window. For looking a session up, not for listing sessions. Without it,
+	 * {@link getSessions} lists every session.
+	 */
+	getAllSessions?(): ISession[];
+
 	/** Returns an already acquired execution provider without doing work during catalog reads. */
 	getSessionProvider?(sessionId: string): ISessionsProvider | undefined;
 
@@ -396,6 +403,12 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Event that fires when any of its sessions changes, also one its listing scope hides: see {@link getAllSessions}.
+	 * Without it, {@link onDidChangeSessions} reports every change.
+	 */
+	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
 
 	/**
 	 * Fires when a chat moved between this provider's sessions, after both

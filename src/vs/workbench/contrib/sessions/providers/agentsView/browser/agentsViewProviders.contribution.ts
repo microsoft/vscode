@@ -18,21 +18,24 @@ import { IDevContainerAgentHostService } from '../../../common/devContainerAgent
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
+import { WorkspaceFolderRepositories } from '../../../browser/agentsView/workspaceFolderRepositories.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import { registerCopilotChatSessionsProviders } from '../../copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
 import { DevContainerAgentHostService } from '../../remoteAgentHost/browser/devContainerAgentHostService.js';
 
 /**
  * Registers the sessions providers whose sessions the Sessions view of an editor window lists: those of the local agent
- * host, on desktop, and those of Copilot Cloud.
+ * host, on desktop, and those of Copilot Cloud. They list only the sessions of the window's folders and of their
+ * repositories, such as of their worktrees; they still find any other session, such as to open it.
  */
 function registerAgentsViewProviders(accessor: ServicesAccessor): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const disposables = new DisposableStore();
+	const listingScope = disposables.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 	if (!isWeb) {
-		disposables.add(instantiationService.invokeFunction(registerLocalAgentHostSessionsProvider));
+		disposables.add(instantiationService.invokeFunction(registerLocalAgentHostSessionsProvider, { listingScope }));
 	}
-	disposables.add(instantiationService.invokeFunction(registerCopilotChatSessionsProviders));
+	disposables.add(instantiationService.invokeFunction(registerCopilotChatSessionsProviders, { listingScope }));
 	return disposables;
 }
 

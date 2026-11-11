@@ -34,12 +34,13 @@ export async function waitForAgentsViewSession<T>(sessionsManagementService: ISe
 	const store = new DisposableStore();
 	try {
 		return await raceTimeout(new Promise<T>(resolve => {
-			const sessionsChanged = observableSignalFromEvent('waitForAgentsViewSession', sessionsManagementService.onDidChangeSessions);
+			// Also of the sessions a provider's listing scope hides, such as of another folder, which an open can find
+			const sessionsChanged = observableSignalFromEvent('waitForAgentsViewSession', sessionsManagementService.onDidChangeAllSessions);
 			store.add(autorun(reader => {
 				sessionsChanged.read(reader);
 				// A session can list a chat after it is listed itself, such as a peer chat its chats publish later: only a
 				// session that has several chats can
-				for (const session of sessionsManagementService.getSessions()) {
+				for (const session of sessionsManagementService.getAllSessions()) {
 					if (session.capabilities.read(reader).supportsMultipleChats) {
 						session.chats.read(reader);
 					}
