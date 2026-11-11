@@ -751,7 +751,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
 	});
 
-	test('contributes the repository controls of a session that only a composer or pane outside the grid shows in an editor window\'s chat part only, not in the Agents window', () => {
+	test('contributes the repository controls of a session that only a composer or pane outside the grid shows in an editor window\'s chat part only, without the isolation of a new session, and not in the Agents window', () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
@@ -784,7 +784,8 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({ inAgentsWindow, inEditorWindow }, {
 			inAgentsWindow: { composer: [], pane: [] },
-			inEditorWindow: { none: [], window: [], composer: ['Isolation', 'Base Branch'], pane: ['Isolation', 'Base Branch'] },
+			// A new session's isolation is the editor window's workspace picker's New Worktree
+			inEditorWindow: { none: [], window: [], composer: ['Base Branch'], pane: ['Base Branch'] },
 		});
 	});
 
