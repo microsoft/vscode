@@ -15,11 +15,15 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import type { IImageCarouselMarkUp } from '../../imageCarousel/browser/imageCarouselTypes.js';
+import { createScreenshotToolImage, IScreenshotToolEditable, IScreenshotToolService, ScreenshotToolSurface, toImageCarouselMarkUp } from '../../screenshotTool/browser/screenshotTool.js';
 import type { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, getChatImageResourceComparisonKey, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
+import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
+import { applyScreenshotToolEdit } from './attachments/chatScreenshotContext.js';
 
 export const IChatImageCarouselService = createDecorator<IChatImageCarouselService>('chatImageCarouselService');
 
@@ -57,6 +61,8 @@ export interface ICarouselImage {
 	readonly data?: Uint8Array;
 	readonly uri?: URI;
 	readonly caption?: string;
+	/** Shows a markup of the image, see the Images Preview's `ICarouselImage.markUp`. */
+	readonly markUp?: (container: HTMLElement) => IImageCarouselMarkUp;
 }
 
 export interface ICarouselSection {
@@ -318,6 +324,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: IChatImageCarouselOptions): Promise<void> {
@@ -331,7 +338,12 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			text: widget.getInput(),
 			attachments: widget.attachmentModel.attachments,
 		} : undefined);
-		const currentInputSections = await collectCarouselSections([], readFile, currentInput);
+		let currentInputSections = await collectCarouselSections([], readFile, currentInput);
+		// The images of the widget's own input can be marked up, which keeps them attached with their changes.
+		const attachmentModel = currentInput && !options?.currentInput ? widget?.attachmentModel : undefined;
+		if (attachmentModel && currentInputSections.length > 0 && this.screenshotToolService.isSupported) {
+			currentInputSections = this.withMarkUp(currentInputSections, attachmentModel, readFile);
+		}
 		const preferredSectionIndex = options?.preferCurrentInput && currentInputSections.length > 0 ? sections.length : undefined;
 		sections.push(...currentInputSections);
 		const additionalImages = options?.additionalImages?.filter(image => findClickedImageIndex(sections, image.uri) < 0) ?? [];
@@ -362,4 +374,41 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		const args = buildSingleImageArgs(resource, data);
 		await this.commandService.executeCommand(CAROUSEL_COMMAND, args);
 	}
+
+	/** Lets the user mark up the images of the input, which belong to the given attachments. */
+	private withMarkUp(sections: readonly ICarouselSection[], attachmentModel: ChatAttachmentModel, readFile: (uri: URI) => Promise<Uint8Array>): ICarouselSection[] {
+		const attachmentIds = new Map<string, string>();
+		for (const attachment of attachmentModel.attachments) {
+			const [image] = extractImagesFromChatVariables([attachment]);
+			if (image && !attachmentIds.has(image.id)) {
+				attachmentIds.set(image.id, attachment.id);
+			}
+		}
+		return sections.map(section => ({
+			...section,
+			images: section.images.map(image => {
+				const attachmentId = attachmentIds.get(image.id);
+				return attachmentId === undefined ? image : { ...image, markUp: (container: HTMLElement) => this.markUpAttachment(container, attachmentModel, attachmentId, readFile) };
+			}),
+		}));
+	}
+
+	private markUpAttachment(container: HTMLElement, attachmentModel: ChatAttachmentModel, attachmentId: string, readFile: (uri: URI) => Promise<Uint8Array>): IImageCarouselMarkUp {
+		// The attachment is looked up when its markup starts, since an earlier markup in this preview replaced it.
+		const attachment = attachmentModel.attachments.find(candidate => candidate.id === attachmentId);
+		// An image that was not marked up before, such as one that was pasted, starts its markup from what is attached.
+		const screenshot = (attachment && this.screenshotToolService.getEditableAttachment(attachment)) ?? loadEditableAttachment(attachment, readFile);
+		const markUp = this.screenshotToolService.markUp(container, screenshot, ScreenshotToolSurface.Chat);
+		void markUp.result.then(edit => edit && attachment && applyScreenshotToolEdit(attachmentModel, attachment, edit, this.screenshotToolService));
+		return toImageCarouselMarkUp(markUp);
+	}
+}
+
+async function loadEditableAttachment(attachment: IChatRequestVariableEntry | undefined, readFile: (uri: URI) => Promise<Uint8Array>): Promise<IScreenshotToolEditable> {
+	const [image] = attachment ? extractImagesFromChatVariables([attachment]) : [];
+	if (!image) {
+		throw new Error('The image is no longer attached.');
+	}
+	const data = image.data ?? VSBuffer.wrap(await readFile(image.uri));
+	return { original: await createScreenshotToolImage(data, image.mimeType), annotationState: undefined };
 }

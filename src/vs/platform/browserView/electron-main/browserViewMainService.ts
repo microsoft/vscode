@@ -354,10 +354,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._getBrowserView(id).inspector.setElementComments(update);
 	}
 
-	async toggleAreaSelection(id: string, enabled?: boolean): Promise<void> {
-		return this._getBrowserView(id).inspector.toggleAreaSelection(enabled);
-	}
-
 	async updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void> {
 		const oldConfig = this._windowConfigurations.get(windowId);
 		const didThemeChange = !equals(oldConfig?.theme, config.theme);
@@ -529,8 +525,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			onDidSelectElement: view.inspector.onDidSelectElement,
 			onDidRemoveElementComment: view.inspector.onDidRemoveElementComment,
 			onDidChangeElementSelectionState: view.inspector.onDidChangeElementSelectionState,
-			onDidPickArea: view.inspector.onDidPickArea,
-			onDidChangeAreaSelectionActive: view.inspector.onDidChangeAreaSelectionActive,
 			onDidChangeDeviceEmulation: view.emulator.onDidChange,
 			onDidChangeAudiences: view.onDidChangeAudiences,
 			onDidRequestPermission: view.onDidRequestPermission,

@@ -199,7 +199,7 @@ suite('BrowserView event IPC', () => {
 		first.main.flush();
 		listener.dispose();
 		first.main.flush();
-		source.emit([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidPickArea', data: undefined }, []]);
+		source.emit([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidRemoveElementComment', data: 'comment' }, []]);
 
 		const reconnected = connect(source);
 		store.add(reconnected.service.onDynamicBrowserViewEvent(1)(([event]) => received.push(event.type)));

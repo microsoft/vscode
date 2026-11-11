@@ -417,6 +417,33 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		});
 
+		test('should edit a screenshot from the screenshot tool instead of previewing it, and say so', () => {
+			const imageHoverContents = captureImageHovers();
+			const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			let edits = 0;
+			const widget = disposables.add(instantiationService.createInstance(
+				ImageAttachmentWidget,
+				undefined,
+				{ kind: 'image', id: 'screenshot', name: 'Screenshot', value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]), mimeType: 'image/png' },
+				undefined,
+				{ shouldFocusClearButton: false, supportsDeletion: true, isCurrentInput: true, edit: async () => { edits++; } },
+				dom.$('div'),
+				contextResourceLabels
+			));
+			widget.element.click();
+			widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				edits,
+				ariaLabel: widget.element.ariaLabel,
+				hoverText: imageHoverContents.map(content => content.textContent),
+			}, {
+				edits: 2,
+				ariaLabel: 'Attached image, Screenshot. Press Enter to edit it. (Delete)',
+				hoverText: ['Click to edit this screenshot.'],
+			});
+		});
+
 		suite('hydrated image attachments', () => {
 			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {
 				const fileService = instantiationService.get(IFileService) as TestFileService;

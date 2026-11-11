@@ -151,6 +151,13 @@
 	flex-shrink: 0;
 }
 
+/* The markup of an image replaces its preview, see `ICarouselImage.markUp`. */
+.image-carousel-editor .image-carousel-mark-up {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
 .image-carousel-editor .caption-separator::before {
 	content: '\00b7';
 	margin: 0 6px;

@@ -56,7 +56,8 @@ import { TestLayoutService, workbenchInstantiationService } from '../../../../te
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IRecordingService } from '../../browser/recordingService.js';
-import { IScreenshotService } from '../../browser/screenshotService.js';
+import { IScreenshotToolService, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IIssueFormService, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
@@ -179,6 +180,7 @@ function editDraft(input: IssueReporterEditorInput): void {
 
 suite('NativeIssueFormService reporter windows', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const capturedWindow: ScreenshotToolResult = { kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 }, layerUrls: [] };
 
 	function data(overrides: Partial<IssueReporterData> = {}): IssueReporterData {
 		return {
@@ -233,7 +235,6 @@ suite('NativeIssueFormService reporter windows', () => {
 			confirm: boolean;
 			confirmGate?: DeferredPromise<void>;
 			createGate?: DeferredPromise<void>;
-			screenshotGate?: DeferredPromise<string | undefined>;
 			openError?: Error;
 			createError?: Error;
 			closeOnRegister: boolean;
@@ -260,12 +261,9 @@ suite('NativeIssueFormService reporter windows', () => {
 		const focused: Window[] = [];
 		instantiation.stub(IHostService, { focus: async window => { focused.push(window); } });
 		instantiation.stub(IRecordingService, { isSupported: false, onDidChangeState: Event.None, onDidFailRecording: Event.None });
-		instantiation.stub(IScreenshotService, {
-			captureScreenshot: async () => {
-				void screenshotStarted.complete();
-				return controls.screenshotGate?.p;
-			}
-		});
+		const screenshotTool = createTestScreenshotToolService(store).service;
+		screenshotTool.duringSession = () => void screenshotStarted.complete();
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized }, onStateChange: Event.None });
 		instantiation.stub(IContextViewService, { getContextViewElement: () => $('div') });
 		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: $('div'), dispose: () => { } }) });
@@ -329,7 +327,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const service = store.add(instantiation.createInstance(TestNativeIssueFormService));
 		instantiation.stub(IIssueFormService, service);
 		return {
-			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews,
+			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, screenshotTool,
 			shutdown: async (reason: ShutdownReason) => {
 				if (reason === ShutdownReason.QUIT) {
 					windows.forEach(window => window.blockNativeClose = true);
@@ -699,14 +697,15 @@ suite('NativeIssueFormService reporter windows', () => {
 	});
 
 	test('discard cancels a pending screenshot without attaching its late result', async () => {
-		const { service, controls, screenshotStarted, windows, inputs, writes } = createService();
-		controls.screenshotGate = new DeferredPromise<string | undefined>();
+		const { service, screenshotTool, screenshotStarted, windows, inputs, writes } = createService();
+		const capture = new DeferredPromise<ScreenshotToolResult>();
+		screenshotTool.result = capture.p;
 		await service.openReporter(data());
 		IssueReporterController.getAnyLiveInstance()!.getWizard()!.triggerCaptureScreenshot();
 		await screenshotStarted.p;
 		windows[0].window.close();
 		await timeout(0);
-		await controls.screenshotGate.complete(issueReporterImageFixture);
+		await capture.complete(capturedWindow);
 		await timeout(0);
 		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), attachments: inputs()[0].savedAttachments, writes, live: !!IssueReporterController.getAnyLiveInstance() }, {
 			disposed: true, attachments: undefined, writes: [], live: false,
@@ -753,14 +752,15 @@ suite('NativeIssueFormService reporter windows', () => {
 	});
 
 	test('service disposal closes a mounted auxiliary and ignores late capture work', async () => {
-		const { service, windows, inputs, source, controls, screenshotStarted, writes } = createService();
-		controls.screenshotGate = new DeferredPromise<string | undefined>();
+		const { service, windows, inputs, source, screenshotTool, screenshotStarted, writes } = createService();
+		const capture = new DeferredPromise<ScreenshotToolResult>();
+		screenshotTool.result = capture.p;
 		await service.openReporter(data());
 		const wizard = IssueReporterController.getAnyLiveInstance()!.getWizard()!;
 		wizard.triggerCaptureScreenshot();
 		await screenshotStarted.p;
 		service.dispose();
-		await controls.screenshotGate.complete(issueReporterImageFixture);
+		await capture.complete(capturedWindow);
 		await timeout(0);
 		await service.openReporter(data());
 		assert.deepStrictEqual({

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
+import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
@@ -25,8 +25,6 @@ const localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 interface IActiveSelection extends IDisposable {
 	options: IBrowserElementSelectionOptions;
 }
-
-interface IActiveAreaSelection extends IDisposable { }
 
 export interface IElementHandle extends IDisposable {
 	addToChat(): Promise<void>;
@@ -82,24 +80,6 @@ export class BrowserViewInspector extends Disposable {
 	private _inspectionOperation: Promise<void> = Promise.resolve();
 	private _theme: IBrowserViewTheme = {};
 
-	// Area selection — drag-to-select a rectangle on the top frame.
-	// `onDidPickArea` fires exactly once per session, terminating it.
-	// The rectangle is undefined when the picker is cancelled (ESC, zero-area drag,
-	// external toggle off, navigation, or supersession by element selection).
-	// Consumers should listen to this single event instead of trying to reconcile
-	// rect vs. activation events across the IPC boundary — those two events travel
-	// through separate channels and can be delivered out of order.
-	private readonly _onDidPickArea = this._register(new Emitter<IBrowserViewRect | undefined>());
-	readonly onDidPickArea: Event<IBrowserViewRect | undefined> = this._onDidPickArea.event;
-
-	private readonly _onDidChangeAreaSelectionActive = this._register(new Emitter<boolean>());
-	readonly onDidChangeAreaSelectionActive: Event<boolean> = this._onDidChangeAreaSelectionActive.event;
-
-	private _areaSelectionActive = false;
-	get isAreaSelectionActive(): boolean { return this._areaSelectionActive; }
-
-	private readonly _activeAreaSelection = this._register(new MutableDisposable<IActiveAreaSelection>());
-
 	private readonly _registry = this._register(new FrameInspectorRegistry());
 	private readonly _sessionListeners = this._register(new DisposableMap<ICDPConnection, DisposableStore>());
 
@@ -114,7 +94,6 @@ export class BrowserViewInspector extends Disposable {
 		// Navigation destroys preload overlays and CDP state
 		const onNavigated = () => {
 			this._activeSelection.clear();
-			this._activeAreaSelection.clear();
 		};
 		webContents.on('did-navigate', onNavigated);
 		this._register({ dispose: () => webContents.removeListener('did-navigate', onNavigated) });
@@ -136,33 +115,6 @@ export class BrowserViewInspector extends Disposable {
 				senderFrame.postMessage('vscode:browserView:setLocalizedStrings', localizedStrings);
 
 				this._registry.notifyFrameReady(senderFrame, frameToken);
-
-				// If area selection was activated before the main-frame preload
-				// finished wiring up its IPC listeners (e.g. right after a
-				// navigation), the original `startAreaPicker` postMessage was
-				// dropped. Replay it now so the picker actually appears instead
-				// of leaving the model reporting active with no visible overlay.
-				if (senderFrame === webContents.mainFrame && this._activeAreaSelection.value) {
-					try {
-						senderFrame.postMessage('vscode:browserView:startAreaPicker', undefined);
-					} catch {
-						// Frame may be gone — ignore.
-					}
-				}
-			} else if (channel === 'vscode:browserView:areaPicked') {
-				// Area selection is scoped to the top frame — the user-drawn
-				// rectangle is in main-frame viewport coordinates.
-				if (senderFrame !== webContents.mainFrame) {
-					return;
-				}
-				const rect = args[0] as IBrowserViewRect | undefined;
-				const validRect = rect && rect.width > 0 && rect.height > 0 ? rect : undefined;
-				this._finishAreaPick(validRect);
-			} else if (channel === 'vscode:browserView:areaPickStopped') {
-				if (senderFrame !== webContents.mainFrame) {
-					return;
-				}
-				this._finishAreaPick(undefined);
 			}
 		};
 		webContents.on('ipc-message', onIpcMessage);
@@ -305,9 +257,6 @@ export class BrowserViewInspector extends Disposable {
 			this._activeSelection.clear();
 			return;
 		}
-		// Element and area selection are mutually exclusive — enabling one
-		// cancels the other so both pickers never overlay the page at once.
-		this._activeAreaSelection.clear();
 
 		const activeSelection = this._activeSelection.value;
 		const updatedOptions = activeSelection ? { ...activeSelection.options, ...options } : { mode: BrowserElementSelectionMode.Select, ...options };
@@ -380,71 +329,6 @@ export class BrowserViewInspector extends Disposable {
 	}
 
 	/**
-	 * Toggle drag-to-select area picking on the top frame only.
-	 * The picker reports the literal user-drawn rectangle (or `undefined` on cancellation)
-	 * via {@link onDidPickArea}; no DOM elements are inspected.
-	 */
-	async toggleAreaSelection(enabled?: boolean): Promise<void> {
-		const newEnabled = enabled ?? !this._areaSelectionActive;
-		if (newEnabled === this._areaSelectionActive) {
-			return;
-		}
-
-		if (!newEnabled) {
-			this._activeAreaSelection.clear();
-			return;
-		}
-
-		// Element and area selection are mutually exclusive — enabling one
-		// cancels the other so both pickers never overlay the page at once.
-		this._activeSelection.clear();
-
-		const mainFrame = this.browser.webContents.mainFrame;
-		const start = () => { mainFrame.postMessage('vscode:browserView:startAreaPicker', undefined); };
-		const stop = () => { try { mainFrame.postMessage('vscode:browserView:stopAreaPicker', undefined); } catch { /* frame may be gone */ } };
-
-		const selection: IActiveAreaSelection = {
-			dispose: () => {
-				// External cancellation (toggleAreaSelection(false), navigation, element
-				// selection takeover). The IPC-driven termination paths use clearAndLeak
-				// inside `_finishAreaPick`, so reaching here means the picker is still
-				// running in the page and we need to tell it to stop.
-				stop();
-				this._finishAreaPick(undefined);
-			}
-		};
-		this._activeAreaSelection.value = selection;
-
-		try {
-			start();
-			if (this._activeAreaSelection.value === selection) {
-				this._areaSelectionActive = true;
-				this._onDidChangeAreaSelectionActive.fire(true);
-			}
-		} catch {
-			this._activeAreaSelection.clear();
-		}
-	}
-
-	/**
-	 * Terminate the current area-pick session, firing `onDidPickArea` exactly once.
-	 * No-op if no session is active. Uses `clearAndLeak` to avoid recursing into
-	 * the IActiveSelection.dispose path.
-	 */
-	private _finishAreaPick(rect: IBrowserViewRect | undefined): void {
-		if (!this._areaSelectionActive && !this._activeAreaSelection.value) {
-			return;
-		}
-		const wasActive = this._areaSelectionActive;
-		this._areaSelectionActive = false;
-		this._activeAreaSelection.clearAndLeak();
-		this._onDidPickArea.fire(rect);
-		if (wasActive) {
-			this._onDidChangeAreaSelectionActive.fire(false);
-		}
-	}
-
-	/**
 	 * Resolve a handle to an element. Routes to the correct frame inspector.
 	 */
 	getElementHandle(id: string, frame: Electron.WebFrameMain): IElementHandle | undefined {
@@ -461,7 +345,6 @@ export class BrowserViewInspector extends Disposable {
 				}
 				commentRequested = true;
 				setTimeout(() => {
-					this._activeAreaSelection.clear();
 					this._activeSelection.clear();
 					void this._queueInspectionOperation(async () => {
 						if (!this.browser.webContents.isDestroyed()) {

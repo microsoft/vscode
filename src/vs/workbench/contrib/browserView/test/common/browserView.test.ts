@@ -94,7 +94,6 @@ suite('BrowserViewModel', () => {
 		store.add(model.onDidChangeLoadingState(() => received.push(`loading:${model.loading}`)));
 		store.add(model.onDidClose(() => received.push('closed')));
 		store.add(model.onDidChangeFocus(() => received.push('unexpected focus')));
-		store.add(model.onDidPickArea(() => received.push('unexpected area')));
 		emitters.onDidNavigate.fire({
 			url: 'https://example.com/', title: 'initial', canGoBack: true, canGoForward: false, certificateError: undefined
 		});
@@ -130,7 +129,6 @@ function createInitialState(storageScope: BrowserViewStorageScope, audiences: IB
 		permissions: { origins: {} },
 		browserZoomIndex: browserZoomDefaultIndex,
 		elementSelectionState: { active: false, options: {} },
-		isAreaSelectionActive: false,
 		device: undefined,
 		audiences,
 	};

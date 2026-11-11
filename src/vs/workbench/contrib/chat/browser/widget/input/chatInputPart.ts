@@ -82,6 +82,7 @@ import { bindContextKey, observableConfigValue } from '../../../../../../platfor
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IScreenshotToolEditable, IScreenshotToolService, ScreenshotToolSurface } from '../../../../screenshotTool/browser/screenshotTool.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -141,6 +142,7 @@ import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
+import { applyScreenshotToolEdit } from '../../attachments/chatScreenshotContext.js';
 import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
@@ -1199,6 +1201,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
@@ -4977,7 +4980,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (attachment.kind === 'terminalCommand') {
 			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
-			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+			// Screenshots from the screenshot tool can be marked up: in the Images Preview, or else right away.
+			const screenshot = this.screenshotToolService.getEditableAttachment(attachment);
+			const imageOptions = screenshot ? { ...widgetOptions, edit: () => this.editScreenshotAttachment(attachment, screenshot) } : widgetOptions;
+			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, imageOptions, container, this._contextResourceLabels);
 		} else if (isElementVariableEntry(attachment)) {
 			return this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isPasteVariableEntry(attachment)) {
@@ -4995,6 +5001,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// The inline request-edit input part has no bound input model and falls back to the widget's session.
 		return this._chatAttachmentWidgetRegistry.createWidget(attachment, widgetOptions, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
 			?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, widgetOptions, container, this._contextResourceLabels);
+	}
+
+	/**
+	 * Marks up a screenshot from the screenshot tool, and keeps it attached with the changes.
+	 */
+	private async editScreenshotAttachment(attachment: IChatRequestVariableEntry, screenshot: IScreenshotToolEditable): Promise<void> {
+		const edit = await this.screenshotToolService.edit(screenshot, ScreenshotToolSurface.Chat);
+		if (edit) {
+			applyScreenshotToolEdit(this._attachmentModel, attachment, edit, this.screenshotToolService);
+		}
 	}
 
 	/**

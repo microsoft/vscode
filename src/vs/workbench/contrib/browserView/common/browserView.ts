@@ -53,7 +53,6 @@ import {
 	IBrowserViewEditorOpenOptions,
 	BrowserViewSessionSelector,
 	IBrowserViewAudience,
-	IBrowserViewRect,
 	browserZoomDefaultIndex,
 	browserZoomFactors,
 	IBrowserViewState,
@@ -552,7 +551,6 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
 	readonly elementSelectionState: IBrowserElementSelectionState;
-	readonly isAreaSelectionActive: boolean;
 	readonly device: IBrowserDeviceProfile | undefined;
 
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState>;
@@ -573,8 +571,6 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidSelectElement: Event<IElementData>;
 	readonly onDidRemoveElementComment: Event<string>;
 	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState>;
-	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
-	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent>;
 	readonly onDidRequestOpenExternal: Event<string>;
@@ -606,7 +602,6 @@ export interface IBrowserViewModel extends IDisposable {
 	getConsoleLogs(): Promise<string>;
 	toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
 	setElementComments(update: IBrowserElementCommentsUpdate): Promise<void>;
-	toggleAreaSelection(enabled?: boolean): Promise<void>;
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
 
@@ -614,7 +609,6 @@ export type BrowserViewEventEmitters = { [K in keyof BrowserViewEventData]: Emit
 
 export function createBrowserViewEventEmitters(store: DisposableStore): BrowserViewEventEmitters {
 	return {
-		onDidChangeAreaSelectionActive: store.add(new Emitter<BrowserViewEventData['onDidChangeAreaSelectionActive']>()),
 		onDidChangeAudiences: store.add(new Emitter<BrowserViewEventData['onDidChangeAudiences']>()),
 		onDidChangeDeviceEmulation: store.add(new Emitter<BrowserViewEventData['onDidChangeDeviceEmulation']>()),
 		onDidChangeDevToolsState: store.add(new Emitter<BrowserViewEventData['onDidChangeDevToolsState']>()),
@@ -630,7 +624,6 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 		onDidFindInPage: store.add(new Emitter<BrowserViewEventData['onDidFindInPage']>()),
 		onDidKeyCommand: store.add(new Emitter<BrowserViewEventData['onDidKeyCommand']>()),
 		onDidNavigate: store.add(new Emitter<BrowserViewEventData['onDidNavigate']>()),
-		onDidPickArea: store.add(new Emitter<BrowserViewEventData['onDidPickArea']>()),
 		onDidRemoveElementComment: store.add(new Emitter<BrowserViewEventData['onDidRemoveElementComment']>()),
 		onDidRequestPermission: store.add(new Emitter<BrowserViewEventData['onDidRequestPermission']>()),
 		onDidRequestOpenExternal: store.add(new Emitter<BrowserViewEventData['onDidRequestOpenExternal']>()),
@@ -660,7 +653,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _lastSharingState: BrowserViewSharingState;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 	private _elementSelectionState: IBrowserElementSelectionState = { active: false, options: {} };
-	private _isAreaSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
 
 	readonly history = this._register(new BrowserHistoryStore());
@@ -680,8 +672,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get onDidSelectElement() { return this._remoteEvents.onDidSelectElement.event; }
 	get onDidRemoveElementComment() { return this._remoteEvents.onDidRemoveElementComment.event; }
 	get onDidChangeElementSelectionState() { return this._remoteEvents.onDidChangeElementSelectionState.event; }
-	get onDidPickArea() { return this._remoteEvents.onDidPickArea.event; }
-	get onDidChangeAreaSelectionActive() { return this._remoteEvents.onDidChangeAreaSelectionActive.event; }
 	get onDidRequestPermission() { return this._remoteEvents.onDidRequestPermission.event; }
 	get onDidRequestOpenExternal() { return this._remoteEvents.onDidRequestOpenExternal.event; }
 
@@ -736,7 +726,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._session = initialState.session;
 		this._browserZoomIndex = initialState.browserZoomIndex;
 		this._elementSelectionState = initialState.elementSelectionState;
-		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
 		this._audiences = initialState.audiences;
 		this._isInMemory = isInMemoryStorageScope(this._session.scope);
@@ -848,10 +837,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._elementSelectionState = state;
 		}));
 
-		this._register(this.onDidChangeAreaSelectionActive(active => {
-			this._isAreaSelectionActive = active;
-		}));
-
 		this._register(this._remoteEvents.onDidChangeAudiences.event(audiences => {
 			this._audiences = audiences;
 			this._updateSharingState();
@@ -898,7 +883,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
 	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
-	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
@@ -1058,10 +1042,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async setElementComments(update: IBrowserElementCommentsUpdate): Promise<void> {
 		return this.browserViewService.setElementComments(this.id, update);
-	}
-
-	async toggleAreaSelection(enabled?: boolean): Promise<void> {
-		return this.browserViewService.toggleAreaSelection(this.id, enabled);
 	}
 
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {

@@ -121,7 +121,7 @@ suite('BrowserViewWorkbenchService', () => {
 				session: { scope: BrowserViewStorageScope.Global }, storageKeys: {},
 				permissions: { origins: {} }, browserZoomIndex: browserZoomDefaultIndex,
 				elementSelectionState: { active: false, options: {} },
-				isAreaSelectionActive: false, device: undefined, audiences: [],
+				device: undefined, audiences: [],
 			}
 		};
 	}
