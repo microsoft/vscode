@@ -376,9 +376,6 @@ importers:
       eslint:
         specifier: 10.8.0
         version: 10.8.0
-      eslint-formatter-compact:
-        specifier: ^8.40.0
-        version: 8.40.0
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
@@ -7763,10 +7760,6 @@ packages:
   escape-string-regexp@4.0.0:
     resolution: {integrity: sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==}
     engines: {node: '>=10'}
-
-  eslint-formatter-compact@8.40.0:
-    resolution: {integrity: sha512-cwGUs113TgmTQXecx5kfRjB7m0y2wkDLSadPTE2pK6M/wO4N8PjmUaoWOFNCP9MHgsiZwgqd5bZFnDCnszC56Q==}
-    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   eslint-plugin-header@3.1.1:
     resolution: {integrity: sha512-9vlKxuJ4qf793CmeeSrZUvVClw6amtpghq3CuWcB5cUNnWHQhgcqy5eF8oVKFk1G3Y/CbchGfEaw3wiIJaNmVg==}
@@ -19347,8 +19340,6 @@ snapshots:
   escape-string-regexp@1.0.5: {}
 
   escape-string-regexp@4.0.0: {}
-
-  eslint-formatter-compact@8.40.0: {}
 
   eslint-plugin-header@3.1.1(eslint@10.8.0):
     dependencies:

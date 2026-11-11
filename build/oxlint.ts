@@ -9,9 +9,9 @@ import { createRequire } from 'module';
 import { availableParallelism } from 'os';
 import path from 'path';
 import { parseArgs } from 'util';
-import { getChangedFilesScope, getEslintScope, typeAwareLintFolders } from './lib/changedFiles.ts';
+import { getChangedFilesScope, getLintScope, typeAwareLintFolders } from './lib/changedFiles.ts';
 
-// Runs oxlint with the rules of eslint.config.js (see oxlint.config.ts) and reports like `npm run eslint`, with
+// Runs oxlint with the rules of eslint.config.js (see oxlint.config.ts) and reports in ESLint's compact format, with
 // ESLint's rule names, which the editor and disable directives use. oxlint runs JS plugin rules on one thread per
 // process, so a large run is split into processes by folder. The extensions that use rules with type information run
 // in a separate process with `--type-aware`, so that only that process builds TypeScript programs.
@@ -173,8 +173,8 @@ async function runAll<T>(tasks: readonly (() => Promise<T>)[], concurrency: numb
 }
 
 /**
- * Formats diagnostics like ESLint's compact formatter, with ESLint's rule names, so that the output of both linters
- * reads the same and can be diffed.
+ * Formats diagnostics like ESLint's compact formatter, with ESLint's rule names, which the editor's problem matchers
+ * and disable directives use.
  */
 export function formatCompact(diagnostics: readonly IOxlintDiagnostic[], cwd: string): string {
 	const lines = diagnostics.map(diagnostic => {
@@ -191,7 +191,10 @@ function plural(count: number, noun: string, nouns = `${noun}s`): string {
 	return `${count} ${count === 1 ? noun : nouns}`;
 }
 
-async function oxlint(args: readonly string[]): Promise<void> {
+/**
+ * Lints like `pnpm run oxlint` with the given arguments, prints the problems, and returns how many there are.
+ */
+export async function oxlint(args: readonly string[]): Promise<number> {
 	const started = Date.now();
 	const { values, positionals } = parseArgs({
 		args: Array.from(args),
@@ -210,7 +213,7 @@ async function oxlint(args: readonly string[]): Promise<void> {
 	// The paths of each process: oxlint applies the ignore patterns of the configuration to all of them.
 	const runs: { readonly args: string[] }[] = [];
 	let description: string;
-	const scope = changedSince !== undefined ? getChangedFilesScope(changedSince, getEslintScope) : undefined;
+	const scope = changedSince !== undefined ? getChangedFilesScope(changedSince, getLintScope) : undefined;
 	if (positionals.length === 0 && (!scope || scope.kind === 'full')) {
 		description = scope ? `the full repository because ${scope.reason}` : 'the full repository';
 		const files = await listFiles(['.']);
@@ -221,7 +224,7 @@ async function oxlint(args: readonly string[]): Promise<void> {
 			runs.push({ args: ['--type-aware', ...typeAware] });
 		}
 	} else {
-		const files = scope?.kind === 'files' ? Array.from(scope.files) : await listFiles(positionals);
+		const files = scope?.kind === 'files' ? Array.from(scope.files) : (await Promise.all(splitFiles(positionals, 1).map(paths => listFiles(paths)))).flat();
 		description = scope?.kind === 'files' ? `${plural(files.length, 'file')} (${scope.reason})` : plural(positionals.length, 'requested target');
 		const typeAwareFiles = new Set(files.filter(file => typeAwareLintFolders.some(folder => isInFolder(file, folder))));
 		const otherFiles = files.filter(file => !typeAwareFiles.has(file));
@@ -236,7 +239,7 @@ async function oxlint(args: readonly string[]): Promise<void> {
 
 	console.log(`oxlint: checking ${description}.`);
 	if (runs.length === 0) {
-		return;
+		return 0;
 	}
 	const outputs = await runAll(runs.map(run => () => runOxlint(run.args)), maxProcesses + 1);
 	const diagnostics = outputs.flatMap(output => output.diagnostics);
@@ -247,13 +250,15 @@ async function oxlint(args: readonly string[]): Promise<void> {
 	const fileCount = outputs.reduce((sum, output) => sum + output.number_of_files, 0);
 	const slowest = Math.max(...outputs.map(output => output.duration));
 	console.log(`oxlint: checked ${plural(fileCount, 'file')} in ${Date.now() - started}ms with ${plural(runs.length, 'process', 'processes')} (the slowest took ${slowest}ms).`);
-	if (diagnostics.length) {
-		throw new Error(`oxlint failed with ${diagnostics.length} warnings and/or errors`);
-	}
+	return diagnostics.length;
 }
 
 if (import.meta.main) {
-	oxlint(process.argv.slice(2)).catch(err => {
+	oxlint(process.argv.slice(2)).then(problems => {
+		if (problems) {
+			throw new Error(`oxlint failed with ${problems} warnings and/or errors`);
+		}
+	}).catch(err => {
 		console.error();
 		console.error(err);
 		// Not process.exit(), which would truncate output that is still being written to a pipe.

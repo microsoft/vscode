@@ -1,6 +1,6 @@
 # Writing lint rules
 
-See [README.md](README.md) for how to add a rule. The rules here run in ESLint (editor, pre-commit hook, `pnpm run eslint`) and in oxlint (CI, `pnpm run oxlint`), which loads them as ESLint-compatible JS plugins. A rule must report the same problems in both.
+See [README.md](README.md) for how to add a rule. The rules here run in oxlint (CI, pre-commit hook, `pnpm run oxlint`), which loads them as ESLint-compatible JS plugins, and in ESLint (editor, the Copilot extension's `pnpm run lint`, and the rule tests). A rule must report the same problems in both.
 
 ## Keep rules fast
 
@@ -20,15 +20,13 @@ oxlint runs all JS plugin rules of a process on one thread, and the rules run on
   `node --cpu-prof --cpu-prof-dir=/tmp/oxlint-profile node_modules/oxlint/bin/oxlint --format=json src`
 - Compare timings with `node build/oxlint.ts --processes=1 <folder>`, before and after.
 - Run the rule's tests: `node --test .eslint-plugin-local/tests/<rule>.test.ts`.
-- For a change that must not change behavior, compare the full output of both linters before and after with every disable directive switched off. In a clean checkout of the base commit, and again in one of the change (for example two `git worktree`s), run:
+- For a change that must not change behavior, compare oxlint's full output before and after with every disable directive switched off. In a clean checkout of the base commit, and again in one of the change (for example two `git worktree`s), run:
 
   ```sh
   NAME=before  # or after
   git grep -lzE 'eslint-(disable|enable)' -- '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.mjs' '*.cjs' | xargs -0 perl -pi -e 's/eslint-(disable|enable)/eslint-x$1/g'
-  rm -f .eslintcache  # ESLint's cache doesn't notice changed rules
-  node --max-old-space-size=8192 build/eslint.ts | grep -E ': line [0-9]+, col' | sort > /tmp/eslint-$NAME.txt
   node build/oxlint.ts | grep -E ': line [0-9]+, col' | sort > /tmp/oxlint-$NAME.txt
   git checkout -- .   # restores the directives, and discards all other uncommitted changes
   ```
 
-  Then diff the `before` and `after` files of each linter. Both should report about ten thousand problems, and nothing should differ.
+  Then diff the two files. Both should list about ten thousand problems, and nothing should differ. The rule tests cover ESLint.
