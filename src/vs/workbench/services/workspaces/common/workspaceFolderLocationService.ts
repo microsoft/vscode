@@ -10,7 +10,7 @@ import { toDisposable, Disposable, IDisposable } from '../../../../base/common/l
 import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
 	readonly provider: IWorkspaceFolderLocationProvider;
@@ -29,12 +29,12 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	private _currentLocation: IResolvedFolderLocation | undefined;
 	get currentLocation(): IResolvedFolderLocation | undefined { return this._currentLocation; }
 
-	private readonly _onDidChangeCurrentLocation = this._register(new Emitter<void>());
+	private readonly _onDidChangeCurrentLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
 	readonly onDidChangeCurrentLocation = this._onDidChangeCurrentLocation.event;
 
-	setCurrentLocation(location: IResolvedFolderLocation | undefined): void {
+	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
 		this._currentLocation = location;
-		this._onDidChangeCurrentLocation.fire();
+		this._onDidChangeCurrentLocation.fire({ reason });
 	}
 
 	registerProvider(provider: IWorkspaceFolderLocationProvider, options?: { readonly builtIn?: boolean }): IDisposable {

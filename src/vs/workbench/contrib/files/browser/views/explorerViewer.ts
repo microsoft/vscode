@@ -20,7 +20,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
-import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
+import { dirname, isEqual, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
@@ -1130,7 +1130,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private getRootLabel(stat: ExplorerItem): string {
 		const location = this.folderLocationService.currentLocation;
-		return getExplorerRootLabel(stat.name, this.contextService.getWorkspaceFolder(stat.resource)?.primaryUri, location && getFolderLocationText(location));
+		return getExplorerRootLabel(stat.name, this.contextService.getWorkspace().folders.find(folder => folder.primaryUri && (isEqual(folder.uri, stat.resource) || isEqual(folder.primaryUri, stat.resource)))?.primaryUri, location && getFolderLocationText(location));
 	}
 
 	getAriaLevel(element: ExplorerItem): number {

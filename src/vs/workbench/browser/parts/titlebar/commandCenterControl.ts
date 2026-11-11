@@ -182,10 +182,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							searchIcon.classList.add('search-icon');
 
 							// label: just workspace name and optional decorations
-							const label = this._getLabel();
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
-							labelElement.textContent = label;
+							this._renderLabel(labelElement);
 							if (isCompactMode) {
 								reset(container, labelElement);
 							} else {
@@ -197,16 +196,65 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {
 								hover.update(this.getTooltip());
-								labelElement.textContent = this._getLabel();
+								this._renderLabel(labelElement);
 							}));
 
 							// update label & tooltip when tabs visibility changes
 							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
 								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
 									hover.update(this.getTooltip());
-									labelElement.textContent = this._getLabel();
+									this._renderLabel(labelElement);
 								}
 							}));
+						}
+
+						/**
+						 * Renders the label. While the folder is at an alternate location this is the location's icon,
+						 * the name and a branch-style group with the location description.
+						 */
+						private _renderLabel(labelElement: HTMLElement): void {
+							const location = that._windowTitle.folderLocationInfo;
+							const text = this._getLabel();
+							labelElement.classList.toggle('has-folder-location', !!location);
+							labelElement.removeAttribute('aria-label');
+							if (!location) {
+								labelElement.textContent = text;
+								return;
+							}
+
+							const description = location.description;
+							const nameGroup = document.createElement('span');
+							nameGroup.classList.add('folder-location-name-group');
+							const icon = renderIcon(location.icon ?? Codicon.location);
+							icon.classList.add('folder-location-icon');
+							icon.ariaHidden = 'true';
+							const name = document.createElement('span');
+							name.classList.add('folder-location-name');
+							name.textContent = text;
+							nameGroup.append(icon, name);
+							const children: HTMLElement[] = [nameGroup];
+
+							if (description) {
+								const separator = document.createElement('span');
+								separator.classList.add('folder-location-separator');
+								separator.ariaHidden = 'true';
+								separator.textContent = '·';
+								const branchGroup = document.createElement('span');
+								branchGroup.classList.add('folder-location-branch-group');
+								branchGroup.title = description;
+								const branchIcon = renderIcon(Codicon.gitBranchCompact);
+								branchIcon.classList.add('folder-location-branch-icon');
+								branchIcon.ariaHidden = 'true';
+								const branch = document.createElement('span');
+								branch.classList.add('folder-location-branch');
+								branch.textContent = description;
+								branchGroup.append(branchIcon, branch);
+								children.push(separator, branchGroup);
+								labelElement.setAttribute('aria-label', localize('label.withFolderLocationBranch', "{0}, branch {1}", text, description));
+							} else {
+								labelElement.setAttribute('aria-label', text);
+							}
+							labelElement.replaceChildren(...children);
 						}
 
 						protected override getTooltip() {
@@ -223,8 +271,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							}
 							if (!label) {
 								label = localize('label.dfl', "Search");
-							} else if (!that._windowTitle.isCustomTitleFormat() && that._windowTitle.folderLocation) {
-								label = localize('label.withFolderLocation', "{0} ({1})", label, that._windowTitle.folderLocation);
 							}
 							if (prefix) {
 								label = localize('label1', "{0} {1}", prefix, label);

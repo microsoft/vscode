@@ -8,6 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { FolderLocationChangeReason } from '../../../../platform/workspace/common/folderLocations.js';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 
@@ -58,7 +59,7 @@ export interface IWorkspaceEditingService {
 	 * stays keyed by the primary location. `location` must be resolved by a registered
 	 * `IWorkspaceFolderLocationProvider`. Only supported for single local folder workspaces.
 	 */
-	setFolderLocation(primary: URI, location: URI | undefined): Promise<void>;
+	setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.
