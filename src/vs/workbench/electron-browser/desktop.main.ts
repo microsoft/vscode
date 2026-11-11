@@ -375,6 +375,29 @@ export class DesktopMain extends Disposable {
 		return toWorkspaceIdentifier(this.configuration.backupPath, environmentService.isExtensionDevelopment);
 	}
 
+	/**
+	 * The alternate location a local single-folder window has been persisted at, if it still exists.
+	 * It is applied without granting any trust. Otherwise the window starts at the primary location
+	 * and `FolderLocationPersistenceContribution` tells the user.
+	 */
+	private async resolveFolderLocation(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService): Promise<URI | undefined> {
+		const persisted = environmentService.configuration.folderLocation;
+		if (!persisted || !isSingleFolderWorkspaceIdentifier(workspace) || workspace.uri.scheme !== Schemas.file) {
+			return undefined;
+		}
+
+		const location = URI.parse(persisted.uri);
+		if (location.scheme !== Schemas.file) {
+			return undefined;
+		}
+
+		try {
+			return (await fileService.stat(location)).isDirectory ? location : undefined;
+		} catch (error) {
+			return undefined;
+		}
+	}
+
 	private async createWorkspaceService(
 		workspace: IAnyWorkspaceIdentifier,
 		environmentService: INativeWorkbenchEnvironmentService,
@@ -390,7 +413,7 @@ export class DesktopMain extends Disposable {
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
-			await workspaceService.initialize(workspace);
+			await workspaceService.initialize(workspace, await this.resolveFolderLocation(workspace, environmentService, fileService));
 
 			return workspaceService;
 		} catch (error) {

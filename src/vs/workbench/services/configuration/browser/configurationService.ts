@@ -580,7 +580,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): Workspace {
-		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri)], false, null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const primaryFolder = toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri);
+		const folder = folderLocation && !this.uriIdentityService.extUri.isEqual(folderLocation, primaryFolder.uri)
+			? new WorkspaceFolder({ uri: folderLocation, name: primaryFolder.name, index: 0, primaryUri: primaryFolder.uri }, { uri: folderLocation.toString() })
+			: primaryFolder;
+		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [folder], false, null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return workspace;
 	}

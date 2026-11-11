@@ -37,7 +37,7 @@ import product from '../../product/common/product.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowFolderLocation, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
@@ -70,6 +70,8 @@ interface IOpenBrowserWindowOptions {
 	readonly cli?: NativeParsedArgs;
 
 	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	readonly folderLocation?: IWindowFolderLocation;
 
 	readonly remoteAuthority?: string;
 
@@ -138,6 +140,12 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	 * The workspace to open
 	 */
 	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	/**
+	 * The alternate location of a single-folder workspace to start at.
+	 * Only set when restoring the windows of the last session.
+	 */
+	readonly folderLocation?: IWindowFolderLocation;
 
 	/**
 	 * Whether the path is considered to be transient or not
@@ -838,6 +846,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return this.openInBrowserWindow({
 			workspace: folderOrWorkspace.workspace,
+			folderLocation: folderOrWorkspace.folderLocation,
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
@@ -1076,7 +1085,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					else if (lastSessionWindow.folderUri) {
 						const pathToOpen = await this.resolveOpenable({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
 						if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-							return pathToOpen;
+							return lastSessionWindow.folderLocation && !lastSessionWindow.remoteAuthority ? { ...pathToOpen, folderLocation: lastSessionWindow.folderLocation } : pathToOpen;
 						}
 					}
 
@@ -1597,6 +1606,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			remoteAuthority: options.remoteAuthority,
 			workspace: options.workspace,
+			folderLocation: options.folderLocation,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
 			nls: {
