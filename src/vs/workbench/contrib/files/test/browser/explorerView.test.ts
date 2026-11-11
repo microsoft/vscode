@@ -68,16 +68,17 @@ suite('Files - ExplorerView', () => {
 		const renderer = ds.add(new FilesRenderer(
 			dom.$('div'), undefined!, undefined!, () => { },
 			undefined!, configService, undefined!, undefined!,
-			{ getWorkspaceFolder: () => switched ? { uri: alternate, primaryUri: primary } : { uri: alternate } } as unknown as IWorkspaceContextService,
+			{ getWorkspace: () => ({ folders: [switched ? { uri: alternate, primaryUri: primary } : { uri: alternate }] }) } as unknown as IWorkspaceContextService,
 			{ get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
 			undefined!));
 		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
 		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);
-		const switchedLabels = [renderer.getAriaLabel(root), renderer.getAriaLabel(child)];
+		const staleRoot = new ExplorerItem(primary, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
+		const switchedLabels = [renderer.getAriaLabel(root), renderer.getAriaLabel(child), renderer.getAriaLabel(staleRoot)];
 		switched = false;
 		assert.deepStrictEqual(
 			[switchedLabels, renderer.getAriaLabel(root)],
-			[['project (Alternate · feature/x)', 'a'], 'project']);
+			[['project (Alternate · feature/x)', 'a', 'project (Alternate · feature/x)'], 'project']);
 	});
 
 	test('getContext', async function () {

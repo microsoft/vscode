@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { FolderLocationChangeReason, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -129,7 +129,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private folderLocationRequest = 0;
 
-	async setFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
+	async setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 		}
@@ -186,7 +186,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		validatePrimary();
 
 		await this.contextService.setFolderLocation(primary, location);
-		this.workspaceFolderLocationService.setCurrentLocation(resolved);
+		this.workspaceFolderLocationService.setCurrentLocation(resolved, options?.reason);
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {

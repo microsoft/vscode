@@ -73,8 +73,13 @@ export class WindowTitle extends Disposable {
 
 	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
 	get folderLocation(): string {
-		const location = this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation : undefined;
+		const location = this.folderLocationInfo;
 		return location ? getFolderLocationText(location) : '';
+	}
+
+	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
+	get folderLocationInfo() {
+		return this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation : undefined;
 	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
@@ -87,6 +92,7 @@ export class WindowTitle extends Disposable {
 	}
 
 	private title: string | undefined;
+	private folderLocationKey = '';
 
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
@@ -197,7 +203,18 @@ export class WindowTitle extends Disposable {
 
 	private doUpdateTitle(): void {
 		const title = this.getFullWindowTitle();
-		if (title !== this.title) {
+
+		// The command center renders the folder location itself, so it needs to refresh even if a custom title format leaves the title text unchanged
+		const folderLocation = this.folderLocationInfo;
+		const folderLocationKey = folderLocation ? `${folderLocation.uri.toString()}|${folderLocation.label}|${folderLocation.description ?? ''}|${folderLocation.icon?.id ?? ''}` : '';
+		const folderLocationChanged = folderLocationKey !== this.folderLocationKey;
+		this.folderLocationKey = folderLocationKey;
+
+		if (title === this.title) {
+			if (folderLocationChanged) {
+				this.onDidChangeEmitter.fire();
+			}
+		} else {
 
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
