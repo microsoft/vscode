@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { pauseCSSAnimationsWhenHidden } from '../../../../base/browser/animationSync.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -55,6 +56,10 @@ const ACTIVE_FRAME_INTERVAL_MS = 1000 / 30;
 const DART_RATE_PER_SECOND = 0.04;
 const DART_IMPULSE = 150;
 
+/** Cadence of the off-state toggle wiggle; the animation itself lives in aquarium.css. */
+const TOGGLE_WIGGLE_INTERVAL_MS = 12_000;
+const TOGGLE_WIGGLE_ANIMATION = 'agents-aquarium-toggle-wiggle';
+
 const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
 const ACTION_VISIBLE_STORAGE_KEY = 'sessions.aquarium.action.visible';
 
@@ -75,6 +80,9 @@ interface IFoodPellet {
 interface IMountedToggle {
 	readonly button: HTMLButtonElement;
 	hostVisible: boolean;
+	/** Whether the button is in its viewport and its document is visible. */
+	onScreen: boolean;
+	readonly wiggleScheduler: RunOnceScheduler;
 }
 
 export class AquariumService extends Disposable implements IAquariumService {
@@ -119,6 +127,11 @@ export class AquariumService extends Disposable implements IAquariumService {
 				this.applyFeatureEnabledState();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
+			for (const mount of this.mounts) {
+				this.restartToggleWiggle(mount);
+			}
+		}));
 	}
 
 	mountToggle(parent: HTMLElement): IMountedToggleHandle {
@@ -142,9 +155,31 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		parent.appendChild(button);
 
-		const mount: IMountedToggle = { button, hostVisible: true };
+		const mount: IMountedToggle = {
+			button,
+			hostVisible: true,
+			onScreen: false,
+			wiggleScheduler: store.add(new RunOnceScheduler(() => this.restartToggleWiggle(mount), TOGGLE_WIGGLE_INTERVAL_MS)),
+		};
+		store.add(addDisposableListener(button, 'animationend', (e: AnimationEvent) => {
+			if (e.animationName === TOGGLE_WIGGLE_ANIMATION) {
+				button.classList.remove('wiggle');
+			}
+		}));
+		// Hover and keyboard focus suppress the wiggle in CSS; restart the cycle
+		// when the user moves on so the nudge resumes right away.
+		store.add(addDisposableListener(button, EventType.MOUSE_LEAVE, () => this.restartToggleWiggle(mount)));
+		store.add(addDisposableListener(button, EventType.BLUR, () => this.restartToggleWiggle(mount)));
+		store.add(pauseCSSAnimationsWhenHidden(button, {
+			pausedClass: 'offscreen',
+			onDidChangeVisibility: visible => {
+				mount.onScreen = visible;
+				this.restartToggleWiggle(mount);
+			},
+		}));
+
 		this.mounts.add(mount);
-		this.applyFeatureEnabledStateForButton(button);
+		this.applyFeatureEnabledStateForMount(mount);
 		this.reconcileActivation();
 		this.scheduleHungerRefresh();
 
@@ -155,6 +190,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 				}
 				mount.hostVisible = visible;
 				this.reconcileActivation();
+				this.restartToggleWiggle(mount);
 			},
 			dispose: () => {
 				store.dispose();
@@ -186,7 +222,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private setActionVisible(visible: boolean): void {
 		this._actionVisible.set(visible, undefined);
 		for (const mount of this.mounts) {
-			this.applyFeatureEnabledStateForButton(mount.button);
+			this.applyFeatureEnabledStateForMount(mount);
 		}
 	}
 
@@ -233,7 +269,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 	private applyFeatureEnabledState(): void {
 		for (const mount of this.mounts) {
-			this.applyFeatureEnabledStateForButton(mount.button);
+			this.applyFeatureEnabledStateForMount(mount);
 		}
 		if (!this.isFeatureEnabled() && this.activeRef.value) {
 			// Setting turned off — don't persist so the prior preference survives a re-enable.
@@ -243,8 +279,30 @@ export class AquariumService extends Disposable implements IAquariumService {
 		}
 	}
 
-	private applyFeatureEnabledStateForButton(button: HTMLButtonElement): void {
-		button.style.display = this.isFeatureEnabled() && this._actionVisible.get() ? '' : 'none';
+	private applyFeatureEnabledStateForMount(mount: IMountedToggle): void {
+		mount.button.style.display = this.isFeatureEnabled() && this._actionVisible.get() ? '' : 'none';
+		this.restartToggleWiggle(mount);
+	}
+
+	/**
+	 * Plays the off-state wiggle now and again every {@link TOGGLE_WIGGLE_INTERVAL_MS}
+	 * while the toggle is shown; otherwise stops it. The animation is finite so
+	 * nothing is scheduled between wiggles.
+	 */
+	private restartToggleWiggle(mount: IMountedToggle): void {
+		const shouldWiggle = mount.hostVisible
+			&& mount.onScreen
+			&& this.isFeatureEnabled()
+			&& this._actionVisible.get()
+			&& !this.activeRef.value
+			&& !this.accessibilityService.isMotionReduced();
+		if (!shouldWiggle) {
+			mount.wiggleScheduler.cancel();
+			mount.button.classList.remove('wiggle');
+			return;
+		}
+		mount.button.classList.add('wiggle');
+		mount.wiggleScheduler.schedule();
 	}
 
 	private updateToggleButtonVisual(button: HTMLButtonElement, active: boolean): void {
@@ -340,6 +398,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private updateAllToggleButtonsVisual(active: boolean): void {
 		for (const mount of this.mounts) {
 			this.updateToggleButtonVisual(mount.button, active);
+			this.restartToggleWiggle(mount);
 		}
 		this.scheduleHungerRefresh();
 	}
