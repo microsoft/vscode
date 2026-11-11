@@ -13,10 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { CopilotAccountContext, copilotAccountContextKey } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { AgentHostCodexAgentEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -43,7 +40,7 @@ type HoveredLimit = 'fiveHour' | 'weekly';
 
 const profileImageDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#5b5fc7"/><circle cx="32" cy="24" r="12" fill="#f8f8f8"/><path d="M12 64c2-16 10-24 20-24s18 8 20 24" fill="#f8f8f8"/></svg>')}`;
 
-async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, hoveredLimit?: HoveredLimit, copilotContext?: CopilotAccountContext): Promise<void> {
+async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, hoveredLimit?: HoveredLimit): Promise<void> {
 	const { container, disposableStore } = context;
 	container.classList.add('agent-sessions-workbench');
 	container.style.width = '448px';
@@ -87,13 +84,6 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 		fileIconTheme: context.fileIconTheme,
 		additionalServices: registry => {
 			registerWorkbenchServices(registry);
-			registry.defineInstance(IAgentHostService, new class extends NullAgentHostService {
-				override readonly authenticationPending = constObservable(!!copilotContext);
-				override get rootState() {
-					const root = { agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: copilotContext } } };
-					return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
-				}
-			}());
 			registry.defineInstance(IConfigurationService, configurationService);
 			registry.define(IContextKeyService, ContextKeyService);
 			registry.define(IMenuService, MenuService);
@@ -112,7 +102,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 				getSessions: async () => [{
 					id: defaultAccount.sessionId,
 					accessToken: '',
-					account: { id: 'fixture-account', label: copilotContext ? 'Alex Microsoft' : defaultAccount.accountName, icon: URI.parse(profileImageDataUri) },
+					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: URI.parse(profileImageDataUri) },
 					scopes: [],
 				}],
 			});
@@ -188,28 +178,6 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
-	Microsoft365Copilot: defineComponentFixture({
-		deferPaint: true,
-		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderAccountMenu(context, 'unavailable', undefined, {
-			kind: 'ready', entraAccountId: 'fixture-account', discoveryId: 'fixture-discovery', derivedFrom: 'fixture-base',
-			choice: { service: 'm365', selectionId: 'fixture-choice', resource: 'https://m365.example', host: 'https://m365.example', accountName: 'alex', displayName: 'Alex' },
-		}),
-	}),
-	GitHubCopilot: defineComponentFixture({
-		deferPaint: true,
-		labels: { kind: 'screenshot' },
-		render: context => renderAccountMenu(context, 'unavailable', undefined, {
-			kind: 'ready', entraAccountId: 'fixture-account', discoveryId: 'fixture-discovery', derivedFrom: 'fixture-base',
-			choice: { service: 'github', selectionId: 'fixture-choice', resource: 'https://github.com', host: 'https://github.com', accountName: 'Alex', displayName: 'Alex' },
-		}),
-	}),
-	MicrosoftSetupIncomplete: defineComponentFixture({
-		deferPaint: true,
-		labels: { kind: 'screenshot' },
-		render: context => renderAccountMenu(context, 'unavailable', undefined, { kind: 'incomplete', entraAccountId: 'fixture-account' }),
-	}),
 	WeeklyAndFiveHourLimits: defineComponentFixture({
 		deferPaint: true,
 		labels: { kind: 'screenshot' },

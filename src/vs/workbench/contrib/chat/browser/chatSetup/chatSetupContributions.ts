@@ -7,8 +7,6 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { observeCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -94,7 +92,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAgentHostService agentHostService: IAgentHostService,
 	) {
 		super();
 
@@ -103,7 +100,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		if (!context || !requests) {
 			return; // disabled
 		}
-		context.setCopilotAccountContext(observeCopilotAccountContext(agentHostService, this._store));
 
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 

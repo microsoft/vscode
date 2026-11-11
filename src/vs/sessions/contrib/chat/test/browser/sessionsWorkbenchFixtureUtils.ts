@@ -14,8 +14,6 @@ import { TestCommandService } from '../../../../../editor/test/browser/editorTes
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { IMenuService, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -191,7 +189,6 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 			return [{ id: 'fixture', accessToken: '', scopes: [], account: { id: 'fixture', label: 'Developer' } }];
 		}
 	}());
-	instantiationService.stub(IAgentHostService, new NullAgentHostService());
 	instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly entitlement = ChatEntitlement.Pro;
 		override readonly sentiment = { completed: true, installed: true };

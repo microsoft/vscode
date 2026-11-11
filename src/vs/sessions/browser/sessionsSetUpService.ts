@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { CancellationToken, CancellationTokenSource } from '../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
 import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -38,9 +38,6 @@ import { localize } from '../../nls.js';
 import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from './sessionsSignInDialog.js';
 import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsManagementService } from '../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IAgentHostService } from '../../platform/agentHost/common/agentService.js';
-import { resolveCopilotAccountContext } from '../../workbench/services/agentHost/common/copilotAccountContext.js';
-import { isMicrosoftCopilotAccountContext } from '../../platform/agentHost/common/copilotAccountContext.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 
@@ -113,8 +110,6 @@ class SessionsSetUpWidget extends Disposable {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IAgentHostService private readonly agentHostService: IAgentHostService,
 	) {
 		super();
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._onProviderAvailabilityChanged()));
@@ -174,10 +169,6 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private async _checkWebAuth(): Promise<void> {
-		if (await this._copilotAccountReady() !== undefined) {
-			await this._watchSignInState();
-			return;
-		}
 		try {
 			const sessions = await this.authenticationService.getSessions('github');
 			if (sessions.length > 0) {
@@ -195,9 +186,6 @@ class SessionsSetUpWidget extends Disposable {
 	private _watchWebAuth(): void {
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
 			if (e.providerId !== 'github' || !e.event.removed?.length) {
-				return;
-			}
-			if (await this._copilotAccountReady() !== undefined) {
 				return;
 			}
 			try {
@@ -219,19 +207,6 @@ class SessionsSetUpWidget extends Disposable {
 		if (this.dialogRef.value) {
 			return;
 		}
-		const accountReady = await this._copilotAccountReady();
-		if (this._store.isDisposed) {
-			return;
-		}
-		if (accountReady !== undefined) {
-			if (accountReady) {
-				this.onCompleted();
-				this.watcherRef.value = this._watchActiveState(true);
-			} else {
-				await this._showWelcome(false);
-			}
-			return;
-		}
 		if (!initialAccount) {
 			if (this._canInitializeWithoutGitHub()) {
 				await this._proceedWithoutGitHub();
@@ -250,32 +225,10 @@ class SessionsSetUpWidget extends Disposable {
 		this.watcherRef.value = this._watchActiveState(true);
 	}
 
-	private async _copilotAccountReady(): Promise<boolean | undefined> {
-		try {
-			const context = await resolveCopilotAccountContext(this.agentHostService, CancellationToken.None);
-			return isMicrosoftCopilotAccountContext(context) ? context.kind === 'ready' : undefined;
-		} catch (error) {
-			this.logService.error('[sessions welcome] Could not resolve Copilot account readiness', error);
-			return false;
-		}
-	}
-
 	private _watchActiveState(signedIn: boolean): IDisposable {
 		const disposables = new DisposableStore();
 
-		disposables.add(this.chatEntitlementService.onDidChangeSentiment(() => {
-			if (this.chatEntitlementService.sentiment.copilotAccountReady === true && !this.dialogRef.value) {
-				this.onCompleted();
-			}
-			if (this.chatEntitlementService.sentiment.copilotAccountReady === false && !this.dialogRef.value) {
-				this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
-				void this._showWelcome(false);
-			}
-		}));
 		disposables.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
-			if (this.chatEntitlementService.sentiment.copilotAccountReady !== undefined) {
-				return;
-			}
 			const nowSignedIn = account !== null;
 			if (signedIn && !nowSignedIn) {
 				// Signed out: drop the completion marker and re-consult the gate.
@@ -369,9 +322,6 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private async _ensureAIFeaturesEnabled(): Promise<void> {
-		if (await this._copilotAccountReady() !== undefined) {
-			return;
-		}
 		if (this.configurationService.getValue<boolean>(AIDisabledConfig)) {
 			this.logService.info('[sessions welcome] AI features disabled, enabling');
 			await this.configurationService.updateValue(AIDisabledConfig, false);
@@ -449,14 +399,13 @@ class SessionsSetUpWidget extends Disposable {
 			this.dialogRef.value.add(overlay);
 
 			const account = await this.defaultAccountService.getDefaultAccount();
-			const accountReady = await this._copilotAccountReady();
 			if (this._store.isDisposed) {
 				return;
 			}
 			overlay.element.classList.add('sessions-loading-dismissed');
 			this.dialogRef.value.add(disposableTimeout(() => overlay.element.remove(), 200));
 
-			if (accountReady ?? !!account) {
+			if (account) {
 				const setupDone = await this.serviceWhenSetupDone();
 				if (this._store.isDisposed) {
 					return;
@@ -493,10 +442,6 @@ class SessionsSetUpWidget extends Disposable {
 
 		this.dialogRef.clear();
 		await this._ensureAIFeaturesEnabled();
-		if (this.chatEntitlementService.sentiment.copilotAccountReady === false) {
-			this.watcherRef.value = this._watchActiveState(false);
-			return;
-		}
 		this._watchSignInState();
 	}
 
@@ -560,7 +505,7 @@ class SessionsSetUpWidget extends Disposable {
 				continue;
 			}
 
-			if (success && this.chatEntitlementService.sentiment.copilotAccountReady !== false) {
+			if (success) {
 				this.logService.info('[sessions welcome] Sign-in completed successfully');
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				this.serviceMarkDone();

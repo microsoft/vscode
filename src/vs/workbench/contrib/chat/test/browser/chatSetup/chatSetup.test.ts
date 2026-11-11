@@ -641,7 +641,6 @@ suite('Chat setup strategy', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
-			new NullAgentHostService(),
 			new TestConfigurationService(),
 		);
 
@@ -741,7 +740,6 @@ suite('Chat setup dialog cancellation', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
-			new NullAgentHostService(),
 			new TestConfigurationService(),
 		);
 

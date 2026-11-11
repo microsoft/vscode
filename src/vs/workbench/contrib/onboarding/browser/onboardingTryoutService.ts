@@ -152,7 +152,6 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 				};
 			}
 			if (chatRequiresSetup({
-				copilotAccountReady: sentiment.copilotAccountReady,
 				completed: !!sentiment.completed,
 				disabled: !!sentiment.disabled,
 				untrusted: !!sentiment.untrusted,

@@ -5,11 +5,6 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
-import { copilotAccountContextKey } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -35,12 +30,11 @@ suite('OnboardingVariationA', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createOnboarding(configuration = new TestConfigurationService(), settingsUrl?: string, trusted = true, microsoftSignIn: IChatMicrosoftSignInProbeService = { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(false), notifySignInShown() { } }, host: IAgentHostService = new NullAgentHostService()) {
+	function createOnboarding(configuration = new TestConfigurationService(), settingsUrl?: string, trusted = true, microsoftSignIn: IChatMicrosoftSignInProbeService = { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(false), notifySignInShown() { } }) {
 		const container = mainWindow.document.body.appendChild($('div'));
 		store.add(toDisposable(() => container.remove()));
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IAgentHostService, host);
 		instantiationService.stub(ILayoutService, { activeContainer: container });
 		instantiationService.stub(IWorkbenchThemeService, { getColorTheme: () => ColorThemeData.createLoadedEmptyTheme('test', '') });
 		instantiationService.stub(IExtensionGalleryService, {});
@@ -67,14 +61,7 @@ suite('OnboardingVariationA', () => {
 	}
 
 	test('onboarding keeps all provider choices and waits for shared setup completion', async () => {
-		const host = new class extends NullAgentHostService {
-			override readonly authenticationPending = constObservable(true);
-			override get rootState() {
-				const root = { agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: { kind: 'incomplete', entraAccountId: 'account-a' } } } };
-				return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
-			}
-		}();
-		const f = createOnboarding(undefined, undefined, true, { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(true), notifySignInShown() { } }, host);
+		const f = createOnboarding(undefined, undefined, true, { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(true), notifySignInShown() { } });
 		f.executeCommand.resolves(false);
 		const microsoft = f.container.querySelector<HTMLButtonElement>('[aria-label="Continue with Microsoft"]');
 		assert.ok(microsoft);
@@ -91,24 +78,16 @@ suite('OnboardingVariationA', () => {
 		});
 	});
 
-	test('account mode refresh leaves the shared sign-in controls and dialog focus intact', () => {
+	test('Microsoft availability updates leave provider controls and dialog focus intact', () => {
 		const observed = [];
 		for (const externalFocus of [false, true]) {
-			const changed = store.add(new Emitter<RootState>());
-			const root: RootState = { agents: [], config: { schema: { type: 'object', properties: {} }, values: {} } };
-			const host = new class extends NullAgentHostService {
-				override readonly authenticationPending = constObservable(true);
-				override get rootState() {
-					return { value: root, verifiedValue: root, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
-				}
-			}();
-			const { container } = createOnboarding(undefined, undefined, true, undefined, host);
+			const offered = observableValue('offerMicrosoft', false);
+			const { container } = createOnboarding(undefined, undefined, true, { _serviceBrand: undefined, offerMicrosoftSignIn: offered, notifySignInShown() { } });
 			const externalButton = mainWindow.document.body.appendChild($('button'));
 			store.add(toDisposable(() => externalButton.remove()));
 			const original = container.querySelector<HTMLButtonElement>('[aria-label="Continue with GitHub"]')!;
 			(externalFocus ? externalButton : original).focus();
-			root.config!.values[copilotAccountContextKey] = { kind: 'signedOut' };
-			changed.fire(root);
+			offered.set(true, undefined);
 			observed.push({ externalFocus, correctFocus: mainWindow.document.activeElement === (externalFocus ? externalButton : original) });
 			if (!externalFocus) {
 				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));

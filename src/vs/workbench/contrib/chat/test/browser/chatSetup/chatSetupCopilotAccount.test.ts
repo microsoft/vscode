@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CopilotAccountContext, copilotAccountContextKey, ICopilotServiceChoice } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraEmuAudience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -27,65 +31,82 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IActivityService } from '../../../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, chatRequiresSetup, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
-import { AgentHostCopilotAccountService, IAgentHostCopilotAccountService } from '../../../browser/agentSessions/agentHost/agentHostCopilotAccountService.js';
-import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
-import { ChatSetupAnonymous, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
-import { observeCopilotAccountContext } from '../../../../../services/agentHost/common/copilotAccountContext.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { ChatSetup } from '../../../browser/chatSetup/chatSetupRunner.js';
-import { AgentHostCopilotM365EnabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
-import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { gitHubEnterpriseUrisSetting } from '../../../../../services/accounts/common/githubEnterprise.js';
-import { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
+import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
+import { ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
+import { ChatSetup } from '../../../browser/chatSetup/chatSetupRunner.js';
 
-suite('Microsoft Copilot setup UI', () => {
+suite('Microsoft Copilot resource setup UI', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const choices: readonly ICopilotServiceChoice[] = [
-		{ service: 'github', resource: 'https://github.example/copilot', selectionId: 'github-handle', host: 'https://github.example', accountName: 'emu-login', displayName: 'emu-login' },
-		{ service: 'm365', resource: 'https://m365.example/copilot', selectionId: 'm365-handle', host: 'https://m365.example', accountName: 'm365-login', displayName: 'm365-login' },
+	const discovery: ProtectedResourceMetadata = {
+		resource: copilotEntraDiscoveryResource, authorization_servers: ['https://login.microsoftonline.com/organizations'],
+		scopes_supported: ['User.Read'], required: false,
+	};
+	const services: readonly ProtectedResourceMetadata[] = [
+		{ resource: copilotEntraResources.get(copilotEntraEmuAudience)!, resource_name: 'GitHub Copilot', authorization_servers: discovery.authorization_servers, scopes_supported: [`${copilotEntraEmuAudience}/user_impersonation`], required: false },
+		{ resource: copilotEntraResources.get(copilotEntraM365Audience)!, resource_name: 'Microsoft 365 Copilot', authorization_servers: discovery.authorization_servers, scopes_supported: [`${copilotEntraM365Audience}/.default`], required: false },
 	];
-	const offered: CopilotAccountContext = { kind: 'choiceRequired', entraAccountId: 'account-a', discoveryId: 'discovery-a', choices };
-	const ready = (choice = choices[1]): CopilotAccountContext => ({ kind: 'ready', entraAccountId: 'account-a', discoveryId: 'discovery-a', derivedFrom: 'base-a', choice });
+	const unrelated: ProtectedResourceMetadata = { resource: 'https://other.example', scopes_supported: ['unrelated'] };
 
-	function fixture(initial: CopilotAccountContext = { kind: 'signedOut' }) {
+	function fixture() {
 		const changed = store.add(new Emitter<RootState>());
 		const exited = store.add(new Emitter<number>());
 		const available = observableValue('connectionAvailable', true);
-		const root: RootState = { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: initial } } };
-		const host = upcastPartial<IAgentHostService>({
-			authenticationPending: constObservable(true), onAgentHostStart: Event.None, onAgentHostExit: exited.event,
-			connectionAvailable: available,
-			rootState: upcastPartial<IAgentHostService['rootState']>({ value: root, onDidChange: changed.event }),
-		});
-		const setContext = (value: CopilotAccountContext | undefined) => {
-			root.config!.values[copilotAccountContextKey] = value;
+		let root: RootState | Error = { agents: [] };
+		const calls: string[] = [];
+		const deliveries: AuthenticateParams[] = [];
+		const account = { id: 'opaque-account', label: 'Microsoft Account' };
+		const state = {
+			offered: services, pick: undefined as number | undefined, sessions: [] as AuthenticationSession[],
+			credentialAccount: account, credentialScopes: undefined as readonly string[] | undefined,
+			silentCredential: true, needsServiceConsent: false, rejectResource: undefined as string | undefined,
+			signIn: undefined as Promise<void> | undefined, publication: undefined as Promise<void> | undefined,
+			activation: undefined as Promise<void> | undefined, retry: false,
+			picks: [] as (readonly IQuickPickItem[])[],
+		};
+		const publish = (resources: readonly ProtectedResourceMetadata[]) => {
+			root = { agents: [{ provider: 'different-advertised-copilot-id', displayName: 'Agent', description: '', models: [], protectedResources: [...resources] }] };
 			changed.fire(root);
 		};
-		const config = new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: true });
-		const context = store.add(new ChatEntitlementContext(store.add(new MockContextKeyService()), store.add(new TestStorageService()), new NullLogService(), config, NullTelemetryService));
-		context.setCopilotAccountContext(observeCopilotAccountContext(host, store.add(new DisposableStore())));
-		const session: AuthenticationSession = { id: 'microsoft-session', account: { id: 'account-a', label: 'Microsoft Account A' }, accessToken: 'synthetic', scopes: ['User.Read'] };
-		const calls: string[] = [];
+		publish([unrelated, discovery]);
+		const subscription = { get value() { return root; }, get verifiedValue() { return root instanceof Error ? undefined : root; }, onDidChange: changed.event, onDidError: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 		const signInStarted = new DeferredPromise<void>();
-		const state = {
-			sessions: [] as AuthenticationSession[], discovery: offered, pick: undefined as number | undefined, retry: false,
-			credential: session as AuthenticationSession | undefined,
-			signInResult: undefined as Promise<AuthenticationSession> | undefined,
-			authRequests: [] as { scopes: readonly string[] | undefined; accountId: string | undefined; clientId: string | undefined; server: string | undefined; interactive: boolean }[],
-			picks: [] as readonly IQuickPickItem[][],
-			discoveryError: undefined as Error | undefined,
-			errorDetails: [] as Array<Parameters<IDialogService['confirm']>[0]['detail']>,
-		};
+		const discoveryDelivered = new DeferredPromise<void>();
+		const activationStarted = new DeferredPromise<void>();
+		const host = upcastPartial<IAgentHostService>({
+			connectionAvailable: available, rootState: subscription, onAgentHostExit: exited.event,
+			startAgentHost() { },
+			authenticate: async request => {
+				deliveries.push(request);
+				if (state.rejectResource === request.resource) {
+					return { authenticated: false };
+				}
+				if (request.resource === discovery.resource) {
+					void discoveryDelivered.complete();
+					if (state.publication) {
+						void state.publication.then(() => publish([discovery, ...state.offered]));
+					} else {
+						publish([discovery, ...state.offered]);
+					}
+				} else {
+					void activationStarted.complete();
+					await state.activation;
+				}
+				return { authenticated: true };
+			},
+		});
+		const configuration = new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: true });
+		const context = store.add(new ChatEntitlementContext(store.add(new MockContextKeyService()), store.add(new TestStorageService()), new NullLogService(), configuration, NullTelemetryService));
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IAgentHostService, host);
-		instantiation.stub(IConfigurationService, config);
+		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(IProductService, { quality: 'stable' });
@@ -93,389 +114,253 @@ suite('Microsoft Copilot setup UI', () => {
 		instantiation.stub(IProgressService, { withProgress: async (_options, task) => task({ report() { } }) });
 		instantiation.stub(IExtensionsWorkbenchService, { local: [], install: async () => { calls.push('install'); return undefined!; } });
 		instantiation.stub(ILifecycleService, { willShutdown: false });
-		instantiation.stub(IDefaultAccountService, {});
-		instantiation.stub(IDialogService, { confirm: async options => { calls.push('retry'); state.errorDetails.push(options.detail); const confirmed = state.retry; state.retry = false; if (confirmed) { state.discovery = offered; } return { confirmed }; } });
-		instantiation.stub(IQuickInputService, {
-			pick: async items => {
-				const resolved = await items;
-				state.picks = [...state.picks, resolved.filter((item): item is typeof item & IQuickPickItem => item.type !== 'separator')];
-				calls.push('pick');
-				return state.pick === undefined ? undefined : resolved[state.pick];
+		instantiation.stub(IDefaultAccountService, { getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }) });
+		instantiation.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
+		instantiation.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => true });
+		instantiation.stub(IDialogService, {
+			confirm: async () => {
+				calls.push('retry');
+				const confirmed = state.retry;
+				state.retry = false;
+				state.rejectResource = undefined;
+				return { confirmed };
 			}
 		});
+		instantiation.stub(IQuickInputService, {
+			pick: async items => {
+				const choices = (await items).filter((item): item is typeof item & IQuickPickItem => item.type !== 'separator');
+				state.picks.push(choices);
+				return state.pick === undefined ? undefined : choices[state.pick];
+			}
+		});
+		const credential = (scopes: readonly string[]): AuthenticationSession => ({ id: 'microsoft-session', account: state.credentialAccount, scopes: state.credentialScopes ?? scopes, accessToken: 'synthetic', expiresAfter: 120000 });
 		instantiation.stub(IAuthenticationService, {
 			getSessions: async (provider, scopes, options) => {
 				assert.strictEqual(provider, 'microsoft');
-				calls.push(scopes ? 'credential' : 'sessions');
-				state.authRequests.push({ scopes: Array.isArray(scopes) ? scopes : undefined, accountId: options?.account?.id, clientId: options?.clientId, server: options?.authorizationServer?.toString(), interactive: false });
-				return scopes ? state.credential ? [state.credential] : [] : state.sessions;
+				if (!scopes) {
+					return state.sessions;
+				}
+				assert.deepStrictEqual([options?.clientId, options?.authorizationServer?.toString(), options?.account?.id], [copilotEntraClientId, discovery.authorization_servers![0], account.id]);
+				return state.silentCredential && Array.isArray(scopes) && (!state.needsServiceConsent || scopes.includes('User.Read')) ? [credential(scopes)] : [];
 			},
 			createSession: async (_provider, scopes, options) => {
 				calls.push('signIn');
-				state.authRequests.push({ scopes: Array.isArray(scopes) ? scopes : undefined, accountId: options?.account?.id, clientId: options?.clientId, server: options?.authorizationServer?.toString(), interactive: true });
-				await signInStarted.complete();
-				const result = await (state.signInResult ?? Promise.resolve(session));
-				state.sessions = [result];
-				return result;
+				assert.deepStrictEqual([options?.clientId, options?.authorizationServer?.toString()], [copilotEntraClientId, discovery.authorization_servers![0]]);
+				void signInStarted.complete();
+				await state.signIn;
+				assert.ok(Array.isArray(scopes));
+				const session = credential(scopes);
+				state.sessions = [session];
+				return session;
 			},
 		});
-		instantiation.stub(IAgentHostCopilotAccountService, {
-			discover: async (connection, sessionId) => {
-				assert.deepStrictEqual([connection === host, sessionId], [true, session.id]);
-				calls.push('discover');
-				setContext(state.discovery);
-				if (state.discoveryError) {
-					throw state.discoveryError;
-				}
-				return state.discovery;
-			},
-			select: async (connection, discoveryId, selectionId) => {
-				assert.deepStrictEqual([connection === host, discoveryId], [true, 'discovery-a']);
-				calls.push(`select:${selectionId}`);
-				const result = ready(choices.find(choice => choice.selectionId === selectionId));
-				setContext(result);
-				return result;
-			},
-		});
-		const requests = upcastPartial<ChatEntitlementRequests>({ signIn: async () => { calls.push('legacySignIn'); return {}; } });
+		const requests = upcastPartial<ChatEntitlementRequests>({ signIn: async () => { calls.push('legacy'); return {}; } });
 		const controller = store.add(instantiation.createInstance(ChatSetupController, context, requests));
-		return { context, controller, calls, state, setContext, config, session, host, available, exited, signInStarted, instantiation, requests };
+		const runner = instantiation.createInstance(ChatSetup, context, new Lazy(() => controller));
+		const run = (cancellationToken?: CancellationTokenSource['token']) => runner.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, disableChatViewReveal: true, cancellationToken });
+		return {
+			host, publish, available, state, calls, deliveries, context, configuration, controller, requests, instantiation, run, account, credential, signInStarted, discoveryDelivered, activationStarted,
+			disconnect: () => { available.set(false, undefined); exited.fire(0); }
+		};
 	}
 
-	test('provider choices use real legacy authentication or explicit Microsoft discovery, not the availability flag', async () => {
-		const observed = [];
-		for (const enabled of [false, true]) {
-			for (const provider of ['github', 'github-enterprise', 'google', 'apple', 'microsoft']) {
-				const f = fixture({ kind: 'legacy' });
-				await f.config.setUserConfiguration(AgentHostCopilotM365EnabledSettingId, enabled);
-				if (!enabled) {
-					f.setContext(undefined);
-				}
-				const endpoint = provider === 'github-enterprise' ? 'https://contoso.ghe.com' : 'https://github.com';
-				await f.config.setUserConfiguration(gitHubEnterpriseUrisSetting, [endpoint]);
-				const account: IDefaultAccount = {
-					accountName: 'chosen', sessionId: 'chosen-session', enterprise: provider === 'github-enterprise',
-					authenticationProvider: { id: provider === 'github-enterprise' ? provider : 'github', name: 'GitHub', enterprise: provider === 'github-enterprise' },
-				};
-				const credential: AuthenticationSession = { id: account.sessionId, account: { id: 'opaque-chosen', label: account.accountName }, accessToken: 'selected-token', scopes: ['read:user', 'user:email'] };
-				const legacyCalls: string[] = [];
-				const deliveries: AuthenticateParams[] = [];
-				f.instantiation.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
-				f.instantiation.stub(IDefaultAccountService, { currentDefaultAccount: account, resolveGitHubUrl: () => endpoint });
-				f.requests.signIn = async options => {
-					legacyCalls.push(options?.useSocialProvider ?? provider);
-					return { defaultAccount: account, entitlements: { entitlement: ChatEntitlement.Pro } };
-				};
-				const authentication = f.instantiation.get(IAuthenticationService);
-				const getSessions = authentication.getSessions;
-				authentication.getSessions = async (id, scopes, options, activate) => {
-					if (id === 'microsoft') {
-						return getSessions(id, scopes, options, activate);
-					}
-					assert.deepStrictEqual([id, options?.authorizationServer?.toString()], [account.authenticationProvider.id, `${endpoint}/login/oauth`]);
-					return [credential];
-				};
-				f.instantiation.stub(IChatEntitlementService, { sentiment: {} });
-				const service = store.add(f.instantiation.createInstance(AgentHostCopilotAccountService));
-				f.instantiation.get(IAgentHostCopilotAccountService).selectLegacy = (connection, request) => service.selectLegacy(connection, request);
-				f.host.authenticate = async request => {
-					deliveries.push(request);
-					f.setContext({ kind: 'legacy' });
-					return { authenticated: true };
-				};
-				f.state.discovery = ready();
-				const controller = store.add(f.instantiation.createInstance(ChatSetupController, f.context, f.requests));
-				const result = await controller.setupWithProvider({ useSocialProvider: provider === 'github' || provider === 'github-enterprise' ? undefined : provider, useEnterpriseProvider: provider === 'github-enterprise' });
-				observed.push({
-					enabled, provider, result, legacyCalls: [...legacyCalls], microsoftDiscovery: f.calls.includes('discover'), deliveries: deliveries.map(request => ({
-						resource: request.resource, scopes: request.scopes, token: request.token, meta: request._meta,
-					}))
-				});
-				if (enabled && provider === 'github') {
-					f.setContext(ready());
-					f.host.authenticate = async () => ({ authenticated: false });
-					await assert.rejects(controller.setupWithProvider({ useEnterpriseProvider: false }), /did not accept the selected GitHub account/);
-					assert.strictEqual(f.calls.filter(call => call === 'install').length, 1, 'A rejected handoff must not install or complete against the old Microsoft context');
-				}
-			}
-		}
-		assert.deepStrictEqual(observed, [false, true].flatMap(enabled => ['github', 'github-enterprise', 'google', 'apple', 'microsoft'].map(provider => ({
-			enabled, provider, result: true,
-			legacyCalls: enabled && provider === 'microsoft' ? [] : [provider],
-			microsoftDiscovery: enabled && provider === 'microsoft',
-			deliveries: !enabled || provider === 'microsoft' ? [] : [{
-				resource: provider === 'github-enterprise' ? 'https://api.contoso.ghe.com' : 'https://api.github.com',
-				scopes: ['read:user', 'user:email'], token: 'selected-token',
-				meta: {
-					'vscode.authentication.account': { providerId: provider === 'github-enterprise' ? provider : 'github', accountId: 'opaque-chosen' },
-					'vscode.copilot.accountOperation': { kind: 'useLegacy', context: { kind: 'legacy' } },
-				},
-			}],
-		}))));
-	});
-
-	test('legacy readiness keeps normal entitlement requirements and cannot bypass a failed Microsoft choice', async () => {
-		const f = fixture({ kind: 'legacy' });
-		const observed = [];
-		for (const state of [{ kind: 'legacy' } as const, offered, { kind: 'error', stage: 'discovery', entraAccountId: 'account-a' } as const]) {
-			f.setContext(state);
-			observed.push({
-				ready: f.context.state.copilotAccountReady, requiresSetup: chatRequiresSetup({
-					completed: false, copilotAccountReady: f.context.state.copilotAccountReady, entitlement: ChatEntitlement.Pro,
-					disabled: false, untrusted: false, anonymous: true, hasByokModels: true,
-				})
+	for (const pick of [0, 1]) {
+		test(`ordinary discovery authentication offers two resources and authenticates only choice ${pick}`, async () => {
+			const f = fixture();
+			f.state.pick = pick;
+			const result = await f.run();
+			assert.deepStrictEqual({
+				success: result.success, completed: f.context.state.completed, calls: f.calls,
+				choices: f.state.picks.map(items => items.map(item => item.label)), delivered: f.deliveries,
+			}, {
+				success: true, completed: true, calls: ['signIn', 'install'], choices: [['GitHub Copilot', 'Microsoft 365 Copilot']],
+				delivered: [discovery, services[pick]].map(resource => ({
+					resource: resource.resource, scopes: resource.scopes_supported, token: 'synthetic', expiresIn: 120,
+					_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: f.account.id, label: f.account.label } },
+				})),
 			});
-		}
-		assert.deepStrictEqual(observed, [
-			{ ready: undefined, requiresSetup: false }, { ready: false, requiresSetup: true }, { ready: false, requiresSetup: true },
-		]);
-	});
-
-	test('disconnecting a host with a retained ready root clears readiness until reconnect', () => {
-		const f = fixture(ready());
-		const context = observeCopilotAccountContext(f.host, store.add(new DisposableStore()));
-		const observed: (string | undefined)[] = [];
-		store.add(autorun(reader => {
-			const value = context.read(reader);
-			observed.push(typeof value === 'object' && !(value instanceof Error) ? value.kind : value?.toString());
-		}));
-		f.available.set(false, undefined);
-		f.exited.fire(0);
-		f.setContext(ready());
-		f.available.set(true, undefined);
-		assert.deepStrictEqual(observed, ['ready', 'loading', 'ready']);
-	});
-
-	test('loading and failed readiness never use the legacy BYOK exemption', async () => {
-		const f = fixture(ready());
-		await f.context.update({ completed: true });
-		const states = [constObservable('loading' as const), constObservable(new Error('disconnected')), constObservable(undefined)];
-		const observed = states.map(context => {
-			f.context.setCopilotAccountContext(context);
-			return {
-				ready: f.context.state.copilotAccountReady,
-				required: chatRequiresSetup({
-					completed: !!f.context.state.completed, copilotAccountReady: f.context.state.copilotAccountReady,
-					entitlement: ChatEntitlement.Pro, disabled: false, untrusted: false, anonymous: true, hasByokModels: true,
-				}),
-			};
 		});
-		assert.deepStrictEqual(observed, [{ ready: false, required: true }, { ready: false, required: true }, { ready: undefined, required: false }]);
-	});
+	}
 
-	test('a cached Microsoft identity obtains Copilot client consent before discovery', async () => {
-		const f = fixture(offered);
-		f.state.sessions = [{ ...f.session, accessToken: 'account-only', scopes: [] }];
-		f.state.credential = undefined;
-		await f.controller.setup();
-		assert.deepStrictEqual({
-			calls: f.calls,
-			credentialRequests: f.state.authRequests.filter(request => request.scopes),
-		}, {
-			calls: ['sessions', 'credential', 'signIn', 'discover', 'pick'],
-			credentialRequests: [false, true].map(interactive => ({
-				scopes: ['User.Read'], accountId: 'account-a', clientId: copilotEntraClientId, server: copilotEntraAuthorizationServer, interactive,
-			})),
-		});
-	});
-
-	test('interactive consent cannot substitute another Microsoft account', async () => {
-		const f = fixture(offered);
-		f.state.sessions = [f.session];
-		f.state.credential = undefined;
-		f.state.signInResult = Promise.resolve({ ...f.session, account: { id: 'other', label: f.session.account.label } });
-		await assert.rejects(f.controller.setup(), /intended Microsoft account/);
-		assert.deepStrictEqual(f.calls, ['sessions', 'credential', 'signIn', 'retry']);
-	});
-
-	test('canceling pending Microsoft sign-in returns before the provider and ignores its late result', async () => {
+	test('waits for resource publication after the accepted discovery response', async () => {
 		const f = fixture();
-		const pending = new DeferredPromise<AuthenticationSession>();
-		f.state.signInResult = pending.p;
+		const publication = new DeferredPromise<void>();
+		f.state.publication = publication.p;
+		f.state.offered = [services[1]];
+		const pending = f.run();
+		await f.discoveryDelivered.p;
+		const before = { choices: f.state.picks.length, delivered: f.deliveries.length, completed: f.context.state.completed };
+		await publication.complete();
+		const result = await pending;
+		assert.deepStrictEqual({ before, success: result.success, choices: f.state.picks.length, resources: f.deliveries.map(request => request.resource) }, {
+			before: { choices: 0, delivered: 1, completed: undefined }, success: true, choices: 0, resources: [discovery.resource, services[1].resource],
+		});
+	});
+
+	test('chooser cancellation retains sign-in and resume offers both services again', async () => {
+		const f = fixture();
+		const first = await f.run();
+		const canceled = { result: first.success, resources: f.deliveries.map(request => request.resource), completed: f.context.state.completed };
+		f.state.pick = 1;
+		const second = await f.run();
+		assert.deepStrictEqual({ canceled, resumed: second.success, choices: f.state.picks.length, signIns: f.calls.filter(call => call === 'signIn').length }, {
+			canceled: { result: undefined, resources: [discovery.resource], completed: undefined }, resumed: true, choices: 2, signIns: 1,
+		});
+	});
+
+	for (const rejected of [discovery, services[1]]) {
+		test(`rejected authentication for ${rejected.resource} cannot complete setup`, async () => {
+			const f = fixture();
+			f.state.offered = [services[1]];
+			f.state.rejectResource = rejected.resource;
+			const result = await f.run();
+			assert.deepStrictEqual({ success: result.success, handled: result.errorAlreadyHandled, calls: f.calls, completed: f.context.state.completed }, {
+				success: false, handled: true, calls: ['signIn', 'retry'], completed: undefined,
+			});
+		});
+	}
+
+	test('retry reuses Microsoft sign-in after a discovery failure', async () => {
+		const f = fixture();
+		f.state.offered = [services[1]];
+		f.state.rejectResource = discovery.resource;
+		f.state.retry = true;
+		assert.deepStrictEqual({ result: (await f.run()).success, calls: f.calls }, { result: true, calls: ['signIn', 'retry', 'install'] });
+	});
+
+	test('concurrent callers share the same handled authentication failure', async () => {
+		const f = fixture();
+		f.state.rejectResource = discovery.resource;
+		const results = await Promise.all([f.run(), f.run()]);
+		assert.deepStrictEqual({ sameResult: results[0] === results[1], success: results[0].success, handled: results[0].errorAlreadyHandled, calls: f.calls, delivered: f.deliveries.length }, {
+			sameResult: true, success: false, handled: true, calls: ['signIn', 'retry'], delivered: 1,
+		});
+	});
+
+	test('a cold host is started before waiting for connection availability', async () => {
+		const f = fixture();
+		f.state.offered = [services[1]];
+		f.available.set(false, undefined);
+		f.host.startAgentHost = () => {
+			f.calls.push('start');
+			f.available.set(true, undefined);
+		};
+		assert.deepStrictEqual({ success: (await f.run()).success, calls: f.calls }, { success: true, calls: ['start', 'signIn', 'install'] });
+	});
+
+	test('cancelling native sign-in releases the shared runner and ignores late credentials', async () => {
+		const f = fixture();
+		const signIn = new DeferredPromise<void>();
+		f.state.signIn = signIn.p;
 		const cancellation = store.add(new CancellationTokenSource());
-		f.instantiation.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
-		f.instantiation.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => true });
-		f.instantiation.stub(IDefaultAccountService, { getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }) });
-		const runner = f.instantiation.createInstance(ChatSetup, f.context, new Lazy(() => f.controller));
-		const options = { setupStrategy: ChatSetupStrategy.DefaultSetup, disableChatViewReveal: true };
-		const setup = runner.run({ ...options, cancellationToken: cancellation.token });
+		const pending = f.run(cancellation.token);
 		await f.signInStarted.p;
 		cancellation.cancel();
-		const outcome = await raceTimeout(setup.then(result => ({ success: result.success })), 100);
-		await pending.complete(f.session);
-		await setup;
-		const beforeResume = [...f.calls];
-		await runner.run(options);
-		assert.deepStrictEqual({ outcome, beforeResume, calls: f.calls, sessions: f.state.sessions.map(session => session.id) }, {
-			outcome: { success: undefined }, beforeResume: ['sessions', 'signIn'],
-			calls: ['sessions', 'signIn', 'sessions', 'credential', 'discover', 'pick'], sessions: [f.session.id],
+		const canceled = await raceTimeout(pending, 100);
+		await signIn.complete();
+		await pending;
+		const deliveredBeforeResume = f.deliveries.length;
+		f.state.offered = [services[1]];
+		assert.deepStrictEqual({ canceled: canceled?.success, returned: canceled !== undefined, deliveredBeforeResume, resumed: (await f.run()).success, signIns: f.calls.filter(call => call === 'signIn').length }, {
+			canceled: undefined, returned: true, deliveredBeforeResume: 0, resumed: true, signIns: 1,
 		});
 	});
 
-	test('unrelated host updates do not invalidate the account presentation', () => {
-		const f = fixture(ready());
-		const context = observeCopilotAccountContext(f.host, store.add(new DisposableStore()));
-		const updates: (string | undefined)[] = [];
-		store.add(autorun(reader => {
-			const value = context.read(reader);
-			updates.push(typeof value === 'object' && !(value instanceof Error) ? value.kind : undefined);
-		}));
-		f.setContext(ready());
-		f.setContext(ready());
-		f.setContext(offered);
-		assert.deepStrictEqual(updates, ['ready', 'choiceRequired']);
-	});
-
-	test('observes account mode after a previously unavailable host connects', () => {
-		const started = store.add(new Emitter<void>());
-		let connected = false;
-		const root: RootState = { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: ready() } } };
-		const host = upcastPartial<IAgentHostService>({
-			get authenticationPending() { return constObservable(connected); },
-			initializeResult: constObservable(undefined),
-			onAgentHostStart: started.event,
-			onAgentHostExit: Event.None,
-			get rootState() {
-				assert.ok(connected, 'Do not read an unsupported host subscription');
-				return upcastPartial<IAgentHostService['rootState']>({ value: root, onDidChange: Event.None });
-			},
-		});
-		const context = observeCopilotAccountContext(host, store.add(new DisposableStore()));
-		const updates: (string | undefined)[] = [];
-		store.add(autorun(reader => {
-			const value = context.read(reader);
-			updates.push(typeof value === 'object' && !(value instanceof Error) ? value.kind : undefined);
-		}));
-		connected = true;
-		started.fire();
-		assert.deepStrictEqual(updates, [undefined, 'ready']);
-	});
-
-	test('cancellation retains Microsoft sign-in and resume reoffers both services', async () => {
+	test('cancelled publication wait cannot continue from a later resource update', async () => {
 		const f = fixture();
-		const canceled = await f.controller.setupWithProvider({ useSocialProvider: 'microsoft' });
-		const afterCancel = { result: canceled, completed: f.context.state.completed, calls: [...f.calls] };
-		f.state.pick = 1;
-		const resumed = await f.controller.setup();
-		assert.deepStrictEqual({
-			afterCancel, resumed, sessions: f.state.sessions.map(session => session.id),
-			signIns: f.calls.filter(call => call === 'signIn').length,
-			selections: f.calls.filter(call => call.startsWith('select:')),
-			labels: f.state.picks.map(items => items.map(item => item.label)),
-		}, {
-			afterCancel: { result: undefined, completed: false, calls: ['sessions', 'signIn', 'discover', 'pick'] },
-			resumed: true, sessions: ['microsoft-session'], signIns: 1, selections: ['select:m365-handle'],
-			labels: [['GitHub Copilot', 'Microsoft 365 Copilot'], ['GitHub Copilot', 'Microsoft 365 Copilot']],
-		});
-	});
-
-	for (const index of [0, 1]) {
-		test(`explicitly activates only service ${choices[index].service}`, async () => {
-			const f = fixture();
-			f.state.pick = index;
-			assert.deepStrictEqual({ result: await f.controller.setup(), selected: f.calls.filter(call => call.startsWith('select:')) },
-				{ result: true, selected: [`select:${choices[index].selectionId}`] });
-		});
-	}
-
-	test('uses authoritative ready completion without another chooser', async () => {
-		const f = fixture();
-		f.state.discovery = ready();
-		assert.deepStrictEqual({ result: await f.controller.setup(), calls: f.calls }, {
-			result: true, calls: ['sessions', 'signIn', 'discover', 'install'],
-		});
-	});
-
-	test('distinguishes confirmed discovery failure from Microsoft sign-in failure', async () => {
-		const f = fixture();
-		f.state.discovery = { kind: 'error', stage: 'discovery', entraAccountId: 'account-a' };
-		f.state.discoveryError = new Error('Authentication failed for resource: https://graph.microsoft.com');
-		await assert.rejects(f.controller.setup(), /Authentication failed for resource/);
-		assert.deepStrictEqual({
-			details: f.state.errorDetails,
-			sessions: f.state.sessions.map(session => session.id),
-			choices: f.state.picks,
-		}, {
-			details: ['Microsoft sign-in succeeded, but Copilot service discovery failed. Your Microsoft sign-in has been retained. Retry discovery, or check the Agent Host log for details.'],
-			sessions: ['microsoft-session'],
-			choices: [],
-		});
-	});
-
-	test('reuses one Microsoft account with multiple cached resource sessions', async () => {
-		const f = fixture();
-		f.state.sessions = [f.session, { ...f.session, id: 'resource-session', scopes: ['service/.default'] }];
-		await f.controller.setup();
-		assert.deepStrictEqual(f.calls, ['sessions', 'credential', 'discover', 'pick']);
-	});
-
-	test('does not replace a missing intended account with another signed-in account', async () => {
-		const f = fixture(offered);
-		f.state.sessions = [{ ...f.session, account: { id: 'other', label: 'Other account' } }];
-		await assert.rejects(f.controller.setup(), /intended account/);
-		assert.deepStrictEqual(f.calls, ['sessions', 'retry']);
-	});
-
-	test('requested opt-in is not startup-effective account mode', async () => {
-		const f = fixture();
-		f.setContext(undefined);
-		await f.config.setUserConfiguration('chat.agentHost.copilot.m365.enabled', true);
-		assert.deepStrictEqual({ result: await f.controller.setup({ forceAnonymous: ChatSetupAnonymous.EnabledWithDialog }), calls: f.calls },
-			{ result: true, calls: ['install'] });
-		await assert.rejects(f.controller.setupWithProvider({ useSocialProvider: 'microsoft' }), /not available on the current agent host/);
-		assert.deepStrictEqual(f.calls, ['install']);
-	});
-
-	for (const discovery of [
-		{ kind: 'incomplete', entraAccountId: 'account-a' } as const,
-		{ kind: 'error', stage: 'discovery', entraAccountId: 'account-a' } as const,
-	]) {
-		test(`${discovery.kind} retries discovery with the same sign-in, never as sole/no access`, async () => {
-			const f = fixture();
-			f.state.discovery = discovery;
-			f.state.retry = true;
-			f.state.pick = 0;
-			const result = await f.controller.setup();
-			assert.deepStrictEqual({ result, calls: f.calls }, {
-				result: true, calls: ['sessions', 'signIn', 'discover', 'retry', 'sessions', 'credential', 'discover', 'pick', 'select:github-handle', 'install'],
-			});
-		});
-	}
-
-	test('direct provider setup respects AI hiding and administrator agent disablement', async () => {
-		for (const setting of ['chat.disableAIFeatures', 'chat.agent.enabled']) {
-			const f = fixture();
-			await f.config.setUserConfiguration(setting, setting === 'chat.disableAIFeatures');
-			await assert.rejects(f.controller.setupWithProvider({ useSocialProvider: 'microsoft' }));
-			assert.deepStrictEqual(f.calls, ['retry']);
-		}
-	});
-
-	test('authentication and stored completion cannot satisfy watchers before host readiness', async () => {
-		const f = fixture();
-		await f.context.update({ completed: true });
-		const observations = [];
-		for (const state of [offered, { kind: 'incomplete', entraAccountId: 'account-a' } as const, ready(), { kind: 'signedOut' } as const]) {
-			f.setContext(state);
-			observations.push({
-				kind: state.kind, completed: f.context.state.completed, requiresSetup: chatRequiresSetup({
-					completed: !!f.context.state.completed, copilotAccountReady: f.context.state.copilotAccountReady,
-					entitlement: ChatEntitlement.Pro, disabled: false, untrusted: false, anonymous: true, hasByokModels: true,
-				})
-			});
-		}
-		assert.deepStrictEqual(observations, [
-			{ kind: 'choiceRequired', completed: false, requiresSetup: true },
-			{ kind: 'incomplete', completed: false, requiresSetup: true },
-			{ kind: 'ready', completed: true, requiresSetup: false },
-			{ kind: 'signedOut', completed: false, requiresSetup: true },
-		]);
-	});
-
-	test('pre-canceled setup never acquires credentials or starts discovery', async () => {
-		const f = fixture();
+		const publication = new DeferredPromise<void>();
+		f.state.publication = publication.p;
 		const cancellation = store.add(new CancellationTokenSource());
+		const pending = f.run(cancellation.token);
+		await f.discoveryDelivered.p;
 		cancellation.cancel();
-		assert.deepStrictEqual({ result: await f.controller.setup({ cancellationToken: cancellation.token }), calls: f.calls }, { result: undefined, calls: [] });
+		const result = await pending;
+		await publication.complete();
+		assert.deepStrictEqual({ result: result.success, choices: f.state.picks.length, resources: f.deliveries.map(request => request.resource), installed: f.calls.includes('install') }, {
+			result: undefined, choices: 0, resources: [discovery.resource], installed: false,
+		});
+	});
+
+	test('a target withdrawn during consent is not authenticated', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[1]];
+		const consent = new DeferredPromise<void>();
+		f.state.needsServiceConsent = true;
+		f.state.signIn = consent.p;
+		const pending = f.run();
+		await f.signInStarted.p;
+		f.publish([discovery]);
+		await consent.complete();
+		const result = await pending;
+		assert.deepStrictEqual({ success: result.success, deliveredTargets: f.deliveries.filter(request => request.resource !== discovery.resource).length, installed: f.calls.includes('install') }, {
+			success: false, deliveredTargets: 0, installed: false,
+		});
+	});
+
+	test('disconnection with a retained resource snapshot cannot install or complete setup', async () => {
+		const f = fixture();
+		f.state.offered = [services[1]];
+		const activation = new DeferredPromise<void>();
+		f.state.activation = activation.p;
+		const pending = f.run();
+		await f.activationStarted.p;
+		f.disconnect();
+		await activation.complete();
+		const result = await pending;
+		assert.deepStrictEqual({ success: result.success, installed: f.calls.includes('install'), completed: f.context.state.completed }, {
+			success: false, installed: false, completed: undefined,
+		});
+	});
+
+	test('Microsoft credentials must match the selected identity', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.credentialAccount = { ...f.account, id: 'different-account' };
+		f.state.silentCredential = false;
+		const result = await f.run();
+		assert.deepStrictEqual({ success: result.success, calls: f.calls, delivered: f.deliveries }, { success: false, calls: ['signIn', 'retry'], delivered: [] });
+	});
+
+	test('an account-only session cannot substitute for Copilot-client consent', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential([])];
+		f.state.silentCredential = false;
+		f.state.credentialScopes = [];
+		const result = await f.run();
+		assert.deepStrictEqual({ success: result.success, calls: f.calls, delivered: f.deliveries }, { success: false, calls: ['signIn', 'retry'], delivered: [] });
+	});
+
+	test('unsupported startup gate and disabled AI never fabricate successful Microsoft setup', async () => {
+		const outcomes = [];
+		for (const condition of ['unsupported', 'hidden', 'admin'] as const) {
+			const f = fixture();
+			if (condition === 'unsupported') {
+				f.publish([]);
+			} else {
+				await f.configuration.setUserConfiguration(condition === 'hidden' ? 'chat.disableAIFeatures' : 'chat.agent.enabled', condition === 'hidden');
+			}
+			const result = await f.run();
+			outcomes.push({ condition, success: result.success, calls: f.calls, delivered: f.deliveries.length });
+		}
+		assert.deepStrictEqual(outcomes, ['unsupported', 'hidden', 'admin'].map(condition => ({ condition, success: false, calls: ['retry'], delivered: 0 })));
+	});
+
+	test('GitHub and GHE follow the ordinary sign-in path with the gate on or off', async () => {
+		const observed = [];
+		for (const enabled of [false, true]) {
+			for (const provider of ['github', 'github-enterprise', 'google', 'apple', ...(!enabled ? ['microsoft'] : [])]) {
+				const f = fixture();
+				await f.configuration.setUserConfiguration(AgentHostCopilotM365EnabledSettingId, enabled);
+				await f.configuration.setUserConfiguration(gitHubEnterpriseUrisSetting, ['https://contoso.ghe.com']);
+				const account: IDefaultAccount = { sessionId: 'chosen', accountName: 'GitHub', authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false }, enterprise: false };
+				f.requests.signIn = async () => { f.calls.push(provider); return { defaultAccount: account, entitlements: { entitlement: ChatEntitlement.Pro } }; };
+				const result = await f.controller.setupWithProvider({ useEnterpriseProvider: provider === 'github-enterprise', useSocialProvider: ['github', 'github-enterprise'].includes(provider) ? undefined : provider });
+				observed.push({ enabled, provider, result, calls: f.calls, delivered: f.deliveries });
+			}
+		}
+		assert.deepStrictEqual(observed, [false, true].flatMap(enabled => ['github', 'github-enterprise', 'google', 'apple', ...(!enabled ? ['microsoft'] : [])].map(provider => ({
+			enabled, provider, result: true, calls: [provider, 'install'], delivered: [],
+		}))));
 	});
 });

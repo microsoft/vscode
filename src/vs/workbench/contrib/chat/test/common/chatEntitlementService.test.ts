@@ -9,15 +9,12 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IContextKeyChangeEvent } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getChatEntitlement, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind, SIMULATABLE_CHAT_ENTITLEMENTS, simulateEntitlementsData } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -783,19 +780,6 @@ suite('ChatEntitlementService', () => {
 
 suite('ChatEntitlementContext', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('initializes early entitlement state without constructing an agent host', () => {
-		const instantiation = store.add(new TestInstantiationService(undefined, true));
-		instantiation.stub(IContextKeyService, store.add(new MockContextKeyService()));
-		instantiation.stub(IStorageService, store.add(new TestStorageService()));
-		instantiation.stub(ILogService, new NullLogService());
-		instantiation.stub(IConfigurationService, new TestConfigurationService());
-		instantiation.stub(ITelemetryService, NullTelemetryService);
-		const context = store.add(instantiation.createInstance(ChatEntitlementContext));
-		assert.deepStrictEqual({ entitlement: context.state.entitlement, copilotAccountReady: context.state.copilotAccountReady }, {
-			entitlement: ChatEntitlement.Unknown, copilotAccountReady: undefined,
-		});
-	});
 
 	async function resolveInternal(organisations: string[], isStaff: boolean | undefined): Promise<boolean | undefined> {
 		const contextKeyService = store.add(new MockContextKeyService());

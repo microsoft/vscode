@@ -751,7 +751,7 @@ async function forwardAuthenticationToken(
 	return true;
 }
 
-function toAuthenticateRequest(
+export function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
