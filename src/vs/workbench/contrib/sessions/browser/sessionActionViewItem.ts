@@ -38,6 +38,7 @@ export function getSessionArchiveActionViewItemOptions(options: IActionViewItemO
 export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 
 	private readonly _beforeActionAnimationOptions: IMenuEntryActionViewItemOptions | undefined;
+	private readonly _animateBeforeAction: boolean;
 
 	constructor(
 		action: MenuItemAction,
@@ -51,11 +52,13 @@ export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 		@IAccessibilityService private readonly _accessibility: IAccessibilityService,
 	) {
 		const animateBeforeAction = action.id === ARCHIVE_SESSION_COMMAND_ID;
-		const baseOptions = animateBeforeAction && options
-			? Object.create(options, { onClickAnimation: { value: undefined } }) as IMenuEntryActionViewItemOptions
-			: options;
-		super(action, baseOptions, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibility);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibility);
+		this._animateBeforeAction = animateBeforeAction;
 		this._beforeActionAnimationOptions = animateBeforeAction ? options : undefined;
+	}
+
+	protected override get onClickAnimation(): ClickAnimation | undefined {
+		return this._animateBeforeAction ? undefined : super.onClickAnimation;
 	}
 
 	override onClick(event: MouseEvent): Promise<void> {
