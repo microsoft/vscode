@@ -90,12 +90,24 @@ suite('aiCustomizationManagementEditor', () => {
 		labels.push([input.getName(), input.getDescription()]);
 		input.setTargetLabels('Copilot', 'vscode');
 		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', 'vscode', 'Cloud');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', undefined, 'hawks-mac-mini');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('', 'vscode');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('', '');
+		labels.push([input.getName(), input.getDescription()]);
 		input.setTargetLabels(undefined);
 		labels.push([input.getName(), input.getDescription()]);
 		assert.deepStrictEqual(labels, [
 			['Customizations', undefined],
 			['Customizations', '(Copilot)'],
 			['Customizations', '(Copilot · vscode)'],
+			['Customizations', '(Copilot · vscode · Cloud)'],
+			['Customizations', '(Copilot · hawks-mac-mini)'],
+			['Customizations', '(vscode)'],
+			['Customizations', undefined],
 			['Customizations', undefined],
 		]);
 	});
