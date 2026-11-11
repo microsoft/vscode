@@ -389,7 +389,6 @@ suite('Chat window', () => {
 		const queued = editor();
 		const last = editor();
 		const gate = new DeferredPromise<void>();
-		// As a group opens an editor: it is in the group right away, before its pane shows; the others of a batch open after the first one's pane
 		const openEditor = async (input: EditorInput, options?: { inactive?: boolean }) => {
 			if (!group.contains(input)) {
 				group.open(input, !options?.inactive);
@@ -412,11 +411,12 @@ suite('Chat window', () => {
 		gate.complete();
 		await restoring;
 
-		assert.deepStrictEqual({ whileRestoring, afterUserOpen, afterRestore: a.window.layoutMode.get(), order: group.testEditors.map(input => input === first ? 'first' : input === queued ? 'queued' : 'last') }, {
+		assert.deepStrictEqual({ whileRestoring, afterUserOpen, afterRestore: a.window.layoutMode.get(), order: group.testEditors.map(input => input === first ? 'first' : input === queued ? 'queued' : 'last'), active: group.activeEditor === queued }, {
 			whileRestoring: ChatWindowLayoutMode.ChatOnly,
 			afterUserOpen: ChatWindowLayoutMode.SideBySide,
 			afterRestore: ChatWindowLayoutMode.SideBySide,
 			order: ['first', 'queued', 'last'],
+			active: true,
 		});
 	});
 
