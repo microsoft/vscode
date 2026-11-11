@@ -14,7 +14,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from '../../../common/theme.js';
 import { distinct, coalesce } from '../../../../base/common/arrays.js';
-import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions } from './editor.js';
+import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions, GroupTransferKind } from './editor.js';
 import { EditorGroupView } from './editorGroupView.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -36,6 +36,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { getGroupTransferVeto } from './editorTransferVeto.js';
 
 /**
  * The width (in pixels) of each visible editor card border when the
@@ -55,6 +56,33 @@ export interface IEditorPartUIState {
 interface IEditorPartMemento {
 	'editorpart.state'?: IEditorPartUIState;
 	'editorpart.centeredview'?: CenteredViewState;
+}
+
+/**
+ * Why groups merge: a transfer the user asks for is checked before anything moves, so that all editors go into
+ * another part or none (see `EditorPart.vetoGroupTransfer`). Closing a part merges back what can go, as it always
+ * did: each editor is asked as it moves, and one that cannot go stays.
+ */
+/**
+ * The group beside which `receiver.addGroup(location, …)` adds a group: each part that is handed the location resolves it
+ * (see `EditorPart.addGroup`), until one adds the group in its own grid.
+ */
+function resolveAddGroupLocation(receiver: IEditorGroupsView, location: IEditorGroupView): IEditorGroupView {
+	for (let hops = 0; hops < 8; hops++) {
+		const resolved = receiver.getAddGroupLocation(location);
+		if (resolved.groupsView === receiver) {
+			return resolved;
+		}
+		receiver = resolved.groupsView;
+		location = resolved;
+	}
+
+	return location;
+}
+
+const enum GroupMergeReason {
+	Transfer,
+	Close
 }
 
 class GridWidgetView<T extends IView> implements IView {
@@ -314,6 +342,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
+
+	/**
+	 * Whether the part is owned by someone else than the editor parts service:
+	 * it is not restored, not part of working sets and does not affect the
+	 * labels of other parts. Its owner is responsible for its lifecycle.
+	 */
+	get isTransient(): boolean { return false; }
 
 	private _willRestoreState = false;
 	get willRestoreState(): boolean { return this._willRestoreState; }
@@ -616,8 +651,28 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return false;
 	}
 
+	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView {
+		return location;
+	}
+
+	getTransferTarget(kind: GroupTransferKind, source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView {
+		const sourceView = this.assertGroupView(source);
+		switch (kind) {
+			case GroupTransferKind.MoveGroup:
+				// Within a part, the group moves in its grid; into another part, that part adds it (see `moveGroup`)
+				return sourceView.groupsView === location.groupsView ? location : resolveAddGroupLocation(location.groupsView, location);
+			case GroupTransferKind.CopyGroup:
+				// The part of the group adds its copy (see `copyGroup`)
+				return resolveAddGroupLocation(sourceView.groupsView, location);
+			case GroupTransferKind.AddGroup:
+				return resolveAddGroupLocation(location.groupsView, location);
+			case GroupTransferKind.Merge:
+				return location;
+		}
+	}
+
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
-		const locationView = this.assertGroupView(location);
+		const locationView = this.getAddGroupLocation(this.assertGroupView(location));
 
 		let newGroupView: IEditorGroupView;
 
@@ -882,12 +937,37 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._onDidRemoveGroup.fire(groupView);
 	}
 
+	/**
+	 * Whether a transfer of the editors of `sources` into `target` is vetoed, such as by an editor that cannot leave its
+	 * window (see `EditorInput.canMove`), telling the user why when it is. Only transfers into another part are
+	 * checked, before anything changes; within a part, editors move one by one as before.
+	 */
+	protected vetoGroupTransfer(sources: readonly IEditorGroupView[], target: IEditorGroupView, copy: boolean): boolean {
+		for (const source of sources) {
+			if (source === target || source.groupsView === target.groupsView) {
+				continue;
+			}
+			const veto = getGroupTransferVeto(source, target.id, { copy });
+			if (veto) {
+				this.editorPartsView.showTransferVeto(veto);
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(location);
 
 		if (sourceView.id === targetView.id) {
 			throw new Error('Cannot move group into its own');
+		}
+
+		// Into another part, unless an editor cannot go: then the group stays, and nothing changes
+		if (this.vetoGroupTransfer([sourceView], this.getTransferTarget(GroupTransferKind.MoveGroup, sourceView, targetView), false)) {
+			return sourceView;
 		}
 
 		const restoreFocus = this.shouldRestoreFocus(sourceView.element);
@@ -902,8 +982,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors({ force: true });
-			this.removeGroup(sourceView, restoreFocus);
+			sourceView.closeAllEditors({ excludeConfirming: true, force: true });
+			if (!sourceView.disposed /* could have been removed already by closing its last editor via the `workbench.editor.closeEmptyGroups` setting */) {
+				this.removeGroup(sourceView, restoreFocus);
+			}
 		}
 
 		// Restore focus if we had it previously after completing the grid
@@ -926,6 +1008,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
+		// Into another part, the copy shares the editors of the group (its model is cloned), so all are asked, as for a move
+		if (this.vetoGroupTransfer([groupView], this.getTransferTarget(GroupTransferKind.CopyGroup, groupView, locationView), false)) {
+			return groupView;
+		}
+
 		const restoreFocus = this.shouldRestoreFocus(groupView.element);
 
 		// Copy the group view
@@ -940,8 +1027,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
+		return this.doMergeGroup(group, target, options, GroupMergeReason.Transfer);
+	}
+
+	private doMergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options: IMergeGroupOptions | undefined, reason: GroupMergeReason): boolean {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
+
+		// Into another part all editors go, or none
+		if (reason === GroupMergeReason.Transfer && this.vetoGroupTransfer([sourceView], targetView, options?.mode === MergeGroupMode.COPY_EDITORS)) {
+			return false;
+		}
 
 		// Collect editors to move/copy
 		const editors: EditorInputWithOptions[] = [];
@@ -994,7 +1090,16 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	mergeAllGroups(target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
+		return this.doMergeAllGroups(target, options, GroupMergeReason.Transfer);
+	}
+
+	private doMergeAllGroups(target: IEditorGroupView | GroupIdentifier, options: IMergeGroupOptions | undefined, reason: GroupMergeReason): boolean {
 		const targetView = this.assertGroupView(target);
+
+		// Into another part all groups go, or none: a group merged last must not stop after others went
+		if (reason === GroupMergeReason.Transfer && this.vetoGroupTransfer(this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), targetView, options?.mode === MergeGroupMode.COPY_EDITORS)) {
+			return false;
+		}
 
 		let result = true;
 		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -1002,11 +1107,49 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				continue; // keep target
 			}
 
-			const merged = this.mergeGroup(group, targetView, options);
+			const merged = this.doMergeGroup(group, targetView, options, reason);
 			if (!merged) {
 				result = false;
 			}
 		}
+
+		return result;
+	}
+
+	/**
+	 * Merges all editors of this part into the most recently active
+	 * unlocked group of `targetPart` (by default, the main part),
+	 * without changing the editors that are already there.
+	 *
+	 * This is for closing the part, which merges back what can go without
+	 * the check of explicit transfers: each editor is still asked as it
+	 * moves (see `EditorInput.canMove`), and one that cannot go stays.
+	 */
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
+		if (!this.groups.some(group => group.count > 0)) {
+			return true; // skip if we have no editors opened
+		}
+
+		// Find the most recent group that is not locked
+		let targetGroup: IEditorGroupView | undefined = undefined;
+		for (const group of targetPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (!group.isLocked) {
+				targetGroup = group;
+				break;
+			}
+		}
+
+		if (!targetGroup) {
+			targetGroup = targetPart.addGroup(targetPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
+		}
+
+		const result = this.doMergeAllGroups(targetGroup, {
+			// Try to reduce the impact of closing this part
+			// as much as possible by not changing existing
+			// editors in the main part.
+			preserveExistingIndex: true
+		}, GroupMergeReason.Close);
+		targetGroup.focus();
 
 		return result;
 	}

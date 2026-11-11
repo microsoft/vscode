@@ -283,6 +283,50 @@ suite('ActionListWidget', () => {
 		}, { before: 'Registered as GitHub environment \'', link: 'GitHub' });
 	});
 
+	test('the header name is reached with Shift+Tab from the list and describes the list', () => {
+		let renames = 0;
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				showFilter: false,
+				headerText: 'Will be shared as: Workstation',
+				headerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
+				footerText: 'Policy footer',
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.headerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const forwardFromList = dispatchKeyDown(list, { key: 'Tab' });
+		const reverseFromList = dispatchKeyDown(list, { key: 'Tab', shiftKey: true });
+		const reverseFocusedLink = isActiveElement(link);
+		const reverseFromLink = dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		const forwardFromLink = dispatchKeyDown(link, { key: 'Tab' });
+		const forwardFocusedList = isActiveElement(list);
+		link.click();
+		const headerText = widget.headerContainer!.querySelector('.action-list-header-text')!;
+		assert.deepStrictEqual({
+			forwardFromList: forwardFromList.defaultPrevented,
+			reverseFromList: reverseFromList.defaultPrevented,
+			reverseFocusedLink,
+			reverseFromLink: reverseFromLink.defaultPrevented,
+			forwardFromLink: forwardFromLink.defaultPrevented,
+			forwardFocusedList,
+			renames,
+			text: headerText.textContent,
+			describedBy: list.getAttribute('aria-describedby'),
+		}, {
+			forwardFromList: false,
+			reverseFromList: true,
+			reverseFocusedLink: true,
+			reverseFromLink: false,
+			forwardFromLink: true,
+			forwardFocusedList: true,
+			renames: 1,
+			text: 'Will be shared as: Workstation',
+			describedBy: `${headerText.id} ${widget.footerContainer!.id}`,
+		});
+	});
+
 	test('label icons are decorative, preserve the selection icon, and reset when a row is reused', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('GitHub Environments'), labelIcon: Codicon.github, group: { title: '', icon: Codicon.check } }],

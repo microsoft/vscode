@@ -11,7 +11,9 @@ import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/prompt
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 /** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
@@ -84,7 +86,13 @@ export class AgenticPromptsService extends PromptsService {
 
 	private async getBuiltinSkillPaths(): Promise<readonly IBuiltinPromptPath[]> {
 		const skills = await this.getBuiltinSkills();
-		return skills.filter(s => s.name !== 'generate-chat-background' || this.configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true).map(s => ({
+		return skills.filter(s => {
+			if (s.name === 'automate') {
+				return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
+					&& !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+			}
+			return s.name !== 'generate-chat-background' || this.configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true;
+		}).map(s => ({
 			uri: s.uri,
 			storage: PromptsStorage.builtIn,
 			type: PromptsType.skill,
@@ -110,7 +118,9 @@ export class AgenticPromptsService extends PromptsService {
 
 	protected override get onDidChangeBuiltinPromptFiles(): Event<PromptsType> {
 		return Event.map(Event.filter(this.configurationService.onDidChangeConfiguration,
-			event => event.affectsConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING)), () => PromptsType.skill);
+			event => event.affectsConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING)
+				|| event.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)
+				|| event.affectsConfiguration(ChatAIDisabledSettingId)), () => PromptsType.skill);
 	}
 }
 

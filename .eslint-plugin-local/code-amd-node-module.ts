@@ -58,9 +58,22 @@ export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 			});
 		};
 
+		// Track whether we are inside an import declaration/expression instead of
+		// using descendant selectors, which are expensive to match on every literal
+		let importDepth = 0;
+		const enterImport = () => { importDepth++; };
+		const exitImport = () => { importDepth--; };
+
 		return {
-			['ImportExpression Literal']: checkImport,
-			['ImportDeclaration Literal']: checkImport
+			['ImportExpression']: enterImport,
+			['ImportExpression:exit']: exitImport,
+			['ImportDeclaration']: enterImport,
+			['ImportDeclaration:exit']: exitImport,
+			['Literal']: (node: ESTree.Literal) => {
+				if (importDepth > 0) {
+					checkImport(node);
+				}
+			}
 		};
 	}
 };

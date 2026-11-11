@@ -241,7 +241,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			globalCodeBlockIndexStart = codeBlockStartIndex;
 
 			// TODO: Move katex support into chatMarkdownRenderer
-			const markedExtensions = enableMath
+			// Math needs broader class and style rules than other Markdown. Only allow them when all HTML
+			// comes from the renderer: not for Markdown with raw HTML, nor trusted Markdown with raw spans.
+			const content = this.markdown.content;
+			const renderMath = enableMath && !content.supportHtml && !(content.isTrusted && /<span/i.test(content.value));
+			const markedExtensions = renderMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
 				})])
@@ -398,7 +402,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				...markdownRenderOptions,
 				markedExtensions: [...markedExtensions, ...(markdownRenderOptions?.markedExtensions ?? [])],
 				sanitizerConfig: {
-					...MarkedKatexSupport.getSanitizerOptions({ allowedTags: allowedChatMarkdownHtmlTags, allowedAttributes: allowedMarkdownHtmlAttributes }),
+					...(renderMath
+						? MarkedKatexSupport.getSanitizerOptions({ allowedTags: allowedChatMarkdownHtmlTags, allowedAttributes: allowedMarkdownHtmlAttributes })
+						: { allowedTags: { override: allowedChatMarkdownHtmlTags } }),
 					...markdownRenderOptions?.sanitizerConfig,
 					allowedMediaSchemes: { augment: [AGENT_HOST_SCHEME] },
 					remoteImageIsAllowed: uri => fileImages.has(uri),
@@ -441,7 +447,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 
 			// Make katex blocks horizontally scrollable
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
 				if (!dom.isHTMLElement(katexBlock)) {
 					continue;
@@ -497,7 +503,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 */
 	private hookUpImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
 		const store = new DisposableStore();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const image of element.querySelectorAll('img')) {
 			const source = image.dataset.src;
 			const resource = source ? URI.parse(source) : undefined;

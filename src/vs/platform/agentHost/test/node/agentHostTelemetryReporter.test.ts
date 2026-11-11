@@ -17,7 +17,7 @@ import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, toTelemetryModel, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -122,17 +122,19 @@ suite('AgentHostTelemetryReporter', () => {
 		};
 	}
 
-	test('reports whether a turn used or discarded a pre-warmed session, and nothing when it found none', () => {
+	test('reports whether a turn used, discarded or skipped a pre-warmed session, and nothing when none applies', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const completion = createTurnCompletedReport('copilotcli');
 		reporter.turnCompleted(completion);
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true } });
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmedSessionDiscardReason: 'clientToolsChanged' } });
-		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason })), [
-			{ used: undefined, discardReason: undefined },
-			{ used: true, discardReason: undefined },
-			{ used: undefined, discardReason: 'clientToolsChanged' },
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmSkipReason: 'expired' } });
+		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason, skipReason: event.data?.prewarmSkipReason })), [
+			{ used: undefined, discardReason: undefined, skipReason: undefined },
+			{ used: true, discardReason: undefined, skipReason: undefined },
+			{ used: undefined, discardReason: 'clientToolsChanged', skipReason: undefined },
+			{ used: undefined, discardReason: undefined, skipReason: 'expired' },
 		]);
 	});
 
@@ -1146,5 +1148,28 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents.length, 1);
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionId, '');
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
+	});
+
+	test('skillInvoked reports the invocation trigger, bounding unknown values', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const base = { provider: 'copilotcli', session, owner: session, turnId: 'turn-1' };
+
+		reporter.skillInvoked({ ...base, sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false, telemetryContext: { copilotSku: 'sku-a' } });
+		reporter.skillInvoked({ ...base, sdkEventId: 'e2', trigger: 'something-new', isSubagentInvocation: true });
+
+		const chatSessionId = getTelemetryChatSessionId(session);
+		assert.deepStrictEqual(service.standardEvents, [
+			{ eventName: 'agentHost.skillInvoked', data: { copilotSku: 'sku-a', provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false } },
+			{ eventName: 'agentHost.skillInvoked', data: { provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e2', trigger: 'unknown', isSubagentInvocation: true } },
+		]);
+	});
+
+	test('reports a trusted model router as modelRouter, never its name', () => {
+		assert.deepStrictEqual([
+			toTelemetryModel('model-router:secret', 'trusted'),
+			toTelemetryModel('claude-opus-5', 'trusted'),
+			toTelemetryModel('model-router:secret', 'unknown'),
+		], [new TelemetryTrustedValue('modelRouter'), new TelemetryTrustedValue('claude-opus-5'), 'unknown']);
 	});
 });

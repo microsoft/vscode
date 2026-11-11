@@ -5,7 +5,7 @@
 
 import { DeferredPromise, disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import type { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedMap, Touch } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -18,6 +18,8 @@ import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.
 
 const DEFAULT_SESSION_RESIDENCY_LIMIT = 10;
 const DEFAULT_SESSION_RELEASE_RETRY_MS = 30_000;
+/** Long enough to outlast a window reload or a chat switching views, short enough for another client to resume the session without a warning. */
+const DEFAULT_SESSION_IDLE_RELEASE_MS = 10_000;
 
 function readNonNegativeIntegerEnv(name: string, defaultValue: number): number {
 	const raw = process.env[name];
@@ -27,7 +29,7 @@ function readNonNegativeIntegerEnv(name: string, defaultValue: number): number {
 
 export interface IAgentSessionRelease {
 	canRelease(chats: readonly URI[]): Promise<boolean>;
-	release(chats: readonly URI[]): Promise<void>;
+	release(chats: readonly URI[], canContinue?: () => boolean): Promise<void>;
 }
 
 export interface IAgentSessionReleaseDelegate {
@@ -36,6 +38,11 @@ export interface IAgentSessionReleaseDelegate {
 	getSessionChats(session: URI): readonly URI[];
 	createRelease(session: URI): IAgentSessionRelease | undefined;
 	evictSessionState(session: URI, chats: readonly URI[]): void;
+	/**
+	 * Whether the session's provider marks it as in use while it is loaded, so another client asks before continuing it.
+	 * Such a session is released shortly after no client observes it, not only when the residency limit is exceeded.
+	 */
+	isHeldInUse(session: URI): boolean;
 }
 
 /** A move's hold on a session it loaded data-only ({@link AgentSessionResidency.holdForMove}). */
@@ -53,6 +60,8 @@ interface IMoveHoldEntry {
 export interface IAgentSessionResidencyOptions {
 	readonly limit?: number;
 	readonly releaseRetryMs?: number;
+	/** How long a session held in use stays loaded after no client observes it. */
+	readonly idleReleaseMs?: number;
 	readonly holdsSession: (session: string) => boolean;
 	readonly onDidReleaseHold: Event<string>;
 }
@@ -67,8 +76,13 @@ export class AgentSessionResidency extends Disposable {
 	private readonly _recency = new LinkedMap<string, URI>();
 	private readonly _reconciler = new Sequencer();
 	private readonly _releaseRetries = this._register(new DisposableResourceMap<IDisposable>());
+	/** Sessions held in use that no client observes, waiting out {@link _idleReleaseMs}. */
+	private readonly _idleReleaseTimers = this._register(new DisposableMap<string>());
+	/** Sessions held in use that no client observed for {@link _idleReleaseMs}: released whatever the limit. */
+	private readonly _idleReleaseDue = new Set<string>();
 	private readonly _limit: number;
 	private readonly _releaseRetryMs: number;
+	private readonly _idleReleaseMs: number;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -81,6 +95,7 @@ export class AgentSessionResidency extends Disposable {
 		super();
 		this._limit = _options.limit ?? readNonNegativeIntegerEnv(AgentHostSessionResidencyLimitEnvVar, DEFAULT_SESSION_RESIDENCY_LIMIT);
 		this._releaseRetryMs = _options.releaseRetryMs ?? readNonNegativeIntegerEnv(AgentHostSessionReleaseRetryMsEnvVar, DEFAULT_SESSION_RELEASE_RETRY_MS);
+		this._idleReleaseMs = _options.idleReleaseMs ?? DEFAULT_SESSION_IDLE_RELEASE_MS;
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
 			if (active) {
 				this.touch(URI.parse(session));
@@ -91,6 +106,7 @@ export class AgentSessionResidency extends Disposable {
 			const resource = URI.parse(session);
 			if (!parseSubagentSessionUri(resource)) {
 				this._recency.delete(session);
+				this._cancelIdleRelease(session);
 				void this.reconcile();
 			}
 		}));
@@ -106,6 +122,7 @@ export class AgentSessionResidency extends Disposable {
 		}
 		this._releaseRetries.deleteAndDispose(session);
 		const sessionKey = session.toString();
+		this._cancelIdleRelease(sessionKey);
 		if (!this._stateManager.getSessionState(sessionKey)
 			|| this._isHeldForMove(sessionKey)
 			|| this._stateManager.isEphemeralSession(sessionKey)
@@ -295,7 +312,23 @@ export class AgentSessionResidency extends Disposable {
 		}
 		return expectedRecency !== undefined
 			&& this._recency.get(sessionKey) === expectedRecency
-			&& this._residentCount() > this._limit;
+			&& (this._idleReleaseDue.has(sessionKey) || this._residentCount() > this._limit);
+	}
+
+	private _scheduleIdleRelease(sessionKey: string): void {
+		if (this._idleReleaseTimers.has(sessionKey) || this._idleReleaseDue.has(sessionKey)) {
+			return;
+		}
+		this._idleReleaseTimers.set(sessionKey, disposableTimeout(() => {
+			this._idleReleaseTimers.deleteAndDispose(sessionKey);
+			this._idleReleaseDue.add(sessionKey);
+			void this.reconcile();
+		}, this._idleReleaseMs));
+	}
+
+	private _cancelIdleRelease(sessionKey: string): void {
+		this._idleReleaseTimers.deleteAndDispose(sessionKey);
+		this._idleReleaseDue.delete(sessionKey);
 	}
 
 	private async _doReconcile(): Promise<void> {
@@ -327,6 +360,22 @@ export class AgentSessionResidency extends Disposable {
 
 		let residentCount = residents.length;
 		const processed = new Set<string>();
+		for (const session of residents) {
+			const sessionKey = session.toString();
+			if (this._hasResidencySubscribers(session) || this._stateManager.hasActiveTurn(sessionKey)) {
+				this._cancelIdleRelease(sessionKey);
+			} else if (this._idleReleaseDue.has(sessionKey)) {
+				// A due release stays due after its provider lets go of the session: a failed release may already have.
+				processed.add(sessionKey);
+				if (await this._tryRelease(session, this._recency.get(sessionKey))) {
+					residentCount--;
+				}
+			} else if (this._delegate.isHeldInUse(session)) {
+				this._scheduleIdleRelease(sessionKey);
+			} else {
+				this._idleReleaseTimers.deleteAndDispose(sessionKey);
+			}
+		}
 		for (const session of [...archived.values(), ...residents]) {
 			const sessionKey = session.toString();
 			if (processed.has(sessionKey)) {
@@ -402,8 +451,19 @@ export class AgentSessionResidency extends Disposable {
 			if (!this._stateManager.getSessionState(sessionKey) || !this._canContinueRelease(sessionKey, expectedRecency)) {
 				return false;
 			}
-			await release.release(chats);
-			if (!this._canContinueRelease(sessionKey, expectedRecency)) {
+			let vetoed = false;
+			const canContinue = () => {
+				if (vetoed) {
+					return false;
+				}
+				if (!this._canContinueRelease(sessionKey, expectedRecency)) {
+					vetoed = true;
+					return false;
+				}
+				return true;
+			};
+			await release.release(chats, canContinue);
+			if (!canContinue()) {
 				return false;
 			}
 			this._delegate.evictSessionState(session, chats);

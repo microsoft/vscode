@@ -11,6 +11,44 @@ import { createImportRuleListener } from './utils.ts';
 
 const REPO_ROOT = path.normalize(path.join(import.meta.dirname, '../'));
 
+const matchers = new Map<string, minimatch.IMinimatch>();
+
+function getMatcher(pattern: string): minimatch.IMinimatch {
+	let matcher = matchers.get(pattern);
+	if (!matcher) {
+		matcher = new minimatch.Minimatch(pattern);
+		matchers.set(pattern, matcher);
+	}
+	return matcher;
+}
+
+/**
+ * Same as `minimatch(path, pattern)`, but compiles each pattern only once.
+ */
+function match(path: string, pattern: string): boolean {
+	return getMatcher(pattern).match(path);
+}
+
+const literalStartsCache = new Map<string, string[][] | null>();
+
+/**
+ * Returns `false` when `pattern` can't match the path split into `segments` like minimatch splits it, because a literal
+ * segment at the start of the pattern is different. This is a cheap pre-check that avoids most calls to `match`.
+ */
+function mayMatch(segments: readonly string[], pattern: string): boolean {
+	let literalStarts = literalStartsCache.get(pattern);
+	if (literalStarts === undefined) {
+		const matcher = getMatcher(pattern);
+		// minimatch compares the leading string parts of each alternative of the pattern with the path segments verbatim
+		literalStarts = matcher.negate || matcher.comment || matcher.empty ? null : matcher.set.map((parts: unknown[]) => {
+			const end = parts.findIndex(part => typeof part !== 'string');
+			return (end === -1 ? parts : parts.slice(0, end)) as string[];
+		});
+		literalStartsCache.set(pattern, literalStarts);
+	}
+	return !literalStarts || literalStarts.some(literals => literals.every((literal, i) => segments[i] === literal));
+}
+
 interface ConditionalPattern {
 	when?: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test';
 	pattern: string;
@@ -58,10 +96,13 @@ export default new class implements eslint.Rule.RuleModule {
 		const options = context.options as RawOption[];
 		const configs = this._processOptions(options);
 		const relativeFilename = getRelativeFilename(context);
+		const segments = relativeFilename.split(/\/+/);
 
 		for (const config of configs) {
-			if (minimatch(relativeFilename, config.target)) {
-				return createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
+			if (mayMatch(segments, config.target) && match(relativeFilename, config.target)) {
+				const targetIsVS = /^src\/vs\//.test(relativeFilename);
+				const relativeDirname = path.posix.dirname(relativeFilename);
+				return createImportRuleListener((node, value) => this._checkImport(context, config, targetIsVS, relativeDirname, node, value));
 			}
 		}
 
@@ -73,11 +114,14 @@ export default new class implements eslint.Rule.RuleModule {
 		return {};
 	}
 
-	private _optionsCache = new WeakMap<RawOption[], ImportPatternsConfig[]>();
+	// ESLint passes a new `context.options` array for every file, but the option objects in it are reused.
+	private _optionsCache = new WeakMap<RawOption, ImportPatternsConfig[]>();
 
 	private _processOptions(options: RawOption[]): ImportPatternsConfig[] {
-		if (this._optionsCache.has(options)) {
-			return this._optionsCache.get(options)!;
+		const cacheKey = options[0];
+		const cached = cacheKey && this._optionsCache.get(cacheKey);
+		if (cached) {
+			return cached;
 		}
 
 		type Layer = 'common' | 'worker' | 'browser' | 'electron-browser' | 'node' | 'electron-utility' | 'electron-main';
@@ -220,12 +264,13 @@ export default new class implements eslint.Rule.RuleModule {
 				configs.push({ target, restrictions: restrictions.filter(r => typeof r === 'string') as string[] });
 			}
 		}
-		this._optionsCache.set(options, configs);
+		if (cacheKey) {
+			this._optionsCache.set(cacheKey, configs);
+		}
 		return configs;
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, importPath: string) {
-		const targetIsVS = /^src\/vs\//.test(getRelativeFilename(context));
+	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, targetIsVS: boolean, relativeDirname: string, node: TSESTree.Node, importPath: string) {
 		if (targetIsVS) {
 
 			// ESM: check for import ending with ".js" or ".css"
@@ -247,36 +292,45 @@ export default new class implements eslint.Rule.RuleModule {
 
 		// resolve relative paths
 		if (importPath[0] === '.') {
-			const relativeFilename = getRelativeFilename(context);
-			importPath = path.posix.join(path.posix.dirname(relativeFilename), importPath);
+			importPath = path.posix.join(relativeDirname, importPath);
 			if (/^src\/vs\//.test(importPath)) {
 				// resolve using base url
 				importPath = importPath.substring('src/'.length);
 			}
 		}
 
-		const restrictions = config.restrictions;
-
-		let matched = false;
-		for (const pattern of restrictions) {
-			if (minimatch(importPath, pattern)) {
-				matched = true;
-				break;
-			}
-		}
-
-		if (!matched) {
+		if (!isAllowedImport(config, importPath)) {
 			// None of the restrictions matched
 			context.report({
 				loc: node.loc,
 				messageId: 'badImport',
 				data: {
-					restrictions: restrictions.join(' or ')
+					restrictions: config.restrictions.join(' or ')
 				}
 			});
 		}
 	}
 };
+
+// The configs are reused across files, and so are most of the paths they import.
+const allowedImportsCache = new WeakMap<ImportPatternsConfig, Map<string, boolean>>();
+
+/**
+ * Returns whether `importPath` matches any of the restrictions of `config`.
+ */
+function isAllowedImport(config: ImportPatternsConfig, importPath: string): boolean {
+	let allowedImports = allowedImportsCache.get(config);
+	if (!allowedImports) {
+		allowedImports = new Map();
+		allowedImportsCache.set(config, allowedImports);
+	}
+	let allowed = allowedImports.get(importPath);
+	if (allowed === undefined) {
+		allowed = config.restrictions.some(pattern => match(importPath, pattern));
+		allowedImports.set(importPath, allowed);
+	}
+	return allowed;
+}
 
 /**
  * Returns the filename relative to the project root and using `/` as separators

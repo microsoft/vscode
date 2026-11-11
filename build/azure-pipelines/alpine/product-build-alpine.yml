@@ -26,6 +26,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-alpine.tar.gz
             artifactName: vscode_server_linux_alpine_archive-unsigned
             displayName: Publish x64 server archive
+            condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(SERVER_DIR_PATH)
             sbomPackageName: "VS Code Alpine x64 Server"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -34,6 +35,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-alpine-web.tar.gz
             artifactName: vscode_web_linux_alpine_archive-unsigned
             displayName: Publish x64 web server archive
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine x64 Web"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -42,6 +44,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
             artifactName: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
             displayName: Publish server archive
+            condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(SERVER_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Server"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -49,6 +52,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
             artifactName: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
             displayName: Publish web server archive
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -57,7 +61,7 @@ jobs:
           artifactName: agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
           displayName: Publish agent SDK tarballs
           sbomEnabled: false
-          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'))
+          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'), ne(variables['AGENT_SDK_TARBALLS_PUBLISHED'], 'true'))
     steps:
       - template: ../common/checkout.yml@self
 
@@ -78,20 +82,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
-        displayName: Prepare node_modules cache key
-
-      - task: Cache@2
-        inputs:
-          key: '"node_modules" | .build/packagelockhash'
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
-        retryCountOnTaskFailure: 2
-
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
+      - template: ../common/restore-pnpm-store.yml@self
+        parameters:
+          keyArgs: alpine $(VSCODE_ARCH) alpine-3.22
+          os: linux
 
       - script: |
           set -e
@@ -114,35 +108,29 @@ jobs:
       - task: NuGetAuthenticate@1
         displayName: Setup NuGet Authentication
 
+      - template: ../common/setup-qemu.yml@self
+        parameters:
+          condition: and(succeeded(), eq(variables['NPM_ARCH'], 'arm64'))
+
       - task: Docker@1
         inputs:
           azureSubscriptionEndpoint: vscode
           azureContainerRegistry: vscodehub.azurecr.io
           command: "Run an image"
           imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
+          arguments: --pull=always
           containerCommand: uname
         displayName: "Pull image"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - task: Docker@1
-        inputs:
-          azureSubscriptionEndpoint: vscode
-          azureContainerRegistry: vscodehub.azurecr.io
-          command: "Run an image"
-          imageName: "multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0"
-          containerCommand: uname
-        displayName: "Pull qemu-user-static image"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['NPM_ARCH'], 'arm64'))
-
-      - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+      - script: ./build/azure-pipelines/linux/apt-install-with-retry.sh libkrb5-dev
         displayName: Install build dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        timeoutInMinutes: 25
 
       - script: |
           set -e
           mkdir -p .build/nodejs-musl
-          NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
-          BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
+          NODE_VERSION=$(node -p "require('./remote/package.json').nativeBuild.target")
+          BUILD_ID=$(node -p "require('./remote/package.json').nativeBuild.msBuildId")
           az artifacts universal download \
             --organization "https://dev.azure.com/monacotools" \
             --project "Monaco" \
@@ -157,11 +145,9 @@ jobs:
         env:
           AZURE_DEVOPS_EXT_PAT: "$(System.AccessToken)"
         displayName: Download NodeJS MUSL
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/npm/preinstall.ts
+      - script: pnpm run preinstall
         displayName: Install Electron headers
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
@@ -185,7 +171,6 @@ jobs:
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       # NuGetAuthenticate@1 exposes its access token to all later steps as the
       # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it
@@ -199,15 +184,10 @@ jobs:
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
         displayName: Mixin distro node modules
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+      - template: ../common/prune-pnpm-store.yml@self
+        parameters:
+          os: linux
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
@@ -226,11 +206,6 @@ jobs:
         parameters:
           vscodePlatform: alpine
 
-      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX (background)
-
       - template: ../common/mixin-vscode-capi.yml@self
 
       - script: pnpm run gulp core-ci
@@ -238,10 +213,7 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
-      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX
+      - template: ../copilot/builtin-steps.yml@self
 
       - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
         env:
@@ -288,3 +260,29 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
           AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server (web)
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            SERVER_ARCHIVE_PUBLISHED vscode_server_linux_alpine_archive-unsigned
+            WEB_ARCHIVE_PUBLISHED vscode_web_linux_alpine_archive-unsigned
+            AGENT_SDK_TARBALLS_PUBLISHED agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          condition: succeededOrFailed()
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt
+      - ${{ else }}:
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            SERVER_ARCHIVE_PUBLISHED vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+            WEB_ARCHIVE_PUBLISHED vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+            AGENT_SDK_TARBALLS_PUBLISHED agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          condition: succeededOrFailed()
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt

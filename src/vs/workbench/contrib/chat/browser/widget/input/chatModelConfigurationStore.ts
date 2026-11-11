@@ -38,6 +38,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _overrides = new Map<string, IStringDictionary<unknown>>();
 	private readonly _preferences = new Map<string, IStringDictionary<unknown>>();
 	private readonly _ownKeys = new Map<string, Set<string>>();
+	private readonly _transientKeys = new Map<string, Set<string>>();
 	private readonly _explicitAutoTiers = new Set<string>();
 	private readonly _sessionAutoTiers = new Set<string>();
 	private _managedAutoTier: AutoModeTier | undefined;
@@ -130,6 +131,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		return Object.keys(effective).length > 0 ? effective : undefined;
 	}
 
+	isModelConfigurationTransient(modelId: string): boolean {
+		return (this._transientKeys.get(modelId)?.size ?? 0) > 0;
+	}
+
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
 		assertModelConfigurationWritable(values, this.getModelConfigurationSchema(modelId));
 		if (Object.hasOwn(values, 'tier')) {
@@ -179,6 +184,15 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true, restoredDefaults?: IStringDictionary<unknown>): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
 		this.getModelConfiguration(modelId);
+		const transientKeys = this._transientKeys.get(modelId) ?? new Set<string>();
+		for (const key of Object.keys(values)) {
+			if (persist) {
+				transientKeys.delete(key);
+			} else {
+				transientKeys.add(key);
+			}
+		}
+		this._transientKeys.set(modelId, transientKeys);
 		const ownKeys = this._ownKeys.get(modelId) ?? new Set<string>();
 		const inheritedTier = this.isEmpty() && isInheritedAutoTier(values);
 		for (const key of Object.keys(values)) {
@@ -222,6 +236,13 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// every input-state sync while a session stays selected, so avoid storming
 		// storage writes and onDidChange listeners when nothing actually changes.
 		const bucket = persist ? this._readBucket() : undefined;
+		for (const key of transientKeys) {
+			if (bucket?.[modelId] && Object.hasOwn(bucket[modelId], key)) {
+				stored[key] = bucket[modelId][key];
+			} else {
+				delete stored[key];
+			}
+		}
 		if (equals(this._overrides.get(modelId), nextOverride) && (!bucket || equals(bucket[modelId], stored))) {
 			return false;
 		}
@@ -423,6 +444,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * (e.g. session type) changes.
 	 */
 	clear(): void {
+		this._transientKeys.clear();
 		this._overrides.clear();
 		this._preferences.clear();
 		this._ownKeys.clear();

@@ -82,6 +82,15 @@ const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFi
 
 type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 
+interface IStoredAgentSessionsFilter {
+	providers: string[];
+	states: AgentSessionStatus[];
+	archived: boolean;
+	read: boolean;
+	automation: boolean;
+	repositoryGroupCapped: boolean;
+}
+
 function shouldForceHiddenAgentStatus(configurationService: IConfigurationService, contextKeyService: IContextKeyService): boolean {
 	// Hide all agent distractions while in Zen mode
 	if (contextKeyService.getContextKeyValue<boolean>(InEditorZenModeContext.key) === true) {
@@ -1113,13 +1122,21 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Get the stored filter object from storage.
 	 */
-	private _getStoredFilter(): { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean } | undefined {
+	private _getStoredFilter(): IStoredAgentSessionsFilter | undefined {
 		const filterStr = this.storageService.get(FILTER_STORAGE_KEY, StorageScope.PROFILE);
 		if (!filterStr) {
 			return undefined;
 		}
 		try {
-			return JSON.parse(filterStr);
+			const filter = JSON.parse(filterStr) as Partial<IStoredAgentSessionsFilter>;
+			return {
+				providers: filter.providers ?? [],
+				states: filter.states ?? [],
+				archived: filter.archived ?? true,
+				read: filter.read ?? false,
+				automation: filter.automation ?? true,
+				repositoryGroupCapped: filter.repositoryGroupCapped ?? true,
+			};
 		} catch {
 			return undefined;
 		}
@@ -1128,7 +1145,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Store a filter object to storage.
 	 */
-	private _storeFilter(filter: { providers: string[]; states: AgentSessionStatus[]; archived: boolean; read: boolean }): void {
+	private _storeFilter(filter: IStoredAgentSessionsFilter): void {
 		this.storageService.store(FILTER_STORAGE_KEY, JSON.stringify(filter), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
@@ -1140,7 +1157,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			providers: [],
 			states: [],
 			archived: true,
-			read: false
+			read: false,
+			automation: true,
+			repositoryGroupCapped: true,
 		});
 	}
 
@@ -1196,6 +1215,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const currentFilter = this._getStoredFilter();
 		// Preserve existing provider filters (session type filters like Local, Background, etc.)
 		const preservedProviders = currentFilter?.providers ?? [];
+		const preservedAutomation = currentFilter?.automation ?? true;
+		const preservedRepositoryGroupCapped = currentFilter?.repositoryGroupCapped ?? true;
 
 		// Log telemetry for filter button clicks
 		const isToggleOff = (filterType === 'unread' && isFilteredToUnread)
@@ -1218,7 +1239,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					providers: preservedProviders,
 					states: [],
 					archived: true,
-					read: true
+					read: true,
+					automation: preservedAutomation,
+					repositoryGroupCapped: preservedRepositoryGroupCapped,
 				});
 			} else if (filterType === 'inProgress') {
 				// Exclude Completed, Failed, and NeedsInput — show only InProgress
@@ -1226,7 +1249,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					providers: preservedProviders,
 					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed, AgentSessionStatus.NeedsInput],
 					archived: true,
-					read: false
+					read: false,
+					automation: preservedAutomation,
+					repositoryGroupCapped: preservedRepositoryGroupCapped,
 				});
 			} else {
 				// Exclude Completed, Failed, and InProgress — show only NeedsInput
@@ -1234,7 +1259,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					providers: preservedProviders,
 					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed, AgentSessionStatus.InProgress],
 					archived: true,
-					read: false
+					read: false,
+					automation: preservedAutomation,
+					repositoryGroupCapped: preservedRepositoryGroupCapped,
 				});
 			}
 			this._badgeFilterAppliedByThisWindow = filterType;

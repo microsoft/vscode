@@ -24,34 +24,35 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { connectWithProgress, RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
 import { NotificationChangeType } from '../../../../../../workbench/common/notifications.js';
 import { ICommandService, CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { SessionView } from '../../../../../browser/parts/sessionView.js';
-import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
-import { SessionWorkspacePickerGroupContext } from '../../../../../common/contextkeys.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../../workbench/services/sessions/common/session.js';
+import { SessionWorkspacePickerGroupContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
-import { Menus } from '../../../../../browser/menus.js';
-import '../../browser/missionControlAgentHostContribution.js';
-import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import '../../browser/missionControlAgentHost.contribution.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { getVisibleRemoteKinds, RemoteKind } from '../../browser/remotesModel.js';
+import { getVisibleRemoteKinds, RemoteKind } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -133,15 +134,15 @@ suite('Remote Agent Host actions', () => {
 				}
 			}());
 			instantiation.stub(ISessionsProvidersService, { getProviders: () => outcome === 'missing-provider' ? [] : [provider] });
-			instantiation.stub(ISessionsService, {
-				activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+			instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
 				openNewSession: async () => {
 					calls.push({ openNewSession: true });
 					return { session: undefined, trustDeclined: false };
 				},
-			});
+			}));
 			instantiation.stub(ISessionsPartService, {
-				getSessionView: () => upcastPartial<SessionView>({
+				getActiveSessionView: () => upcastPartial<SessionView>({
 					selectWorkspace: (uri, options) => {
 						assert.strictEqual(getSessionCreationEnvironments([provider])[0]?.id, provider.id);
 						calls.push({ selected: uri.toString(), providerId: options?.providerId });
@@ -188,17 +189,17 @@ suite('Remote Agent Host actions', () => {
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(ISessionsProvidersService, { getProviders: () => [provider] });
-		instantiation.stub(ISessionsService, {
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+		instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
 			openNewSession: async () => {
 				calls.push('open');
 				opening.complete();
 				await opened.p;
 				return { session: undefined, trustDeclined: false };
 			},
-		});
+		}));
 		instantiation.stub(ISessionsPartService, {
-			getSessionView: () => upcastPartial<SessionView>({
+			getActiveSessionView: () => upcastPartial<SessionView>({
 				selectWorkspace: () => { calls.push('select'); return 'applied'; },
 			}),
 		});

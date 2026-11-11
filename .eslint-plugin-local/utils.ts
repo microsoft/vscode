@@ -20,13 +20,14 @@ export function createImportRuleListener(validateImport: (node: TSESTree.Literal
 		ImportDeclaration: (node: ESTree.ImportDeclaration) => {
 			_checkImport((node as TSESTree.ImportDeclaration).source);
 		},
-		// import('module').then(...) OR await import('module')
-		['CallExpression[callee.type="Import"][arguments.length=1] > Literal']: (node: TSESTree.Literal) => {
-			_checkImport(node);
-		},
-		// import foo = ...
-		['TSImportEqualsDeclaration > TSExternalModuleReference > Literal']: (node: TSESTree.Literal) => {
-			_checkImport(node);
+		// import foo = require('module')
+		// Listen to node types rather than selectors such as `TSImportEqualsDeclaration > TSExternalModuleReference > Literal`,
+		// which are matched against every literal in the file. (`import('module')` is an `ImportExpression`, not checked here.)
+		TSImportEqualsDeclaration: (rawNode: ESTree.Node) => {
+			const node = rawNode as TSESTree.Node;
+			if (node.type === 'TSImportEqualsDeclaration' && node.moduleReference.type === 'TSExternalModuleReference') {
+				_checkImport(node.moduleReference.expression);
+			}
 		},
 		// export ?? from 'module'
 		ExportAllDeclaration: (node: ESTree.ExportAllDeclaration) => {

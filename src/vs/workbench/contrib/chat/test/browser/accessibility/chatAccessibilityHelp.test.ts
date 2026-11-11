@@ -15,6 +15,22 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents paste choices only on the supported workbench chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
+	});
+
+	test('documents showing files above the chat input only while chat resources are enabled', () => {
+		const help = (chatResourcesEnabled: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, chatResourcesEnabled);
+		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);
+	});
+
 	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -632,7 +648,7 @@ suite('Chat Accessibility Help', () => {
 			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
 			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
 			focus: shown.includes('Escape while it is focused, returns to the chat input'),
-			focusRemainingTasks: shown.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			focusRemainingTasks: shown.includes('Archiving the session sets it aside so you can focus on your remaining tasks'),
 			retained: shown.includes('The session is not deleted'),
 			agentRecovery: shown.includes('Ask your agent to find it'),
 			recovery: shown.includes('"Archived" section of the sessions list. You can unarchive it anytime'),
@@ -683,7 +699,7 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done, Configure Automatic Cleanup, or Dismiss Mark as Done Suggestion'),
 			cleanupSettings: help.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
 			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
-			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			focusRemainingTasks: help.includes('Marking the session as done sets it aside so you can focus on your remaining tasks'),
 			retained: help.includes('The session is not deleted'),
 			agentRecovery: help.includes('Ask your agent to find it'),
 			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),
@@ -702,6 +718,18 @@ suite('Chat Accessibility Help', () => {
 			supported: true,
 			unsupported: false,
 		});
+	});
+
+	test('documents pill dragging and keyboard movement only when inline attachments are enabled', () => {
+		const keybindings = new MockKeybindingService();
+		const help = getAccessibilityHelpText('agentView', keybindings, true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, false, false, true, true);
+		assert.deepStrictEqual({
+			drag: help.includes('Drag a pill to move it within the same chat input'),
+			cancel: help.includes('Press Escape or drop outside the input to cancel'),
+			cut: help.includes('<keybinding:editor.action.clipboardCutAction>'),
+			paste: help.includes('<keybinding:editor.action.clipboardPasteAction>'),
+			disabled: getAccessibilityHelpText('agentView', keybindings, true).includes('Drag a pill'),
+		}, { drag: true, cancel: true, cut: true, paste: true, disabled: false });
 	});
 
 	test('describes long pasted text attachments regardless of line count', () => {
@@ -723,14 +751,15 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Reset Size') && helpText.includes('Change Color'),
+			actions: helpText.includes('choose Achievements, Grow, Shrink, Reset Size, or Change Color') && !helpText.includes('Go on the Run') && !helpText.includes('Come Back'),
 			colorCustomization: helpText.includes('True Name') && helpText.includes('Stable and Insiders are free choices') && helpText.includes('Apply Color') && helpText.includes('Unapplied custom colors are discarded'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
 			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
 			petBouncing: helpText.includes('Pointer collisions are ignored for half a second after a drag release') && helpText.includes('while the pet is falling, move the pointer into it to bounce it upward') && helpText.includes('Sideways and upward travel do not start the bounce counter') && helpText.includes('counter beside the pet tracks consecutive bounces and remains for up to five seconds after landing') && helpText.includes('until the pet next reacts or interacts') && helpText.includes('at least twenty bounces triggers confetti unless reduced motion is enabled') && helpText.includes('press Enter or Space to bounce it upward'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
-			petScale: helpText.includes('position, size, and color are shared across chats and windows') && helpText.includes('remembered after you restart'),
+			petScale: helpText.includes('position and size are shared across chats and windows') && helpText.includes('remembered after you restart'),
+			petWindowAppearance: helpText.includes('color and hat are shared by editor windows and the Agents window') && helpText.includes('Both Windows is selected whenever Customize Blobby opens'),
 		}, {
 			keybinding: true,
 			navigation: true,
@@ -742,6 +771,7 @@ suite('Chat Accessibility Help', () => {
 			petBouncing: true,
 			petRevival: true,
 			petScale: true,
+			petWindowAppearance: true,
 		});
 	});
 

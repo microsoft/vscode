@@ -56,6 +56,8 @@ import {
 	type AgentHostServerType,
 	type IAgentHostEndpointMetadata,
 	isSameAgentHostEndpointIdentity,
+	isShareableAgentHostEndpoint,
+	selectAgentHostEndpoint,
 } from '../common/agentHostEndpointRegistry.js';
 import {
 	buildAgentHostBaseCommand,
@@ -77,6 +79,7 @@ import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
+import { createSSHProxyJump, rememberSSHProxyJump, SSHProxyJump } from './sshProxyJump.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -392,17 +395,17 @@ function startRemoteAgentHost(
 	client: SSHClient,
 	logService: ILogService,
 	cliBin: string | undefined,
-	cliDataDir: string | undefined,
+	serverDataFolderName: string | undefined,
 	commandOverride?: string,
 	telemetryLevel = TelemetryConfiguration.OFF,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		if (!commandOverride && (!cliBin || !cliDataDir)) {
-			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
+		if (!commandOverride && (!cliBin || !serverDataFolderName)) {
+			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+serverDataFolderName pair or a commandOverride`));
 			return;
 		}
 		const validatedTelemetryLevel = validateAgentHostTelemetryLevel(telemetryLevel);
-		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!, validatedTelemetryLevel);
+		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, serverDataFolderName!, validatedTelemetryLevel);
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
@@ -679,6 +682,7 @@ class SSHConnection extends Disposable {
 		readonly sshClient: SSHClient,
 		private readonly _remoteStream: SSHChannel | undefined,
 		private readonly _logService: ILogService,
+		private readonly _disposeJump: (client: SSHClient) => void,
 	) {
 		super();
 
@@ -694,6 +698,7 @@ class SSHConnection extends Disposable {
 			sshClient.removeListener('error', this._sshErrorListener);
 			this._remoteStream?.close();
 			sshClient.end();
+			this._disposeJump(sshClient);
 			this._onDidClose.fire();
 		}));
 
@@ -816,6 +821,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private _nativeRequire: NodeJS.Require | undefined;
 	private readonly _proxies = this._register(new DisposableMap<SSHClient, SSHProxyCommand>());
+	private readonly _jumpProxies = this._register(new DisposableMap<SSHClient, SSHProxyJump>());
 	private readonly _resolvedConfigs = new Map<string, { readonly resolved: Promise<ISSHResolvedConfig>; readonly expiry: number }>();
 
 	/**
@@ -834,6 +840,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		private readonly _jumpFactory: { create: typeof createSSHProxyJump } = { create: createSSHProxyJump },
 	) {
 		super();
 	}
@@ -949,10 +956,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				userDataPath = initial.userDataPath;
 				const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
 				const editors = live.filter(e => e.type === 'editor');
-				const standalones = live.filter(e => e.type === 'standalone');
+				const standalones = live.filter(e => isShareableAgentHostEndpoint(e, this._quality));
 
 				const spawnDedicated = async (): Promise<IAgentHostEndpointMetadata> => {
-					const spawnCommand = buildAgentHostSpawnCommand(cliBin, cliDataDir, userDataPath, this._effectiveTelemetryLevel);
+					const spawnCommand = buildAgentHostSpawnCommand(cliBin, this._serverDataFolderName, userDataPath, this._effectiveTelemetryLevel);
 					reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 					this._logService.info(`${LOG_PREFIX} Spawning dedicated standalone agent host: ${spawnCommand}`);
 					// Fire-and-forget: the spawned process is self-managed via
@@ -976,11 +983,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// paths below and the silent/background reconnect policy —
 				// neither ever opens the picker.
 				const selectDedicated = async (): Promise<{ chosen: IAgentHostEndpointMetadata; lifecycle: SSHAgentHostLifecycle }> => {
-					if (standalones.length === 0) {
-						return { chosen: await spawnDedicated(), lifecycle: 'managed' };
-					}
-					const [deterministic] = [...standalones].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
-					return { chosen: deterministic, lifecycle: 'external' };
+					const chosen = selectAgentHostEndpoint(live, this._quality, 'dedicated');
+					return chosen ? { chosen, lifecycle: 'external' } : { chosen: await spawnDedicated(), lifecycle: 'managed' };
 				};
 
 				// Selection policy (requirement 2): with no editor entries,
@@ -1016,11 +1020,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// and persist a fresh choice.
 				const selectEndpoint = async (): Promise<{ chosen: IAgentHostEndpointMetadata; lifecycle: SSHAgentHostLifecycle }> => {
 					if (config.preferredAgentLocation === 'editor') {
-						if (editors.length > 0) {
-							const [deterministic] = [...editors].sort((a, b) => a.instanceId.localeCompare(b.instanceId));
-							return { chosen: deterministic, lifecycle: 'external' };
-						}
-						return selectDedicated();
+						const chosen = selectAgentHostEndpoint(live, this._quality, 'editor');
+						return chosen ? { chosen, lifecycle: 'external' } : { chosen: await spawnDedicated(), lifecycle: 'managed' };
 					}
 					if (config.preferredAgentLocation === 'dedicated') {
 						return selectDedicated();
@@ -1087,6 +1088,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				sshClient,
 				agentStream,
 				this._logService,
+				client => this._jumpProxies.deleteAndDispose(client),
 			);
 
 			Event.once(conn.onDidClose)(() => {
@@ -1118,6 +1120,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		} catch (err) {
 			sshClient?.end();
+			if (sshClient) {
+				this._jumpProxies.deleteAndDispose(sshClient);
+			}
 			if (!(err instanceof CancellationError)) {
 				this._logService.error(`${LOG_PREFIX} Failed to connect to ${displayHost}`, err);
 			}
@@ -1501,7 +1506,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	private async _parseSSHGOutput(stdout: string): Promise<ISSHResolvedConfig> {
-		return { ...parseSSHGOutput(stdout), ...await resolveSSHKnownHostsFiles(stdout) };
+		return rememberSSHProxyJump({ ...parseSSHGOutput(stdout), ...await resolveSSHKnownHostsFiles(stdout) }, stdout);
 	}
 
 	protected async _connectSSH(
@@ -1667,8 +1672,25 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		};
 
 		const client = await this._createSSHClient();
+		let jumpProxy: SSHProxyJump | undefined;
+		try {
+			jumpProxy = await this._jumpFactory.create(resolved, {
+				host: config.host,
+				originalHost,
+				port,
+				username: config.username,
+			}, this._logService);
+		} catch (error) {
+			client.end();
+			throw error;
+		}
+		if (jumpProxy) {
+			this._jumpProxies.set(client, jumpProxy);
+			connectConfig.sock = jumpProxy.stream;
+		}
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
+			let connected = false;
 			let deadlineTimer: IHandshakeDeadlineHandle | undefined;
 
 			const clearDeadline = () => {
@@ -1693,6 +1715,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					return;
 				}
 				settled = true;
+				connected = true;
 				clearDeadline();
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
@@ -1709,10 +1732,24 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
 				this._proxies.deleteAndDispose(client);
-				if (endClient) {
-					client.end();
+				const finish = (detail?: string) => {
+					if (detail) {
+						err.message = localize('sshJumpFailed', "{0} ({1})", err.message, detail);
+					}
+					this._jumpProxies.deleteAndDispose(client);
+					if (endClient) {
+						client.end();
+					}
+					reject(err);
+				};
+				if (jumpProxy && !(err instanceof CancellationError) && !hostKeyDenied) {
+					void jumpProxy.describeFailure().then(finish, () => {
+						this._logService.warn(`${LOG_PREFIX} Failed to collect SSH jump failure details`);
+						finish();
+					});
+				} else {
+					finish();
 				}
-				reject(err);
 			};
 
 			cancelConnectFromKbi = () => {
@@ -1744,6 +1781,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// prompt would be left on screen forever.
 			client.on('close', () => {
 				this._proxies.deleteAndDispose(client);
+				if (connected) {
+					this._jumpProxies.deleteAndDispose(client);
+				}
 				rejectConnect(
 					hostKeyDenied
 						? new SSHHostKeyDeniedError(displayHost)
@@ -2256,9 +2296,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	protected _startRemoteAgentHost(
-		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string, telemetryLevel?: TelemetryConfiguration,
+		client: SSHClient, cliBin: string | undefined, serverDataFolderName: string | undefined, commandOverride?: string, telemetryLevel?: TelemetryConfiguration,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride, telemetryLevel);
+		return startRemoteAgentHost(client, this._logService, cliBin, serverDataFolderName, commandOverride, telemetryLevel);
 	}
 
 	protected async _createWebSocketRelay(
