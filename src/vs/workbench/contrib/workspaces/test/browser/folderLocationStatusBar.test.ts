@@ -248,10 +248,10 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	suite('switch command', () => {
 
-		async function pickLocation(choose: (items: { label: string; description?: string; picked?: boolean }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI) {
+		async function pickLocation(choose: (items: { label: string; description?: string; picked?: boolean }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean) {
 			const calls: [string, string | undefined, string | undefined][] = [];
 			let shown: { label: string; description?: string; picked?: boolean }[] = [];
-			let workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
+			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 					: id === IWorkspaceFolderLocationService ? { getLocations: async () => [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }
@@ -280,6 +280,11 @@ suite('FolderLocationStatusBarContribution', () => {
 			assert.deepStrictEqual((await pickLocation(() => 2)).calls, [[primary.toString(), URI.file('/work/other').toString(), 'user']]);
 			assert.deepStrictEqual((await pickLocation(() => 0)).calls, [[primary.toString(), undefined, 'user']]);
 			assert.deepStrictEqual((await pickLocation(() => 1)).calls, []);
+		});
+
+		test('at the primary location the picker lists the locations, marks the primary and switches as a user choice', async () => {
+			const atPrimaryPick = await pickLocation(items => { assert.deepStrictEqual(items.map(item => item.picked), [true, false, false]); return 1; }, undefined, undefined, true);
+			assert.deepStrictEqual(atPrimaryPick.calls, [[primary.toString(), alternate.toString(), 'user']]);
 		});
 
 		test('a switch while the picker is open does not drop the user choice', async () => {
