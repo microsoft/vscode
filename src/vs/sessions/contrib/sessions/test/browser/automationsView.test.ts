@@ -2094,6 +2094,34 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('runs that continue one session show it once without keeping the card starting', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ id: 'newest' }), run({ id: 'older' }), run({ id: 'other', sessionResource: SECOND_SESSION_RESOURCE })]);
+		assert.deepStrictEqual({
+			titles: [...widget.element.querySelectorAll('.automations-history-group-runs .session-item .monaco-highlighted-label')].map(label => label.textContent),
+			card: widget.element.querySelector('.automations-card')?.getAttribute('aria-label')?.includes('Running'),
+		}, { titles: ['Daily review', 'Second daily review'], card: false });
+	});
+
+	test('focus follows a shared session when a newer run moves it to another date group', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const older = run({ id: 'older', startedAt: new Date(Date.now() - 86_400_000).toISOString() });
+		automationService.setRuns([older]);
+		const list = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list')!;
+		list.focus();
+		list.querySelector<HTMLElement>('.monaco-list-row')!.click();
+		const before = document.activeElement?.closest('.automations-history-group')?.querySelector('.automations-history-group-header')?.textContent;
+		automationService.setRuns([run({ id: 'newer' }), older]);
+		const after = document.activeElement?.closest('.automations-history-group');
+		assert.deepStrictEqual({
+			before,
+			after: after?.querySelector('.automations-history-group-header')?.textContent,
+			row: after?.querySelector('.monaco-list-row.focused .monaco-highlighted-label')?.textContent,
+		}, { before: 'Yesterday', after: 'Today', row: 'Daily review' });
+	});
+
 	test('waits for the committed session catalog before showing local history', () => {
 		const { automationService, sessionsManagementService, widget } = setup();
 		automationService.setAutomations([automation()]);

@@ -23,7 +23,7 @@ import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from 
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IAgentHostSavedChatDto, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
-import { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
+import { AgentHostAutomationContinueSessionCapabilityMetaKey, AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
@@ -151,6 +151,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostAutomationHistoryCapabilityMetaKey]?: true;
 	readonly [AgentHostAutomationHistoryReceiptsCapabilityMetaKey]?: true;
 	readonly [AgentHostAutomationHistoryDeletionStateCapabilityMetaKey]?: true;
+	/** Present when an Automation can send every run's message in the session of its previous run. */
+	readonly [AgentHostAutomationContinueSessionCapabilityMetaKey]?: true;
 }
 
 /** Standard AHP initialize response with typed VS Code-specific capability metadata. */
@@ -175,6 +177,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 			[AgentHostAutomationHistoryCapabilityMetaKey]: true as const,
 			[AgentHostAutomationHistoryReceiptsCapabilityMetaKey]: true as const,
 			[AgentHostAutomationHistoryDeletionStateCapabilityMetaKey]: true as const,
+			[AgentHostAutomationContinueSessionCapabilityMetaKey]: true as const,
 		} : {}),
 		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
 		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),

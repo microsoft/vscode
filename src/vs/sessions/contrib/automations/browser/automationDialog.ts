@@ -245,6 +245,7 @@ export interface IFormState extends IAutomationTriggerFormState {
 	isolationMode: string | undefined;
 	branch: string | undefined;
 	enabled: boolean;
+	continueSession?: boolean;
 	timeZone?: 'UTC';
 	timezoneOffset?: number;
 	resolvedFolderUri?: URI;
@@ -1121,18 +1122,20 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const cloudRow = DOM.append(formContent, $('.automation-cloud-row'));
+	// The dialog cancels key-up events, which suppresses a native button's Space activation.
+	const activateOnSpace = (toggle: Switch) => disposables.add(DOM.addDisposableListener(toggle.domNode, DOM.EventType.KEY_DOWN, e => {
+		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
+			DOM.EventHelper.stop(e, true);
+			toggle.domNode.click();
+		}
+	}));
+	const runOptionsRow = DOM.append(formContent, $('.automation-run-options-row'));
+	const cloudRow = DOM.append(runOptionsRow, $('.automation-cloud-row'));
 	DOM.append(cloudRow, renderIcon(Codicon.cloud)).setAttribute('aria-hidden', 'true');
 	const cloudLabel = DOM.append(cloudRow, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the Cloud")));
 	const cloudSwitch = disposables.add(new Switch({ ariaLabel: cloudLabel.textContent! }));
 	cloudSwitch.domNode.setAttribute('aria-labelledby', 'automation-cloud-label');
-	// The dialog cancels key-up events, which suppresses a native button's Space activation.
-	disposables.add(DOM.addDisposableListener(cloudSwitch.domNode, DOM.EventType.KEY_DOWN, e => {
-		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
-			DOM.EventHelper.stop(e, true);
-			cloudSwitch.domNode.click();
-		}
-	}));
+	activateOnSpace(cloudSwitch);
 	DOM.append(cloudRow, cloudSwitch.domNode);
 	if (!isEdit) {
 		DOM.append(cloudRow, $('span.automation-cloud-preview', { id: 'automation-cloud-preview' }, localize('automation.form.cloudPreview', "Preview")));
@@ -1154,6 +1157,18 @@ export function renderForm(
 			style: HoverStyle.Pointer,
 		}), loadingHoverLifecycleOptions));
 	}
+
+	const continueSessionRow = DOM.append(runOptionsRow, $('.automation-continue-session-row'));
+	DOM.append(continueSessionRow, renderIcon(Codicon.history)).setAttribute('aria-hidden', 'true');
+	const continueSessionLabel = DOM.append(continueSessionRow, $('span.automation-cloud-label', { id: 'automation-continue-session-label' }, localize('automation.form.continueSession', "Same Chat")));
+	const continueSessionDescription = localize('automation.form.continueSessionDescription', "Each run continues the previous run's chat instead of starting a new one.");
+	const continueSessionSwitch = disposables.add(new Switch({ ariaLabel: continueSessionLabel.textContent!, title: continueSessionDescription }));
+	continueSessionSwitch.domNode.setAttribute('aria-labelledby', 'automation-continue-session-label');
+	activateOnSpace(continueSessionSwitch);
+	disposables.add(continueSessionSwitch.onChange(checked => state.continueSession = checked));
+	DOM.append(continueSessionRow, continueSessionSwitch.domNode);
+	DOM.append(continueSessionRow, $('span.automation-visually-hidden', { id: 'automation-continue-session-description' }, continueSessionDescription));
+	const continueSessionReason = DOM.append(continueSessionRow, $('span.automation-continue-session-reason', { id: 'automation-continue-session-reason' }, localize('automation.form.continueSessionCloud', "Not available in the cloud")));
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
@@ -2142,11 +2157,21 @@ export function renderForm(
 		}
 		updateToolsControls();
 	}));
-	reloadCustomizations = () => customizationSelection?.updateTarget(
-		state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
-			? createAutomationTarget(state, isolationModel.persistedBranch)
-			: undefined,
-	);
+	reloadCustomizations = () => {
+		customizationSelection?.updateTarget(
+			state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
+				? createAutomationTarget(state, isolationModel.persistedBranch)
+				: undefined,
+		);
+		// Cloud runs cannot continue a session, so while Run in the Cloud is on the option stays visible for the local target, disabled with its reason.
+		const cloud = runInCloud.get();
+		const localProviderId = cloud ? localTarget.providerId : state.providerId;
+		setAutomationControlVisible(continueSessionRow, !!localProviderId && customizations?.service.supportsContinueSession?.(localProviderId) === true);
+		setAutomationControlVisible(continueSessionReason, cloud);
+		continueSessionSwitch.disabled = cloud;
+		continueSessionSwitch.checked = !cloud && state.continueSession === true;
+		continueSessionSwitch.domNode.setAttribute('aria-describedby', cloud ? continueSessionReason.id : 'automation-continue-session-description');
+	};
 	disposables.add(onDidChangeSessionTarget.event(reloadCustomizations));
 	disposables.add(autorun(reader => {
 		isolationModel.isQuickChatObs.read(reader);

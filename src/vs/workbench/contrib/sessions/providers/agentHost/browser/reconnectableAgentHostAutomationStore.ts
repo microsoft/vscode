@@ -136,6 +136,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.currentStore.get()?.canDeleteAutomation(id) === true;
 	}
 
+	supportsContinueSession(providerId: string): boolean {
+		return this.currentStore.get()?.supportsContinueSession(providerId) === true;
+	}
+
 	supportsDeleteHistoryChoice(id: string): boolean {
 		return this.currentStore.get()?.supportsDeleteHistoryChoice(id) === true;
 	}

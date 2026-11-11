@@ -133,6 +133,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
 			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
 			enabled: initial?.enabled ?? true,
+			continueSession: initial?.continueSession === true,
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
 			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
@@ -246,6 +247,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (!target) {
 				return undefined;
 			}
+			const continueSession = target.providerId && this.automationService.supportsContinueSession?.(target.providerId) ? { continueSession: state.continueSession === true } : {};
 			if (existing) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
@@ -258,6 +260,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
 					enabled: state.enabled,
+					...continueSession,
 					...(customizationIds !== undefined ? { customizationIds } : {}),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
@@ -277,6 +280,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
+				...continueSession,
 				...(customizationIds !== undefined ? { customizationIds } : {}),
 			};
 			return { kind: 'create', value: create };

@@ -94,6 +94,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return store?.getCustomizationChoices?.(target, existingId, token);
 	}
 
+	supportsContinueSession(providerId: string): boolean {
+		return this.sessionsProvidersService.getProvider(providerId)?.automations?.supportsContinueSession?.(providerId) === true;
+	}
+
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
 		let result = this.runsForCache.get(automationId);
 		if (!result) {

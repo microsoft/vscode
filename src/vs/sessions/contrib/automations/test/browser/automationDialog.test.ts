@@ -108,7 +108,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(actual, { session: true, chat: true });
 	});
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
+	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'], automationOverrides?: Partial<IAutomationService>) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -194,6 +194,7 @@ suite('Automation dialog creation', () => {
 			canUpdateAutomation: () => canUpdate,
 			refresh: () => refresh(),
 			getCustomizationChoices,
+			...automationOverrides,
 		}));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		let targetModel: AutomationIsolationModel | undefined;
@@ -2646,6 +2647,39 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
+	test('Same Chat sits beside Run in the Cloud, starts off and is disabled with its reason for cloud runs', async () => {
+		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, true, true, true, undefined, { supportsContinueSession: id => id === 'host' });
+		dialog.setPrompt('Review changes');
+		const row = dialog.container.querySelector<HTMLElement>('.automation-continue-session-row')!;
+		const sameChat = row.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		const sameRow = row.parentElement === dialog.container.querySelector('.automation-cloud-row')?.parentElement;
+		const snapshot = () => ({
+			visible: row.style.display !== 'none',
+			checked: sameChat.getAttribute('aria-checked'),
+			disabled: sameChat.disabled,
+			label: row.querySelector(`#${sameChat.getAttribute('aria-labelledby')}`)?.textContent,
+			description: row.querySelector(`#${sameChat.getAttribute('aria-describedby')}`)?.textContent,
+		});
+		await dialog.selectWorkspace(FOLDER);
+		const local = snapshot();
+		sameChat.click();
+		await dialog.setCloud(true);
+		const cloud = snapshot();
+		await dialog.setCloud(false);
+		const restored = snapshot();
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		const label = 'Same Chat';
+		const description = 'Each run continues the previous run\'s chat instead of starting a new one.';
+		assert.deepStrictEqual({ sameRow, local, cloud, restored, continueSession: result?.value.continueSession }, {
+			sameRow: true,
+			local: { visible: true, checked: 'false', disabled: false, label, description },
+			cloud: { visible: true, checked: 'false', disabled: true, label, description: 'Not available in the cloud' },
+			restored: { visible: true, checked: 'true', disabled: false, label, description },
+			continueSession: true,
+		});
+	});
+
 	test('turning cloud on keeps a private local folder displayed and saves its repository', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		dialog.setPrompt('Review changes');
@@ -3238,7 +3272,7 @@ suite('Automation dialog layout', () => {
 		}, {
 			formSections: [
 				'automation-form-row',
-				'automation-cloud-row',
+				'automation-run-options-row',
 				'automation-session-section',
 				'automation-form-row automation-form-schedule-row',
 				'automation-form-schedule-description',

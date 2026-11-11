@@ -809,6 +809,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.automationHistory': true,
 				'vscode.automationHistoryReceipts': true,
 				'vscode.automationHistoryDeletionState': true,
+				'vscode.automationContinueSession': true,
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,

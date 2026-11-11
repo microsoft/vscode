@@ -1539,6 +1539,36 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('round trips the continue-session choice through definition metadata, keeping other metadata', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const supportedBefore = store.supportsContinueSession('local-agent-host');
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true) }, undefined);
+		const created = await store.createAutomation({
+			name: 'Daily status', prompt: 'What changed since yesterday?',
+			schedule: { interval: 'cron', cronExpression: '0 9 * * *', cronTimeZone: 'UTC', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			continueSession: true,
+		});
+		const renamed = await store.updateAutomation(created.id, { name: 'Renamed' });
+		const turnedOff = await store.updateAutomation(created.id, { continueSession: false });
+
+		assert.deepStrictEqual({
+			supported: [supportedBefore, store.supportsContinueSession('local-agent-host'), store.supportsContinueSession('other-host')],
+			continueSession: [created, renamed, turnedOff].map(automation => automation.continueSession),
+			metas: connection.dispatched.map(({ action }) => action.type === ActionType.AutomationCreateRequested ? action.definition._meta : action.type === ActionType.AutomationUpdateRequested ? action.changes._meta : undefined),
+		}, {
+			supported: [false, true, false],
+			continueSession: [true, true, undefined],
+			metas: [
+				{ 'vscode.automationScheduleKind': 'cron', 'vscode.automationContinueSession': true },
+				{ 'vscode.automationScheduleKind': 'cron', 'vscode.automationContinueSession': true },
+				{ 'vscode.automationScheduleKind': 'cron' },
+			],
+		});
+	});
+
 	test('defaults new cron triggers to the client local time zone rather than UTC', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());

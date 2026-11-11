@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agent.
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationScheduleKind } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, hasAgentHostAutomationContinueSession, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationContinueSession, withAgentHostAutomationScheduleKind } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -209,6 +209,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			&& this._findAutomationEntry(automationId) !== undefined;
 	}
 
+	supportsContinueSession(providerId: string): boolean {
+		return providerId === this._providerId && hasAgentHostAutomationContinueSession(this._connection.initializeResult.get());
+	}
+
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
 		let result = this._runsForCache.get(automationId);
 		if (!result) {
@@ -235,6 +239,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
 			enabled: options.enabled ?? true,
+			...(options.continueSession ? { continueSession: true } : {}),
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
 		};
@@ -566,6 +571,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
+			...(hasAgentHostAutomationContinueSession(state.definition) ? { continueSession: true } : {}),
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
 			lastRunAt: newestRun?.lifecycle.createdAt,
@@ -819,8 +825,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const existingSchedule = existing ? projectSchedule(existing) : undefined;
 		const scheduleUnchanged = existingSchedule !== undefined && stableStringify(existingSchedule) === stableStringify(descriptor.schedule);
-		const meta = scheduleUnchanged ? existing?._meta ?? {}
-			: withAgentHostAutomationScheduleKind(existing?._meta, descriptor.schedule.interval === 'cron' ? 'cron' : undefined);
+		const meta = withAgentHostAutomationContinueSession(
+			scheduleUnchanged ? existing?._meta : withAgentHostAutomationScheduleKind(existing?._meta, descriptor.schedule.interval === 'cron' ? 'cron' : undefined),
+			descriptor.continueSession ?? (existing !== undefined && hasAgentHostAutomationContinueSession(existing)),
+		);
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -907,6 +915,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			mode,
 			permissionLevel,
 			enabled,
+			...(patch.continueSession !== undefined ? { continueSession: patch.continueSession } : {}),
 			updatedAt: now.toISOString(),
 		};
 	}

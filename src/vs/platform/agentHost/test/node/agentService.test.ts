@@ -92,6 +92,7 @@ import { readMessageReplacedTurn } from '../../common/meta/agentMessageMeta.js';
 import { ArtifactAutomationOption, IArtifactAutomationContext } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
 import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
 import { mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -3717,6 +3718,38 @@ suite('AgentService (node dispatcher)', () => {
 					durationAtLeastInitial: true,
 					endCheckpointCaptures: 0,
 				});
+			});
+		});
+
+		test('a continued Automation turn gives the session the run\'s customizations, or removes stale ones, and never starts once archived', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const stateManager = getStateManager(service);
+			const internal = service as unknown as { _continueAutomationSession: AgentService['_continueAutomationSession'] };
+			const activeClient: SessionActiveClient = {
+				clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///captured'), uri: 'file:///captured', name: 'Captured', clientId: AUTOMATION_ACTIVE_CLIENT_ID }],
+			};
+			const continueRun = async (client: SessionActiveClient | undefined) => {
+				const error = await internal._continueAutomationSession(session, { text: 'Run', origin: { kind: MessageKind.Automation } }, () => true, client).then(() => undefined, (error: Error) => error.message);
+				const activeClients = stateManager.getSessionState(session.toString())?.activeClients;
+				const turn = stateManager.getActiveTurnId(chat);
+				if (turn) {
+					stateManager.dispatchServerAction(chat, chatTurnComplete(turn, 1));
+				}
+				return { error, started: turn !== undefined, activeClients };
+			};
+			const withCustomizations = await continueRun(activeClient);
+			const fannedOut = copilotAgent.activeClientCalls.map(call => call.clientId);
+			const withoutCustomizations = await continueRun(undefined);
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+			assert.deepStrictEqual({ withCustomizations, fannedOut, withoutCustomizations, archived: await continueRun(activeClient) }, {
+				withCustomizations: { error: undefined, started: true, activeClients: [activeClient] },
+				fannedOut: [AUTOMATION_ACTIVE_CLIENT_ID],
+				withoutCustomizations: { error: undefined, started: true, activeClients: [] },
+				archived: { error: `The Automation's session was archived: ${session}`, started: false, activeClients: [] },
 			});
 		});
 

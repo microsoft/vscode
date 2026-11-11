@@ -136,6 +136,12 @@ export interface IAutomationDescriptor {
 
 	readonly enabled: boolean;
 
+	/**
+	 * Whether every run sends its prompt in the session of the previous run instead of a new session. `undefined` keeps
+	 * the current choice when updating.
+	 */
+	readonly continueSession?: boolean;
+
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;
 	readonly updatedAt: string;
