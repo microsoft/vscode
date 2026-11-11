@@ -4243,14 +4243,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			previousTurns: request.previousTurns,
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
-		return this._withModelRouterAgents(chatKey, request.turnId, file?.router, models, resolution);
+		return this._withModelRouterAgents(chatKey, request, file?.router, models, resolution);
 	}
 
 	/**
 	 * Offers the agents of the playbook a turn was routed to as the chat's agents. They are
 	 * taken only for a chat that has not started work yet; the routing result itself is unchanged.
 	 */
-	private _withModelRouterAgents(chatKey: string, turnId: string, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], resolution: IAgentTurnModelResolution): IAgentTurnModelResolution {
+	private _withModelRouterAgents(chatKey: string, { turnId, previousTurns }: IAgentTurnModelRequest, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], resolution: IAgentTurnModelResolution): IAgentTurnModelResolution {
 		const playbook = resolution.routed?.playbook;
 		const plan = router && playbook ? resolveModelRouterAgentPlan(router, playbook, models, COPILOT_RESERVED_AGENT_NAMES) : undefined;
 		const taken = this._modelRouterAgents.setCandidate(chatKey, turnId, plan);
@@ -4288,10 +4288,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return resolution;
 		}
 		const missing = plan.agents.filter(agent => !committed?.agents.some(other => structuralEquals(agent, other))).map(agent => agent.name);
-		if (missing.length && this._modelRouterAgents.shouldAnnounceMissing(chatKey, missing)) {
-			return { ...resolution, notices: [...resolution.notices, localize('modelRouter.agentsUnavailable', "These agents of the {0} playbook are not available in this chat: {1}. A chat's agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.", plan.playbook, missing.join(', '))] };
+		if (!missing.length) {
+			return resolution;
 		}
-		return resolution;
+		const notice = localize('modelRouter.agentsUnavailable', "These agents of the {0} playbook are not available in this chat: {1}. A chat's agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.", plan.playbook, missing.join(', '));
+		// The chat is told once: a turn that showed the notice is part of its history. A notice
+		// that was never shown, because its turn was cancelled or its model change failed, is
+		// not in the history, so it is given again.
+		const shown = previousTurns.some(turn => turn.responseParts.some(part => part.kind === ResponsePartKind.SystemNotification && part.content === notice));
+		return shown ? resolution : { ...resolution, notices: [...resolution.notices, notice] };
 	}
 
 	/** A custom agent's name when its file names a model, which the runtime runs it on instead of a router's pick. */

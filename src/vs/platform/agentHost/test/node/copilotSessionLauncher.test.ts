@@ -3953,27 +3953,32 @@ suite('CopilotSessionLauncher resume config', () => {
 	test('a model router role reuses an agent of a plugin the runtime loads itself, and never takes a built-in agent\'s name', async () => {
 		const store = disposables.add(new DisposableStore());
 		const nativeUri = URI.file('/plugins/shop/agents/test-writer.agent.md');
-		const config = await buildResumeConfig(createLauncher(store, {}, '---\nname: Writes Tests\n---\nWrite tests.'), undefined, {
+		const config = await buildResumeConfig(createLauncher(store, {}, '---\nname: Writes Tests\nmodel: claude-sonnet\n---\nWrite tests.'), undefined, {
 			discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {},
 			// The runtime registers this agent itself, so the host forwards no definition for it.
-			nativeAgents: [{ type: CustomizationType.Agent, id: 'shop:test-writer', uri: nativeUri.toString(), name: 'Test Writer' }],
+			nativeAgents: [{ type: CustomizationType.Agent, id: 'shop:test-writer', uri: nativeUri.toString(), name: 'Test Writer', _meta: { 'vscode.modelPolicy': 'required' } }],
 		}, undefined, {}, {
 			modelRouterAgents: {
 				router: 'Team', playbook: 'feature',
 				agents: [
 					{ name: 'tester', description: '', agent: 'test writer', model: 'claude-haiku' },
+					{ name: 'tester-as-written', description: '', agent: 'Test Writer' },
 					{ name: 'general-purpose', description: 'Has the name of an agent the runtime brings.' },
 				],
 			},
 		});
-		const names = new Set(['tester', 'general-purpose', 'Test Writer', 'Writes Tests', getSdkCustomAgentName(nativeUri)]);
+		const names = new Set(['tester', 'tester-as-written', 'general-purpose', 'Test Writer', 'Writes Tests', getSdkCustomAgentName(nativeUri)]);
 		assert.deepStrictEqual({
 			agents: config.customAgents?.filter(agent => names.has(agent.name) || names.has(agent.displayName ?? '')).map(agent => ({ name: agent.name, prompt: agent.prompt, model: agent.model, modelPolicy: agent.modelPolicy })),
 			briefed: /Agents you can start[^]*- `tester`/.test(config.systemMessage?.content ?? ''),
 			briefedReserved: config.systemMessage?.content?.includes('`general-purpose`'),
 		}, {
-			// Only the role's copy is added: the plugin's agent stays the runtime's own.
-			agents: [{ name: 'tester', prompt: 'Write tests.', model: 'claude-haiku', modelPolicy: 'required' }],
+			// Only the roles' copies are added: the plugin's agent stays the runtime's own.
+			agents: [
+				{ name: 'tester', prompt: 'Write tests.', model: 'claude-haiku', modelPolicy: 'required' },
+				// A role without a model keeps the agent's, and with it the agent's own model policy.
+				{ name: 'tester-as-written', prompt: 'Write tests.', model: 'claude-sonnet', modelPolicy: 'required' },
+			],
 			briefed: true,
 			briefedReserved: false,
 		});

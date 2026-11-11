@@ -21698,14 +21698,21 @@ suite('CopilotAgent', () => {
 					message: { text: 'build it', origin: { kind: MessageKind.User }, model: { id: 'model-router:team' } },
 					usage: { _meta: { modelRouted: { router: 'team', chosenModel: 'claude-sonnet', playbook: 'feature' } } },
 				};
-				const route = async (turnId: string) => {
-					const resolution = await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'go on', previousTurns: [saved] }, h.context, CancellationToken.None);
+				const route = async (turnId: string, previousTurns: Turn[]) => {
+					const resolution = await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'go on', previousTurns }, h.context, CancellationToken.None);
 					return { kept: resolution.routed?.kept, notices: resolution.notices };
 				};
-				assert.deepStrictEqual([await route('turn-2'), await route('turn-3')], [
-					{ kept: true, notices: ['These agents of the feature playbook are not available in this chat: reviewer. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.'] },
-					{ kept: true, notices: [] },
-				]);
+				const notice = 'These agents of the feature playbook are not available in this chat: reviewer. A chat\'s agents are set up when it starts and are lost when VS Code restarts. Start a new chat to use them.';
+				const first = await route('turn-2', [saved]);
+				// That turn was cancelled before its notice was shown, so the chat's history does not have it.
+				const afterCancelled = await route('turn-3', [saved]);
+				const shown: Turn = { ...saved, id: 'turn-3', responseParts: [{ kind: ResponsePartKind.SystemNotification, content: notice }] };
+				const afterShown = await route('turn-4', [saved, shown]);
+				assert.deepStrictEqual({ first, afterCancelled, afterShown }, {
+					first: { kept: true, notices: [notice] },
+					afterCancelled: { kept: true, notices: [notice] },
+					afterShown: { kept: true, notices: [] },
+				});
 			});
 
 			test('a router picked in a chat that has agents names only the ones the chat lacks', async () => {

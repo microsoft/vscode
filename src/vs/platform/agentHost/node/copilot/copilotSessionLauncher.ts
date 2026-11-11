@@ -73,6 +73,7 @@ import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import type { CopilotWorkspace } from './copilotWorkspace.js';
 import type { CopilotVirtualSessionFs } from './copilotVirtualSessionFs.js';
 import { createCopilotVirtualSearchTools } from './copilotVirtualSearchTools.js';
+import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { readAgentToolFullReferenceName, readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
@@ -688,8 +689,10 @@ async function readModelRouterNativeAgents(plan: CopilotSessionLaunchPlan, fileS
 	const natives = wanted.size ? (plan.snapshot.nativeAgents ?? []).filter(agent => wanted.has(agent.name.toLowerCase())) : [];
 	const configs = await Promise.all(natives.map(async native => {
 		const [config] = await toSdkCustomAgents([{ uri: URI.parse(native.uri), name: native.name }], fileService, availableModelIds);
+		// The runtime honors the agent's own model policy, so a copy that keeps the agent's model keeps the policy too.
+		const modelPolicy = readAgentCustomizationMeta(native)['vscode.modelPolicy'];
 		// A role names an agent the way the user sees it, which is the name the runtime gave it.
-		return config ? [{ ...config, displayName: native.name }] : [];
+		return config ? [{ ...config, displayName: native.name, ...(modelPolicy ? { modelPolicy } : {}) }] : [];
 	}));
 	return configs.flat();
 }

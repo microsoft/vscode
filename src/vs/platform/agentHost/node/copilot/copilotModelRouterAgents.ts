@@ -27,8 +27,6 @@ export class CopilotModelRouterAgents {
 	private readonly _currentTurns = new Map<string, string>();
 	private readonly _candidates = new Map<string, IModelRouterAgentPlan>();
 	private readonly _committed = new Map<string, IModelRouterAgentPlan>();
-	/** The agents each chat was last told it lacks, so that it is told once and not on every turn. */
-	private readonly _announcedMissing = new Map<string, string>();
 
 	/** Marks a chat that was just created new: not forked, imported or restored. */
 	markFresh(chat: string): void {
@@ -92,25 +90,11 @@ export class CopilotModelRouterAgents {
 		}
 	}
 
-	/**
-	 * Whether to tell a chat that it lacks these agents. It is told once for a given set of
-	 * agents, not on every turn that asks for them again.
-	 */
-	shouldAnnounceMissing(chat: string, names: readonly string[]): boolean {
-		const key = names.join('\n');
-		if (this._announcedMissing.get(chat) === key) {
-			return false;
-		}
-		this._announcedMissing.set(chat, key);
-		return true;
-	}
-
 	/** Forgets a chat that is gone. */
 	forget(chat: string): void {
 		this._fresh.delete(chat);
 		this._candidates.delete(chat);
 		this._currentTurns.delete(chat);
 		this._committed.delete(chat);
-		this._announcedMissing.delete(chat);
 	}
 }
