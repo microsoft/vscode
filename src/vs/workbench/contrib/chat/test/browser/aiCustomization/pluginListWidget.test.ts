@@ -59,10 +59,13 @@ suite('pluginListWidget', () => {
 		});
 	});
 
-	test('plugin switches replace routine status badges but preserve loading and problems', () => {
+	test('plugin switches omit routine status but preserve loading and problem icons', () => {
 		const widget: { appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void } = Object.assign(Object.create(PluginListWidget.prototype), {
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
+				override setupManagedHover() {
+					return { show() { }, hide() { }, update() { }, dispose() { } };
+				}
 			}(),
 			notificationService: new TestNotificationService(),
 			cardDisposables: store.add(new DisposableStore()),
@@ -87,15 +90,20 @@ suite('pluginListWidget', () => {
 				...item, ...state,
 				actions: [{ id: 'toggle', label: 'Toggle Globally', checked: state.enabled === true, run: () => { } }],
 			});
-			const status = parent.querySelector<HTMLElement>('.plugin-list-item-status')!;
-			return { status: status.textContent, hidden: status.style.display === 'none', checked: parent.querySelector('[role="switch"]')!.getAttribute('aria-checked') };
+			const status = parent.querySelector<HTMLElement>('.plugin-list-item-status-icon')!;
+			return {
+				label: parent.firstElementChild!.getAttribute('aria-label'),
+				icon: ['loading', 'warning', 'error'].find(kind => status.classList.contains(kind)),
+				hidden: status.style.display === 'none',
+				checked: parent.querySelector('[role="switch"]')!.getAttribute('aria-checked'),
+			};
 		}), [
-			{ status: '', hidden: true, checked: 'true' },
-			{ status: '', hidden: true, checked: 'false' },
-			{ status: 'Loading', hidden: false, checked: 'false' },
-			{ status: 'Warning', hidden: false, checked: 'false' },
-			{ status: 'Error', hidden: false, checked: 'false' },
-			{ status: 'Plugin could not be loaded', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host', icon: undefined, hidden: true, checked: 'true' },
+			{ label: 'Native. Agent host', icon: undefined, hidden: true, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Loading', icon: 'loading', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Warning', icon: 'warning', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Error', icon: 'error', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Plugin could not be loaded', icon: 'error', hidden: false, checked: 'false' },
 		]);
 	});
 
@@ -243,6 +251,7 @@ suite('pluginListWidget', () => {
 		assert.deepStrictEqual([
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'loaded' } }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'error', statusMessage: 'Invalid plugin manifest' } }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, origin: { kind: 'account', label: 'contoso' } } }),
 			widget.getPluginEntryAriaLabel({
 				type: 'remote-item',
@@ -251,6 +260,7 @@ suite('pluginListWidget', () => {
 		], [
 			'host-plugin. Agent host',
 			'host-plugin. Agent host. Status: Loaded',
+			'host-plugin. Agent host. Status: Error: Invalid plugin manifest',
 			'host-plugin. Organization: contoso. Agent host',
 			'host-plugin. Agent host. Status: Loading. Plugin enablement is unavailable until this chat\'s session is ready.',
 		]);

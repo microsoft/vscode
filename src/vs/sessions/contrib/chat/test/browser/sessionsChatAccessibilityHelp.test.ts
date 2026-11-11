@@ -29,7 +29,7 @@ import { ISessionsPartService } from '../../../../../workbench/services/sessions
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../../workbench/contrib/sessions/browser/chat/sessionArchiveNudge.js';
@@ -765,7 +765,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hasClearWorkspace: true,
 			},
 			{
-				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. A one-time spotlight may explain this change. Activate Understood or press Escape to dismiss it, or activate the highlighted Add Context action to open the menu and dismiss the tip. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
@@ -896,7 +896,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes the Ask Question input when the response-selection menu is disabled', () => {
+	test('omits response-selection help when the menu is disabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: false,
@@ -911,10 +911,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
-		assert.strictEqual(
-			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
-			'When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input.',
-		);
+		assert.strictEqual(provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')), undefined);
 	});
 
 	test('describes the response-selection menu when enabled', () => {
@@ -1161,6 +1158,22 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 
+	test('mobile help omits unavailable background controls and generation even when appearance tools are configured', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp(undefined, false).getProvider(instantiationService)).provideContent();
+		assert.deepStrictEqual(['Set Background', 'Change Background Layout', 'Tint Window to Match Background', 'Celebrate button', 'Get Theme Colors', '/generate-chat-background']
+			.filter(text => content.includes(text)), []);
+	});
+
 	test('describes generic directional navigation for the session grid', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -1208,7 +1221,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
 			manualComparison: defaultHelp.includes('activate Compare Models'),
-		}, { tools: [false, true, false], manualComparison: true });
+			openComparison: enabledHelp.includes('Use Tab to reach Open Comparison in the tool result and Enter'),
+			scopedDiscovery: enabledHelp.includes('list comparisons started by this chat'),
+		}, { tools: [false, true, false], manualComparison: true, openComparison: true, scopedDiscovery: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

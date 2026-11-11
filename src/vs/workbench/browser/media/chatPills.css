@@ -433,3 +433,11 @@
 .chat-pills-row > .scrollbar > .slider.active::before {
 	background: var(--vscode-scrollbarSlider-activeBackground);
 }
+
+/* A pressed pill, such as one whose entry the chat shows. The pill button sets its colors inline. */
+.chat-pill-item.chat-pill-checked .chat-pill-button {
+	background: var(--vscode-inputOption-activeBackground) !important;
+	color: var(--vscode-inputOption-activeForeground) !important;
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+	outline-offset: -1px;
+}

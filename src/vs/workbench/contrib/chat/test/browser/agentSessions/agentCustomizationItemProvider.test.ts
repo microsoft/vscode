@@ -35,6 +35,7 @@ import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } fr
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { withCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
@@ -278,6 +279,41 @@ suite('AgentCustomizationItemProvider', () => {
 				enabled, readable: false,
 			}))
 		});
+	});
+
+	test('marks managed-policy hooks and organization-managed plugins as organization controlled', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [
+					{
+						type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+						name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false,
+						children: ([['policy', true], ['policy', false], ['user', true]] as const).map(([source, enabled], index) => ({
+							type: CustomizationType.Hook, id: `hook-${index}`, uri: `agent-discovery://copilot/hooks#${index}`,
+							name: 'sessionStart', enabled,
+							_meta: withCustomizationDiscoveryMeta(undefined, { source, hookType: 'sessionStart' }),
+						})),
+					},
+					...([['required', { requiredEnabled: true }], ['supplied', {}], ['unmanaged', undefined]] as const).map(([name, organization]): PluginCustomization => ({
+						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+						...(organization ? { _meta: withCustomizationOrganizationMeta(undefined, organization) } : {}),
+					})),
+				];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ key: item.itemKey ?? item.name, organizationControl: item.organizationControl })), [
+			{ key: 'required', organizationControl: { requiredEnabled: true } },
+			{ key: 'supplied', organizationControl: {} },
+			{ key: 'unmanaged', organizationControl: undefined },
+			{ key: 'hook-0', organizationControl: { requiredEnabled: true } },
+			{ key: 'hook-1', organizationControl: {} },
+			{ key: 'hook-2', organizationControl: undefined },
+		]);
 	});
 
 	for (const kind of agentHostConnectionKinds) {

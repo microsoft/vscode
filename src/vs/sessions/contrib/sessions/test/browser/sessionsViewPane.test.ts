@@ -16,7 +16,7 @@ import { ISessionGridPane } from '../../../../../workbench/services/sessions/bro
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -161,6 +161,7 @@ suite('Sessions - SessionsViewPane', () => {
 			grouping: SessionsGrouping.Environment,
 			currentSorting: SessionsSorting.Created,
 			configurationService,
+			chatEntitlementService: { sentiment: { hidden: false } },
 			setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
 			setSorting: () => assert.fail('Expected grouping selection'),
 		};
@@ -175,13 +176,12 @@ suite('Sessions - SessionsViewPane', () => {
 		assert.deepStrictEqual({ checked, selected: await selected.p }, { checked: 'true', selected: SessionsGrouping.Environment });
 	});
 
-	test('suspends saved inbox grouping while disabled without losing the choice', async () => {
+	test('uses the setting as the grouping default until an explicit choice is saved', async () => {
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const storageService = disposables.add(new InMemoryStorageService());
-		storageService.store('sessionsViewPane.grouping', SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.USER);
 		const host = {
-			currentGrouping: SessionsGrouping.Inbox,
+			currentGrouping: undefined as SessionsGrouping | undefined,
 			configurationService,
 			storageService,
 			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
@@ -189,29 +189,55 @@ suite('Sessions - SessionsViewPane', () => {
 		};
 		const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
 		const initial = host.grouping;
-		assert.throws(() => setGrouping.call(host, SessionsGrouping.Inbox), /Enable sessions.list.inboxEnabled/);
 		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
 		const enabled = host.grouping;
 		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
 		const disabled = host.grouping;
+		setGrouping.call(host, SessionsGrouping.Inbox);
 		const saved = storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+		const selected = host.grouping;
 		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
 		const restored = host.grouping;
-		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
 		setGrouping.call(host, SessionsGrouping.Workspace);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
 		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
-		assert.deepStrictEqual({ initial, enabled, disabled, saved, restored, changed: host.grouping }, {
+		assert.deepStrictEqual({ initial, enabled, disabled, saved, selected, restored, changed: host.grouping }, {
 			initial: SessionsGrouping.Workspace,
 			enabled: SessionsGrouping.Inbox,
 			disabled: SessionsGrouping.Workspace,
 			saved: SessionsGrouping.Inbox,
+			selected: SessionsGrouping.Inbox,
 			restored: SessionsGrouping.Inbox,
 			changed: SessionsGrouping.Workspace,
 		});
 	});
 
+	for (const enabled of [false, true]) {
+		test(`persists an explicit selection of the default grouping (${enabled})`, async () => {
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const storageService = disposables.add(new InMemoryStorageService());
+			const host = {
+				currentGrouping: undefined as SessionsGrouping | undefined,
+				configurationService,
+				storageService,
+				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+				updateHeaderLayout: () => { },
+			};
+			const initial = host.grouping;
+			const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
+			setGrouping.call(host, initial);
+			await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, !enabled);
+			const saved = storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+			assert.deepStrictEqual({ selected: host.grouping, saved }, {
+				selected: enabled ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+				saved: enabled ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+			});
+		});
+	}
+
 	for (const { enabled, hidden } of [{ enabled: false, hidden: false }, { enabled: true, hidden: false }, { enabled: true, hidden: true }]) {
-		test(`mobile inbox option respects enablement (${enabled}) and hidden AI (${hidden})`, async () => {
+		test(`mobile inbox option ignores default setting (${enabled}) and respects hidden AI (${hidden})`, async () => {
 			const container = mainWindow.document.createElement('div');
 			const selected = new DeferredPromise<SessionsGrouping>();
 			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
@@ -232,8 +258,8 @@ suite('Sessions - SessionsViewPane', () => {
 			const workspace = options.find(row => row.textContent?.trim() === 'Group by Workspace')!;
 			(inbox ?? workspace).click();
 			assert.deepStrictEqual({ offered: !!inbox, selected: await selected.p }, {
-				offered: enabled && !hidden,
-				selected: enabled && !hidden ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+				offered: !hidden,
+				selected: !hidden ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
 			});
 		});
 	}
