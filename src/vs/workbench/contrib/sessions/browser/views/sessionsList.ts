@@ -22,7 +22,6 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
@@ -32,7 +31,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -67,6 +66,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { getSessionsInScopeFolders } from '../sessionScope.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -9643,36 +9643,6 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 		}
 	}
 	return false;
-}
-
-/**
- * The sessions of the given scope folders, such as the folders of an editor window's workspace: the sessions with a
- * folder that is, or is inside, a scope folder, and the sessions of the same git repositories, such as its worktrees.
- * Only the metadata the providers already report is read, comparing whole URIs, so a session of another host never
- * matches a local folder. A repository is known only from a scope folder itself or from a session working in the
- * scope, so the main checkout of an opened worktree without sessions does not match.
- */
-export function getSessionsInScopeFolders(sessions: readonly ISession[], scopeFolders: readonly URI[]): { includes(session: ISession): boolean } {
-	const extUri = extUriBiasedIgnorePathCase;
-	const isInScope = (uri: URI | undefined) => !!uri && scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder));
-	const repositories = new ResourceSet(scopeFolders, uri => extUri.getComparisonKey(uri));
-	const included = new Set<ISession>();
-	for (const session of sessions) {
-		for (const folder of session.workspace.get()?.folders ?? []) {
-			if (isInScope(folder.workingDirectory) || isInScope(folder.root) || isInScope(folder.gitRepository?.workTreeUri)) {
-				included.add(session);
-				if (folder.gitRepository) {
-					repositories.add(folder.gitRepository.uri);
-				}
-			}
-		}
-	}
-	for (const session of sessions) {
-		if (!included.has(session) && session.workspace.get()?.folders.some(folder => repositories.has(folder.root) || (!!folder.gitRepository && repositories.has(folder.gitRepository.uri)))) {
-			included.add(session);
-		}
-	}
-	return { includes: session => included.has(session) };
 }
 
 //#endregion

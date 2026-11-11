@@ -76,6 +76,8 @@ export interface ISessionChatViewHost {
 	readonly window: IObservable<IChatEditorWindow | undefined>;
 	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
 	readonly active: IObservable<boolean>;
+	/** The folders of the window's workspace, to which the chat compares its session's folder. See {@link ISessionViewHostOptions.scopeFolders}. */
+	readonly scopeFolders?: IObservable<readonly URI[]>;
 	/** Called with what the editor shows once it is created, until the returned disposable is disposed. */
 	attach(view: ChatEditorContent): IDisposable;
 	/**
@@ -306,7 +308,7 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 			trackActiveGroup();
 		}));
 		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, SESSION_CHAT_VIEW_HOST_OPTIONS));
+		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, host?.scopeFolders ? { ...SESSION_CHAT_VIEW_HOST_OPTIONS, scopeFolders: host.scopeFolders } : SESSION_CHAT_VIEW_HOST_OPTIONS));
 		this.element.appendChild(sessionView.element);
 		// Styled as the active session of the grid is.
 		sessionView.element.classList.add('is-active');
