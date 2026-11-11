@@ -273,6 +273,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Unavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The unavailable empty state has no disconnected icon. No automations yet is followed by its description, then an italic remote detection count and Manage Remotes link.'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
 	}),
 	UnavailableMultipleReasons: defineComponentFixture({

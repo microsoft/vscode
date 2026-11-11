@@ -2888,10 +2888,12 @@ suite('AutomationsCardsWidget', () => {
 			count: widget.element.querySelector('.automations-cards-unavailable .automations-manage-remotes-count')?.textContent,
 			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')?.style.display,
 			previousSibling: widget.element.querySelector('.automations-manage-remotes-target')?.previousElementSibling?.className,
+			hasIcon: !!widget.element.querySelector('.automations-cards-unavailable .automations-cards-state-icon'),
 		}, {
 			count: '0/1 remotes detected',
 			warningDisplay: 'none',
-			previousSibling: 'automations-cards-state-title',
+			previousSibling: 'automations-cards-state-description',
+			hasIcon: false,
 		});
 	});
 
