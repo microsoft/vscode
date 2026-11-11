@@ -1468,6 +1468,35 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ mainAtItsMinimum: main <= 50 }, { mainAtItsMinimum: false });
 	});
 
+	test('the terminals that shrank as a part was dropped at an edge of the window, or in a layout that does not grow the window, keep their height', () => {
+		const { grid, position, open, userResize, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		const arranged = height();
+		grid.layout(1000, 800);
+		const same = height();
+		grid.layout(1200, 800);
+
+		assert.deepStrictEqual({ arranged: arranged < 400, same, widthOnly: height() }, { arranged: true, same: arranged, widthOnly: arranged });
+	});
+
+	test('in Stacked, the chat and the main part keep their shares as the terminals take their height back', () => {
+		const { mode, grid, position, open, userResize } = setupWithTerminals(ChatWindowLayoutMode.ChatOnly);
+		position.set(ChatWindowTerminalPosition.FullWidth, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.layout(1000, 450);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const squeezed = heights();
+		grid.layout(1000, 800);
+		const grown = heights();
+
+		assert.deepStrictEqual({ squeezedTerminals: squeezed[2] < 400, terminals: grown[2], ratio: Math.round(grown[0] / grown[1] * 10) }, { squeezedTerminals: true, terminals: 400, ratio: Math.round(squeezed[0] / squeezed[1] * 10) });
+	});
+
 	test('a part hidden while the terminals open shows again at its share, beside the terminals at their height: the chat in Stacked, and the main part with the terminals under it', () => {
 		const roundTrip = (initial: ChatWindowLayoutMode, hiding: ChatWindowLayoutMode, position: ChatWindowTerminalPosition, cell: ChatWindowGridCell) => {
 			const { mode, position: terminalPosition, grid, open, height } = setupWithTerminals(initial);

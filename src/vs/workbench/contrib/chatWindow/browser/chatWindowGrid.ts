@@ -679,7 +679,8 @@ export class ChatWindowGrid extends Disposable {
 	}
 
 	layout(width: number, height: number): void {
-		const first = !this._dimension;
+		const previous = this._dimension;
+		const first = !previous;
 		this._dimension = { width, height };
 		if (first) {
 			// Arranged once the window has its size, so that the parts take their shares of it.
@@ -689,11 +690,12 @@ export class ChatWindowGrid extends Disposable {
 			const grid = this._grid.value;
 			grid?.layout(width, height);
 			// Squeezed where the window had too little room, such as as a part showed in a short one: they take the height the
-			// user gave them back as it grows, as far as the others leave room. Not mid-drag, which saves the height it ends at.
+			// user gave them back as it grows taller, as far as the others leave room. Not otherwise, as a part dropped at an
+			// edge of the window shrinks them on purpose, nor mid-drag, which saves the height it ends at.
 			const given = this._sizes[TERMINALS_SIZE_KEY]?.[ChatWindowGridCell.Terminals]?.height;
 			if (grid && given !== undefined && !this._resizing.get()) {
-				if (grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < given && this._isInColumn(grid, ChatWindowGridCell.Terminals)) {
-					this._resizeTerminals(grid, given);
+				if (height > previous.height && grid.isCellVisible(ChatWindowGridCell.Terminals) && grid.getCellSize(ChatWindowGridCell.Terminals).height < given && this._isInColumn(grid, ChatWindowGridCell.Terminals)) {
+					this._recoverTerminalsHeight(grid, given);
 				}
 				// The height a hidden part restores them to was squeezed too, if the window had too little room when it hid
 				if (this._beforeHide?.terminalsHeight !== undefined && this._beforeHide.terminalsHeight < given) {
@@ -707,6 +709,26 @@ export class ChatWindowGrid extends Disposable {
 	private _isInColumn(grid: PartGrid, cell: string): boolean {
 		const current = grid.serializeGrid();
 		return !!current && findLineOf(current.root, current.orientation, cell)?.orientation === Orientation.VERTICAL;
+	}
+
+	/** Gives the terminals `height`, taking it from the parts above them in proportion to their heights, not from the last. */
+	private _recoverTerminalsHeight(grid: PartGrid, height: number): void {
+		const current = grid.serializeGrid();
+		const line = current && findLineOf(current.root, current.orientation, ChatWindowGridCell.Terminals);
+		const siblings = (line?.children ?? [])
+			.map(child => child.type === 'leaf' ? (child.data as { id: string }).id : undefined)
+			.filter((id): id is string => id !== undefined && id !== ChatWindowGridCell.Terminals && grid.isCellVisible(id))
+			.map(id => ({ id, height: grid.getCellSize(id).height }));
+		const total = siblings.reduce((sum, sibling) => sum + sibling.height, 0);
+		const taken = height - grid.getCellSize(ChatWindowGridCell.Terminals).height;
+		this._resizeTerminals(grid, height);
+		if (total > taken) {
+			for (const sibling of siblings.slice(0, -1)) {
+				grid.resizeCell(sibling.id, { height: sibling.height - Math.round(taken * sibling.height / total) });
+			}
+			// Shrinking a part hands its room to the next one, which may be the terminals.
+			this._resizeTerminals(grid, height);
+		}
 	}
 
 	private _resizeTerminals(grid: PartGrid, height: number): void {
