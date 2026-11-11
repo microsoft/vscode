@@ -105,11 +105,11 @@ test('mobile archive retries reuse the standard artifact check without changing 
 	}, {
 		outputs: [{
 			artifactName: 'vscode_web_linux_mobile_archive-unsigned',
-			condition: "and(succeeded(), ne(variables['WEB_MOBILE_ARCHIVE_PUBLISHED'], 'true'))",
+			condition: 'and(succeeded(), ne(variables[\'WEB_MOBILE_ARCHIVE_PUBLISHED\'], \'true\'))',
 		}],
 		mobileCheck: ['node', 'build/azure-pipelines/common/checkForArtifact.ts', 'WEB_MOBILE_ARCHIVE_PUBLISHED', 'vscode_web_linux_mobile_archive-unsigned'],
 		token: '$(System.AccessToken)',
 		ordinaryCheck: ['node', 'build/azure-pipelines/common/checkForArtifact.ts', 'WEB_ARCHIVE_PUBLISHED', 'vscode_web_linux_standalone_archive-unsigned'],
-		ordinaryCondition: "and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))",
+		ordinaryCondition: 'and(succeeded(), ne(variables[\'WEB_ARCHIVE_PUBLISHED\'], \'true\'))',
 	});
 });
