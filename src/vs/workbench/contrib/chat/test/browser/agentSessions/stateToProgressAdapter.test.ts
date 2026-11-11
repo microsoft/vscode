@@ -3802,6 +3802,36 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('a call the user approves stays visible once it completes, and one they decline is hidden', () => {
+			const running = createToolCallState({ toolCallId: 'tc-grep', toolName: 'grep', displayName: 'Search', invocationMessage: 'Search for `thinkingStyle`', _meta: { toolKind: 'search' } });
+			const pending: AnyToolCallState = { ...running, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow search?' };
+			const settle = (asksFirst: boolean, approved: boolean) => {
+				// Copilot starts a call running and asks for approval later; other hosts can ask first.
+				const invocation = toolCallStateToInvocation(asksFirst ? pending : running);
+				if (!asksFirst) {
+					invocation.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+				}
+				const hiddenWhilePending = IChatToolInvocation.isEffectivelyHidden(invocation);
+				IChatToolInvocation.confirmWith(invocation, { type: approved ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+				finalizeToolInvocation(invocation, approved
+					? createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Searched for `thinkingStyle`' })
+					: { ...running, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied });
+				return { hiddenWhilePending, hidden: IChatToolInvocation.isEffectivelyHidden(invocation) };
+			};
+
+			assert.deepStrictEqual({
+				approvedAfterRunning: settle(false, true),
+				approvedBeforeRunning: settle(true, true),
+				declinedAfterRunning: settle(false, false),
+				declinedBeforeRunning: settle(true, false),
+			}, {
+				approvedAfterRunning: { hiddenWhilePending: false, hidden: false },
+				approvedBeforeRunning: { hiddenWhilePending: false, hidden: false },
+				declinedAfterRunning: { hiddenWhilePending: false, hidden: true },
+				declinedBeforeRunning: { hiddenWhilePending: false, hidden: true },
+			});
+		});
+
 		test('requestConfirmation no-ops on a completed invocation', () => {
 			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);
 			streaming.transitionFromStreaming(toolCallStateToPreparedInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded }), undefined, undefined);
