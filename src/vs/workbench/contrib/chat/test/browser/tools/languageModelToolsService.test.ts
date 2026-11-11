@@ -4686,6 +4686,83 @@ suite('LanguageModelToolsService', () => {
 			assert.deepStrictEqual(effects, ['internalInvoke', 'prepare', 'extensionInvoke', 'stream']);
 		});
 
+		for (const useStreamAlias of [false, true]) {
+			test(`cancels a policy-denied pending invocation matched by ${useStreamAlias ? 'stream alias' : 'call id'}`, async () => {
+				const config = new McpPolicyTestConfigurationService();
+				const { service, chatService } = createTestToolsService(store, { configurationService: config });
+				const owner = LocalChatSessionUri.forSession('policy-owner');
+				stubGetSession(chatService, 'policy-owner');
+				const effects: string[] = [];
+				const tool = registerToolForTest(service, store, 'extensionTool', {
+					handleToolStream: async () => { effects.push('stream'); return undefined; },
+					invoke: async () => { effects.push('invoke'); return { content: [] }; },
+				}, { source: extensionSource, sessionResource: owner });
+				const invocation = service.beginToolCall({
+					toolId: tool.id, toolCallId: 'stream', toolSessionResource: owner, sessionResource: owner,
+				});
+				config.setMcpPolicyValue(McpAccessValue.None);
+
+				await assert.rejects(service.invokeTool({
+					...tool.makeDto({}, { sessionId: 'policy-owner' }, useStreamAlias ? 'invoke' : 'stream'),
+					chatStreamToolCallId: useStreamAlias ? 'stream' : undefined,
+					toolSessionResource: owner,
+				}, async () => 0, CancellationToken.None), policyError);
+				config.setMcpPolicyValue(undefined);
+				await service.updateToolStream('stream', {}, CancellationToken.None);
+
+				const state = invocation?.state.get();
+				assert.deepStrictEqual({
+					state: state?.type,
+					reason: state?.type === IChatToolInvocation.StateKind.Cancelled ? state.reason : undefined,
+					hasPolicyReason: state?.type === IChatToolInvocation.StateKind.Cancelled && typeof state.reasonMessage === 'string' && policyError.test(state.reasonMessage),
+					effects,
+				}, {
+					state: IChatToolInvocation.StateKind.Cancelled,
+					reason: ToolConfirmKind.Denied,
+					hasPolicyReason: true,
+					effects: ['stream'],
+				});
+			});
+		}
+
+		test('policy denial cannot cancel a pending call owned by another tool or session', async () => {
+			const config = new McpPolicyTestConfigurationService();
+			const { service } = createTestToolsService(store, { configurationService: config });
+			const owner = LocalChatSessionUri.forSession('policy-owner');
+			const other = LocalChatSessionUri.forSession('other-session');
+			const effects: string[] = [];
+			const tool = registerToolForTest(service, store, 'extensionTool', {
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+				invoke: async () => ({ content: [] }),
+			}, { source: extensionSource, sessionResource: owner });
+			registerToolForTest(service, store, 'otherTool', {
+				invoke: async () => ({ content: [] }),
+			}, { source: extensionSource, sessionResource: owner });
+			const invocation = service.beginToolCall({
+				toolId: tool.id, toolCallId: 'stream', toolSessionResource: owner, sessionResource: owner,
+			});
+			config.setMcpPolicyValue(McpAccessValue.None);
+			const states = [];
+			for (const scenario of [
+				{ toolId: 'otherTool', callId: 'stream', scope: owner, presentation: owner, error: policyError },
+				{ toolId: tool.id, callId: 'stream', scope: other, presentation: owner, error: /not available in this session/ },
+				{ toolId: tool.id, callId: 'stream', scope: owner, presentation: other, error: policyError },
+				{ toolId: tool.id, callId: 'other-call', scope: owner, presentation: owner, error: policyError },
+			]) {
+				await assert.rejects(service.invokeTool({
+					callId: scenario.callId, toolId: scenario.toolId, parameters: {},
+					toolSessionResource: scenario.scope, context: { sessionResource: scenario.presentation },
+				}, async () => 0, CancellationToken.None), scenario.error);
+				states.push(invocation?.state.get().type);
+			}
+			config.setMcpPolicyValue(undefined);
+			await service.updateToolStream('stream', {}, CancellationToken.None);
+			assert.deepStrictEqual({ states, effects }, {
+				states: Array(4).fill(IChatToolInvocation.StateKind.Streaming),
+				effects: ['stream', 'stream'],
+			});
+		});
+
 		for (const phase of ['activation', 'preparation']) {
 			test(`rechecks policy after asynchronous ${phase}`, async () => {
 				const config = new McpPolicyTestConfigurationService();
@@ -4718,6 +4795,9 @@ suite('LanguageModelToolsService', () => {
 				if (phase === 'preparation') {
 					store.add(service.registerToolImplementation(toolData.id, implementation));
 				}
+				const pendingInvocation = phase === 'activation'
+					? service.beginToolCall({ toolId: toolData.id, toolCallId: 'call', force: true })
+					: undefined;
 				const result = service.invokeTool({
 					callId: 'call', toolId: toolData.id, parameters: {}, context: undefined,
 				}, async () => 0, CancellationToken.None);
@@ -4729,7 +4809,10 @@ suite('LanguageModelToolsService', () => {
 				}
 				await resume.complete();
 				await rejected;
-				assert.deepStrictEqual(effects, [phase === 'activation' ? 'activate' : 'prepare']);
+				assert.deepStrictEqual({ effects, pendingState: pendingInvocation?.state.get().type }, {
+					effects: [phase === 'activation' ? 'activate' : 'prepare'],
+					pendingState: phase === 'activation' ? IChatToolInvocation.StateKind.Cancelled : undefined,
+				});
 			});
 		}
 	});
