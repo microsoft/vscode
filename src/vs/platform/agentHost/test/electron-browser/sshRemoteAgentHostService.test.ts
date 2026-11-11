@@ -1452,25 +1452,25 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor');
 	});
 
-	test('resolves to the live editor candidate with the lexicographically smallest instanceId, regardless of array order', async () => {
+	test('resolves to the first live editor candidate in newest-first registry order', async () => {
 		locationPreferenceService.setPreference(connectionKey, 'editor');
 
 		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, otherEditorCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
-			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 333, instanceId: 'editor-instance-1' } },
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-2' } },
 		]);
 	});
 
-	test('resolves to the live standalone candidate with the lexicographically smallest instanceId, regardless of array order', async () => {
+	test('resolves to the first live standalone candidate in newest-first registry order', async () => {
 		locationPreferenceService.setPreference(connectionKey, 'dedicated');
 
 		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate, otherStandaloneCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
-			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 444, instanceId: 'standalone-instance-1' } },
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-2' } },
 		]);
 	});
 
