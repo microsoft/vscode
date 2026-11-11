@@ -349,6 +349,10 @@ export function isChangesActionsWorkspaceReady(session: ISession | undefined, ch
 		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
 }
 
+const AGENT_MERGE_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionAgentMergeEnabledContext.key]);
+const ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionArtifactIntegrationsEnabledContext.key]);
+const CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS: ReadonlySet<string> = new Set([DesktopChangesEditorTransitionContext.key]);
+
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _buttonBar: WorkbenchButtonBar;
@@ -423,11 +427,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			));
 		});
 
-		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
+		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(AGENT_MERGE_ENABLED_CONTEXT_KEYS)), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
-		const artifactIntegrationsEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionArtifactIntegrationsEnabledContext.key]))), () =>
+		const artifactIntegrationsEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS)), () =>
 			SessionArtifactIntegrationsEnabledContext.getValue(contextKeyService) === true);
-		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS)), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
