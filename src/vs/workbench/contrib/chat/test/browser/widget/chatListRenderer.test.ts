@@ -2847,10 +2847,12 @@ suite('ChatListRenderer', () => {
 
 	suite('inline request attachments', () => {
 		for (const fontSize of [13, 18]) {
-			test(`aligns attachment and slash-command pills at chat font size ${fontSize}`, () => {
+			test(`aligns attachment pills and slash commands with the text of a request at chat font size ${fontSize}`, () => {
 				const { container, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 				configurePersistentProgressTypography(container, fontSize);
 				container.style.fontFamily = 'sans-serif';
+				// Rows are in the list of a chat widget, where pills take the smaller font of the chat.
+				template.rowContainer.classList.add('interactive-list');
 				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
 				request.response?.complete();
 				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
@@ -2866,29 +2868,45 @@ suite('ChatListRenderer', () => {
 				}, { variables: [file] }, 0);
 				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
 				const attachment = template.value.querySelector('.chat-request-inline-attachment');
+				const label = attachment?.querySelector('.label-name');
 				const command = template.value.querySelector('.chat-resource-widget');
+				const commandText = command?.firstElementChild;
 				const paragraph = template.value.querySelector('p');
 				const bubble = template.value.querySelector<HTMLElement>('.rendered-markdown');
-				assert.ok(attachment && command && paragraph && bubble);
+				assert.ok(attachment && label && command && commandText && paragraph && bubble);
+
+				// An inline block without content sits on the baseline of the text that it is added to.
+				const baselineOf = (addProbe: (probe: HTMLElement) => void) => {
+					const probe = dom.$('span');
+					probe.style.display = 'inline-block';
+					addProbe(probe);
+					const baseline = probe.getBoundingClientRect().bottom;
+					probe.remove();
+					return baseline;
+				};
 
 				const geometry = [720, 240, 720].map(width => {
 					container.style.width = `${width}px`;
 					renderer.layout(width);
 					const attachmentBounds = attachment.getBoundingClientRect();
 					const commandBounds = command.getBoundingClientRect();
+					const textBaseline = baselineOf(probe => command.after(probe));
 					return {
-						centerOffset: attachmentBounds.top + attachmentBounds.height / 2 - commandBounds.top - commandBounds.height / 2,
+						baselineOffsets: [baselineOf(probe => label.append(probe)) - textBaseline, baselineOf(probe => commandText.append(probe)) - textBaseline],
+						boxOffsets: [attachmentBounds.top - commandBounds.top, attachmentBounds.bottom - commandBounds.bottom],
 						overflows: bubble.scrollWidth > bubble.clientWidth,
 						wraps: paragraph.getBoundingClientRect().height > fontSize * 2,
 					};
 				});
-				assert.deepStrictEqual(geometry.map(({ centerOffset, ...rest }) => ({
-					aligned: Math.abs(centerOffset) < 1,
+				assert.deepStrictEqual(geometry.map(({ baselineOffsets, boxOffsets, ...rest }) => ({
+					onBaseline: baselineOffsets.every(offset => Math.abs(offset) < 0.5),
+					// A pill keeps its height in a larger font, in which a slash command is taller than it.
+					level: fontSize > 13 || boxOffsets.every(offset => Math.abs(offset) < 1),
 					...rest,
 				})), [
-					{ aligned: true, overflows: false, wraps: false },
-					{ aligned: true, overflows: false, wraps: true },
-					{ aligned: true, overflows: false, wraps: false },
+					{ onBaseline: true, level: true, overflows: false, wraps: false },
+					{ onBaseline: true, level: true, overflows: false, wraps: true },
+					{ onBaseline: true, level: true, overflows: false, wraps: false },
 				], JSON.stringify(geometry));
 			});
 		}
