@@ -32,6 +32,7 @@ const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortc
 
 export interface IAICustomizationShortcutsWidgetOptions {
 	readonly onDidChangeLayout?: () => void;
+	readonly compact?: boolean;
 }
 
 export class AICustomizationShortcutsWidget extends Disposable {
@@ -60,7 +61,11 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	readonly onDidToggleCollapsed = this._onDidToggleCollapsed.event;
 
 	get collapsed(): boolean {
-		return this._collapsed;
+		return this._options?.compact === true || this._collapsed;
+	}
+
+	get compact(): boolean {
+		return this._options?.compact === true;
 	}
 
 	get collapsedHeight(): number {
@@ -112,6 +117,16 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._rootVerticalPadding = 0;
 		this._headerTotalCount = 0;
 		DOM.clearNode(this._wrapper);
+		if (this._options?.compact) {
+			const container = DOM.append(this._wrapper, $('.ai-customization-toolbar'));
+			const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content'));
+			this._toolbar = this._renderDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizationsEntryPoint, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				telemetrySource: 'sidebarCustomizations',
+			}));
+			return;
+		}
 		this._render(this._wrapper, this._options);
 		this._setCollapsed(this._collapsed);
 	}
@@ -195,6 +210,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	get desiredHeight(): number {
+		if (this._options?.compact) {
+			return this.collapsedHeight;
+		}
 		const content = this._toolbarContentElement;
 		if (!content) {
 			return 0;
@@ -274,6 +292,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	focus(): void {
+		if (this._options?.compact) {
+			this._toolbar?.focus();
+			return;
+		}
 		if (this._collapsed) {
 			this._headerElement?.focus();
 			return;

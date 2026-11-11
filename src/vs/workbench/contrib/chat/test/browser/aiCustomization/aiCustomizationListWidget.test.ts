@@ -11,9 +11,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
@@ -1093,6 +1095,96 @@ suite('aiCustomizationListWidget', () => {
 				command: 'npm run lint',
 				commandDisplay: '',
 				pathDisplay: 'none',
+			});
+		});
+
+		test('keeps the overflow action visible while its context menu is open without moving tree focus', async () => {
+			const item: IAICustomizationListItem = {
+				id: 'skill',
+				uri: URI.file('/workspace/.github/skills/review/SKILL.md'),
+				name: 'Review',
+				filename: '.github/skills/review/SKILL.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [item]);
+			let contextMenuDelegate: IContextMenuDelegate | undefined;
+			instaService.stub(IContextMenuService, {
+				onDidShowContextMenu: Event.None,
+				onDidHideContextMenu: Event.None,
+				showContextMenu: delegate => contextMenuDelegate = delegate as IContextMenuDelegate,
+			});
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const selections: string[] = [];
+			disposables.add(widget.onDidSelectItem(selected => selections.push(selected.id)));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const getRow = () => widget.element.querySelector<HTMLElement>('.ai-customization-list-item')!;
+			const initialAction = getRow().querySelector<HTMLElement>('.item-right .action-label')!;
+			const initialFocusedRows = widget.element.querySelectorAll('.monaco-list-row.focused').length;
+			initialAction.click();
+			assert.ok(contextMenuDelegate);
+			const openRow = getRow();
+			const openAction = openRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			const openState = {
+				menuOpen: openRow.classList.contains('menu-open'),
+				hasPopup: openAction.getAttribute('aria-haspopup'),
+				expanded: openAction.getAttribute('aria-expanded'),
+				autoSelectItem: contextMenuDelegate.autoSelectItem,
+				focusedRows: widget.element.querySelectorAll('.monaco-list-row.focused').length,
+			};
+
+			items.set([{ ...item, description: 'Updated review instructions' }], undefined);
+			const refreshedRow = getRow();
+			const refreshedAction = refreshedRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			const refreshedState = {
+				menuOpen: refreshedRow.classList.contains('menu-open'),
+				expanded: refreshedAction.getAttribute('aria-expanded'),
+			};
+
+			contextMenuDelegate.onHide?.(false);
+			const closedRow = getRow();
+			const closedAction = closedRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			assert.deepStrictEqual({
+				initialFocusedRows,
+				openState,
+				refreshedState,
+				closedState: {
+					menuOpen: closedRow.classList.contains('menu-open'),
+					expanded: closedAction.getAttribute('aria-expanded'),
+				},
+				selections,
+			}, {
+				initialFocusedRows: 0,
+				openState: {
+					menuOpen: true,
+					hasPopup: 'menu',
+					expanded: 'true',
+					autoSelectItem: true,
+					focusedRows: 0,
+				},
+				refreshedState: {
+					menuOpen: true,
+					expanded: 'true',
+				},
+				closedState: {
+					menuOpen: false,
+					expanded: 'false',
+				},
+				selections: [],
 			});
 		});
 

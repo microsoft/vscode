@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mobile-pull-indicator {
+	position: absolute;
+	top: -44px;
+	left: 50%;
+	margin-left: -22px;
+	width: 44px;
+	height: 44px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--mobile-surface-raised, var(--vscode-editorWidget-background));
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+	opacity: 0;
+	pointer-events: none;
+	z-index: 5;
+	will-change: transform, opacity;
+}
+
+.mobile-pull-indicator .mobile-pull-glyph {
+	font-size: 16px;
+	color: var(--vscode-foreground);
+	transition: transform 150ms ease-out;
+}
+
+.mobile-pull-indicator.armed .mobile-pull-glyph {
+	transform: rotate(180deg);
+}
+
+.mobile-pull-indicator.refreshing .mobile-pull-glyph {
+	transform: none;
+}
+
+.mobile-pull-live {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+}

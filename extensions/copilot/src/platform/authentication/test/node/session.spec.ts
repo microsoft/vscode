@@ -147,6 +147,25 @@ describe('Copilot session provenance', () => {
 		return disposables.add(new VSCodeCopilotTokenManager(log, new NullTelemetryService(), domains, capi, fetcher, new NullEnvService(), configuration, tokenStore));
 	}
 
+	test('keeps auth unresolved until session discovery completes and publishes confirmed sign-out', async () => {
+		const discovered = new DeferredPromise<void>();
+		vscodeAuthentication.getAccounts.mockImplementation(async () => {
+			await discovered.p;
+			return api.sessions.map(session => session.account);
+		});
+		const states: typeof tokenStore.authenticationState[] = [tokenStore.authenticationState];
+		disposables.add(tokenStore.onDidChangeAuthenticationState(() => states.push(tokenStore.authenticationState)));
+		const service = createService();
+		const ready = service.refreshAuthentication();
+		expect(tokenStore.authenticationState).toBe('unknown');
+		await discovered.complete();
+		await ready;
+		api.selected = undefined;
+		api.sessions.length = 0;
+		await service.refreshAuthentication();
+		expect(states).toEqual(['unknown', 'signedIn', 'unknown', 'signedOut']);
+	});
+
 	test('ordinary sign-in carries the returned issuer without guessing a host', async () => {
 		api.selected = undefined;
 		const selected = await getAnyAuthSession(configuration, { createIfNone: { detail: 'test sign in' } });

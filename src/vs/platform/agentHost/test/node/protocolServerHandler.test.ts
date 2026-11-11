@@ -100,7 +100,8 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
+import { resolveBranchChangesetScopeForSource } from '../../node/agentHostBranchChangesetScope.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
@@ -249,6 +250,7 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
+	prepareSessionWorktreeCleanup?: IAgentService['prepareSessionWorktreeCleanup'];
 	listManagedWorktrees?: IAgentService['listManagedWorktrees'];
 	cleanupManagedWorktree?: IAgentService['cleanupManagedWorktree'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
@@ -2768,6 +2770,22 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
 			const result = await response;
 			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
+		test('routes preparation separately from cleanup and rejects malformed preparation', async () => {
+			const calls: string[] = [];
+			agentService.prepareSessionWorktreeCleanup = async session => { calls.push(session.toString()); };
+			agentService.sessionWorktreeCleanup = async () => { throw new Error('Must not schedule removal'); };
+			const transport = connectClient('worktree-preparation');
+			const valid = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/prepareSessionWorktreeCleanup', { session: 'opaque-session://host/session' }));
+			await valid;
+			const invalid = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/prepareSessionWorktreeCleanup', { session: false }));
+			const response = await invalid;
+			assert.deepStrictEqual({ calls, invalid: hasKey(response, { error: true }) && response.error?.code }, {
+				calls: ['opaque-session://host/session'], invalid: JsonRpcErrorCodes.InvalidParams,
+			});
 		});
 
 		test('routes confirmed force cleanup and rejects malformed force flags', async () => {
@@ -7279,7 +7297,7 @@ suite('ProtocolServerHandler', () => {
 			{ authenticated: false, passive: false, method: 'resources/read', uri: 'ui://github-mcp-server/get-me', error: AHP_AUTH_REQUIRED },
 			{ authenticated: true, passive: true, method: 'resources/read', uri: 'ui://github-mcp-server/get-me', error: JsonRpcErrorCodes.InvalidRequest },
 			...['resourceRead', 'resourceResolve', 'resourceWrite', 'resourceDelete', 'resourceMkdir', 'resourceRequest', 'resourceList', 'createResourceWatch'].map(method =>
-				({ authenticated: true, passive: false, method, uri: 'file:///private/secret', error: AhpErrorCodes.PermissionDenied })),
+			({ authenticated: true, passive: false, method, uri: 'file:///private/secret', error: AhpErrorCodes.PermissionDenied })),
 			{ authenticated: true, passive: false, method: 'resourceRead', uri: 'ui://github-mcp-server/get-me', error: AhpErrorCodes.PermissionDenied },
 		];
 		const errors = [];
@@ -7390,6 +7408,55 @@ suite('ProtocolServerHandler', () => {
 			const response = findResponse(transport.sent, item.id);
 			return !!response && hasKey(response, { result: true });
 		}), [true, false]);
+	});
+
+	test('MC filesystem grants allow Git snapshots of current folder changesets only for reads', async () => {
+		stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file('/workspace').toString()] });
+		const folderOwner = resolveBranchChangesetScopeForSource(stateManager, defaultChatUri).ownerUri;
+		const gitContent = buildGitBlobUri(folderOwner, 'a'.repeat(40), 'file.txt', '/workspace/file.txt');
+		const reads: string[] = [];
+		agentService.resourceRead = async uri => {
+			reads.push(uri.toString());
+			return { data: 'original content', encoding: ContentEncoding.Utf8 };
+		};
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'folder-changes-lane', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'folder-changes-lane', protocolVersions: [PROTOCOL_VERSION] }));
+		const cases = [
+			{ id: 2, method: 'resourceRead', params: { uri: gitContent }, allowed: true },
+			{ id: 3, method: 'resourceRead', params: { uri: buildGitBlobUri(buildFolderChangesetOwnerUri(sessionUri, 'stale'), 'HEAD', 'file.txt', '/workspace/file.txt') }, allowed: false },
+			{ id: 4, method: 'resourceRead', params: { uri: buildGitBlobUri(buildFolderChangesetOwnerUri('copilot:/missing', 'scope'), 'HEAD', 'file.txt', '/workspace/file.txt') }, allowed: false },
+			{ id: 5, method: 'resourceWrite', params: { uri: gitContent, data: 'overwrite', encoding: ContentEncoding.Utf8 }, allowed: false },
+			{ id: 6, method: 'resourceRead', params: { uri: buildGitBlobUri(folderOwner, '--output=private', 'file.txt', '/workspace/file.txt') }, allowed: false },
+		];
+		for (const item of cases) {
+			transport.simulateMessage(request(item.id, item.method, item.params));
+		}
+		await scopedHandler.whenIdle();
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatWorkingDirectorySet, directory: URI.file('/other-workspace').toString() });
+		transport.simulateMessage(request(7, 'resourceRead', { uri: gitContent }));
+		await scopedHandler.whenIdle();
+		const outcome = (id: number) => {
+			const response = findResponse(transport.sent, id);
+			return response && hasKey(response, { error: true }) ? response.error.code
+				: response && hasKey(response, { result: true }) ? response.result : undefined;
+		};
+		assert.deepStrictEqual({
+			results: cases.map(item => outcome(item.id)),
+			retiredScope: outcome(7),
+			reads,
+		}, {
+			results: cases.map(item => item.allowed ? { data: 'original content', encoding: ContentEncoding.Utf8 } : AhpErrorCodes.PermissionDenied),
+			retiredScope: AhpErrorCodes.PermissionDenied,
+			reads: [gitContent],
+		});
 	});
 
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {

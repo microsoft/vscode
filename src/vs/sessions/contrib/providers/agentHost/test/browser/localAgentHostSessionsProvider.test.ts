@@ -3592,6 +3592,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
+	for (const rejected of [false, true]) {
+		test(`archive waits for host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const backend = URI.parse('opaque-session://tenant/archiving');
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'archiving', { resource: backend });
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			const acknowledgement = new DeferredPromise<void>();
+			const dispatched = new DeferredPromise<void>();
+			const calls: string[] = [];
+			agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+				calls.push(channel);
+				await dispatched.complete();
+				await acknowledgement.p;
+				return { channel, action, serverSeq: 1, origin: undefined, ...(rejected ? { rejectionReason: 'Archive denied' } : {}) };
+			};
+			let completed = false;
+			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
+			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
+			await dispatched.p;
+			const beforeAcknowledgement = completed;
+			await acknowledgement.complete();
+			await result;
+			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
+				beforeAcknowledgement: false, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+			});
+		}));
+	}
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);

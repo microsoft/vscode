@@ -1020,14 +1020,22 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (!this._canSendRequest.get()) {
 			return false;
 		}
+		const targetWindow = dom.getWindow(widget.domNode);
+		const hadFocus = widget.input.hasFocus();
+		let disabledInputFocus = targetWindow.document.activeElement;
+		const canRestoreInputFocus = () => {
+			const activeElement = targetWindow.document.activeElement;
+			return this.options.inputVisible?.get() !== false && this.options.hostVisible?.get() !== false
+				&& (activeElement === targetWindow.document.body || activeElement === disabledInputFocus || widget.input.hasFocus());
+		};
 		if (this.options.confirmSend) {
-			const hadFocus = widget.input.hasFocus();
 			transaction(tx => {
 				this._sending.set(true, tx);
 				this._confirmingSend.set(true, tx);
 			});
 			// The request is already captured, so edits made while the host confirms would be lost.
 			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+			disabledInputFocus = targetWindow.document.activeElement;
 			let confirmed = false;
 			try {
 				confirmed = await this.options.confirmSend(query);
@@ -1038,7 +1046,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				});
 				if (this._widget === widget && widget.input) {
 					widget.input.setInputEnabled(true);
-					if (!confirmed && hadFocus) {
+					if (!confirmed && hadFocus && canRestoreInputFocus()) {
 						widget.input.focus();
 					}
 				}
@@ -1054,8 +1062,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			hostVisible: this.options.hostVisible,
 		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
+		const restoreFocusAfterSend = hadFocus && canRestoreInputFocus();
 		this._sending.set(true, undefined);
 		widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+		disabledInputFocus = targetWindow.document.activeElement;
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;
@@ -1124,6 +1134,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this._userInteractionSource.clear();
 			if (isInputAlive()) {
 				widget.input.setInputEnabled(true);
+				if (!sent && restoreFocusAfterSend && canRestoreInputFocus()) {
+					widget.input.focus();
+				}
 			}
 			this._sending.set(false, undefined);
 		}

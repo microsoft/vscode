@@ -31,24 +31,6 @@
 	background-color: var(--vscode-input-background);
 }
 
-/* Idle (unfocused and empty): a borderless row that shows the input frame on hover, focus, or once it has content. */
-.chat-question-answer-editor.ghost {
-	border-color: var(--vscode-contrastBorder, transparent);
-	cursor: text;
-}
-
-.chat-question-answer-editor.ghost:hover {
-	border-color: var(--vscode-input-border, var(--vscode-widget-border, transparent));
-}
-
-.chat-question-answer-editor.ghost .monaco-editor .editorPlaceholder {
-	color: var(--vscode-descriptionForeground);
-}
-
 .monaco-workbench:not(.monaco-reduce-motion) .chat-question-answer-editor {
 	transition: border-color 150ms ease-out;
-
-	.monaco-editor .editorPlaceholder {
-		transition: color 150ms ease-out;
-	}
 }
