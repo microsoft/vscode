@@ -70,6 +70,11 @@ export class WindowTitle extends Disposable {
 
 	get value() { return this.title ?? ''; }
 	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+
+	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
+	get folderLocation(): string {
+		return this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation?.label ?? '' : '';
+	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
 		if (!activeEditor) {
@@ -361,7 +366,7 @@ export class WindowTitle extends Disposable {
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
-		const folderLocation = workspace.folders[0]?.primaryUri ? this.folderLocationService.currentLocation?.label ?? '' : '';
+		const folderLocation = this.folderLocation;
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;

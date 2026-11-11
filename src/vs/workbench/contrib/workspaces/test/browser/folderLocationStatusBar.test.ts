@@ -10,7 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { INotificationService, IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
+import { IHoverOptions, IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IStatusbarEntry, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
@@ -28,7 +29,9 @@ suite('FolderLocationStatusBarContribution', () => {
 	function createFixture() {
 		const entries: IStatusbarEntry[] = [];
 		let visible = false;
-		const prompts: { choices: IPromptChoice[]; options?: IPromptOptions }[] = [];
+		const hovers: IHoverOptions[] = [];
+		const highlighted = new Set<string>();
+		const element = { classList: { add: (c: string) => highlighted.add(c), remove: (c: string) => highlighted.delete(c) } };
 		const executed: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
@@ -47,13 +50,14 @@ suite('FolderLocationStatusBarContribution', () => {
 					return { update: (e: IStatusbarEntry) => { entries.push(e); }, dispose: () => { visible = false; } };
 				}
 			} as unknown as IStatusbarService,
-			{ prompt(_severity: unknown, _message: string, choices: IPromptChoice[], options?: IPromptOptions) { prompts.push({ choices, options }); } } as unknown as INotificationService,
+			{ showInstantHover(options: IHoverOptions) { hovers.push(options); } } as unknown as IHoverService,
+			{ mainContainer: { ownerDocument: { getElementById: () => element } } } as unknown as ILayoutService,
 			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
 			{ getBoolean: () => stored, store: () => { stored = true; } } as unknown as IStorageService
 		));
 
 		return {
-			contribution, entries, prompts, executed,
+			contribution, entries, hovers, highlighted, executed,
 			isVisible: () => visible,
 			switchTo() {
 				currentLocation = location;
@@ -68,25 +72,36 @@ suite('FolderLocationStatusBarContribution', () => {
 		};
 	}
 
-	test('entry is shown only at an alternate location and the notification appears once', async () => {
+	test('entry is prominent and shown only at an alternate location', () => {
 		const fixture = createFixture();
 		assert.strictEqual(fixture.isVisible(), false);
 
 		fixture.switchTo();
-		assert.strictEqual(fixture.isVisible(), true);
 		assert.deepStrictEqual(
-			{ text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, prompts: fixture.prompts.length, neverShowAgain: fixture.prompts[0].options?.neverShowAgain?.id },
-			{ text: '$(location) Alternate', ariaLabel: 'Folder Location, Alternate', command: RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, prompts: 1, neverShowAgain: 'workbench.folderLocation.switched' });
-
-		// The notification's button returns to the primary location
-		await fixture.prompts[0].choices[0].run();
-		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
+			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind },
+			{ visible: true, text: '$(location) Alternate', ariaLabel: 'Folder Location, Alternate', command: RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, kind: 'prominent' });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
+	});
+
+	test('the introduction hover is shown once, highlights the entry and can return to the primary', async () => {
+		const fixture = createFixture();
 
 		fixture.switchTo();
-		assert.deepStrictEqual({ visible: fixture.isVisible(), prompts: fixture.prompts.length }, { visible: true, prompts: 1 });
+		assert.deepStrictEqual(
+			{ hovers: fixture.hovers.length, sticky: fixture.hovers[0].persistence?.sticky, actions: fixture.hovers[0].actions?.map(a => a.label), highlighted: [...fixture.highlighted] },
+			{ hovers: 1, sticky: true, actions: ['Return to project', 'Got It'], highlighted: ['folder-location-highlight'] });
+
+		fixture.hovers[0].onDidHide?.();
+		assert.deepStrictEqual([...fixture.highlighted], []);
+
+		await fixture.hovers[0].actions![0].run(undefined as never);
+		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
+
+		fixture.returnToPrimary();
+		fixture.switchTo();
+		assert.strictEqual(fixture.hovers.length, 1);
 	});
 
 	test('return command switches back to the primary location', async () => {
