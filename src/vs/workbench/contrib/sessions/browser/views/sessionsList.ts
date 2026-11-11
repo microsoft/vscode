@@ -1719,6 +1719,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			getTriageDescription?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
+			isWorkspaceScoped?: () => boolean;
 			/** How many groups deep the custom group whose rows include the session's row is nested; the row steps in by that many levels. */
 			getGroupDepth?: (session: ISession) => number;
 			/** The environment badge of a session in a repository section, or `undefined` when it runs on this computer. */
@@ -2557,6 +2558,7 @@ function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefine
 
 interface ISessionRowLocationOptions {
 	readonly grouping: () => SessionsGrouping;
+	readonly isWorkspaceScoped?: () => boolean;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
@@ -2574,6 +2576,9 @@ function getSessionRowLocationLabel(session: ISession, workspace: ISessionWorksp
 		return undefined;
 	}
 	const grouping = options.grouping();
+	if (grouping === SessionsGrouping.Inbox && options.isWorkspaceScoped?.()) {
+		return undefined;
+	}
 	const inWorkspaceOrRepositorySection = (grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository)
 		&& !options.isPinned(session)
 		&& !session.isArchived.read(reader)
@@ -3499,6 +3504,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPresentationOptions {
 	readonly grouping: () => SessionsGrouping;
+	readonly isWorkspaceScoped?: () => boolean;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly widgetAriaLabel?: string;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
@@ -4910,6 +4916,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
+				isWorkspaceScoped: () => typeof this.filters.inboxScope.workspace === 'object',
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
 				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
@@ -5159,6 +5166,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					widgetAriaLabel: label,
 					getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 					grouping: this.options.grouping,
+					isWorkspaceScoped: () => typeof this.filters.inboxScope.workspace === 'object',
 					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),

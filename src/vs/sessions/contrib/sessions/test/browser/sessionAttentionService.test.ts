@@ -141,7 +141,40 @@ suite('SessionAttentionService', () => {
 			whileHidden, initial, metadata, working, restored: historical(restored.service),
 			cutoff: restored.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE),
 			canvasCutoff: restored.storage.getNumber('sessions.inboxNotifications.completionStartTime', StorageScope.APPLICATION),
-		}, { whileHidden: undefined, initial: ['old', 'late'], metadata: ['old', 'late'], working: ['late'], restored: ['late'], cutoff: start, canvasCutoff: undefined });
+		}, { whileHidden: undefined, initial: ['old', 'late'], metadata: ['old', 'late'], working: ['late'], restored: ['old', 'late'], cutoff: start, canvasCutoff: undefined });
+	}));
+
+	test('restart clears restored read completions but preserves unread, actionable and new activity', () => runWithFakedTimers({ startTime: new Date(2026, 10, 11, 12).getTime() }, async () => {
+		const fixture = createFixture([]);
+		store.add(fixture.service.acquireSessionAttention());
+		const start = Date.now();
+		await timeout(1000);
+		const read = createSession('read', SessionStatus.Completed, Date.now());
+		const unread = createSession('unread', SessionStatus.Completed, Date.now());
+		const actionable = createSession('actionable', SessionStatus.Completed, Date.now(), [{ number: 42 }]);
+		(read.isRead as ISettableObservable<boolean>).set(true, undefined);
+		(actionable.isRead as ISettableObservable<boolean>).set(true, undefined);
+		fixture.setSessions([read, unread, actionable]);
+		const model = fixture.createListModel();
+		const initial = [read, unread, actionable].map(session => model.getInboxState(session)?.kind);
+		fixture.service.dispose();
+		await timeout(1000);
+		const restored = createFixture([read, unread, actionable], fixture.storage);
+		restored.github.setPullRequest(42, openPullRequest(42));
+		restored.github.setCIStatus(42, GitHubCIOverallStatus.Failure);
+		store.add(restored.service.acquireSessionAttention());
+		await timeout(0);
+		const restoredModel = restored.createListModel();
+		const afterRestart = [read, unread, actionable].map(session => restoredModel.getInboxState(session)?.kind);
+		await timeout(1000);
+		(read.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now()), undefined);
+		assert.deepStrictEqual({
+			initial, afterRestart, newCompletion: restoredModel.getInboxState(read)?.kind,
+			cutoff: restored.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE),
+		}, {
+			initial: [undefined, undefined, undefined], afterRestart: ['done', undefined, undefined],
+			newCompletion: undefined, cutoff: start,
+		});
 	}));
 
 	test('non-PR completions keep notification identities empty across metadata, model residency and new turns', () => {

@@ -5360,6 +5360,42 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('Inbox workspace scope hides redundant row badges and accessible locations until reset', () => {
+			const session = createTestSession('ready', { workspaceLabel: 'app' }).session;
+			const harness = createListHarness(disposables, [session]);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			const container = harness.createContainer();
+			let grouping = SessionsGrouping.Inbox;
+			const list = disposables.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(800, 320);
+			const snapshot = () => ({
+				badge: container.querySelector('.session-item .session-badge')?.textContent,
+				ariaHasWorkspace: container.querySelector('.session-item')?.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('in app'),
+			});
+			const all = snapshot();
+			list.filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+			const environment = snapshot();
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(session));
+			const scoped = snapshot();
+			grouping = SessionsGrouping.Date;
+			list.update();
+			const date = snapshot();
+			grouping = SessionsGrouping.Inbox;
+			list.update();
+			const scopedAgain = snapshot();
+			list.filters.setInboxWorkspace(undefined);
+			assert.deepStrictEqual({ all, environment, scoped, date, scopedAgain, reset: snapshot() }, {
+				all: { badge: 'app', ariaHasWorkspace: true },
+				environment: { badge: 'app', ariaHasWorkspace: true },
+				scoped: { badge: undefined, ariaHasWorkspace: false },
+				date: { badge: 'app', ariaHasWorkspace: true },
+				scopedAgain: { badge: undefined, ariaHasWorkspace: false },
+				reset: { badge: 'app', ariaHasWorkspace: true },
+			});
+		});
+
 		test('Inbox scope refreshes hidden sessions when workspace metadata hydrates', async () => {
 			const hydrated = createTestSession('hydrating').session;
 			const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
