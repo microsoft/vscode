@@ -13,10 +13,11 @@ import { hasNativeTitlebar } from '../../../../platform/window/common/window.js'
 
 export class WindowIgnoreMenuShortcutsManager {
 
+	private static readonly _shortcutOwners = new Map<number, WindowIgnoreMenuShortcutsManager>();
+
 	private readonly _isUsingNativeTitleBars: boolean;
 
 	private readonly _webviewMainService: IWebviewManagerService;
-	private _isFocused = false;
 
 	constructor(
 		configurationService: IConfigurationService,
@@ -29,14 +30,14 @@ export class WindowIgnoreMenuShortcutsManager {
 	}
 
 	public didFocus(): void {
-		this._isFocused = true;
+		WindowIgnoreMenuShortcutsManager._shortcutOwners.set(this._nativeHostService.windowId, this);
 		this.setIgnoreMenuShortcuts(true);
 	}
 
 	public didBlur(): void {
-		// Disposal also calls didBlur, even for webviews that do not own focus.
-		if (this._isFocused) {
-			this._isFocused = false;
+		// Blur can arrive after another webview has taken ownership of the window's shortcuts.
+		if (WindowIgnoreMenuShortcutsManager._shortcutOwners.get(this._nativeHostService.windowId) === this) {
+			WindowIgnoreMenuShortcutsManager._shortcutOwners.delete(this._nativeHostService.windowId);
 			this.setIgnoreMenuShortcuts(false);
 		}
 	}

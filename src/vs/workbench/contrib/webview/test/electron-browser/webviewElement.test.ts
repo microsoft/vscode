@@ -32,7 +32,7 @@ class TestElectronWebviewElement extends ElectronWebviewElement {
 suite('ElectronWebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWebview(shortcutStates: boolean[] = []) {
+	function createWebview(shortcutStates: boolean[] = [], windowId = 42) {
 		const calls: { command: string; args: unknown }[] = [];
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ window: { titleBarStyle: 'native' } }));
@@ -50,7 +50,7 @@ suite('ElectronWebviewElement', () => {
 				call: (command, args) => channel.call(undefined, command, args),
 			}),
 		});
-		instantiationService.stub(INativeHostService, { windowId: 42 });
+		instantiationService.stub(INativeHostService, { windowId });
 		instantiationService.stub(IRemoteAuthorityResolverService, {});
 		instantiationService.stub(ITunnelService, {});
 		const themeProvider = upcastPartial<WebviewThemeDataProvider>({
@@ -92,6 +92,57 @@ suite('ElectronWebviewElement', () => {
 			assert.deepStrictEqual(shortcutStates, []);
 		});
 	}
+
+	for (const disposeBeforeBlur of [false, true]) {
+		test(`${disposeBeforeBlur ? 'disposing' : 'blurring'} the previous owner after focus transfers preserves the new owner's shortcuts`, () => {
+			const shortcutStates: boolean[] = [];
+			const first = createWebview(shortcutStates).webview;
+			const second = createWebview(shortcutStates).webview;
+			first.handleFocusChange(true);
+			second.handleFocusChange(true);
+
+			if (disposeBeforeBlur) {
+				first.dispose();
+			} else {
+				first.handleFocusChange(false);
+			}
+			const statesAfterTransfer = [...shortcutStates];
+			second.dispose();
+			first.dispose();
+			assert.deepStrictEqual({ statesAfterTransfer, finalStates: shortcutStates }, {
+				statesAfterTransfer: [true, true],
+				finalStates: [true, true, false],
+			});
+		});
+	}
+
+	test('allows shortcut ownership to transfer back before a delayed blur arrives', () => {
+		const shortcutStates: boolean[] = [];
+		const first = createWebview(shortcutStates).webview;
+		const second = createWebview(shortcutStates).webview;
+		first.handleFocusChange(true);
+		second.handleFocusChange(true);
+		first.handleFocusChange(false);
+		first.handleFocusChange(true);
+		second.handleFocusChange(false);
+		second.dispose();
+		first.dispose();
+
+		assert.deepStrictEqual(shortcutStates, [true, true, true, false]);
+	});
+
+	test('tracks shortcut ownership independently for each native window', () => {
+		const firstStates: boolean[] = [];
+		const secondStates: boolean[] = [];
+		const first = createWebview(firstStates, 42).webview;
+		const second = createWebview(secondStates, 43).webview;
+		first.handleFocusChange(true);
+		second.handleFocusChange(true);
+		first.dispose();
+		second.dispose();
+
+		assert.deepStrictEqual({ firstStates, secondStates }, { firstStates: [true, false], secondStates: [true, false] });
+	});
 
 	test('disposing a focused webview restores native shortcuts after its view zone is removed', () => {
 		const shortcutStates: boolean[] = [];
