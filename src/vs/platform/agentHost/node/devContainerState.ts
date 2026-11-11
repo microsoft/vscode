@@ -235,11 +235,12 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'      if [ -d "$src" ]; then rm -rf "$src"; fi',
 		'    elif [ -d "$src" ]; then',
 		'      result=moved',
-		// Moving across file systems copies first. Publishing the copy only once complete keeps an interrupted move from
-		// being taken for restored state later. Unfinished copies are removed only while holding the lock.
-		'      if [ -n "$locked" ]; then rm -rf "$dst".moving.*; fi',
-		'      mv "$src" "$dst.moving.$$"',
+		// Copies, publishes the complete copy and only then removes the source, so an interrupted move is either retried or
+		// taken for restored state. Unfinished copies of other runs are removed only while holding the lock.
+		'      if [ -n "$locked" ]; then rm -rf "$dst".moving.*; else rm -rf "$dst.moving.$$"; fi',
+		'      cp -a "$src" "$dst.moving.$$"',
 		'      mv "$dst.moving.$$" "$dst"',
+		'      rm -rf "$src"',
 		'    else',
 		'      result=created',
 		'    fi',
