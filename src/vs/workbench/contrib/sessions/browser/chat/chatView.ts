@@ -340,6 +340,10 @@ export class ChatView extends AbstractChatView {
 		return this._chatPills.activityBarActions;
 	}
 
+	override get chatResource(): URI | undefined {
+		return this._currentChatResource;
+	}
+
 	private readonly _widget: ChatWidget;
 	override readonly onDidSubmitRequest: Event<IChatViewRequestSubmission>;
 	private readonly _widgetContainer: HTMLElement;

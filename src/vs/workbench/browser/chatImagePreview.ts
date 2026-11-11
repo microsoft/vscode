@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, EventType } from '../../base/browser/dom.js';
 import { raceTimeout } from '../../base/common/async.js';
+import { hashAsync } from '../../base/common/hash.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { LRUCache } from '../../base/common/map.js';
 import { getMediaMime } from '../../base/common/mime.js';
@@ -16,6 +17,11 @@ import './media/chatImagePreview.css';
 const CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
 const THUMBNAIL_DECODE_TIMEOUT_MS = 10_000;
 const thumbnailCache = new LRUCache<string, Promise<Blob | undefined>>(50);
+/**
+ * Thumbnails by image content. Attachment ids are not stable across loads of a chat's history, and encoding a
+ * thumbnail blocks the renderer, so attachments of the same image share one.
+ */
+const thumbnailByContentCache = new LRUCache<string, Promise<Blob | undefined>>(50);
 
 /** The image hover shared by chat attachments and session image references. */
 export function createChatImageHoverContent(
@@ -103,17 +109,30 @@ function createImageThumbnail(data: Uint8Array, maxSize: number, mimeType: strin
 }
 
 function getOrCreateImageThumbnail(cacheKey: string, data: Uint8Array, maxSize: number, mimeType: string): Promise<Blob | undefined> {
-	const key = `${cacheKey}:${maxSize}:${data.byteLength}:${mimeType}`;
-	const cached = thumbnailCache.get(key);
+	// `hashAsync` throws synchronously where `crypto.subtle` is unavailable (insecure web contexts); start it in a
+	// promise so that case also falls back to an uncached thumbnail.
+	return getOrCacheThumbnail(thumbnailCache, `${cacheKey}:${maxSize}:${data.byteLength}:${mimeType}`, () => Promise.resolve().then(() => hashAsync(data)).then(
+		digest => getOrCacheThumbnail(thumbnailByContentCache, `${digest}:${maxSize}:${mimeType}`, () => createThumbnailWithTimeout(data, maxSize, mimeType)),
+		() => createThumbnailWithTimeout(data, maxSize, mimeType),
+	));
+}
+
+/** The thumbnail `cache` holds for `key`, else the one `create` makes. A failed thumbnail is not kept, so a later render retries. */
+function getOrCacheThumbnail(cache: LRUCache<string, Promise<Blob | undefined>>, key: string, create: () => Promise<Blob | undefined>): Promise<Blob | undefined> {
+	const cached = cache.get(key);
 	if (cached) {
 		return cached;
 	}
-	const thumbnail: Promise<Blob | undefined> = raceTimeout(createImageThumbnail(data, maxSize, mimeType), THUMBNAIL_DECODE_TIMEOUT_MS).then(blob => {
-		if (!blob && thumbnailCache.peek(key) === thumbnail) {
-			thumbnailCache.delete(key);
+	const thumbnail: Promise<Blob | undefined> = create().then(blob => {
+		if (!blob && cache.peek(key) === thumbnail) {
+			cache.delete(key);
 		}
 		return blob;
 	});
-	thumbnailCache.set(key, thumbnail);
+	cache.set(key, thumbnail);
 	return thumbnail;
+}
+
+function createThumbnailWithTimeout(data: Uint8Array, maxSize: number, mimeType: string): Promise<Blob | undefined> {
+	return raceTimeout(createImageThumbnail(data, maxSize, mimeType), THUMBNAIL_DECODE_TIMEOUT_MS);
 }

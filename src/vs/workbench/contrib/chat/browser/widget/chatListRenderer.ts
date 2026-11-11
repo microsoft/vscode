@@ -1079,14 +1079,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return this.rendererOptions.responseIdentity;
 	}
 
-	public updateOptions(options: IChatListItemRendererOptions): void {
-		const wasReadOnly = this.rendererOptions.readOnly;
-		const renderedInputRequests = this.rendererOptions.renderInputRequests;
-		this.rendererOptions = { ...this.rendererOptions, ...options };
-		if (wasReadOnly !== this.rendererOptions.readOnly || renderedInputRequests !== this.rendererOptions.renderInputRequests) {
+	/** Updates the options rows render with; returns whether any of them changed. */
+	public updateOptions(options: IChatListItemRendererOptions): boolean {
+		const previous = this.rendererOptions;
+		this.rendererOptions = { ...previous, ...options };
+		if (previous.readOnly !== this.rendererOptions.readOnly || previous.renderInputRequests !== this.rendererOptions.renderInputRequests) {
 			this.observeToolConfirmations();
 		}
 		this.updateStickyProgressContent();
+		return (Object.keys(options) as (keyof IChatListItemRendererOptions)[]).some(key => previous[key] !== this.rendererOptions[key]);
 	}
 
 	get templateId(): string {

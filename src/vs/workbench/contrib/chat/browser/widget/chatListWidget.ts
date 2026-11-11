@@ -1630,14 +1630,16 @@ export class ChatListWidget extends Disposable {
 	/**
 	 * Update renderer options.
 	 */
-	updateRendererOptions(options: IChatListItemRendererOptions): void {
-		this._renderer.updateOptions(options);
+	/** Updates the options rows render with; returns whether any of them changed. */
+	updateRendererOptions(options: IChatListItemRendererOptions): boolean {
+		const changed = this._renderer.updateOptions(options);
 		if (Object.hasOwn(options, 'firstRequestSummary')) {
 			const request = this._viewModel?.getItems().find(isRequestVM);
 			if (request && this._tree.hasElement(request)) {
 				this._tree.rerender(request);
 			}
 		}
+		return changed;
 	}
 
 	setStickyProgressContainer(container: HTMLElement): void {

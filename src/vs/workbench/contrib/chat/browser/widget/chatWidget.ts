@@ -2208,9 +2208,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._layoutListForInputHeight();
 		}
 		this.setInputVisible(inputVisible);
-		// Authoritative over the lock/unlock `editable` toggles below.
-		this._applyRendererEditable(!readOnly);
-		this.rerenderListIfConnected();
+		// Authoritative over the lock/unlock `editable` toggles below. Rows render only these options of the
+		// read-only state, so re-rendering them otherwise would only repeat what they show.
+		if (this._applyRendererEditable(!readOnly)) {
+			this.rerenderListIfConnected();
+		}
 	}
 
 	private _listRerenderPending = false;
@@ -2366,11 +2368,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Applies the renderer's `editable` option, forcing it off while the chat is
 	 * read-only so the lock/unlock transitions can never re-enable request
-	 * editing on a read-only chat.
+	 * editing on a read-only chat. Returns whether the options rows render with changed.
 	 */
-	private _applyRendererEditable(editable: boolean): void {
+	private _applyRendererEditable(editable: boolean): boolean {
 		const readOnly = this._readOnly || this.isTranscriptProgressActive;
-		this.listWidget?.updateRendererOptions({ editable: editable && !readOnly, readOnly });
+		return this.listWidget?.updateRendererOptions({ editable: editable && !readOnly, readOnly }) ?? false;
 	}
 
 	/**
