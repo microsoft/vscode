@@ -95,7 +95,10 @@ export class ChatCustomizationsHover {
 	}
 
 	getSessionResource(context?: unknown, reader?: IReader): URI {
-		const active = this.harnessService.activeSessionResource.read(reader);
+		return this.getExplicitSessionResource(context) ?? this.harnessService.activeSessionResource.read(reader);
+	}
+
+	getExplicitSessionResource(context?: unknown): URI | undefined {
 		if (isObject(context)) {
 			const widgetContext: unknown = Reflect.get(context, 'widget');
 			if (widgetContext) {
@@ -116,7 +119,7 @@ export class ChatCustomizationsHover {
 				return resource;
 			}
 		}
-		return active;
+		return undefined;
 	}
 
 	getProjectRoot(sessionResource: URI, reader?: IReader): URI | undefined {

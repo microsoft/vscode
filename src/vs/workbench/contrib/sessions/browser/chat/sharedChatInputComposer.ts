@@ -67,7 +67,7 @@ import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
-import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, INewSessionTargetLabels, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
@@ -170,6 +170,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	readonly sessionTypePicker: SessionTypePicker;
+	readonly host: ISessionHost;
+	private readonly _targetLabels = observableValue<IObservable<INewSessionTargetLabels> | undefined>(this, undefined);
+	readonly targetLabels = derived(this, reader => this._targetLabels.read(reader)?.read(reader) ?? {});
 	readonly pickerVisibility: SessionInputPickerVisibility;
 	readonly pickerHoverDelegate: WorkbenchHoverDelegate;
 	readonly sessionResource: IObservable<URI | undefined>;
@@ -238,6 +241,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this.host = parentHost;
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 		this.pickerVisibility = this._register(new SessionInputPickerVisibility());
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
@@ -654,6 +658,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	get workspaceSelection(): IWorkspaceSelectionSnapshot | undefined {
 		return this.options.getWorkspaceSelection?.();
+	}
+
+	setTargetLabels(labels: IObservable<INewSessionTargetLabels>): void {
+		this._targetLabels.set(labels, undefined);
 	}
 
 	get onDidChangeWorkspaceSelection(): Event<void> {
