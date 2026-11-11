@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
@@ -59,6 +59,24 @@ suite('SessionsListingScopeFilter', () => {
 				'added= removed=here changed=',
 				'added=hydrating removed= changed=',
 			],
+		});
+	});
+
+	test('lists the sessions on GitHub of the repositories of the folders\' origin, on any branch, and every session in an empty window', () => {
+		const onGitHub = (id: string, path: string) => {
+			const root = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path });
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>({ ...buildTestWorkspace(id), folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }] }) };
+		};
+		const sessions = [onGitHub('main', '/Microsoft/VSCode/HEAD'), onGitHub('branch', '/microsoft/vscode/feature%2Fx'), onGitHub('other', '/microsoft/vscode-tools/HEAD'), createSession('local', 'repo')];
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/elsewhere')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]), gitHubRepositories: constObservable(['microsoft/vscode']) }, () => sessions, Event.None));
+		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
+		const scoped = listed();
+		folders.set([], undefined);
+
+		assert.deepStrictEqual({ scoped, emptyWindow: listed() }, {
+			scoped: ['branch', 'main'],
+			emptyWindow: ['branch', 'local', 'main', 'other'],
 		});
 	});
 });
