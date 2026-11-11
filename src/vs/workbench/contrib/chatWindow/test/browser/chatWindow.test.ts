@@ -351,31 +351,33 @@ suite('Chat window', () => {
 		const { window, state, main } = createWindow();
 		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
 		const restoredEditor = editor();
-		await window.restoreMainPartEditors([restoredEditor], async () => main.group.open(restoredEditor));
+		await window.restoreMainPartEditor(restoredEditor, async () => main.group.open(restoredEditor));
 		const restored = window.layoutMode.get();
 		main.group.open(editor());
 
 		assert.deepStrictEqual({ restored, afterUserOpen: window.layoutMode.get() }, { restored: ChatWindowLayoutMode.ChatOnly, afterUserOpen: ChatWindowLayoutMode.SideBySide });
 	});
 
-	test('an editor the user opens while the window still restores its editors shows its main part, and a restore that fails stops treating its editors as restored', async () => {
+	test('an editor the user opens while the window still restores another one shows its main part, even when the window restores that very editor next, and a restore that fails stops treating its editor as restored', async () => {
 		const { window, state, main } = createWindow();
 		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
-		const restoredEditor = editor();
+		const first = editor();
+		const queued = editor();
 		let release!: () => void;
-		const restoring = window.restoreMainPartEditors([restoredEditor], async () => {
-			main.group.open(restoredEditor);
+		const restoring = window.restoreMainPartEditor(first, async () => {
+			main.group.open(first);
 			await new Promise<void>(resolve => release = resolve);
 		});
 		const afterRestoredOpen = window.layoutMode.get();
-		main.group.open(editor());
+		main.group.open(queued);
 		const afterUserOpen = window.layoutMode.get();
 		release();
 		await restoring;
 
 		state.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
-		await assert.rejects(window.restoreMainPartEditors([restoredEditor], async () => { throw new Error('failed'); }));
-		main.group.open(restoredEditor);
+		const failed = editor();
+		await assert.rejects(window.restoreMainPartEditor(failed, async () => { throw new Error('failed'); }));
+		main.group.open(failed);
 
 		assert.deepStrictEqual({ afterRestoredOpen, afterUserOpen, afterFailedRestore: window.layoutMode.get() }, { afterRestoredOpen: ChatWindowLayoutMode.ChatOnly, afterUserOpen: ChatWindowLayoutMode.SideBySide, afterFailedRestore: ChatWindowLayoutMode.SideBySide });
 	});

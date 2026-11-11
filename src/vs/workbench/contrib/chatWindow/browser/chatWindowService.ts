@@ -408,7 +408,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		const isChatIn = (groups: readonly IEditorGroup[]) => groups.some(group => this.chatInputs.some(input => group.contains(input)));
 		this._register(trackMainPartEditors(mainPart, {
 			onDidOpenEditor: editor => {
-				if (!editor || !this._restoringEditors.has(editor)) {
+				if (!editor || editor !== this._restoringEditor) {
 					this._showMainPart();
 				}
 			},
@@ -583,18 +583,18 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._showMainPart();
 	}
 
-	async restoreMainPartEditors(editors: readonly EditorInput[], restore: () => Promise<void>): Promise<void> {
-		for (const editor of editors) {
-			this._restoringEditors.add(editor);
-		}
+	async restoreMainPartEditor(editor: EditorInput, open: () => Promise<unknown>): Promise<void> {
+		let opening: Promise<unknown>;
+		this._restoringEditor = editor;
 		try {
-			await restore();
+			opening = open();
 		} finally {
-			this._restoringEditors.clear();
+			this._restoringEditor = undefined;
 		}
+		await opening;
 	}
 
-	private readonly _restoringEditors = new Set<EditorInput>();
+	private _restoringEditor: EditorInput | undefined;
 
 	/** Shows the main part beside the chat, as the window shows it once an editor opens in it. */
 	private _showMainPart(): void {
@@ -1267,11 +1267,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (anchor) {
 			chatWindow.anchor = anchor;
 		}
-		const restoredEditors = [options?.editors, ...(options?.createdParts ?? [])].flatMap(restored => restored?.editors ?? []);
-		await chatWindow.restoreMainPartEditors(restoredEditors, async () => {
-			await this._openEditors(options?.editors, mainPart);
-			await this._openCreatedParts(options?.createdParts, mainPart, grid);
-		});
+		await this._openEditors(options?.editors, mainPart, chatWindow);
+		await this._openCreatedParts(options?.createdParts, mainPart, grid, chatWindow);
 		showChatInsteadOfEmptyMainPart(mainPart, chatWindow);
 		if (options?.showTerminals) {
 			chatWindow.getOrCreateTerminalsPart();
@@ -1300,9 +1297,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	 * part at the edge of the window, where such parts go as the window's parts are arranged. Where the window creates no
 	 * parts, its editors stay in its main part.
 	 */
-	private async _openCreatedParts(createdParts: readonly IChatWindowEditors[] | undefined, mainPart: IContentPart, grid: ChatWindowGrid): Promise<void> {
+	private async _openCreatedParts(createdParts: readonly IChatWindowEditors[] | undefined, mainPart: IContentPart, grid: ChatWindowGrid, chatWindow: ChatWindow): Promise<void> {
 		for (const created of createdParts ?? []) {
-			await this._openEditors(created, mainPart);
+			await this._openEditors(created, mainPart, chatWindow);
 			const group = mainPart.activeGroup;
 			const editors = (created.editors ?? []).filter(editor => group.contains(editor)).map(editor => ({ editor, groupId: group.id }));
 			if (editors.length) {
@@ -1311,10 +1308,13 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 	}
 
-	private async _openEditors(editors: IChatWindowEditors | undefined, part: IContentPart): Promise<void> {
+	private async _openEditors(editors: IChatWindowEditors | undefined, part: IContentPart, chatWindow: ChatWindow): Promise<void> {
 		const inputs = editors?.editors ?? [];
 		const active = editors?.activeEditor ?? inputs.at(-1);
-		await part.activeGroup.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })));
+		const group = part.activeGroup;
+		for (const editor of inputs) {
+			await chatWindow.restoreMainPartEditor(editor, () => group.openEditor(editor, { pinned: true, preserveFocus: true, inactive: editor !== active, index: group.count }));
+		}
 	}
 
 	private _findGroup(editor: EditorInput): IEditorGroup | undefined {
