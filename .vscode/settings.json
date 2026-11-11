@@ -192,6 +192,14 @@
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "pnpm",
 	"eslint.useFlatConfig": true,
+	// The oxc extension (oxc.oxc-vscode) runs the rules of eslint.config.js like CI does, so ESLint skips src/. ESLint
+	// still lints the other folders, such as extensions/copilot, whose lint uses ESLint.
+	"eslint.options": {
+		"ignorePatterns": [
+			"src/**"
+		]
+	},
+	"oxc.enable.oxfmt": false,
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",
 	"rust-analyzer.linkedProjects": [

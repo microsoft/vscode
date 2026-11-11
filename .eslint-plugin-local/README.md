@@ -46,7 +46,7 @@ For example, here's a configuration that enables the no `test.only` rule in all 
 ```
 
 # Creating a new custom rule
-This walks through the steps to create a new eslint rule:
+This walks through the steps to create a new eslint rule (see [AGENTS.md](AGENTS.md) for how to keep it fast):
 
 1. Create a new rule file under `.eslint-plugin-local`. Generally you should call it `code-YOUR-RULE-NAME.ts`, for example, `.eslint-plugin-local/code-no-not-null-assertions-on-undefined-values.ts`
 
@@ -110,6 +110,20 @@ rules: {
 
 In these cases make sure to update the `meta.schema` property on your rule with the JSON schema for the arguments. You can access these arguments using `context.options` in the rule `create` function
 
+# Running the rules with oxlint
+
+CI and the pre-commit hook run the rules with [oxlint](https://oxc.rs/docs/guide/usage/linter.html), which is faster than ESLint. In the editor, the recommended oxc extension (`oxc.oxc-vscode`) runs them too, and the ESLint extension skips `src/` (see `eslint.options` in `.vscode/settings.json`). ESLint still runs them in the editor for the other folders and in the Copilot extension's `pnpm run lint`. `pnpm run oxlint` lints the full repository, the given files, or with `--changed-since <ref>` the files that changed since `ref`, and reports in ESLint's compact format, with ESLint's rule names.
+
+There is one configuration: [oxlint.config.ts](../oxlint.config.ts) converts `eslint.config.js` when oxlint loads it (see `build/lib/oxlintConfig.ts`). oxlint implements ESLint's core rules and the `@typescript-eslint` rules natively, and loads the other plugins as JS plugins, which run on one thread per process; `build/oxlint.ts` therefore splits a full run into several processes by folder, and lints the extensions that use type information in a separate process with `--type-aware`.
+
+So that configuration and disable directives work in both linters, `eslint.config.js` uses the names oxlint reports:
+
+- `eslint-js/*` and `ts-eslint-js/*` are the ESLint and typescript-eslint rules that oxlint does not implement, such as `eslint-js/no-restricted-syntax` and `ts-eslint-js/naming-convention`. The adapters in `adapters/` load the original implementations for both linters. Add a rule there before using it.
+- `jsdoc-js/*` is `eslint-plugin-jsdoc`, because oxlint reserves `jsdoc` for its own implementation.
+- `@stylistic/*` replaces ESLint's deprecated formatting rules (`semi`, `no-extra-semi`, `comma-dangle`).
+
+A rule of a plugin that oxlint cannot load fails the conversion, and a rule that oxlint does not know fails oxlint, so a rule never silently stops running. Plugins must be modules: oxlint cannot load plugins defined inline in `eslint.config.js`. oxlint does not support configuring rules in comments (`/* eslint rule: "warn" */`).
+
 ## Agent host metadata boundary
 
 `local/code-no-private-agent-host-meta-import` keeps `src/vs/platform/agentHost/common/meta/copilotd/` and `meta/vscode/` private. Feature code must import domain helpers and portable types from top-level `meta/*.ts` modules, even for type-only imports. Top-level modules can adapt either private implementation; each private implementation can import only its own private folder. Files under `test/` directories may import raw metadata for parsing/vector tests, and `build/agentHost/generateCopilotMetadata.ts` may access the generated schema.
@@ -132,7 +146,7 @@ It enforces the rules between folders of `extensions/copilot/src` and `extension
 
 ## PascalCase class names
 
-`local/code-class-name-pascal-case` requires class names to be PascalCase as typescript-eslint defines it: the first character is not lowercase, and the name has no underscores. It replaces `@typescript-eslint/naming-convention` configured with `{ selector: 'class', format: ['PascalCase'] }`, with the same message, because that rule's general selector matching is expensive to run on every TypeScript file. Anonymous class expressions are not checked. The terminal contributions turn it off, because their full `@typescript-eslint/naming-convention` configuration already checks class names. Run its tests with `node --test .eslint-plugin-local/tests/code-class-name-pascal-case.test.ts`.
+`local/code-class-name-pascal-case` requires class names to be PascalCase as typescript-eslint defines it: the first character is not lowercase, and the name has no underscores. It replaces `@typescript-eslint/naming-convention` configured with `{ selector: 'class', format: ['PascalCase'] }`, with the same message, because that rule's general selector matching is expensive to run on every TypeScript file. Anonymous class expressions are not checked. The terminal contributions turn it off, because their full naming convention configuration (`ts-eslint-js/naming-convention`) already checks class names. Run its tests with `node --test .eslint-plugin-local/tests/code-class-name-pascal-case.test.ts`.
 
 
 ## Asynchronous production filesystem operations

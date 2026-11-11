@@ -551,6 +551,41 @@ suite('SessionAttentionService', () => {
 		}));
 	}
 
+	test('prospective restoration uses batch PR ownership without changing archive state or polling', () => {
+		const older = createSession('older', SessionStatus.Completed, 100, [{ number: 42 }]);
+		const newer = createSession('newer', SessionStatus.Completed, 200, [{ number: 42 }]);
+		const linked = createSession('linked', SessionStatus.Completed, 300, [{ number: 42, owned: false }]);
+		for (const session of [older, newer]) {
+			(session.isArchived as ISettableObservable<boolean>).set(true, undefined);
+		}
+		const fixture = createFixture([older, newer, linked]);
+		fixture.github.setPullRequest(42, openPullRequest(42));
+		fixture.github.setCIStatus(42, GitHubCIOverallStatus.Success);
+		store.add(fixture.service.acquireSessionAttention());
+		const prospective = fixture.service.getSessionAttentionAfterUnarchive([older, newer]);
+		const snapshot = {
+			tabs: [older, newer].map(session => prospective.get(session.sessionId)?.tab),
+			archived: [older, newer].map(session => session.isArchived.get()),
+			polling: fixture.github.pollingCount,
+			currentTabs: [older, newer].map(session => fixture.service.sessionAttention.get().get(session.sessionId)?.tab),
+		};
+		transaction(tx => {
+			for (const session of [older, newer]) {
+				(session.isArchived as ISettableObservable<boolean>).set(false, tx);
+			}
+		});
+		assert.deepStrictEqual({
+			snapshot,
+			restored: [older, newer].map(session => fixture.service.sessionAttention.get().get(session.sessionId)),
+		}, {
+			snapshot: {
+				tabs: [InboxTab.ReadyForYou, InboxTab.ReadyToMerge], archived: [true, true], polling: 3,
+				currentTabs: [InboxTab.ReadyForYou, InboxTab.ReadyForYou],
+			},
+			restored: [older, newer].map(session => prospective.get(session.sessionId)),
+		});
+	});
+
 	test('PR ownership deduplicates alerts, excludes busy and archived owners, and requires all open owned PRs to pass', () => {
 		const owner = createSession('owner', SessionStatus.Completed, 100, [{ number: 42 }, { number: 43 }]);
 		const linked = createSession('linked', SessionStatus.Completed, 200, [{ number: 42, owned: false }]);

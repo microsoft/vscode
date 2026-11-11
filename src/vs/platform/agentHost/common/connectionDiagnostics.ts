@@ -9,6 +9,14 @@ import { parseGitHubRequestId } from '../../github/common/client/headers.js';
 
 export { parseGitHubRequestId as getGitHubRequestId } from '../../github/common/client/headers.js';
 
+export const connectionCloseReasons = [
+	'unknown', 'socketClose', 'socketError', 'relayHandshakeTimeout', 'relayJoinRejected',
+	'hostHandshakeTimeout', 'publishAckTimeout', 'publishRejected', 'sendFailure', 'hostOffline',
+	'hostLaneClosed', 'generationMismatch', 'requestLimit', 'handshakeClosureLimit',
+	'watchdog', 'protocolReinitialize', 'osSuspend', 'externalClose',
+] as const;
+export type ConnectionCloseReason = typeof connectionCloseReasons[number];
+
 export interface IConnectionDiagnosticState {
 	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
 	readonly authenticationRestorePending?: boolean;
@@ -29,6 +37,8 @@ export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly error?: IConnectionDiagnosticError;
 	readonly requestKind?: ConnectionDiagnosticRequestKind;
 	readonly connectionOperation?: 'connect' | 'recover';
+	/** Source-owned initiating close boundary, never inferred from error text. */
+	readonly closeReason?: ConnectionCloseReason;
 	readonly sessionResource?: string;
 	readonly chatResource?: string;
 	readonly turnId?: string;
