@@ -569,9 +569,15 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, GeneralShellType.CommandCode);
 		});
 
-		for (const bracketedPasteMode of [false, true]) {
-			test(`sendPath handles inserted and executed paths with bracketed paste mode ${bracketedPasteMode ? 'enabled' : 'disabled'}`, async () => {
+		for (const { bracketedPasteMode, ignoreBracketedPasteMode, expectedBracketedPaste } of [
+			{ bracketedPasteMode: false, ignoreBracketedPasteMode: false, expectedBracketedPaste: false },
+			{ bracketedPasteMode: false, ignoreBracketedPasteMode: true, expectedBracketedPaste: false },
+			{ bracketedPasteMode: true, ignoreBracketedPasteMode: false, expectedBracketedPaste: true },
+			{ bracketedPasteMode: true, ignoreBracketedPasteMode: true, expectedBracketedPaste: false }
+		]) {
+			test(`sendPath handles inserted and executed paths with bracketedPasteMode=${bracketedPasteMode}, ignoreBracketedPasteMode=${ignoreBracketedPasteMode}`, async () => {
 				const instance = await createTerminalInstance();
+				instance.xterm!.raw.options.ignoreBracketedPasteMode = ignoreBracketedPasteMode;
 				const sandbox = createSandbox();
 				store.add(toDisposable(() => sandbox.restore()));
 				const preparedPath = `'/test/file with spaces.png'`;
@@ -586,7 +592,7 @@ suite('Workbench - TerminalInstance', () => {
 				await instance.sendPath('/test/file with spaces.png', true);
 
 				deepStrictEqual(write.args, [
-					[bracketedPasteMode ? `\x1b[200~${preparedPath}\x1b[201~` : preparedPath],
+					[expectedBracketedPaste ? `\x1b[200~${preparedPath}\x1b[201~` : preparedPath],
 					[`${preparedPath}\r`]
 				]);
 			});
