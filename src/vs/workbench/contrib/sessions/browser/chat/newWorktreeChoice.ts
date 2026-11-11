@@ -44,31 +44,44 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 	}
 
 	setSelected(selected: boolean): void {
-		const draft = this._select(selected);
-		if (draft && selected) {
-			this._chosen.add(draft.session.sessionId);
-		} else if (draft) {
-			this._chosen.delete(draft.session.sessionId);
+		const draft = this._draftIsolation();
+		if (!draft) {
+			return;
 		}
+		// The choice is known before the agent takes it: its configuration can change, and apply the default, meanwhile
+		const sessionId = draft.session.sessionId;
+		if (selected) {
+			this._chosen.add(sessionId);
+		} else {
+			this._chosen.delete(sessionId);
+		}
+		this._write(draft, selected, () => {
+			// The agent did not take it: the draft is as before
+			if (selected) {
+				this._chosen.delete(sessionId);
+			}
+		});
 	}
 
 	/** Makes the current draft work in its folder, unless the user chose New Worktree for it. */
 	applyDefault(): void {
 		const draft = this._draftIsolation();
 		if (draft?.isolation === 'worktree' && !this._chosen.has(draft.session.sessionId)) {
-			this._select(false);
+			this._write(draft, false);
 		}
 	}
 
-	private _select(selected: boolean): IDraftIsolation | undefined {
-		const draft = this._draftIsolation();
-		const value = draft && writeSessionIsolation(draft.property, selected ? 'worktree' : 'folder');
-		if (draft && value !== undefined && draft.isolation !== (selected ? 'worktree' : 'folder')) {
-			const operation = draft.provider.setSessionConfigValue(draft.session.sessionId, draft.chat, draft.property.key, value);
-			draft.provider.trackSessionConfigOperation(draft.session.sessionId, operation);
-			operation.catch(onUnexpectedError);
+	private _write(draft: IDraftIsolation, worktree: boolean, onDidReject?: () => void): void {
+		const value = writeSessionIsolation(draft.property, worktree ? 'worktree' : 'folder');
+		if (value === undefined || draft.isolation === (worktree ? 'worktree' : 'folder')) {
+			return;
 		}
-		return draft;
+		const operation = draft.provider.setSessionConfigValue(draft.session.sessionId, draft.chat, draft.property.key, value);
+		draft.provider.trackSessionConfigOperation(draft.session.sessionId, operation);
+		operation.catch(error => {
+			onDidReject?.();
+			onUnexpectedError(error);
+		});
 	}
 
 	/** The isolation of the current draft, when its agent lets it work in a new worktree and the setting can change. */

@@ -378,6 +378,24 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ draft, sent, newWorktree: switches() }, { draft: [], sent: ['created'], newWorktree: ['created'] });
 	});
 
+	test('a composer\'s send that completes after the user opened another tab does not move the window\'s folder back to it', async () => {
+		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
+		const created = upcastPartial<ISession>({ sessionId: 'created', status, mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace: constObservable(workspaceIn('/work/vscode.worktrees/a')) });
+		const other: ISession = { ...buildTestSession({ id: 'other', title: 'Other' }).session, workspace: constObservable(workspaceIn('/work/vscode')) };
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const { service, switchedTo } = createService({ newSession, sessions: () => [other] });
+		const switches = () => switchedTo.splice(0).map(switched => switched === created ? 'created' : switched === other ? 'other' : 'unknown');
+
+		await service.openComposer(undefined);
+		newSession.set(created, undefined);
+		// The user sends, then opens another session before the composer's session is created
+		await service.openChat(other, undefined);
+		const opened = switches();
+		status.set(SessionStatus.InProgress, undefined);
+
+		assert.deepStrictEqual({ opened, sendCompleted: switches() }, { opened: ['other'], sendCompleted: [] });
+	});
+
 	test('a restored tab neither moves the window\'s folder nor follows its session; one the user opens does, until its tab closes', async () => {
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
 		const restored: ISession = { ...buildTestSession({ id: 'restored', title: 'Restored' }).session, workspace };
