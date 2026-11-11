@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableResizeObserver, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IntervalTimer } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -17,7 +19,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
@@ -26,12 +27,16 @@ import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRe
 import { IOnboardingScenario } from '../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 
 const FOLDER_LOCATION_INTRODUCTION_ID = 'workbench.folderLocation.introduction';
 const FOLDER_LOCATION_INTRODUCTION_TARGET_ID = 'workbench.folderLocation.statusEntry';
 const FOLDER_LOCATION_STATUS_ENTRY_ID = 'status.workspace.folderLocation';
+
+/** Coarse fallback for state without a change event (the onboarding service has none for "shown"). */
+const FOLDER_LOCATION_INTRODUCTION_POLL_INTERVAL = 2000;
 
 /** Just above the SCM entries (left priority 10000) and below the remote indicator (Number.MAX_VALUE). */
 const FOLDER_LOCATION_STATUS_ENTRY_PRIORITY = 10000.1;
@@ -60,7 +65,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService
 	) {
@@ -82,7 +87,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this._register(registerOnboardingTargetProvider(FOLDER_LOCATION_INTRODUCTION_TARGET_ID, scope => {
 			// The status bar names each item element after its entry id, but does not expose the element otherwise.
 			// eslint-disable-next-line eslint-js/no-restricted-syntax -- see above
-			const element = scope === undefined ? this.layoutService.mainContainer.ownerDocument.getElementById(FOLDER_LOCATION_STATUS_ENTRY_ID) : null;
+			const element = scope === undefined ? mainWindow.document.getElementById(FOLDER_LOCATION_STATUS_ENTRY_ID) : null;
 			return element ? { element } : undefined;
 		}));
 
@@ -155,23 +160,44 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	/**
 	 * The introduction is ready only while the entry is rendered and visible, because
 	 * the onboarding engine marks a scenario as seen before it resolves its target.
-	 * Readiness tracks the visibility of the entry until the introduction is actually shown
-	 * (a queued introduction must not stay ready after the entry hides), and observation never starts once it was shown.
+	 * Readiness is re-evaluated, once per frame, when something that can change it happens (the
+	 * status bar resizes or changes visibility, the entry hides or shows) until the introduction
+	 * is shown or consumed. The onboarding service has no event for that, so a coarse timer,
+	 * paused while the window is hidden, notices it. Nothing runs while idle.
 	 */
 	private observeIntroductionTarget(): void {
 		const store = new DisposableStore();
-		let handle = 0;
+		const frame = store.add(new MutableDisposable());
 		const check = () => {
 			if (this.onboardingService.hasBeenShown(FOLDER_LOCATION_INTRODUCTION_ID)) {
 				this.introductionObservation.clear();
 				return;
 			}
 			this.introductionReady.set(!!resolveOnboardingTarget(mainWindow, FOLDER_LOCATION_INTRODUCTION_TARGET_ID), undefined);
-			// re-armed from the callback: the browser runs the next callback in the following frame
-			handle = mainWindow.requestAnimationFrame(check);
 		};
-		store.add(toDisposable(() => mainWindow.cancelAnimationFrame(handle)));
-		handle = mainWindow.requestAnimationFrame(check);
+		const scheduleCheck = () => {
+			if (!frame.value) {
+				frame.value = scheduleAtNextAnimationFrame(mainWindow, () => {
+					frame.clear();
+					check();
+				});
+			}
+		};
+
+		const container = this.layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART);
+		if (container) {
+			const resizeObserver = store.add(new DisposableResizeObserver('folderLocationIntroduction', scheduleCheck));
+			store.add(resizeObserver.observe(container));
+		}
+		store.add(this.statusbarService.onDidChangeEntryVisibility(e => e.id === FOLDER_LOCATION_STATUS_ENTRY_ID && scheduleCheck()));
+		store.add(this.layoutService.onDidChangePartVisibility(e => e.partId === Parts.STATUSBAR_PART && scheduleCheck()));
+		store.add(new IntervalTimer()).cancelAndSet(() => {
+			if (!mainWindow.document.hidden) {
+				scheduleCheck();
+			}
+		}, FOLDER_LOCATION_INTRODUCTION_POLL_INTERVAL);
+
+		scheduleCheck();
 		this.introductionObservation.value = store;
 	}
 }
