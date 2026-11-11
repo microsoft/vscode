@@ -3271,7 +3271,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				continue;
 			}
 			const statuses = new Set([current.status, extension.status]);
-			// Running and dormant copies are all enabled and settled, and at least one process is live.
+			// A `running` and `dormant` pair merges to `running`: both are enabled and settled, and one copy has started.
 			const status = statuses.size === 1 ? current.status
 				: statuses.has('starting') ? 'starting'
 					: statuses.has('failed') ? 'failed'
