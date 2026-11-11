@@ -9,7 +9,8 @@
 	},
 	"chat.editing.explainChanges.enabled": true,
 	"chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks": [
-		"VS Code PR Check"
+		"VS Code PR Check",
+		"Proof of Presence"
 	],
 	// --- Editor ---
 	"editor.insertSpaces": false,

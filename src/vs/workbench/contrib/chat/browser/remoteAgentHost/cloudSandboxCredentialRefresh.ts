@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -79,6 +79,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 
 	private _refreshInFlight: Promise<boolean> | undefined;
+	private _resume: { readonly ready: DeferredPromise<void>; readonly suspendedAt: number } | undefined;
 
 	constructor(
 		private readonly _address: string,
@@ -92,6 +93,22 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => this._cts.dispose(true)));
+	}
+
+	suspend(): void {
+		this._resume ??= { ready: new DeferredPromise<void>(), suspendedAt: Date.now() };
+	}
+
+	resume(): void {
+		const suspended = this._resume;
+		if (!suspended) {
+			return;
+		}
+		this._resume = undefined;
+		if (this._refreshState.requestFailureStartedAt !== undefined) {
+			this._refreshState.requestFailureStartedAt += Math.max(0, Date.now() - suspended.suspendedAt);
+		}
+		suspended.ready.complete();
 	}
 
 	/** Share an in-flight refresh or refresh expired credentials before opening a replacement transport. */
@@ -142,6 +159,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		const previousToken = this._creds.token;
 		let waited = false;
 		while (!this._refreshInFlight) {
+			if (this._resume) {
+				await raceCancellationError(this._resume.ready.p, this._cts.token);
+				continue;
+			}
 			if (!this._refreshState.stopped && this._refreshState.requestFailureStartedAt !== undefined
 				&& Date.now() - this._refreshState.requestFailureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
 				this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted', undefined, { failurePoint: 'credentialRefresh.retryBudget' });
@@ -240,6 +261,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			// the loop as having given up when it was simply torn down.
 			if (this._cts.token.isCancellationRequested || isCancellationError(err) || err instanceof CancellationError) {
 				operation.complete('cancelled', { recoveryAction: 'cancelled' });
+				return false;
+			}
+			if (this._resume && isRetryableCloudSandboxError(err)) {
+				operation.complete('cancelled', { recoveryAction: 'deferred' });
 				return false;
 			}
 			// A rejected request (deleted environment, revoked token) fails identically however

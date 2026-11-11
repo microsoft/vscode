@@ -2114,6 +2114,7 @@ export default defineConfig(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
+						'vs/sessions/sessions.core.main.js',
 					]
 				},
 				{
@@ -2198,7 +2199,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/sessions.common.main.ts',
+					'target': 'src/vs/sessions/{sessions.core.main.ts,sessions.common.main.ts}',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
@@ -2242,7 +2243,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/sessions.web.main.ts',
+					'target': 'src/vs/sessions/{sessions.core.web.main.ts,sessions.web.main.ts}',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
@@ -2260,7 +2261,34 @@ export default defineConfig(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.core.main.js',
+						'vs/sessions/sessions.core.web.main.js',
 						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					// The phone entry is an allow-list: it composes the shared core and
+					// individual contributions, never the desktop entry points.
+					'target': 'src/vs/sessions/agents.web.mobile.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/terminalContrib/*/~',
+						'vs/sessions/sessions.core.main.js',
+						'vs/sessions/sessions.core.web.main.js'
 					]
 				},
 				{
@@ -2282,6 +2310,23 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'src/vs/sessions/agents.web.mobile.main.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/agents.web.mobile.main.js'
+					]
+				},
+				{
 					'target': 'src/vs/sessions/test/sessions.web.test.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
@@ -2300,13 +2345,32 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts}',
+					'target': 'src/vs/sessions/test/agents.web.mobile.test.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/agents.web.mobile.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts,web.test.terminal.ts}',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
 						'vs/sessions/test/**',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',

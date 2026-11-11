@@ -1719,6 +1719,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// width, so a later reveal must not force an even split over it.
 		this._hasAppliedInitialEditorSplit = this.partVisibility.editor;
 
+		this._registerEditorPaneVisibilityClass(editorPart);
+
 		// Listen for part visibility changes (for parts in grid)
 		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, sessionsPart, editorPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
@@ -1776,6 +1778,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					break;
 			}
 		}));
+	}
+
+	/**
+	 * Updates the side pane class as soon as the grid shows or hides the side pane's node, which is before the grid lays
+	 * out that node and the parts beside it, whose frame insets depend on the class.
+	 */
+	private _registerEditorPaneVisibilityClass(editorPart: { readonly onDidVisibilityChange: Event<boolean> }): void {
+		this._register(editorPart.onDidVisibilityChange(() => this._updateEditorPaneVisibilityClass()));
 	}
 
 	private _registerGridMaximizationListener(): void {

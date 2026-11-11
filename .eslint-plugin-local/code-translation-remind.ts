@@ -21,7 +21,7 @@ export default new class TranslationRemind implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const currentFile = context.filename;
+		const currentFile = context.filename.replace(/\\/g, '/');
 		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
 		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
 		const matchSessionsPart = currentFile.match(/vs\/sessions\/contrib\/\w+/);
@@ -65,7 +65,7 @@ function getResourceNames(reload = false): Set<string> | undefined {
 	if (!resourceNames || reload) {
 		let json;
 		try {
-			json = readFileSync('./build/lib/i18n.resources.json', 'utf8');
+			json = readFileSync(new URL('../build/lib/i18n.resources.json', import.meta.url), 'utf8');
 		} catch (e) {
 			console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
 			return undefined;

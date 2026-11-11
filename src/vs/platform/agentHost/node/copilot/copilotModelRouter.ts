@@ -6,9 +6,10 @@
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/agent.js';
+import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
-import { modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
-import { ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
+import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
 
@@ -168,6 +169,8 @@ interface IRouteContext {
 	readonly router: IModelRouter;
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly candidates: readonly IModelRouterCandidate[];
+	/** The chat already runs on a long context window, which a later turn must not take away. */
+	readonly keepLongContext: boolean;
 }
 
 /**
@@ -194,17 +197,18 @@ export class CopilotModelRouter {
 		const router = file.router;
 		const { routes } = resolveModelRouter(router, request.models);
 		if (routes.length === 0) {
-			return { ...keepCurrent, notices: [localize('modelRouter.noModels', "None of the models in the model router {0} are available, so this chat kept its current model.", name)] };
+			return { ...keepCurrent, notices: [localize('modelRouter.noModels', "None of the models in the model router {0} are available, so this chat kept its current model.", modelRouterLabel(router))] };
 		}
+		const last = lastSelectionOf(request.previousTurns);
 		const context: IRouteContext = {
 			request, router, routes,
-			candidates: routes.map(route => ({ id: route.model.id, name: route.model.name, when: route.route.when, examples: route.route.examples })),
+			candidates: routes.map(route => ({ id: routeKey(route), name: route.model.name, when: route.route.when, examples: route.route.examples })),
+			keepLongContext: isOnLongContext(request.previousTurns),
 		};
-		const last = lastSelectionOf(request.previousTurns);
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
-		const current = last?.router === router.name ? routes.find(route => route.model.id === last.model) : undefined;
+		const current = last?.router === router.name ? routes.find(route => routeKey(route) === (last.playbook ?? last.model)) : undefined;
 		return current
-			? this._routeFollowUp(context, current, last?.effort)
+			? this._routeFollowUp(context, current, keptEffort(current, last?.effort))
 			: this._routeFresh(context, last?.model);
 	}
 
@@ -227,10 +231,10 @@ export class CopilotModelRouter {
 		const fallback = routes[0];
 		const switchedFrom = (route: IResolvedModelRoute) => previousId && previousId !== route.model.id ? { switchedFrom: previousId } : {};
 		if (routes.length === 1) {
-			return decision(router, fallback, { ...switchedFrom(fallback), ...preferenceOf(fallback) }, [], this._effortFor(context, fallback, undefined));
+			return decision(context, fallback, { ...switchedFrom(fallback), ...preferenceOf(fallback) }, [], this._effortFor(context, fallback, undefined));
 		}
 		if (!request.text.trim()) {
-			return decision(router, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, undefined));
+			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, undefined));
 		}
 		let pick: IModelRouterPick;
 		try {
@@ -240,22 +244,22 @@ export class CopilotModelRouter {
 			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat });
 		} catch (error) {
 			this._logService.warn(`[ModelRouter] ${request.chat}: pick failed; using ${fallback.model.id}`, error);
-			return decision(router, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router.name, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
+			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
 		}
-		const picked = routes.find(route => route.model.id === pick.model);
+		const picked = routes.find(route => routeKey(route) === pick.model);
 		if (!picked || pick.confidence < MIN_PICK_CONFIDENCE) {
 			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}`);
-			return decision(router, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
+			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
 		}
 		const effort = this._effortFor(context, picked, pick.effortScore);
 		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}`);
-		return decision(router, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
+		return decision(context, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
 	}
 
 	/** Moves the chat when its message clearly fits another route, and otherwise keeps its model. */
 	private async _routeFollowUp(context: IRouteContext, current: IResolvedModelRoute, currentEffort: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, router, routes } = context;
-		const stay = decision(router, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
+		const stay = decision(context, current, { kept: true }, [], router.effort === 'off' ? undefined : current.effort ?? currentEffort);
 		if (!request.picker || router.switching === 'first-turn' || routes.length === 1 || !request.text.trim() || CONTINUATION.test(request.text)) {
 			return stay;
 		}
@@ -271,7 +275,7 @@ export class CopilotModelRouter {
 				askEffort: this._asksEffort(context),
 				chat: request.chat,
 				followUp: {
-					currentModel: current.model.id,
+					currentModel: routeKey(current),
 					currentEffort,
 					recentTurns: previousTurns.slice(-RECENT_TURNS).map(turn => ({ prompt: turn.message.text, response: finalResponseText(turn) })),
 					turns: previousTurns.length,
@@ -285,43 +289,82 @@ export class CopilotModelRouter {
 			this._logService.warn(`[ModelRouter] ${request.chat}: follow-up pick failed; staying on ${current.model.id}`, error);
 			return stay;
 		}
-		const outcome = decideModelRouterSwitch({ currentModel: current.model.id, pick, ...switchHistory(previousTurns) });
+		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, ...switchHistory(previousTurns) });
 		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} probabilities=${JSON.stringify(pick.probabilities)}`);
 		const effort = router.effort === 'auto' && !current.effort
 			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
 			: this._effortFor(context, current, undefined);
-		const target = routes.find(route => route.model.id === pick.model);
+		const target = routes.find(route => routeKey(route) === pick.model);
 		if (outcome === 'stay' || !target) {
-			return decision(router, current, { kept: true }, [], effort);
+			return decision(context, current, { kept: true }, [], effort);
 		}
-		return decision(router, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router.name, target.model.name)], this._effortFor(context, target, pick.effortScore));
+		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target.model.name)], this._effortFor(context, target, pick.effortScore));
 	}
 }
 
-function decision(router: IModelRouter, route: IResolvedModelRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {
-	const selection: ModelSelection = effort ? { id: route.model.id, config: { [ReasoningEffortConfigKey]: effort } } : { id: route.model.id };
+function decision({ router, keepLongContext }: IRouteContext, route: IResolvedModelRoute, routed: Partial<IModelRoutedInfo>, notices: readonly string[], effort?: string): IAgentTurnModelResolution {
+	const contextSizes = modelContextSizes(route.model);
+	const largest = contextSizes.length > 1 ? contextSizes[contextSizes.length - 1] : undefined;
+	// With no size from the router the model runs on its own default, which for some models is the larger window.
+	const tokensFor = (size: ModelRouterContextSize | undefined) => size === undefined ? modelDefaultContextSize(route.model) : size === 'long' ? largest : contextSizes[0];
+	// A chat on a long window keeps it, so a route that would run on a smaller one is moved up.
+	const contextSize = keepLongContext && largest !== undefined && tokensFor(route.contextSize) !== largest ? 'long' : route.contextSize;
+	const contextTokens = contextSize ? tokensFor(contextSize) : undefined;
+	const longContext = largest !== undefined && tokensFor(contextSize) === largest;
+	const config = {
+		...(effort ? { [ReasoningEffortConfigKey]: effort } : {}),
+		...(contextTokens ? { [ContextSizeConfigKey]: contextTokens } : {}),
+	};
+	const selection: ModelSelection = Object.keys(config).length ? { id: route.model.id, config } : { id: route.model.id };
 	return {
 		selection,
-		routed: { router: router.name, chosenModel: route.model.id, ...routed, ...(effort ? { effort } : {}) },
+		routed: {
+			router: router.name,
+			...(router.displayName ? { routerLabel: router.displayName } : {}),
+			chosenModel: route.model.id,
+			...(route.route.name ? { playbook: route.route.name } : {}),
+			...routed,
+			...(effort ? { effort } : {}),
+			...(contextSize && contextTokens ? { contextSize, contextTokens } : {}),
+			...(longContext ? { longContext: true } : {}),
+			...(router.switching === 'first-turn' ? { firstTurnOnly: true } : {}),
+		},
 		notices,
 	};
 }
 
 const PREFERENCE_CHARS = 300;
 
+/** What a routing decision answers with, and what a chat's turns remember a pick by: the playbook's name, or a plain route's model. */
+function routeKey(route: IResolvedModelRoute): string {
+	return route.route.name ?? route.model.id;
+}
+
+/**
+ * The effort a chat keeps on its route. A playbook is kept by name, so its model can be another
+ * one than the effort was chosen for: its `main` was edited, or a model stopped being available.
+ * The chat then gets the closest level that model has.
+ */
+function keptEffort(route: IResolvedModelRoute, effort: string | undefined): string | undefined {
+	if (effort === undefined || route.supportedEfforts.some(level => level === effort)) {
+		return effort;
+	}
+	return isReasoningEffortLevel(effort) ? closestEffort(route.supportedEfforts, reasoningEffortRank(effort)) : undefined;
+}
+
 function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {
 	const line = route.route.when.trim().replace(/\s+/g, ' ');
 	return { preference: line.length > PREFERENCE_CHARS ? `${line.slice(0, PREFERENCE_CHARS).trimEnd()}\u2026` : line };
 }
 
-function describeSwitch(router: string, model: string): string {
-	return localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", router, model);
+function describeSwitch(router: IModelRouter, model: string): string {
+	return localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", modelRouterLabel(router), model);
 }
 
-function describeFailure(router: string, error: unknown, model: string): string {
+function describeFailure(router: IModelRouter, error: unknown, model: string): string {
 	return error instanceof ModelRouterPickerError && error.failure === ModelRouterPickerFailure.NoDecisionModel
-		? localize('modelRouter.noDecisionModel', "The model router {0} used {1}, its first model, because your account can't use the decision model that routes chats.", router, model)
-		: localize('modelRouter.unavailable', "The model router {0} used {1}, its first model, because routing was unavailable.", router, model);
+		? localize('modelRouter.noDecisionModel', "The model router {0} used {1}, its first model, because your account can't use the decision model that routes chats.", modelRouterLabel(router), model)
+		: localize('modelRouter.unavailable', "The model router {0} used {1}, its first model, because routing was unavailable.", modelRouterLabel(router), model);
 }
 
 /** The text of a turn's final assistant message: its last markdown part. */
@@ -340,16 +383,16 @@ function finalResponseText(turn: Turn): string {
  * that router's only while no other selection came after it: a later turn that selected another
  * router but couldn't route (one with errors, say) means the next router to run routes afresh.
  */
-function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string } | undefined {
+function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string; readonly playbook?: string } | undefined {
 	const unroutedRouters = new Set<string>();
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
 			const ownPick = [...unroutedRouters].every(name => name === routed.router);
-			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}) };
+			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}), ...(routed.playbook ? { playbook: routed.playbook } : {}) };
 		}
 		const requested = turns[i].message.model;
-		const requestedRouter = modelRouterNameFromModelId(requested?.id);
+		const requestedRouter = unroutedRouterOf(turns[i]);
 		if (requested && !requestedRouter) {
 			const effort = requested.config?.[ReasoningEffortConfigKey];
 			return { model: requested.id, effort: typeof effort === 'string' ? effort : undefined };
@@ -359,6 +402,38 @@ function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; read
 		}
 	}
 	return undefined;
+}
+
+/**
+ * The router a turn asked for and got no pick from. A live turn's selection is the router itself.
+ * A turn restored after a host restart has the model it ran on as its selection, so the usage
+ * saved with it carries the router instead.
+ */
+function unroutedRouterOf(turn: Turn): string | undefined {
+	return modelRouterNameFromModelId(turn.message.model?.id) ?? readUsageInfoMeta(turn.usage).modelRouterUnrouted;
+}
+
+/**
+ * Whether the chat is on a long context window. It is read from the latest routed turn that ran
+ * on one or was told to use the default, whichever router made that pick, looking past turns on
+ * a model with only one size. A model the user picked by hand ends the search: its window is
+ * their choice.
+ */
+function isOnLongContext(turns: readonly Turn[]): boolean {
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed?.longContext) {
+			return true;
+		}
+		if (routed?.contextSize) {
+			return false;
+		}
+		const requested = turns[i].message.model;
+		if (!routed && requested && !unroutedRouterOf(turns[i])) {
+			return false;
+		}
+	}
+	return false;
 }
 
 function switchHistory(turns: readonly Turn[]): { readonly turnsSinceSwitch: number | undefined; readonly switches: number } {

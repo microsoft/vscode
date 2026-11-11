@@ -800,6 +800,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const marshalledContext: IMarshalledAgentSessionContext = {
 			session,
 			sessions: selection.length > 1 && selection.includes(session) ? selection : [session],
+			showAutomationRuns: !this.options.filter.getExcludes().automation,
 			$mid: MarshalledId.AgentSessionContext
 		};
 

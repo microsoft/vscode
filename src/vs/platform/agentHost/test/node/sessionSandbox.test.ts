@@ -98,6 +98,50 @@ suite('Session sandbox configuration', () => {
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
 	});
 
+	test('session path upgrades reach every peer but not other sessions, and managed lists remain authoritative', () => {
+		const { configuration, create, registerChat } = setupSession();
+		const owner = create('path-owner');
+		const other = create('other-owner');
+		const peers = [registerChat(owner, 'first'), registerChat(owner, 'second')];
+		const changes: string[] = [];
+		store.add(configuration.onDidChatConfigChange(event => changes.push(event.chat)));
+		const base = { readonlyPaths: ['/upgrade', '/keep'], readwritePaths: ['/inherited'], deniedPaths: ['/secret'] };
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', [AgentHostSandboxKey.UserConfiguredPaths]: base } });
+		configuration.setSessionSandboxPaths(owner, { readonlyPaths: ['/read'], readwritePaths: ['/upgrade'], removedReadonlyPaths: ['/upgrade'] });
+		const resolve = (session: string, chat = buildDefaultChatUri(session)) => getSessionSandboxConfig(configuration, { session, chat }, 'linux')[AgentHostSandboxKey.UserConfiguredPaths];
+		const personal = peers.map(chat => resolve(owner, chat));
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, readwritePaths: [], readonlyPaths: ['/upgrade'], deniedPaths: ['/managed-secret'] });
+		const managed = resolve(owner);
+		configuration.setSessionSandboxPolicy(owner, { enabled: false });
+		assert.deepStrictEqual({
+			personal,
+			peerNotifications: peers.map(chat => changes.includes(chat)),
+			other: resolve(other),
+			managed,
+			afterPolicyRemoval: resolve(owner),
+			base,
+		}, {
+			personal: peers.map(() => ({ readonlyPaths: ['/keep', '/read'], readwritePaths: ['/inherited', '/upgrade'], deniedPaths: ['/secret'] })),
+			peerNotifications: [true, true],
+			other: base,
+			managed: { readonlyPaths: ['/upgrade'], readwritePaths: [], deniedPaths: ['/secret', '/managed-secret'] },
+			afterPolicyRemoval: { readonlyPaths: ['/keep', '/read'], readwritePaths: ['/inherited', '/upgrade'], deniedPaths: ['/secret'] },
+			base: { readonlyPaths: ['/upgrade', '/keep'], readwritePaths: ['/inherited'], deniedPaths: ['/secret'] },
+		});
+	});
+
+	test('restored sandbox paths can precede session publication and are evicted with the session', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = 'copilot:/restore-before-publish';
+		const paths = { readonlyPaths: ['/restored'], readwritePaths: [], removedReadonlyPaths: [] };
+		configuration.setSessionSandboxPaths(owner, paths);
+		create('restore-before-publish');
+		const restored = configuration.getSessionSandboxPaths(owner);
+		manager.removeSession(owner);
+		create('restore-before-publish');
+		assert.deepStrictEqual({ restored, recreated: configuration.getSessionSandboxPaths(owner) }, { restored: paths, recreated: undefined });
+	});
+
 	test('resolution preserves confirmed bypass metadata without mutating applied state', () => {
 		const { configuration, create } = setupSession();
 		const owner = create('resume');
@@ -1468,7 +1512,7 @@ suite('Session sandbox configuration', () => {
 				...getSandboxPathGrantConfirmation(grant),
 			},
 		}, owner, 'turn').options?.map(option => option.id));
-		assert.deepStrictEqual(options, [['save-sandbox-path', 'skip'], ['allow-once', 'skip']]);
+		assert.deepStrictEqual(options, [['save-session-sandbox-path', 'save-sandbox-path', 'skip'], ['allow-once', 'skip']]);
 	});
 
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {

@@ -79,9 +79,10 @@ export interface ISessionsListModelService {
 	 * Whether the session belongs in the sessions list. Every session that is not
 	 * an automation session does. An automation session does when the user showed
 	 * it, or when {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} lists every
-	 * automation session and the user did not hide it. List filters still apply.
+	 * automation session and the user did not hide it. `showAutomationRuns` is a
+	 * presentation override for a list filter; an explicit hide still wins.
 	 */
-	isSessionListed(session: ISession, reader?: IReader): boolean;
+	isSessionListed(session: ISession, reader?: IReader, showAutomationRuns?: boolean): boolean;
 
 	/** Shows automation sessions in the sessions list too, at the user's request. They remain listed in Automations. */
 	showAutomationSessions(sessions: readonly ISession[]): void;
@@ -487,12 +488,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	// -- Automation sessions --
 
-	isSessionListed(session: ISession, reader?: IReader): boolean {
+	isSessionListed(session: ISession, reader?: IReader, showAutomationRuns = false): boolean {
 		if (!session.isAutomation?.read(reader)) {
 			return true;
 		}
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
+		}
+		if (showAutomationRuns) {
+			return true;
 		}
 		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)
 			|| this._automationSessionsMode.read(reader) === AutomationSessionsListMode.Always;
@@ -524,6 +528,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		const wasListed = unique.map(session => this.isSessionListed(session));
 		const previousShown = this._shownAutomationSessionIds.get();
 		const previousHidden = this._hiddenAutomationSessionIds.get();
+		const wasExplicitlyShown = unique.map(session => previousShown.has(session.sessionId));
+		const wasExplicitlyHidden = unique.map(session => previousHidden.has(session.sessionId));
 		const shown = new Set(previousShown);
 		const hidden = new Set(previousHidden);
 		for (const session of unique) {
@@ -540,7 +546,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			}
 		});
 		return unique
-			.filter((session, index) => this.isSessionListed(session) !== wasListed[index])
+			.filter((session, index) =>
+				this.isSessionListed(session) !== wasListed[index]
+				|| shown.has(session.sessionId) !== wasExplicitlyShown[index]
+				|| hidden.has(session.sessionId) !== wasExplicitlyHidden[index])
 			.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing }));
 	}
 
