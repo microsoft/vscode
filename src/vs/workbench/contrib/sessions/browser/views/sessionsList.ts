@@ -10211,7 +10211,7 @@ interface ISessionWorktreeSection {
 
 /**
  * The section of {@link SessionsGrouping.Worktree} that a session belongs to: the local folder its chat works in, as the
- * provider reports it, named by the folder and the branch the provider reports, if any. A session without a local folder,
+ * provider reports it, named by the folder, with the branch the provider reports, if any, on hover. A session without a local folder,
  * such as a cloud session, belongs to the "Other" section.
  */
 function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
@@ -10224,8 +10224,9 @@ function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
 	const name = basename(workingDirectory) || workingDirectory.path;
 	return {
 		id: `${WORKTREE_SECTION_PREFIX}${workingDirectory.toString()}`,
-		label: repository?.branchName ? localize('worktreeSectionLabel', "{0} ({1})", name, repository.branchName) : name,
-		hover: workingDirectory.fsPath,
+		label: name,
+		// The branch shows on hover, and so in the section's accessible label, not in its label
+		hover: repository?.branchName ? localize('worktreeSectionHover', "{0} (branch {1})", workingDirectory.fsPath, repository.branchName) : workingDirectory.fsPath,
 		// A worktree VS Code created names its repository by its path, also before its provider reports the repository.
 		isMainCheckout: !getRepositoryRootFromWorktree(workingDirectory) && (!repository?.workTreeUri || extUriBiasedIgnorePathCase.isEqual(workingDirectory, repository.uri)),
 	};

@@ -3591,9 +3591,9 @@ suite('Sessions - SessionsList', () => {
 
 		test('lists the main checkouts first, then the worktrees by latest activity, then the sessions without a local folder', () => {
 			assert.deepStrictEqual(groupByWorktree(worktreeSessions()).map(section => ({ id: section.id, label: section.label, hover: section.hover, sessions: section.sessions.map(session => session.sessionId) })), [
-				{ id: 'worktree:file:///work/repo', label: 'repo (main)', hover: URI.parse('file:///work/repo').fsPath, sessions: ['checkout'] },
+				{ id: 'worktree:file:///work/repo', label: 'repo', hover: `${URI.parse('file:///work/repo').fsPath} (branch main)`, sessions: ['checkout'] },
 				{ id: 'worktree:file:///other', label: 'other', hover: URI.parse('file:///other').fsPath, sessions: ['plain'] },
-				{ id: 'worktree:file:///work/repo.worktrees/a', label: 'a (feature-a)', hover: URI.parse('file:///work/repo.worktrees/a').fsPath, sessions: ['feature-a', 'feature-a-2'] },
+				{ id: 'worktree:file:///work/repo.worktrees/a', label: 'a', hover: `${URI.parse('file:///work/repo.worktrees/a').fsPath} (branch feature-a)`, sessions: ['feature-a', 'feature-a-2'] },
 				{ id: 'worktree:file:///work/repo.worktrees/b', label: 'b', hover: URI.parse('file:///work/repo.worktrees/b').fsPath, sessions: ['feature-b'] },
 				{ id: 'worktree:other', label: 'Other', hover: undefined, sessions: ['cloud'] },
 			]);
@@ -3612,7 +3612,7 @@ suite('Sessions - SessionsList', () => {
 			list.layout(1400, 400);
 			const visible = () => list.getVisibleSessions().map(session => session.sessionId);
 			const order = visible();
-			const worktreeA = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-section-label')?.textContent === 'a (feature-a)');
+			const worktreeA = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-section-label')?.textContent === 'a');
 			list.openFind();
 			try {
 				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
@@ -3621,7 +3621,7 @@ suite('Sessions - SessionsList', () => {
 				findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 				assert.deepStrictEqual({ order, ariaLabel: worktreeA?.getAttribute('aria-label'), found: visible() }, {
 					order: ['checkout', 'plain', 'feature-a-2', 'feature-a', 'feature-b', 'cloud'],
-					ariaLabel: `a (feature-a), ${URI.parse('file:///work/repo.worktrees/a').fsPath}, 2`,
+					ariaLabel: `a, ${URI.parse('file:///work/repo.worktrees/a').fsPath} (branch feature-a), 2`,
 					found: ['feature-a-2', 'feature-a'],
 				});
 			} finally {
@@ -3699,7 +3699,7 @@ suite('Sessions - SessionsList', () => {
 			}));
 
 			assert.deepStrictEqual(icons, {
-				'repo (main)': ThemeIcon.asClassName(Codicon.folder),
+				'repo': ThemeIcon.asClassName(Codicon.folder),
 				'feature': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
 				'other': ThemeIcon.asClassName(Codicon.folder),
 				'projectless': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
