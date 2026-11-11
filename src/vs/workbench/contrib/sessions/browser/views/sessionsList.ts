@@ -135,7 +135,7 @@ import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
-import { ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
+import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
@@ -7063,7 +7063,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/** Whether the session may move into the destination, regardless of its position. */
-	private canMoveSession(session: ISession, destination: ISessionDropDestination): boolean {
+	private canMoveSession(session: ISession, destination: ISessionDropDestination, attention?: IInboxSessionAttention): boolean {
 		if (this.options.grouping() === SessionsGrouping.Inbox) {
 			const { placement } = destination;
 			if (this.isActiveComparisonSession(session) || placement.kind === 'group') {
@@ -7071,7 +7071,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return placement.kind === 'archived' || placement.kind === 'pinned'
 				|| placement.sectionId === SessionInboxSection.OnHold || placement.sectionId === SessionInboxSection.Done
-				|| placement.sectionId === getSessionInboxSection(session, undefined, undefined, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
+				|| placement.sectionId === getSessionInboxSection(session, undefined, undefined, attention);
 		}
 		const { placement } = destination;
 		const state = getPlacementState(placement);
@@ -7248,7 +7248,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getSessionDropEffect(sessions: readonly ISession[], destination: ISessionDropDestination): SessionDropEffect | undefined {
-		if (!sessions.every(session => this.canMoveSession(session, destination))) {
+		const attention = this.isInboxLayout()
+			? sessions.some(session => session.isArchived.get()) && destination.placement.kind === 'section'
+				? this.sessionAttentionService.getSessionAttentionAfterUnarchive(sessions)
+				: this.sessionAttentionService.sessionAttention.get()
+			: undefined;
+		if (!sessions.every(session => this.canMoveSession(session, destination, attention?.get(session.sessionId)))) {
 			return undefined;
 		}
 		const moves = sessions.some(session => this.changesPlacement(session, destination.placement));
@@ -7315,6 +7320,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * group changes its placement needs, then position them next to the anchor.
 	 */
 	private async moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): Promise<void> {
+		const inbox = this.isInboxLayout();
 		// Capture the display order before state changes move the rows.
 		const ordered = this.sortInDisplayOrder(sessions);
 		const state = getPlacementState(destination.placement);
@@ -7339,7 +7345,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		} else if (state.pinned === false) {
 			this._sessionsListModelService.unpinSessions(ordered.filter(session => this.isSessionPinned(session)));
 		}
-		if (this.options.grouping() === SessionsGrouping.Inbox) {
+		if (inbox) {
 			if (destination.placement.kind === 'section') {
 				const command = destination.placement.sectionId === SessionInboxSection.OnHold ? HOLD_INBOX_SESSION_COMMAND_ID
 					: destination.placement.sectionId === SessionInboxSection.Done ? CLEAR_INBOX_SESSION_COMMAND_ID
