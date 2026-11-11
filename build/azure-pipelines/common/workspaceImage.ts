@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Workspace images in Azure Pipelines: a disk image of the sources directory of a Linux job whose
-// dependencies are installed, which the Linux CI test jobs mount over their checkout, so that their
-// install steps install only what changed since. It uses the packed image format and the Linux mount
-// of the GitHub workspace images (see .github/workflows/workspace_image/README.md), with the pipeline
-// cache instead of artifacts. See workspace-image.yml for the steps.
+// Workspace images in Azure Pipelines: a disk image of the sources directory of a Linux or macOS job
+// whose dependencies are installed, which the Linux and macOS CI test jobs mount over their checkout,
+// so that their install steps install only what changed since. It uses the packed image format and
+// the mounts of the GitHub workspace images (see .github/workflows/workspace_image/README.md), with
+// the pipeline cache instead of artifacts: on macOS, a sparse image that hdiutil attaches, as the
+// agents run macOS 15, which has no ASIF images. See workspace-image.yml for the steps.
 //
 //   node workspaceImage.ts key
 //     Writes the files of the cache key: the native build inputs, then the lockfiles and the day.
@@ -24,7 +25,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { abortRestore, isMountPoint, mountLinuxImage, openFileSource } from '../../../.github/workflows/workspace_image/image.ts';
+import { abortRestore, isMountPoint, mountDarwinImage, mountLinuxImage, openFileSource } from '../../../.github/workflows/workspace_image/image.ts';
 import { computeNodeModulesBaseCacheKey, computePnpmStoreCacheKey } from './cacheKeys.ts';
 
 /** Written to the key files when the job must not save an image under its key: no image has it */
@@ -36,6 +37,8 @@ const STORE_FOLDER = '.build/pnpm-store';
 /** The checkouts of private repositories, which the test jobs check out themselves: an image holds neither their sources nor their credentials, so the image job doesn't check them out */
 const PRIVATE_FOLDERS = ['.build/distro', '.build/vscode-encrypt', '.build/vsda', '.build/vscode-regexp-languagedetection', '.build/.gitconfig-distro'];
 const RESTORE_TIMEOUT_SECONDS = 240;
+/** At the root of a macOS volume: keep Spotlight from indexing it, and fseventsd from logging its changes in the test jobs */
+const DARWIN_MARKER_FILES = ['.metadata_never_index', '.fseventsd/no_log'];
 
 interface Metadata {
 	readonly commit: string;
@@ -76,7 +79,26 @@ function packedImage(): string {
 }
 
 function volumeFile(): string {
-	return temporary('workspace-image.ext4');
+	return temporary(process.platform === 'darwin' ? 'workspace-image.sparseimage' : 'workspace-image.ext4');
+}
+
+function checkPlatform(): void {
+	if (process.platform !== 'linux' && process.platform !== 'darwin') {
+		throw new Error(`No workspace images on ${process.platform}`);
+	}
+}
+
+/**
+ * Attaches the sparse image of the volume and mounts its volume over the checkout, on macOS: out of
+ * Finder, and with the files owned by the user that reads them, so that the jobs can read the
+ * folders that macOS keeps at the root of a volume, such as .fseventsd.
+ */
+function darwinAttach(file: string, ws: string): [string, ...string[]] {
+	return ['hdiutil', 'attach', '-nobrowse', '-noverify', '-noautoopen', '-owners', 'off', '-mountpoint', ws, file];
+}
+
+function darwinDetach(ws: string): [string, ...string[]] {
+	return ['hdiutil', 'detach', '-force', ws];
 }
 
 function setVariable(name: string, value: string): void {
@@ -193,9 +215,7 @@ function setStoreVariables(ws: string): void {
 }
 
 async function mountImage(ws: string, base: string): Promise<void> {
-	if (process.platform !== 'linux') {
-		throw new Error(`No workspace images on ${process.platform}`);
-	}
+	checkPlatform();
 	if (isMountPoint(ws)) {
 		throw new Error(`A volume is mounted at ${ws} already`);
 	}
@@ -208,7 +228,9 @@ async function mountImage(ws: string, base: string): Promise<void> {
 	const source = await openFileSource(packedImage());
 	let unmount: (() => void) | undefined;
 	try {
-		unmount = await mountLinuxImage(source, volumeFile(), ws, os.availableParallelism());
+		unmount = process.platform === 'darwin'
+			? await mountDarwinImage(source, volumeFile(), ws, os.availableParallelism(), darwinAttach(volumeFile(), ws), darwinDetach(ws))
+			: await mountLinuxImage(source, volumeFile(), ws, os.availableParallelism());
 		const metadata: Metadata = JSON.parse(fs.readFileSync(path.join(ws, METADATA_FILE), 'utf8'));
 		// pnpm records the path of its store in the node_modules folders
 		if (path.resolve(metadata.workspace) !== ws) {
@@ -276,15 +298,14 @@ async function restore(): Promise<void> {
 }
 
 /**
- * Mounts an empty ext4 volume in a sparse file over the checkout, and checks out the commit of the
- * checkout there, so that the install steps install into the volume: without a journal or reserved
- * blocks, and with the inode tables left to initialize, so that they stay zeros, which the packed
- * image doesn't store.
+ * Mounts an empty volume over the checkout, and checks out the commit of the checkout there, so that
+ * the install steps install into the volume. On Linux, an ext4 volume in a sparse file: without a
+ * journal or reserved blocks, and with the inode tables left to initialize, so that they stay zeros,
+ * which the packed image doesn't store. On macOS, an APFS volume in a sparse image, which holds only
+ * the blocks that the volume wrote.
  */
 function create(): void {
-	if (process.platform !== 'linux') {
-		throw new Error(`No workspace images on ${process.platform}`);
-	}
+	checkPlatform();
 	if (readKey('base') === DISCARDED_KEY) {
 		throw new Error('No workspace image cache key');
 	}
@@ -296,20 +317,36 @@ function create(): void {
 	const origin = originUrl(ws);
 	const checkout = linkCheckout(ws);
 	const file = volumeFile();
-	const { uid, gid } = os.userInfo();
 	let mounted = false;
 	try {
 		fs.rmSync(file, { force: true });
-		run('truncate', ['-s', '64G', file]);
-		run('mkfs.ext4', ['-q', '-F', '-O', '^has_journal', '-m', '0', '-E', `lazy_itable_init=1,root_owner=${uid}:${gid}`, file]);
-		run('sudo', ['mount', '-o', 'loop,noatime,noinit_itable', file, ws]);
-		mounted = true;
-		// It would be an untracked folder of the checkout
-		run('sudo', ['rmdir', path.join(ws, 'lost+found')]);
+		if (process.platform === 'darwin') {
+			run('hdiutil', ['create', '-size', '64g', '-type', 'SPARSE', '-fs', 'APFS', '-volname', 'vscode-workspace', file]);
+			const [command, ...args] = darwinAttach(file, ws);
+			run(command, args, { stdio: 'inherit' });
+			mounted = true;
+			for (const marker of DARWIN_MARKER_FILES) {
+				fs.mkdirSync(path.dirname(path.join(ws, marker)), { recursive: true });
+				fs.writeFileSync(path.join(ws, marker), '');
+			}
+		} else {
+			const { uid, gid } = os.userInfo();
+			run('truncate', ['-s', '64G', file]);
+			run('mkfs.ext4', ['-q', '-F', '-O', '^has_journal', '-m', '0', '-E', `lazy_itable_init=1,root_owner=${uid}:${gid}`, file]);
+			run('sudo', ['mount', '-o', 'loop,noatime,noinit_itable', file, ws]);
+			mounted = true;
+			// It would be an untracked folder of the checkout
+			run('sudo', ['rmdir', path.join(ws, 'lost+found')]);
+		}
 		checkoutCommit(ws, checkout, commit, origin);
+		if (process.platform === 'darwin') {
+			// They would be untracked files of the checkout
+			fs.appendFileSync(path.join(ws, '.git', 'info', 'exclude'), ['', '/.metadata_never_index', '/.fseventsd/', ''].join('\n'));
+		}
 	} catch (err) {
 		if (mounted) {
-			spawnSync('sudo', ['umount', ws], { stdio: 'inherit' });
+			const [command, ...args] = process.platform === 'darwin' ? darwinDetach(ws) : ['sudo', 'umount', ws];
+			spawnSync(command, args, { stdio: 'inherit' });
 		}
 		fs.rmSync(file, { force: true });
 		throw err;
@@ -350,6 +387,20 @@ function pack(): void {
 	const metadata: Metadata = { commit, workspace: ws, base: readKey('base'), created: new Date().toISOString() };
 	fs.writeFileSync(path.join(ws, METADATA_FILE), `${JSON.stringify(metadata, null, '\t')}\n`);
 	run('df', ['-h', ws], { stdio: 'inherit' });
+	if (process.platform === 'darwin') {
+		packDarwinVolume(ws);
+	} else {
+		packLinuxVolume(ws);
+	}
+	console.log(`Packed the workspace image of ${commit}`);
+}
+
+function packVolume(): void {
+	fs.mkdirSync(cacheFolder(), { recursive: true });
+	run(process.execPath, [path.join(import.meta.dirname, '../../../.github/workflows/workspace_image/image.ts'), 'pack', '--in', volumeFile(), '--out', packedImage()], { stdio: 'inherit' });
+}
+
+function packLinuxVolume(ws: string): void {
 	run('sync', []);
 	// The loop device punches holes for the blocks that the install freed, which the packed image then doesn't store
 	if (spawnSync('sudo', ['fstrim', '--verbose', ws], { stdio: 'inherit' }).status !== 0) {
@@ -363,13 +414,33 @@ function pack(): void {
 		throw new Error(`Cannot remount ${ws} read-only`);
 	}
 	try {
-		fs.mkdirSync(cacheFolder(), { recursive: true });
-		run(process.execPath, [path.join(import.meta.dirname, '../../../.github/workflows/workspace_image/image.ts'), 'pack', '--in', volumeFile(), '--out', packedImage()], { stdio: 'inherit' });
+		packVolume();
 	} finally {
 		// For the rest of the job
 		spawnSync('sudo', ['mount', '-o', 'remount,rw', ws], { stdio: 'inherit' });
 	}
-	console.log(`Packed the workspace image of ${commit}`);
+}
+
+/**
+ * Detaches the volume, which leaves the checkout of the job in the sources directory for the rest of
+ * the job, and compacts its sparse image, which otherwise keeps the blocks of the files that the
+ * install deleted, before packing it.
+ */
+function packDarwinVolume(ws: string): void {
+	// Retried, in case Spotlight or a process that just ended still holds a file
+	if (spawnSync('hdiutil', ['detach', ws], { stdio: 'inherit' }).status !== 0) {
+		spawnSync('sleep', ['5']);
+		const [command, ...args] = darwinDetach(ws);
+		run(command, args, { stdio: 'inherit' });
+	}
+	if (spawnSync('hdiutil', ['compact', volumeFile()], { stdio: 'inherit' }).status !== 0) {
+		console.log('hdiutil compact failed, so the image keeps the blocks of deleted files.');
+	}
+	try {
+		packVolume();
+	} finally {
+		fs.rmSync(volumeFile(), { force: true });
+	}
 }
 
 if (import.meta.main) {
