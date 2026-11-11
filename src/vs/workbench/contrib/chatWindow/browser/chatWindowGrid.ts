@@ -207,11 +207,12 @@ function collectCellIds(node: ISerializedNode | ChatWindowArrangementNode): stri
  * stay as they are now, with the sizes the user gave them, and so do the cells without any cell `persistent` keeps,
  * such as the terminals, which may have joined or left meanwhile and keep their size in it. Where those do not fit,
  * the cells share the room as they would be, along the dimension `constrained` says: such sizes are not the ones the user
- * gave them.
+ * gave them. So are sizes below the least sizes of the cells, by `minimum`, which the grid holds them to, such as where
+ * the terminals leave less room than the parts need.
  * Undefined where the cell's row or column cannot be told from `before`. Where that row or column is new, such as one the
  * terminals joined it in, it stays as it is.
  */
-function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerializedGrid, persistent: (id: string) => boolean, terminalsHeight: number | undefined): { readonly grid: ISerializedGrid; readonly constrained: 'width' | 'height' | undefined } | undefined {
+function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerializedGrid, persistent: (id: string) => boolean, terminalsHeight: number | undefined, minimum: (id: string) => IViewSize): { readonly grid: ISerializedGrid; readonly constrained: 'width' | 'height' | undefined } | undefined {
 	const path = pathTo(shown.root, id);
 	if (!path) {
 		return undefined;
@@ -254,8 +255,9 @@ function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerialize
 	}
 	// Where the cells that keep their size do not fit, such as terminals taller than the window now is, they all share it
 	// as they would be: their sizes stay what they are, and how they show as both show is still known
-	const constrained = room > 0 ? undefined : orientation === Orientation.VERTICAL ? 'height' : 'width';
-	if (constrained) {
+	const dimension = orientation === Orientation.VERTICAL ? 'height' : 'width';
+	const scaled = room <= 0;
+	if (scaled) {
 		// Chrome keeps its size, which its view holds it to
 		const chrome = line.data.reduce((sum, child, index) => kept[index] !== undefined && isChrome(child) ? sum + kept[index]! : sum, 0);
 		const keptTotal = kept.reduce<number>((sum, size, index) => size === undefined || isChrome(line.data[index]) ? sum : sum + size, 0);
@@ -271,6 +273,18 @@ function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerialize
 		: { ...node, data: node.data.map(showCell) };
 	const cells = line.data.map((child, index) => sharing(child) ? { ...(child === hiddenNode ? showCell(child) : child), size: Math.round(previous[index]! * room / total), visible: undefined }
 		: kept[index] !== undefined ? { ...child, size: kept[index]! } : child);
+	// The least room a cell of the row or column needs along it: of a row or column across it, that of its largest cell
+	const minimumOf = (node: ISerializedNode, nodeOrientation: Orientation): number => {
+		if (node.visible === false) {
+			return 0;
+		}
+		if (node.type === 'leaf') {
+			return minimum((node.data as { id: string }).id)[dimension];
+		}
+		const minimums = node.data.map(child => minimumOf(child, orthogonal(nodeOrientation)));
+		return nodeOrientation === orientation ? minimums.reduce((sum, size) => sum + size, 0) : Math.max(0, ...minimums);
+	};
+	const constrained = scaled || cells.some((cell, index) => sharing(line.data[index]) && cell.size < minimumOf(cell, orthogonal(orientation))) ? dimension : undefined;
 	const replaceLine = (node: ISerializedNode): ISerializedNode => node.type === 'leaf' ? node
 		: node === line ? { ...node, data: cells }
 			: { ...node, data: node.data.map(replaceLine) };
@@ -465,6 +479,12 @@ export class ChatWindowGrid extends Disposable {
 	private _baseSizesKey: string | undefined;
 	/** The height the terminals take when they first show: they join the grid empty, until their first terminal shows in them. */
 	private _terminalsFirstShowHeight: number | undefined;
+	/**
+	 * The grid restored from the arrangement the user gave the parts, as it shows until the terminals first show in it:
+	 * the parts beside them then keep the shares they have in it, rather than the last of them giving the terminals its
+	 * room. Only once: later, the terminals show among the sizes the parts have then.
+	 */
+	private _beforeTerminalsShow: ISerializedGrid | undefined;
 	/** The key of the arrangement without the terminals: while it stays, the terminals join or move rather than rebuild. */
 	private _baseTopologyKey: string | undefined;
 	private _terminalsInGrid = false;
@@ -567,6 +587,7 @@ export class ChatWindowGrid extends Disposable {
 			const end = () => {
 				up.dispose();
 				this._rememberUserSizes(before);
+				this._updateBeforeTerminalsShow();
 			};
 			// Replacing a resize that never ended, such as one whose release went elsewhere, ends that one first
 			const up = this._userResize.value = combinedDisposable(
@@ -589,6 +610,7 @@ export class ChatWindowGrid extends Disposable {
 		this._register(addDisposableListener(_container, EventType.DBLCLICK, e => {
 			if (this._sashOf(e) && beforeReset) {
 				this._rememberUserSizes(beforeReset);
+				this._updateBeforeTerminalsShow();
 			}
 			beforeReset = undefined;
 		}));
@@ -755,6 +777,15 @@ export class ChatWindowGrid extends Disposable {
 		}
 		this._terminalsVisible.set(!!this._grid.value?.isCellVisible(ChatWindowGridCell.Terminals), undefined);
 		this._adoptTerminalPosition();
+		this._updateBeforeTerminalsShow();
+	}
+
+	/** Until the terminals first show, the parts keep the sizes they have, such as those the user gives them meanwhile. */
+	private _updateBeforeTerminalsShow(): void {
+		const grid = this._grid.value;
+		if (this._beforeTerminalsShow && grid && !grid.isCellVisible(ChatWindowGridCell.Terminals)) {
+			this._beforeTerminalsShow = grid.serializeGrid();
+		}
 	}
 
 	/**
@@ -879,6 +910,7 @@ export class ChatWindowGrid extends Disposable {
 		this._restoredArrangement = undefined;
 		this._exportedArrangement = undefined;
 		this._beforeHide = undefined;
+		this._beforeTerminalsShow = undefined;
 		this._topologyKey = undefined;
 		this._baseTopologyKey = undefined;
 		this._sizesKey = undefined;
@@ -947,7 +979,7 @@ export class ChatWindowGrid extends Disposable {
 			if (!shown || !beforeHide || !previousGrid || !this._showsPartsAsBeforeHide(shown)) {
 				return;
 			}
-			const asBothShow = withLineSharesOf(shown, hidden, previousGrid, id => this._isPersistentCell(id), beforeHide.terminalsHeight ?? this._terminalsHeight());
+			const asBothShow = withLineSharesOf(shown, hidden, previousGrid, id => this._isPersistentCell(id), beforeHide.terminalsHeight ?? this._terminalsHeight(), id => grid.getCellMinimumSize(id));
 			if (!asBothShow) {
 				return;
 			}
@@ -1075,11 +1107,15 @@ export class ChatWindowGrid extends Disposable {
 			partGrid.setPinnedTopView(ChatWindowGridCell.TitleRow);
 		}
 		this._terminalsFirstShowHeight = undefined;
+		this._beforeTerminalsShow = undefined;
 		this._gridListener.value = combinedDisposable(partGrid.onDidChangeArrangement(() => this._updateFromGrid()), partGrid.onDidChangePartEmpty(e => {
-			const height = this._terminalsFirstShowHeight;
-			if (e.id === ChatWindowGridCell.Terminals && !e.empty && height !== undefined && partGrid.isCellVisible(ChatWindowGridCell.Terminals)) {
-				this._terminalsFirstShowHeight = undefined;
-				this._resizeTerminals(partGrid, height);
+			if (e.id === ChatWindowGridCell.Terminals && !e.empty && partGrid.isCellVisible(ChatWindowGridCell.Terminals)) {
+				const height = this._terminalsFirstShowHeight;
+				if (height !== undefined) {
+					this._terminalsFirstShowHeight = undefined;
+					this._resizeTerminals(partGrid, height);
+				}
+				this._keepSharesBesideTerminals(partGrid);
 			}
 			this._updateFromGrid();
 		}));
@@ -1088,16 +1124,10 @@ export class ChatWindowGrid extends Disposable {
 		partGrid.layout(dimension.width, dimension.height);
 		// Once laid out: until then, a restored grid does not know the sizes of its rows and columns, such as the width of
 		// a row of the chat and the main part without the chrome, which the terminals would take their room in.
-		if (restored && terminals) {
-			const before = partGrid.serializeGrid();
-			this._addTerminals(partGrid, terminals, splitLayout, position);
-			// The parts beside them keep their shares, such as the chat and the main part in a column without the chrome,
-			// rather than the last of them giving the terminals its room
-			const current = partGrid.serializeGrid();
-			const line = current && findLineOf(current.root, current.orientation, ChatWindowGridCell.Terminals);
-			const beside = line?.children.map(child => child.type === 'leaf' ? (child.data as { id: string }).id : undefined).find(id => id === ChatWindowGridCell.Chat || id === ChatWindowGridCell.Main);
-			if (before && beside && partGrid.isCellVisible(ChatWindowGridCell.Terminals)) {
-				this._restoreLineSizes(partGrid, beside, before, undefined);
+		if (restored) {
+			this._beforeTerminalsShow = partGrid.serializeGrid();
+			if (terminals) {
+				this._addTerminals(partGrid, terminals, splitLayout, position);
 			}
 		}
 		this._restoreFocus(focused);
@@ -1111,6 +1141,26 @@ export class ChatWindowGrid extends Disposable {
 		grid.addPart(ChatWindowGridCell.Terminals, terminals, getTerminalsLocation(splitLayout, position), height, TERMINALS_OPTIONS);
 		this._terminalsInGrid = true;
 		this._terminalsFirstShowHeight = grid.isCellVisible(ChatWindowGridCell.Terminals) ? undefined : height;
+		this._keepSharesBesideTerminals(grid);
+	}
+
+	/**
+	 * As the terminals first show in a grid restored from the arrangement the user gave the parts, also as they join it
+	 * or fill, the parts beside them keep the shares they had, such as the chat and the main part in a column without the
+	 * chrome, rather than the last of them giving the terminals its room.
+	 */
+	private _keepSharesBesideTerminals(grid: PartGrid): void {
+		const before = this._beforeTerminalsShow;
+		if (!before || !grid.isCellVisible(ChatWindowGridCell.Terminals)) {
+			return;
+		}
+		this._beforeTerminalsShow = undefined;
+		const current = grid.serializeGrid();
+		const line = current && findLineOf(current.root, current.orientation, ChatWindowGridCell.Terminals);
+		const beside = line?.children.map(child => child.type === 'leaf' && child.visible !== false ? (child.data as { id: string }).id : undefined).find(id => id === ChatWindowGridCell.Chat || id === ChatWindowGridCell.Main);
+		if (beside) {
+			this._restoreLineSizes(grid, beside, before, undefined);
+		}
 	}
 
 	/** The grid of `topology` in `box`, its cells at the sizes the user gave them, else at their shares, with the parts the grid created. */
@@ -1139,7 +1189,8 @@ export class ChatWindowGrid extends Disposable {
 		const shown = this._grid.value?.serializeGrid();
 		const hidden = this._arrangedMode !== undefined ? getHiddenCell(this._arrangedMode) : undefined;
 		const beforeHide = this._beforeHide;
-		const grid = (shown && hidden && beforeHide?.grid && this._showsPartsAsBeforeHide(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid, id => this._isPersistentCell(id), beforeHide.terminalsHeight ?? this._terminalsHeight())?.grid : undefined) ?? shown;
+		const partGrid = this._grid.value;
+		const grid = (shown && partGrid && hidden && beforeHide?.grid && this._showsPartsAsBeforeHide(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid, id => this._isPersistentCell(id), beforeHide.terminalsHeight ?? this._terminalsHeight(), id => partGrid.getCellMinimumSize(id))?.grid : undefined) ?? shown;
 		const splitLayout = this._arrangedSplitLayout;
 		// While the window closes, its chat and main part leave the grid: what it showed before is what the user arranged
 		if (this._closing || !grid || splitLayout === undefined) {

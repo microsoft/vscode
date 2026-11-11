@@ -1444,6 +1444,15 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
+	 * The least size of a cell, with the frame of its card, which the grid
+	 * holds it to.
+	 */
+	getCellMinimumSize(id: string): IViewSize {
+		const cell = this.getCell(id);
+		return { width: cell.minimumWidth, height: cell.minimumHeight };
+	}
+
+	/**
 	 * Resizes a cell; a dimension left out keeps its size.
 	 */
 	resizeCell(id: string, size: Partial<IViewSize>): void {
