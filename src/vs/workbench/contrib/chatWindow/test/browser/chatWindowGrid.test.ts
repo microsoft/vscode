@@ -1381,6 +1381,70 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('a part hidden in Stacked, with the parts moved and the terminals below them, shows again in a new grid at the share it had, after a reload', () => {
+		const { mode, grid, open } = setupWithTerminals(ChatWindowLayoutMode.Stacked);
+		open();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { reference: ChatWindowGridCell.Main, direction: Direction.Up });
+		const size = (target: ChatWindowGrid, cell: ChatWindowGridCell) => target.partGrid!.getCellSize(cell).height;
+		const share = size(grid, ChatWindowGridCell.Main) / (size(grid, ChatWindowGridCell.Main) + size(grid, ChatWindowGridCell.Chat));
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		const arrangement = grid.exportArrangement();
+		const terminalsPart = createPartWithEditors('terminals');
+		terminalsPart.setEmpty(false);
+		const restoredMode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.ChatOnly);
+		const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(terminalsPart.part), splitLayout: constObservable<ChatWindowSplitLayout>(ChatWindowLayoutMode.Stacked), arrangement }, restoredMode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), undefined, editorGroupsService));
+		restored.layout(1000, 800);
+		restoredMode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const restoredShare = size(restored, ChatWindowGridCell.Main) / (size(restored, ChatWindowGridCell.Main) + size(restored, ChatWindowGridCell.Chat));
+
+		assert.deepStrictEqual({ shape: restored.partGrid!.describe(), share: Math.round(restoredShare * 100) }, { shape: 'column(titleRow, row(column(chat, main, terminals), strip))', share: Math.round(share * 100) });
+	});
+
+	test('the terminals keep the height they had as the main part hid when it shows again in a window resized meanwhile; the others share the rest', () => {
+		const { mode, grid, open, height } = setupWithTerminals(ChatWindowLayoutMode.Stacked);
+		open();
+		const before = height();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.layout(1000, 900);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+
+		assert.deepStrictEqual({ before, after: height() }, { before, after: before });
+	});
+
+	test('a part hidden while the terminals open shows again at its share, beside the terminals at their height: the chat in Stacked, and the main part with the terminals under it', () => {
+		const roundTrip = (initial: ChatWindowLayoutMode, hiding: ChatWindowLayoutMode, position: ChatWindowTerminalPosition, cell: ChatWindowGridCell) => {
+			const { mode, position: terminalPosition, grid, open, height } = setupWithTerminals(initial);
+			terminalPosition.set(position, undefined);
+			const size = (target: ChatWindowGridCell) => grid.partGrid!.getCellSize(target).height;
+			mode.set(hiding, undefined);
+			open();
+			mode.set(initial, undefined);
+			return { minimum: size(cell) <= 50, terminals: height() };
+		};
+
+		assert.deepStrictEqual({
+			chatInStacked: roundTrip(ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly, ChatWindowTerminalPosition.FullWidth, ChatWindowGridCell.Chat),
+			mainWithTerminalsUnderIt: roundTrip(ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowTerminalPosition.UnderEditor, ChatWindowGridCell.Main),
+		}, {
+			chatInStacked: { minimum: false, terminals: 240 },
+			mainWithTerminalsUnderIt: { minimum: false, terminals: 240 },
+		});
+	});
+
+	test('with the terminals joining an arrangement the user moved, moving the parts back as the window arranges them remembers the sizes the user gives them again', () => {
+		const { grid, open, position, userResize } = setupWithTerminals();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Left });
+		const shape = grid.partGrid!.describe();
+		userResize(ChatWindowGridCell.Chat, 'right', 300);
+
+		assert.deepStrictEqual({ shape, arrangement: grid.exportArrangement(), chat: grid.exportSizes()['column(titleRow,row(chat,column(main,terminals),strip))']?.[ChatWindowGridCell.Chat]?.width }, {
+			shape: 'column(titleRow, row(chat, column(main, terminals), strip))', arrangement: undefined, chat: 300,
+		});
+	});
+
 	test('the terminal position moves the terminals\' part in the grid, which keeps its height, and the arrangement it moves to is the one a new grid shows', () => {
 		const { position, grid, open, height, userResize } = setupWithTerminals();
 		open();

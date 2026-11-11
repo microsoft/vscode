@@ -112,7 +112,8 @@ export function getChatWindowTopology(splitLayout: ChatWindowSplitLayout, cells:
 /** Where the terminals go in the arrangement of `splitLayout`, beside a cell or at the bottom edge, as {@link getChatWindowTopology} places them. */
 function getTerminalsLocation(splitLayout: ChatWindowSplitLayout, position: ChatWindowTerminalPosition): PartGridLocation {
 	if (splitLayout === ChatWindowLayoutMode.Stacked) {
-		return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
+		// Across the bottom, wherever the user moved the chat and the main part, the strip running past them
+		return { edge: Direction.Down };
 	}
 	switch (position) {
 		case ChatWindowTerminalPosition.UnderChat: return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
@@ -177,9 +178,17 @@ function keepCells(node: ISerializedNode, keep: (id: string) => boolean): ISeria
 		const [only] = kept;
 		return only.type === 'branch' ? only.data : [{ ...only, size: node.size }];
 	}
-	const total = node.data.reduce((sum, child) => sum + child.size, 0);
-	const left = kept.reduce((sum, child) => sum + child.size, 0);
-	return [{ ...node, data: left > 0 ? kept.map(child => ({ ...child, size: Math.round(child.size * total / left) })) : kept }];
+	// A hidden cell's size is the one it shows at again, not room it takes: only the cells that show share the room
+	const shownSize = (cells: readonly ISerializedNode[]) => cells.reduce((sum, child) => child.visible === false ? sum : sum + child.size, 0);
+	const total = shownSize(node.data);
+	const left = shownSize(kept);
+	return [{ ...node, data: left > 0 ? kept.map(child => child.visible === false ? child : { ...child, size: Math.round(child.size * total / left) }) : kept }];
+}
+
+/** What {@link PartGrid.describe} says for `grid` without the terminals, which join and leave as they open and close. */
+function describeParts(grid: ISerializedGrid | undefined): string | undefined {
+	const parts = grid && withCellsOf(grid, id => id !== ChatWindowGridCell.Terminals);
+	return parts && describeSerialized(parts.root.type === 'branch' ? parts.root.data : [parts.root], parts.orientation);
 }
 
 /** `grid` with only the cells `keep` keeps, or undefined without any left. */
@@ -349,8 +358,11 @@ export class ChatWindowGrid extends Disposable {
 	private _restoredArrangement: IChatWindowArrangement | undefined;
 	/** The arrangement the grid last exported, or restored: see {@link exportArrangement}. */
 	private _exportedArrangement: IChatWindowArrangement | undefined;
-	/** What the grid showed, and its sizes, before the layout mode hid the chat or the main part, until it shows both again. */
-	private _beforeHide: { readonly shape: string; readonly grid: ISerializedGrid | undefined; terminalsHeight?: number } | undefined;
+	/**
+	 * What the grid showed, and its sizes, before the layout mode hid the chat or the main part, until it shows both again:
+	 * its shape without the terminals, which may join or leave meanwhile, and the height the terminals take as it does.
+	 */
+	private _beforeHide: { readonly shape: string | undefined; readonly grid: ISerializedGrid | undefined; terminalsHeight: number | undefined } | undefined;
 	private _createdPartsChanging = false;
 	/** The height the terminals take once the cells of the arrangement they moved in show. */
 	private _pendingTerminalsHeight: number | undefined;
@@ -533,12 +545,13 @@ export class ChatWindowGrid extends Disposable {
 	}
 
 	/**
-	 * Gives the cells of the row or column of `cell` the sizes they had in `before`, in proportion to the room they have
-	 * now, but the terminals `terminalsHeight` in a column, if given. Each takes its size from the last of them, so sizing
-	 * all but the last, in order, gives each its own.
+	 * Gives the cells of the row or column of `cell` the shares they had in `before`, in the room they have now, the
+	 * terminals among them keeping `terminalsHeight` in a column, else their own height: they may have joined since. Each
+	 * cell takes its size from the last of them, so sizing all but the last, in order, gives each its own.
 	 */
 	private _restoreLineSizes(grid: PartGrid, cell: string, before: ISerializedGrid, terminalsHeight: number | undefined): void {
-		const line = findLineOf(before.root, before.orientation, cell);
+		const current = grid.serializeGrid();
+		const line = current && findLineOf(current.root, current.orientation, cell);
 		if (!line) {
 			return;
 		}
@@ -548,15 +561,29 @@ export class ChatWindowGrid extends Disposable {
 		if (ids.some(id => id === undefined)) {
 			return;
 		}
+		const fixed = children.map((child, index) => child.type !== 'leaf' || ids[index] !== ChatWindowGridCell.Terminals ? undefined
+			: dimension === 'height' ? terminalsHeight ?? this._terminalsHeight() : grid.getCellSize(ChatWindowGridCell.Terminals).width);
+		// Alone beside the terminals, such as the main part with the terminals under it, the cell takes the rest. Else the
+		// cells share it as they did, also when the terminals joined or left the row or column meanwhile.
+		const sharesIn = (grid: ISerializedGrid | undefined) => {
+			const previousLine = grid && findLineOf(grid.root, grid.orientation, cell);
+			return children.map((_child, index) => fixed[index] !== undefined ? undefined
+				: previousLine?.orientation === line.orientation ? previousLine.children.find(candidate => candidate.visible !== false && collectCellIds(candidate).includes(ids[index]!))?.size : undefined);
+		};
+		const isComplete = (shares: (number | undefined)[]) => shares.every((size, index) => size !== undefined || fixed[index] !== undefined);
+		const previous = fixed.filter(size => size === undefined).length === 1 ? fixed.map(size => size === undefined ? 1 : undefined)
+			: [sharesIn(before), sharesIn(withCellsOf(before, id => id !== ChatWindowGridCell.Terminals))].find(isComplete);
+		if (!previous) {
+			return;
+		}
 		const room = ids.reduce((sum, id) => sum + grid.getCellSize(id!)[dimension], 0);
-		const fixed = children.map((_child, index) => dimension === 'height' && ids[index] === ChatWindowGridCell.Terminals ? terminalsHeight : undefined);
 		const fixedTotal = fixed.reduce<number>((sum, size) => sum + (size ?? 0), 0);
-		const total = children.reduce((sum, child, index) => fixed[index] === undefined ? sum + child.size : sum, 0);
+		const total = previous.reduce<number>((sum, size) => sum + (size ?? 0), 0);
 		if (!total || fixedTotal >= room) {
 			return;
 		}
-		children.slice(0, -1).forEach((child, index) => {
-			const size = fixed[index] ?? Math.round(child.size * (room - fixedTotal) / total);
+		children.slice(0, -1).forEach((_child, index) => {
+			const size = fixed[index] ?? Math.round(previous[index]! * (room - fixedTotal) / total);
 			grid.resizeCell(ids[index]!, dimension === 'height' ? { height: size } : { width: size });
 		});
 	}
@@ -648,7 +675,8 @@ export class ChatWindowGrid extends Disposable {
 		const shown = previousMode !== undefined && !hidden ? getHiddenCell(previousMode) : undefined;
 		// Before the part hides, as both show: also in the grid arranged anew while it stays hidden, such as stacked
 		if (hidden && (previousMode === undefined || !getHiddenCell(previousMode) || arranged === 'rebuilt')) {
-			this._beforeHide = { shape: grid.describe(), grid: grid.serializeGrid() };
+			const before = grid.serializeGrid();
+			this._beforeHide = { shape: describeParts(before), grid: before, terminalsHeight: grid.isCellVisible(ChatWindowGridCell.Terminals) ? grid.getCellSize(ChatWindowGridCell.Terminals).height : undefined };
 		}
 		this._pendingTerminalsHeight = undefined;
 		grid.setCellVisible(ChatWindowGridCell.Chat, mode !== ChatWindowLayoutMode.EditorOnly);
@@ -666,14 +694,16 @@ export class ChatWindowGrid extends Disposable {
 		// The part that shows again takes the room it had back from the cells beside it, unless the arrangement changed
 		// meanwhile: rather than from the last of them, such as the terminals below it, which took its room as it hid.
 		const beforeHide = this._beforeHide;
-		if (shown && beforeHide?.grid && beforeHide.shape === grid.describe()) {
+		if (shown && beforeHide?.grid && beforeHide.shape === describeParts(grid.serializeGrid())) {
 			this._restoreLineSizes(grid, shown, beforeHide.grid, beforeHide.terminalsHeight);
 		}
 		if (!hidden) {
 			this._beforeHide = undefined;
 		}
-		if (arranged === 'changed' && !userArranged) {
-			this._arranged = grid.describe();
+		if (arranged === 'changed') {
+			// The terminals joined, moved or left: the window's arrangement is the one with them as they are now, also
+			// while the user's differs, so that sizes count again once the user arranges the parts as the window does
+			this._arranged = userArranged ? this._describeArrangement(splitLayout, this._terminalPosition.get()) : grid.describe();
 		}
 		this._sizesKey = getSizesKey(this._topologyKey!, mode);
 		this._baseSizesKey = getSizesKey(this._baseTopologyKey!, mode);
@@ -898,7 +928,10 @@ export class ChatWindowGrid extends Disposable {
 	 * terminals and the parts it created, which show where they always do.
 	 */
 	exportArrangement(): IChatWindowArrangement | undefined {
-		const grid = this._grid.value?.serializeGrid();
+		const shown = this._grid.value?.serializeGrid();
+		// While a part is hidden, the others took its room: as both showed, unless the user moved a part meanwhile
+		const beforeHide = this._beforeHide;
+		const grid = beforeHide?.grid && shown && beforeHide.shape === describeParts(shown) ? beforeHide.grid : shown;
 		const splitLayout = this._arrangedSplitLayout;
 		// While the window closes, its chat and main part leave the grid: what it showed before is what the user arranged
 		if (this._closing || !grid || splitLayout === undefined) {
