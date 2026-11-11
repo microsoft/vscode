@@ -415,7 +415,7 @@ suite('Sessions - View Menu', () => {
 		}));
 		const notices: ISessionsListNotice[] = [];
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
 		const run = (id: string) => CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, sessions);
 		const states = () => sessions.map(session => {
 			assert.strictEqual(session.isRead.get(), false);
@@ -453,7 +453,7 @@ suite('Sessions - View Menu', () => {
 		}));
 		const notices: ISessionsListNotice[] = [];
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
-			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
 		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items[0]);
 		const counts: { notices: number; closed: number }[] = [];
 		for (const action of ['inboxHold', 'inboxResume', 'inboxSnooze', 'inboxDone']) {
@@ -464,6 +464,29 @@ suite('Sessions - View Menu', () => {
 		assert.deepStrictEqual({ counts, closed, stateAfterUndo: model.getInboxState(session)?.kind, archived: session.isArchived.get() }, {
 			counts: [{ notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 1, closed: 1 }],
 			closed: ['session'], stateAfterUndo: 'snoozed', archived: false,
+		});
+	});
+
+	test('Clear from Inbox does not clear or close sessions in other grouping modes', async () => {
+		const session = buildTestSession({ id: 'session', title: 'Session' }).session;
+		const harness = createListHarness(store, [session]);
+		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+		harness.instantiationService.stub(ISessionsListModelService, model);
+		let closed = 0;
+		harness.instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			closeSession: () => { closed++; },
+		}));
+		let grouping = SessionsGrouping.Workspace;
+		const notices: ISessionsListNotice[] = [];
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
+			upcastPartial<SessionsView>({ grouping, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		const states: (string | undefined)[] = [];
+		for (grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date]) {
+			await CommandsRegistry.getCommand('sessionsViewPane.inboxDone')!.handler(harness.instantiationService, session);
+			states.push(model.getInboxState(session)?.kind);
+		}
+		assert.deepStrictEqual({ states, closed, notices: notices.length }, {
+			states: [undefined, undefined, undefined, undefined], closed: 0, notices: 0,
 		});
 	});
 

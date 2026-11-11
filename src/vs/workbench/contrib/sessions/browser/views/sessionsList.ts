@@ -4700,6 +4700,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Whether the search is open with a query that has words to search for. */
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
+	private hadInboxSessions = false;
 	private readonly findOpen = observableValue(this, false);
 	private readonly searchFilter: SessionsListSearchFilter;
 	private readonly findController: SessionsListFindController<SessionListItem | null>;
@@ -5998,6 +5999,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
+		const hasInboxSessions = inbox && sections.some(section => section.id === SessionInboxSection.ReadyForYou && section.sessions.length > 0);
+		const inboxBecamePopulated = hasInboxSessions && !this.hadInboxSessions;
 
 		// Keep the "Chats" default section visible even when empty so it stays
 		// discoverable, unless the user opts out via the setting. The
@@ -6169,6 +6172,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				defaultCollapsed = inbox
 					? savedCollapsed ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded
 					: savedCollapsed;
+			} else if (hasInboxSessions && section.id !== SessionInboxSection.ReadyForYou) {
+				defaultCollapsed = inboxBecamePopulated ? ObjectTreeElementCollapseState.Collapsed : ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 			return {
 				element: section as SessionListItem,
@@ -6405,6 +6410,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.listContainer.classList.toggle('inbox-layout', this.isInboxLayout());
 		this.tree.getHTMLElement().setAttribute('aria-label', this.isInboxLayout() ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
 		this.tree.setChildren(null, children);
+		this.hadInboxSessions = hasInboxSessions;
 		if (inboxLayoutChanged) {
 			for (const session of this.sessions) {
 				const tree = this.getTree(session);

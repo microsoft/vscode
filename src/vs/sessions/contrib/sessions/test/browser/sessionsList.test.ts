@@ -5478,10 +5478,56 @@ suite('Sessions - SessionsList', () => {
 				],
 				tabElements: 0,
 				revealed: true,
-				revealedVisible: ['pinned', 'ready', 'held', 'done'],
-				afterGroupingChange: { workingCollapsed: true, sessions: ['pinned', 'ready', 'done'] },
-				restored: { workingCollapsed: true, sessions: ['pinned', 'ready', 'done'] },
+				revealedVisible: ['ready', 'held'],
+				afterGroupingChange: { workingCollapsed: true, sessions: ['ready'] },
+				restored: { workingCollapsed: true, sessions: ['ready'] },
 				triage: ['hold', 'done'],
+			});
+		});
+
+		test('populated Inbox collapses secondary sections while preserving manual expansion across updates and reloads', () => {
+			const pinned = createTestSession('pinned').session;
+			const done = createTestSession('done').session;
+			const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
+			const ready = createTestSession('ready').session;
+			const harness = createListHarness(disposables, [pinned, done, working]);
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.pinSession(pinned);
+			model.setInboxState([done], 'done');
+			let grouping = SessionsGrouping.Inbox;
+			const create = () => {
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(800, 320);
+				return list;
+			};
+			const snapshot = (list: SessionsList) => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [[node.id, node.collapsed]] : []);
+			const list = create();
+			const empty = snapshot(list);
+			list.setItemCollapsed({ section: SessionInboxSection.Working }, false);
+			harness.managementService.sessions = [pinned, done, working, ready];
+			list.refresh();
+			const populated = snapshot(list);
+			list.setItemCollapsed({ section: SessionInboxSection.Done }, false);
+			list.update();
+			const manuallyExpanded = snapshot(list);
+			list.dispose();
+			const restoredList = create();
+			const restored = snapshot(restoredList);
+			grouping = SessionsGrouping.Workspace;
+			restoredList.update();
+			const ordinaryShowsCleared = restoredList.getVisibleSessions().some(session => session.sessionId === done.sessionId);
+			grouping = SessionsGrouping.Inbox;
+			restoredList.update();
+			assert.deepStrictEqual({ empty, populated, manuallyExpanded, restored, ordinaryShowsCleared, returned: snapshot(restoredList) }, {
+				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, true], [SessionInboxSection.Done, false]],
+				populated: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, true]],
+				manuallyExpanded: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
+				restored: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
+				ordinaryShowsCleared: true,
+				returned: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Done, false]],
 			});
 		});
 
