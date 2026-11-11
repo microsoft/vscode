@@ -3081,6 +3081,33 @@ suite('AgentSideEffects', () => {
 			assert.ok(terminalManager.sentTexts.some(s => s.data.includes('echo hi')));
 		});
 
+		test('forwards an agent-originated ! message to the agent without creating a terminal', async () => {
+			setupSession();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			let turnService: IAgentHostTurnService | undefined;
+			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onDidCreateTurnService: service => turnService = service,
+			}, undefined, undefined, undefined, terminalManager);
+			disposables.add(bangSideEffects.registerProgressListener(agent));
+
+			turnService!.startTurnMessage(URI.parse(defaultChatUri), {
+				text: '!echo hi',
+				origin: { kind: MessageKind.Agent },
+			});
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({
+				prompts: agent.sendMessageCalls.map(call => call.prompt),
+				terminalCount: terminalManager.created.length,
+			}, {
+				prompts: ['!echo hi'],
+				terminalCount: 0,
+			});
+		});
+
 		test('a cancelled ! command that finishes late does not release the next turn\'s workspace snapshot', async () => {
 			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');
@@ -3965,15 +3992,33 @@ suite('AgentSideEffects', () => {
 				assert.deepStrictEqual(agent.changeModelCalls, [], 'an agent that cannot route keeps its model');
 
 				routeWith(async request => ({ selection: request.selection, notices: [] }));
-				sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } as ChatAction, 'client-1');
-				sideEffects.handleAction(defaultChatUri, {
+				const complete = { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } as ChatAction;
+				const next: ChatAction = {
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-2',
 					startedAt: '2025-01-01T00:00:01.000Z',
 					message: { text: 'again', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
-				}, 'client-1');
+				};
+				for (const action of [complete, next]) {
+					stateManager.dispatchServerAction(defaultChatUri, action);
+					sideEffects.handleAction(defaultChatUri, action, 'client-1');
+				}
 				await new Promise(r => setTimeout(r, 10));
 				assert.deepStrictEqual(agent.changeModelCalls, [], 'a resolution that returns the router id is ignored');
+			});
+
+			test('does not route a turn that is no longer the chat\'s active turn', async () => {
+				setupSession();
+				const requests = routeWith(async () => ({ selection: { id: 'model-b' }, notices: [] }));
+				// The turn's preparation finished after another turn took its place: state never made it the active turn.
+				sideEffects.handleAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-stale',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
+				}, 'client-1');
+				await new Promise(r => setTimeout(r, 10));
+				assert.deepStrictEqual({ requests, models: agent.changeModelCalls }, { requests: [], models: [] });
 			});
 
 			test('a failed resolution keeps the chat\'s model and still sends the turn', async () => {
@@ -3983,6 +4028,32 @@ suite('AgentSideEffects', () => {
 				await new Promise(r => setTimeout(r, 10));
 				assert.deepStrictEqual({ models: agent.changeModelCalls, sent: agent.sendMessageCalls.length }, { models: [], sent: 1 });
 			});
+
+			for (const [name, resolve] of [
+				['made no pick', async (): Promise<IAgentTurnModelResolution> => ({ selection: undefined, notices: [] })],
+				['failed', (): Promise<IAgentTurnModelResolution> => Promise.reject(new Error('boom'))],
+			] as const) {
+				test(`says on every usage report that the turn asked for a router that ${name}`, async () => {
+					setupSession();
+					const actions: StateAction[] = [];
+					disposables.add(stateManager.onDidEmitEnvelope(envelope => actions.push(envelope.action)));
+					routeWith(resolve);
+					disposables.add(sideEffects.registerProgressListener(agent));
+
+					startRoutedTurn();
+					await new Promise(r => setTimeout(r, 10));
+					agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 5, outputTokens: 1, model: 'model-a' } } });
+
+					// A restored turn's selection is the model it ran on, so this is what tells it apart from a model picked by hand.
+					assert.deepStrictEqual({
+						onUsage: actions.flatMap(action => action.type === ActionType.ChatUsage ? [readUsageInfoMeta(action.usage).modelRouterUnrouted] : []),
+						turnUsage: stateManager.getChatState(defaultChatUri)?.activeTurn?.usage,
+					}, {
+						onUsage: ['daily', 'daily'],
+						turnUsage: { inputTokens: 5, outputTokens: 1, model: 'model-a', _meta: { modelRouterUnrouted: 'daily' } },
+					});
+				});
+			}
 		});
 
 		test('calls changeModel on the agent before sending the message', async () => {

@@ -686,10 +686,14 @@ export interface IChatAutoModeResolutionPart {
 	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
 	/** A router other than Auto, such as a host-side model router. */
 	router?: string;
+	/** The playbook a host-side model router chose, when it is written as playbooks. */
+	playbook?: string;
 	/** The chosen route's `when`, when it decided the pick. */
 	preference?: string;
 	/** The thinking effort the router chose for this turn. */
 	effort?: string;
+	/** The context window a host-side model router asked for, in tokens. */
+	contextSize?: number;
 	/** Display name of the model the router moved off on this turn. */
 	switchedFrom?: string;
 	/** The router had no confident pick and used its first route. */

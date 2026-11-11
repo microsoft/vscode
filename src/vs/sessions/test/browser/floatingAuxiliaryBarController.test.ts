@@ -956,10 +956,13 @@ suite('Sessions - Floating Details', () => {
 	});
 
 	test('gives short content a faster reveal and dismissal without scaling or sliding the tree', async () => {
-		const { editor, part, controller } = createHost(false, 44);
+		const { editor, part, controller, host } = createHost(false, 44);
 		editor.closest('.monaco-workbench')!.classList.add('monaco-enable-motion');
 		controller.layout(33);
 		const widget = editor.querySelector<HTMLElement>('.floating-details')!;
+		// The motion is short when neither the width nor the height changes by more than 240px. The compact caption's
+		// width depends on the browser's font metrics, so the width is set relative to it.
+		host.setWidth(widget.getBoundingClientRect().width + 200);
 		controller.setPinned(true);
 		const opening = widget.getAnimations()[0];
 		assert.ok(opening?.effect instanceof KeyframeEffect);

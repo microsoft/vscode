@@ -92,16 +92,24 @@ export interface ISessionComparisonAttemptCompletedTelemetry {
 	readonly comparisonId: string;
 	readonly attemptIndex: number;
 	readonly elapsedMs: number;
+	readonly inputTokens?: number;
+	readonly cachedTokens?: number;
+	readonly outputTokens?: number;
+	readonly tokenCountIsComplete: boolean;
 }
 
 type SessionComparisonAttemptCompletedEvent = ISessionComparisonAttemptCompletedTelemetry;
 
 type SessionComparisonAttemptCompletedClassification = {
 	owner: 'meganrogge';
-	comment: 'Tracks the elapsed time of a comparison attempt before its first turn becomes terminal.';
+	comment: 'Tracks elapsed time and token usage of a comparison attempt when its first turn becomes terminal.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to join this attempt with its Judge model outcome.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of this attempt among the attempts reviewed by the Judge.' };
 	elapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider-reported elapsed milliseconds for the terminal first turn.' };
+	inputTokens?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens for the first turn, omitted when usage is unavailable.' };
+	cachedTokens?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cached input tokens for the first turn, omitted when accounting is incomplete. Already included in inputTokens.' };
+	outputTokens?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Output tokens for the first turn, omitted when usage is unavailable.' };
+	tokenCountIsComplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether token accounting covers the complete first turn. False when usage is missing or partial.' };
 };
 
 export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetryService, data: ISessionComparisonAttemptCompletedTelemetry): void {

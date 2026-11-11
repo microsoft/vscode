@@ -195,6 +195,14 @@ export function escapeMarkdownSyntaxTokens(text: string): string {
 }
 
 /**
+ * Escapes text that does not come from the product, so that it renders as plain text when it is placed into markdown:
+ * no links (including autolinks and bare URLs), images, theme icons or block syntax. Whitespace is collapsed to single spaces.
+ */
+export function escapeUntrustedMarkdown(text: string): string {
+	return escapeMarkdownSyntaxTokens(escapeIcons(text.replace(/\s+/g, ' '))).replace(/[<>:.@]/g, '\\$&');
+}
+
+/**
  * Escapes only the characters that would break out of markdown link text
  * (`[label](url)`) syntax: `\` and `]`. Use this when the escaped string is
  * displayed as the visible label of a link, since renderers that extract the

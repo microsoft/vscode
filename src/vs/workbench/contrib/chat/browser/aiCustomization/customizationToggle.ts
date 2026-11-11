@@ -12,6 +12,7 @@ export interface ICustomizationToggleOptions {
 	readonly ariaLabel: string;
 	readonly checked?: boolean | 'mixed';
 	readonly disabled?: boolean;
+	readonly title?: string | false;
 }
 
 export class CustomizationToggle extends Disposable {
@@ -32,7 +33,7 @@ export class CustomizationToggle extends Disposable {
 		this.ariaLabel = options.ariaLabel;
 		this.state = options.checked ?? false;
 		this.isDisabled = options.disabled ?? false;
-		this.control = this._register(new Switch({ ariaLabel: this.ariaLabel, checked: this.state === true, disabled: this.isDisabled }));
+		this.control = this._register(new Switch({ ariaLabel: this.ariaLabel, checked: this.state === true, disabled: this.isDisabled, title: options.title }));
 		this.domNode.appendChild(this.control.domNode);
 		this._register(this.control.onChange(checked => this.handleChange(checked)));
 		this.applyState();

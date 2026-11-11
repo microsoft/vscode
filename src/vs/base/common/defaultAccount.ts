@@ -44,6 +44,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
 	readonly token_based_billing?: boolean;
 	readonly can_upgrade_plan?: boolean;
+	readonly cloud_sessions_enabled?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
 	/** Who pays for the user's Copilot (enterprise, organization or the user), when the server sends it. */
 	readonly billable_owner?: {
