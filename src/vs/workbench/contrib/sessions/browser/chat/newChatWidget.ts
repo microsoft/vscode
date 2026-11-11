@@ -1892,7 +1892,7 @@ export class NewChatWidget extends Disposable {
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const action = toAction({
-					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
+					id: 'newSessionWorkspacePicker.quickChat',
 					label: getQuickChatProviderLabel(provider),
 					checked: provider.id === activeProviderId,
 					run: () => {

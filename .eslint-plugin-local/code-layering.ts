@@ -79,11 +79,12 @@ export default new class implements eslint.Rule.RuleModule {
 		}
 
 		const checkImport = (node: ESTree.Node | null | undefined): void => {
-			if (node?.type !== 'Literal' || typeof node.value !== 'string' || !node.loc) {
+			if (node?.type !== 'Literal' || typeof node.value !== 'string') {
 				return;
 			}
 			const violation = check(node.value);
-			if (violation) {
+			// oxlint computes `loc` on first access, so only access it to report
+			if (violation && node.loc) {
 				context.report({
 					loc: node.loc,
 					messageId: 'layerbreaker',

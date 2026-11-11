@@ -699,6 +699,16 @@ A warm launch is the launch the first send would run, started early and kept on 
 
 Both windows create their draft with the model selected in the chat input (`AgentHostUntitledProvisionalSessionService` in the editor window), because the first send selects its model before it runs and discards a launch made with another one (`modelChanged`). A model selected after the draft is created keeps the draft's backend session: replacing it would drop the session-scoped customization choices made for the draft, such as a disabled MCP server, so that send launches cold instead. In the editor window, a draft whose chat model was disposed is retired, so chat input chips that still show it while the widget switches to the next chat cannot recreate a backend for it.
 
+#### Microsoft credential bridge
+
+Applies only when the host started with `copilotM365EnabledAtStartup` on. Easy to get wrong on the host:
+
+- **GitHub and Microsoft are advertised as optional.** A user needs one of them, not both, so each is `required: false`. That only stops a client from blocking on one of them; a session still cannot run without a credential.
+- **The host is bound to one Microsoft account.** It compares account IDs, never display names, and rejects a token for a different account instead of switching.
+- **The SDK's token callback never waits.** It returns the stored token or `unavailable`, which means "no token right now", not "this user has no access".
+- **A client disconnecting is not a sign-out.** Tokens the host accepted survive the last client leaving. As with GitHub, any client can withdraw them: the host then advertises the missing credential so a client that is still signed in can re-supply it, and restarts the runtime once running turns finish.
+- **Clients may re-send a challenged token.** The host refuses the token the runtime most recently rejected for a resource, but it does not remember earlier ones.
+
 ### Codex (`node/codex/codexAgent.ts`)
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.

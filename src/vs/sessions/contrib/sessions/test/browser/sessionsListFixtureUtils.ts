@@ -213,8 +213,8 @@ export interface ISessionsListFixtureHeader {
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
-	/** Shows the Customizations navigation row's badge for extensions that can be enabled in the Agents window. */
-	readonly customizationExtensionSuggestionsAvailable?: boolean;
+	/** Describes the Customizations navigation row's badge, which shows none unless given. */
+	readonly customizationsBadge?: string;
 }
 
 /** Everything a sessions list fixture renders. */
@@ -938,7 +938,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
+		customizationsBadge: constObservable(header?.customizationsBadge),
 		navigationContainer,
 		findWidgetContainer,
 		onSessionOpen: () => { },

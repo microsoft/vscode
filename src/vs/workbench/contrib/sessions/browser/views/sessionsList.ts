@@ -65,7 +65,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
@@ -134,10 +134,9 @@ import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomizati
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
+import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
-import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensionSuggestions.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
@@ -2070,15 +2069,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.isQuickChatContext.set(isQuickChat);
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
-			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
-			let completedStateIcon = element.completedStateIcon
-				? element.completedStateIcon.read(reader)
-				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
-				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
-				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
-			}
+			const completedStateIcon = getSessionCompletedStateIcon(element, reader, () => agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService));
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -2777,7 +2768,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	});
 	private readonly customizationsIcon = derived(this, reader => this.customizationMigrationsAvailable.read(reader)
 		? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
-		: this.customizationExtensionSuggestionsAvailable.read(reader)
+		: this.customizationsBadge.read(reader) !== undefined
 			? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
 			: undefined);
 
@@ -2806,8 +2797,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		} = { onDidActivateNewSession: Event.None },
 		/** The New Session dropdown's entries for starting a session in each environment a section spans. */
 		private readonly getNewSessionEnvironmentActions?: (section: ISessionSection) => readonly IAction[],
-		/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations entry. */
-		private readonly customizationExtensionSuggestionsAvailable: IObservable<boolean> = constObservable(false),
+		/** Describes why the Customizations entry shows a badge, if it does. */
+		private readonly customizationsBadge: IObservable<string | undefined> = constObservable(undefined),
 		private readonly getGroupDepth: (section: ISessionSection) => number = () => 0,
 		private readonly getAppearance: (sectionId: string) => ISessionGroupAppearance | undefined = () => undefined,
 		/** Whether the Sessions list shows the session; the Automations entry ignores such runs. */
@@ -2984,9 +2975,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				template.container,
 				() => hover.getManagedContent(this.customizationMigrationsAvailable.get()
 					? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
-					: this.customizationExtensionSuggestionsAvailable.get()
-						? getExtensionSuggestionsBadgeDescription()
-						: undefined),
+					: this.customizationsBadge.get()),
 				hover.getHoverOptions('sessionsHeader'),
 			));
 			template.elementDisposables.add(autorun(reader => {
@@ -3515,7 +3504,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
-	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
+	/** Describes why the Customizations entry shows a badge, if it does. */
+	readonly customizationsBadge?: IObservable<string | undefined>;
 	readonly newSessionKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
@@ -3629,11 +3619,13 @@ class SessionsAccessibilityProvider {
 					const countLabel = count === 1
 						? localize('customizationCountAria', "1 customization")
 						: localize('customizationsCountAria', "{0} customizations", count);
-					return this.options?.customizationMigrationsAvailable?.read(reader)
-						? localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel)
-						: this.options?.customizationExtensionSuggestionsAvailable?.read(reader)
-							? localize('customizationsExtensionSuggestionsAria', "{0}, {1}, {2}", element.label, countLabel, getExtensionSuggestionsBadgeDescription())
-							: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
+					if (this.options?.customizationMigrationsAvailable?.read(reader)) {
+						return localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel);
+					}
+					const badge = this.options?.customizationsBadge?.read(reader);
+					return badge !== undefined
+						? localize('customizationsBadgeAria', "{0}, {1}, {2}", element.label, countLabel, badge)
+						: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
 				});
 			}
 			const pinnedCanvas = element.pinnedCanvas;
@@ -4423,8 +4415,8 @@ interface ISessionsListControlBaseOptions {
 	readonly showCustomizations?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
-	/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations navigation entry. */
-	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
+	/** Describes why the Customizations navigation entry shows a badge, if it does. */
+	readonly customizationsBadge?: IObservable<string | undefined>;
 	readonly navigationContainer?: HTMLElement;
 	readonly onDidChangeNavigationHeight?: () => void;
 	/** Canvases pinned to the sidebar, listed as navigation rows below the navigation shortcuts. */
@@ -5061,7 +5053,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
-		const customizationExtensionSuggestionsAvailable = this.options.customizationExtensionSuggestionsAvailable ?? constObservable(false);
+		const customizationsBadge = this.options.customizationsBadge ?? constObservable(undefined);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -5089,7 +5081,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} : undefined,
 			},
 			section => this.getNewSessionEnvironmentActions(section),
-			customizationExtensionSuggestionsAvailable,
+			customizationsBadge,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
 			(session, reader) => this.isSessionListed(session, reader),
@@ -5143,7 +5135,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						widgetAriaLabel: localize('sessionsNavigation', "Sessions Navigation"),
 						customizationsCount,
 						customizationMigrationsAvailable,
-						customizationExtensionSuggestionsAvailable,
+						customizationsBadge,
 						newSessionKeybindingAriaLabel,
 					}),
 					keyboardNavigationLabelProvider: {

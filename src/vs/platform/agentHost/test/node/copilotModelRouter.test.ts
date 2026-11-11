@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
 import { ModelRouterDiagnosticSeverity, parseModelRouter } from '../../common/modelRouter.js';
+import type { IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { MessageKind, TurnState, type IModelRoutedInfo, type Turn } from '../../common/state/sessionState.js';
 import { applyPersistedTurnUsage } from '../../node/chatContributions/persistedTurnUsage/persistedTurnUsageContribution.js';
@@ -204,6 +205,48 @@ suite('CopilotModelRouter', () => {
 			unrouted: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 1_000_000 } }, kept: true },
 			// A model the user picked by hand is theirs, window included.
 			handPicked: { selection: { id: 'haiku', config: { [ContextSizeConfigKey]: 200_000 } }, kept: undefined },
+		});
+	});
+
+	test('tells the decision about the turn and about each model, when there is something to tell', async () => {
+		const priced = models.map((candidate, index): IAgentModelInfo => ({ ...candidate, _meta: { priceCategory: index === 0 ? 'low' : 'high' } }));
+		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
+		const route = (available: readonly IAgentModelInfo[], situation?: IModelRouterSituation) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile(), text: 'fix this', models: available, previousTurns: [], picker, situation });
+		await route(priced, { attachments: [{ kind: 'image', count: 1 }], mode: 'plan' });
+		await route(models, {});
+		assert.deepStrictEqual(picker.requests.map(request => ({ situation: request.situation, facts: request.candidates.map(candidate => candidate.facts) })), [
+			{ situation: ['Attached: 1 image', 'Plan mode: the agent plans first and carries the plan out when the user is ready'], facts: ['low cost', 'high cost'] },
+			{ situation: undefined, facts: [undefined, undefined] },
+		]);
+	});
+
+	test('routes a message that is only an attachment or a "continue" with one, and not one with nothing in it', async () => {
+		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
+		const route = (previousTurns: Turn[], situation: IModelRouterSituation, text = ' ') => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile('switching: auto\n'), text, models, previousTurns, picker, situation });
+		const image: IModelRouterSituation = { attachments: [{ kind: 'image', count: 1 }] };
+		const onHaiku = () => [routedTurn({ router: 'daily', chosenModel: 'haiku' })];
+		const first = await route([], image);
+		const followUp = await route(onHaiku(), image);
+		const continueWithImage = await route(onHaiku(), image, 'continue');
+		const nothing = await route([], { mode: 'plan' });
+		const nothingLater = await route(onHaiku(), {});
+		const continueAlone = await route(onHaiku(), { mode: 'plan' }, 'continue');
+		assert.deepStrictEqual({
+			asked: picker.requests.length,
+			first: first.routed?.chosenModel,
+			followUp: followUp.routed?.chosenModel,
+			continueWithImage: continueWithImage.routed?.chosenModel,
+			nothing: nothing.routed,
+			nothingLater: nothingLater.routed?.kept,
+			continueAlone: continueAlone.routed?.kept,
+		}, {
+			asked: 3,
+			first: 'opus',
+			followUp: 'opus',
+			continueWithImage: 'opus',
+			nothing: { router: 'daily', chosenModel: 'haiku', defaulted: true },
+			nothingLater: true,
+			continueAlone: true,
 		});
 	});
 

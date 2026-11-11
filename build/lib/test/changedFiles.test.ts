@@ -7,7 +7,7 @@ import assert from 'assert';
 import path from 'path';
 import { suite, test } from 'node:test';
 import { pathToFileURL } from 'url';
-import { getChangedFiles, getChangedFilesScope, getEslintScope, getHygieneScope, parseNameStatus, typeAwareLintFolders, type IChangedFile } from '../changedFiles.ts';
+import { getChangedFiles, getChangedFilesScope, getLintScope, getHygieneScope, parseNameStatus, typeAwareLintFolders, type IChangedFile } from '../changedFiles.ts';
 
 const repositoryRoot = path.join(import.meta.dirname, '../../..');
 
@@ -45,7 +45,7 @@ suite('changedFiles', () => {
 	suite('ESLint', () => {
 
 		test('lints the changed files that the full lint covers', () => {
-			assert.deepStrictEqual(getEslintScope([
+			assert.deepStrictEqual(getLintScope([
 				...modified(
 					'src/vs/base/common/strings.ts',
 					'src/vs/base/common/arrays.ts',
@@ -80,7 +80,7 @@ suite('changedFiles', () => {
 				modified('extensions/copilot/package.json'),
 				modified('build/lib/i18n.resources.json'),
 				modified('src/vs/base/common/arrays.ts', 'build/filters.ts'),
-			].map(changes => getEslintScope(changes, noFiles)), [
+			].map(changes => getLintScope(changes, noFiles)), [
 				{ kind: 'full', reason: 'eslint.config.js changed' },
 				{ kind: 'full', reason: 'extensions/git/eslint.config.mjs changed' },
 				{ kind: 'full', reason: '.eslint-ignore changed' },
@@ -103,9 +103,9 @@ suite('changedFiles', () => {
 			};
 			assert.deepStrictEqual({
 				scopes: [
-					getEslintScope(modified('src/vs/base/common/arrays.ts', 'extensions/simple-browser/src/extension.ts'), listFiles),
-					getEslintScope(deleted('src/vscode-dts/vscode.proposed.externalUriOpener.d.ts'), listFiles),
-					getEslintScope(modified('extensions/package.json'), listFiles),
+					getLintScope(modified('src/vs/base/common/arrays.ts', 'extensions/simple-browser/src/extension.ts'), listFiles),
+					getLintScope(deleted('src/vscode-dts/vscode.proposed.externalUriOpener.d.ts'), listFiles),
+					getLintScope(modified('extensions/package.json'), listFiles),
 				],
 				listed,
 			}, {

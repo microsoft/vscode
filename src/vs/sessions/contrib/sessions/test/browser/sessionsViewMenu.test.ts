@@ -405,7 +405,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('bulk inbox actions are undoable and never archive or mark sessions as read', async () => {
+	test('bulk inbox triage remains undoable without archiving or closing sessions', async () => {
 		const sessions = ['first', 'second', 'archived'].map(id => buildTestSession({ id, title: id, isArchived: id === 'archived', isRead: false }).session);
 		const harness = createListHarness(store, sessions);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));

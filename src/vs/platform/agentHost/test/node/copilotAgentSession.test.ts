@@ -4770,6 +4770,29 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('reports a dormant extension and lists its declared canvases without waiting for it to start', async () => {
+		const { session } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:lazy', name: 'Lazy extension', source: 'user', status: 'dormant' });
+				mock.canvases.push({
+					canvasId: 'lazy',
+					extensionId: 'user:lazy',
+					displayName: 'Lazy',
+					description: 'Declared before the extension starts.',
+				});
+			},
+		});
+
+		assert.deepStrictEqual({
+			extensions: (await session.listExtensions()).map(extension => [extension.id, extension.status]),
+			canvases: (await session.listCanvases())?.map(canvas => [canvas.canvasId, canvas.extensionSource]),
+		}, {
+			extensions: [['user:lazy', 'dormant']],
+			canvases: [['lazy', 'user']],
+		});
+		session.dispose();
+	});
+
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
@@ -10969,6 +10992,32 @@ suite('CopilotAgentSession', () => {
 				{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
 			],
 		});
+	});
+
+	test('routes a subagent permission that precedes its tool start to the subagent', async () => {
+		const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		const request = { kind: 'shell', toolCallId: 'tc-inner', fullCommandText: './run.ps1', intention: 'Run fixture' } as const;
+		// The SDK invokes the handler before synchronously dispatching the permission event.
+		const result = runtime.handlePermissionRequest(request);
+		mockSession.fire('permission.requested', {
+			requestId: 'req-1',
+			permissionRequest: request,
+		} as SessionEventPayload<'permission.requested'>['data'], { agentId: 'agent-1' });
+
+		const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+		session.respondToPermissionRequest('tc-inner', false);
+		await result;
+
+		assert.strictEqual(confirmation.kind === 'pending_confirmation' && confirmation.parentToolCallId, 'tc-subagent');
 	});
 
 	for (const executionMode of ['sync', 'background']) {
