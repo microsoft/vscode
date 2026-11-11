@@ -13,8 +13,6 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { copilotAccountContextKey } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -35,7 +33,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAuthenticationService, type AuthenticationSession } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { RemoteAgentHostContribution } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
@@ -60,7 +58,7 @@ interface IRemoteAuthNotificationHarness {
 	_instantiationService: TestInstantiationService;
 	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_logService: NullLogService;
-	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate' | 'rootState'>, notification: INotification): void;
+	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate'>, notification: INotification): void;
 	_authenticateCallback(address: string, connection: Pick<IAgentConnection, 'authenticate'>, reason?: AuthRequiredReason): IAgentConnection['authenticate'];
 }
 
@@ -216,50 +214,6 @@ suite('RemoteAgentHost connection authentication readiness', () => {
 
 suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('a direct-route root resolves a challenge passively without starting Microsoft setup', async () => {
-		const h = createAuthenticationHarness(store);
-		let lookups = 0;
-		h.instantiationService.stub(IAuthenticationService, {
-			getOrActivateProviderIdForServer: async () => { lookups++; return 'microsoft'; },
-			getSessions: async () => [],
-			createSession: async () => { assert.fail('A notification cannot initiate Microsoft setup'); },
-		});
-		const forwarded: string[] = [];
-		const connection = h.connect(async request => { forwarded.push(request.token); return { authenticated: true }; }, {
-			agents: [], config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: { kind: 'legacy' } } },
-		});
-		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, {
-			type: NotificationType.AuthRequired, channel: 'ahp-root://', reason: AuthRequiredReason.Required,
-			resource: { resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] },
-		});
-		await timeout(0);
-		assert.deepStrictEqual({ lookups, forwarded }, { lookups: 1, forwarded: [] });
-	});
-
-	test('an in-flight Microsoft challenge cannot forward after the current remote root switches to direct', async () => {
-		const h = createAuthenticationHarness(store);
-		const started = new DeferredPromise<void>();
-		const identity = new DeferredPromise<readonly AuthenticationSession[]>();
-		h.instantiationService.stub(IAuthenticationService, {
-			getOrActivateProviderIdForServer: async () => 'microsoft',
-			getSessions: async () => { started.complete(); return identity.p; },
-		});
-		const root: RootState = {
-			agents: [], config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: { kind: 'incomplete', entraAccountId: 'selected' } } },
-		};
-		const forwarded: string[] = [];
-		const connection = h.connect(async request => { forwarded.push(request.token); return { authenticated: true }; }, root);
-		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, {
-			type: NotificationType.AuthRequired, channel: 'ahp-root://', reason: AuthRequiredReason.Required,
-			resource: { resource: copilotEntraDiscoveryResource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: ['User.Read'] },
-		});
-		await started.p;
-		root.config!.values[copilotAccountContextKey] = { kind: 'legacy' };
-		identity.complete([{ id: 'microsoft-session', account: { id: 'selected', label: 'Selected' }, scopes: ['User.Read'], accessToken: 'stale-microsoft' }]);
-		await timeout(0);
-		assert.deepStrictEqual(forwarded, []);
-	});
 
 	test('renews repeated sandbox expiry without prompting for an unchanged GitHub session', async () => {
 		const h = createAuthenticationHarness(store);
@@ -462,7 +416,6 @@ suite('RemoteAgentHost auth notifications', () => {
 		instantiationService.stub(ILogService, logService);
 		const authenticateCalls: Parameters<IAgentConnection['authenticate']>[0][] = [];
 		const connection = {
-			rootState: upcastPartial<IAgentSubscription<RootState>>({ value: undefined }),
 			authenticate: async (params: Parameters<IAgentConnection['authenticate']>[0]) => {
 				authenticateCalls.push(params);
 				return { authenticated: true };
@@ -525,9 +478,8 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required };
 
-		const rootState = upcastPartial<IAgentSubscription<RootState>>({ value: undefined });
-		contribution._handleAuthenticationRequiredNotification('host-one', { rootState, authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
-		contribution._handleAuthenticationRequiredNotification('host-two', { rootState, authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-one', { authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-two', { authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
 		await timeout(0);
 
 		assert.deepStrictEqual(calls, ['one:session-token', 'two:session-token']);
@@ -569,10 +521,7 @@ suite('RemoteAgentHost auth notifications', () => {
 			scopes_supported: ['session:read'],
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Expired };
-		const connection: Pick<IAgentConnection, 'authenticate' | 'rootState'> = {
-			rootState: upcastPartial<IAgentSubscription<RootState>>({ value: undefined }),
-			authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; },
-		};
+		const connection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; } };
 
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);

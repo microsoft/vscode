@@ -13997,12 +13997,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		if (action.type === ActionType.RootConfigChanged) {
-			try {
-				action = { ...action, config: this._configurationService.prepareRootConfigUpdate(action.config, action.replace === true) };
-			} catch (error) {
-				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
-				return;
-			}
 			action = supersedeTitleGenerationStrategyForLegacyUpdate(this._stateManager.rootState.config?.values, action);
 		}
 		const dispatch = () => this._stateManager.dispatchClientAction(channel, action, origin, clientContext);

@@ -189,6 +189,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
 		const expiresAt = getExpirationTime(params.expiresIn);
 		const providerList = [...providers];
+		const acceptedProviders = new Set<IAgent>();
 		// Multiple providers may share the same protected resource (e.g.
 		// both Copilot CLI and Claude consume the Copilot-scoped OAuth credential).
 		// Fan out to every matching provider in parallel; the request is
@@ -208,6 +209,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const result = settled[i];
 			if (result.status === 'fulfilled') {
 				authenticated ||= result.value;
+				if (result.value) {
+					acceptedProviders.add(matching[i]);
+				}
 			} else {
 				rejected = true;
 				this._logService.error(
@@ -224,6 +228,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const result = sessionResourceSettled[i];
 			if (result.status === 'fulfilled') {
 				authenticated ||= result.value;
+				if (result.value) {
+					acceptedProviders.add(sessionResourceHandlers[i]);
+				}
 			} else {
 				rejected = true;
 				this._logService.error(
@@ -261,6 +268,16 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 		if (authenticated || previousToken !== token) {
 			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
+		}
+		const completing = [...acceptedProviders];
+		const completed = await Promise.allSettled(completing.map(provider => provider.completeAuthentication?.(params)));
+		for (let i = 0; i < completed.length; i++) {
+			const result = completed[i];
+			if (result.status === 'rejected') {
+				acceptedProviders.delete(completing[i]);
+				authenticated = acceptedProviders.size > 0;
+				this._logService.error(result.reason, `[AgentHostAuthenticationService] Provider '${completing[i].id}' failed to complete authentication`);
+			}
 		}
 		return { authenticated };
 	}

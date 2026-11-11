@@ -121,10 +121,11 @@ export class CopilotEntraAuthentication extends Disposable {
 
 	validateSelection(params: AuthenticateParams, resource: ProtectedResourceMetadata): void {
 		const authority = this._authority.get();
-		if (!params.token || params.target || !authority) {
+		const credential = this.getCredential(params.resource, params.scopes ?? []);
+		if (!params.token || params.target || !authority || credential?.token !== params.token) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
-		validateEntraAccount(validateEntraCredential(params, resource).accountId, authority.accountId);
+		validateEntraAccount(validateEntraCredential(params, { ...resource, scopes_supported: [...credential.scopes] }).accountId, authority.accountId);
 	}
 
 	private validateCredential(params: AuthenticateParams, advertisedResource?: ProtectedResourceMetadata): void {
@@ -278,7 +279,7 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 	return { kind: 'identity', accountId: authority.accountId, ...(authority.username !== undefined ? { username: authority.username } : {}) };
 }
 
-function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
+export function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
 	if (request.kind === 'identity') {
 		return copilotEntraDiscoveryMetadata;
 	}

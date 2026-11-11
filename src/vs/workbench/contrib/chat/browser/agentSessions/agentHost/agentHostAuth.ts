@@ -506,7 +506,6 @@ async function resolveAuthenticationSessionForResource(
 	rejectedSession: RejectedAuthenticationSession | null = null,
 	preferredSessionId?: string,
 	defaultAccountService?: IDefaultAccountService,
-	preferredAccountId?: string,
 ): Promise<AuthenticationSessionResolution> {
 	const defaultAccount = defaultAccountService?.currentDefaultAccount;
 	let hasUnavailableProvider = false;
@@ -545,7 +544,7 @@ async function resolveAuthenticationSessionForResource(
 		// The default account (chosen via account preferences) decides which of the provider's accounts
 		// to use. It is matched by account rather than session, because providers replace a session with
 		// a new id on refresh before the default account catches up. An explicit preferred session takes precedence.
-		const usesDefaultAccount = !preferredSessionId && !preferredAccountId && defaultAccount?.authenticationProvider.id === providerId;
+		const usesDefaultAccount = !preferredSessionId && defaultAccount?.authenticationProvider.id === providerId;
 		if (!usesDefaultAccount) {
 			let sessions: readonly AuthenticationSession[];
 			try {
@@ -561,8 +560,7 @@ async function resolveAuthenticationSessionForResource(
 			const exactSession = sessions.find(session => scopes.every(scope => session.scopes.includes(scope))
 				&& (!session.authorizationServer || isEqual(session.authorizationServer, serverUri))
 				&& isAuthenticationSessionCandidate(session, rejectedSession) &&
-				(!preferredSessionId || session.id === preferredSessionId)
-				&& (!preferredAccountId || session.account.id === preferredAccountId));
+				(!preferredSessionId || session.id === preferredSessionId));
 			if (exactSession) {
 				const entitlement = defaultAccountEntitlement(defaultAccount, providerId, exactSession);
 				return {
@@ -586,15 +584,13 @@ async function resolveAuthenticationSessionForResource(
 			continue;
 		}
 		throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
-		const preferredIdentity = preferredAccountId && !preferredSessionId
-			? allSessions.find(session => session.account.id === preferredAccountId)
-			: preferredSessionId || usesDefaultAccount
-				? allSessions.find(session => session.id === (preferredSessionId ?? defaultAccount?.sessionId))
-				: undefined;
+		const preferredIdentity = preferredSessionId || usesDefaultAccount
+			? allSessions.find(session => session.id === (preferredSessionId ?? defaultAccount?.sessionId))
+			: undefined;
 		const preferredAccount = preferredIdentity?.account
 			?? (usesDefaultAccount ? allSessions.find(session => session.account.label === defaultAccount.accountName)?.account : undefined);
-		const selectedAccountId = preferredAccount?.id;
-		if ((preferredSessionId || preferredAccountId) && !selectedAccountId) {
+		const preferredAccountId = preferredAccount?.id;
+		if (preferredSessionId && !preferredAccountId) {
 			logService.trace(`${logPrefix} Preferred authentication session '${preferredSessionId}' is unavailable for server: ${server}`);
 			continue;
 		}
@@ -606,7 +602,7 @@ async function resolveAuthenticationSessionForResource(
 					? rejectedSession === null || !rejectedSession.tokenHashes.has(authenticationTokenHash(session.accessToken))
 					: isAuthenticationSessionCandidate(session, rejectedSession))),
 			scopes,
-			preferredSessionId || preferredAccountId || usesDefaultAccount ? { accountId: selectedAccountId, fallbackToSoleAccount: usesDefaultAccount } : undefined,
+			preferredSessionId || usesDefaultAccount ? { accountId: preferredAccountId, fallbackToSoleAccount: usesDefaultAccount } : undefined,
 		);
 		if (selection.kind === 'selected') {
 			const entitlement = defaultAccountEntitlement(defaultAccount, providerId, selection.session);
@@ -668,8 +664,6 @@ export interface IAgentHostAuthenticationOptions {
 	readonly logPrefix: string;
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
-	/** Pins resource acquisition to the explicitly selected account rather than the window default. */
-	readonly preferredAccountId?: string;
 	readonly isCurrent?: () => boolean;
 	/** Returns true after renewing a connection-owned credential, or false to use normal provider recovery. */
 	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<boolean>;
@@ -749,7 +743,7 @@ async function forwardAuthenticationToken(
 	return true;
 }
 
-export function toAuthenticateRequest(
+function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
@@ -993,6 +987,25 @@ async function authenticateProtectedResourceWithServices(
 		return false;
 	}
 
+	if (resource.required === false) {
+		const account = defaultAccountService.currentDefaultAccount;
+		if (!account || account.authenticationProvider.id !== resolution.providerId) {
+			logService.trace(`${options.logPrefix} Deferring optional authentication outside the default account: ${resource.resource}`);
+			return false;
+		}
+		const server = resource.authorization_servers?.[0];
+		const sessions = await authenticationService.getSessions(resolution.providerId, resource.scopes_supported ?? [], {
+			account: resolution.session.account, silent: true,
+			authorizationServer: resolution.session.authorizationServer ?? (server ? URI.parse(server) : undefined),
+		}, true);
+		throwIfAuthenticationStale(options);
+		throwIfDefaultAccountChanged(defaultAccountService, account);
+		if (!sessions.some(session => session.id === account.sessionId && resource.scopes_supported?.every(scope => session.scopes.includes(scope)) !== false)) {
+			logService.trace(`${options.logPrefix} Deferring optional permissions not supplied by the default sign-in: ${resource.resource}`);
+			return false;
+		}
+	}
+
 	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlement);
 	if (!authenticated) {
 		logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
@@ -1010,7 +1023,7 @@ async function resolveSessionForProtectedResource(
 	defaultAccountService: IDefaultAccountService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession' | 'preferredAccountId'>,
+	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession'>,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
 	const defaultAccount = defaultAccountService.currentDefaultAccount;
@@ -1024,7 +1037,6 @@ async function resolveSessionForProtectedResource(
 		rejectedSession,
 		options.preferredSessionId,
 		defaultAccountService,
-		options.preferredAccountId,
 	);
 	throwIfDefaultAccountChanged(defaultAccountService, defaultAccount);
 	if (resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri || resolution.kind !== 'resolved' ||

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { autorun } from '../../../../base/common/observable.js';
+import type { CopilotClient, CopilotSession, EntraTokenProvider } from '@github/copilot-sdk';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,103 +15,73 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
-import { copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { copilotEntraDiscoveryMetadata } from '../../node/copilot/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
-import { copilotAccountOperationMeta, readCopilotAccountOperation, type CopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { CopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 
 type LoginStep = Awaited<ReturnType<CopilotSession['rpc']['accounts']['login']['advance']>>;
-type AccountResult = Awaited<ReturnType<CopilotSession['rpc']['accounts']['get']>>;
 
-suite('Copilot account context', () => {
+suite('Copilot account resource authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const contexts: CopilotAccountService[] = [];
-	teardown(async () => {
-		await Promise.all(contexts.splice(0).map(context => context.reset()));
-	});
+	teardown(async () => { await Promise.all(contexts.splice(0).map(context => context.reset())); });
 
 	const choices = [
-		{ kind: 'loki' as const, host: 'https://m365.example', login: 'Microsoft display name', selectionId: 'opaque-m365' },
-		{ kind: 'entraEmu' as const, host: 'https://github.com', login: 'different-emu-login', selectionId: 'opaque-emu' },
+		{ kind: 'loki' as const, host: 'https://m365.example', login: 'Microsoft name', selectionId: 'opaque-m365' },
+		{ kind: 'entraEmu' as const, host: 'https://github.com', login: 'emu-login', selectionId: 'opaque-emu' },
 	];
 	const both: LoginStep = { kind: 'completed', result: { status: 'needs-account-selection', accounts: choices } };
 
 	function fixture(enabled = true) {
-		const published: string[] = [];
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
-		const services = new ServiceCollection(
-			[IAgentHostAuthenticationService, authentication],
-			[ILogService, new NullLogService()],
+		const instantiation = store.add(new InstantiationService(new ServiceCollection(
+			[IAgentHostAuthenticationService, authentication], [ILogService, new NullLogService()],
 			[ICopilotHomeService, upcastPartial<ICopilotHomeService>({ home: URI.file('/test-copilot-home') })],
-			[IAgentConfigurationService, upcastPartial<IAgentConfigurationService>({
-				copilotM365EnabledAtStartup: enabled,
-				publishRootTransientValues: () => { published.push('published'); },
-			})],
-		);
-		const instantiation = store.add(new InstantiationService(services, true));
+			[IAgentConfigurationService, upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: enabled })],
+		), true));
 		const context = store.add(instantiation.createInstance(CopilotAccountService));
 		contexts.push(context);
 		const state = {
-			step: both, selected: '', activeSelection: undefined as string | undefined,
-			disconnected: 0, deleted: 0, cancelled: 0, advances: [] as (string | undefined)[],
-			activation: undefined as DeferredPromise<LoginStep> | undefined,
-			accountResult: undefined as AccountResult | undefined,
-			confirmation: undefined as DeferredPromise<AccountResult> | undefined,
-			confirmationStarted: undefined as DeferredPromise<void> | undefined,
-			cleanup: undefined as DeferredPromise<void> | undefined,
-			cleanupStarted: undefined as DeferredPromise<void> | undefined,
-			created: 0,
+			step: both as LoginStep, selected: '', created: 0, disconnected: 0, deleted: 0,
+			discovery: undefined as DeferredPromise<LoginStep> | undefined,
+			starting: undefined as DeferredPromise<CopilotSession> | undefined,
+			started: new DeferredPromise<void>(),
+			creating: new DeferredPromise<void>(),
 		};
 		const session = new class extends mock<CopilotSession>() {
-			override get sessionId() { return 'private-auth-session'; }
+			override get sessionId() { return 'setup-session'; }
 			override get rpc() {
 				return upcastPartial<CopilotSession['rpc']>({
 					accounts: {
 						login: {
 							begin: async () => ({ flowId: 'opaque-flow', step: { kind: 'awaiting' } }),
 							advance: async request => {
-								state.advances.push(request.input);
+								state.started.complete();
 								if (!request.input) {
-									return state.step;
+									return state.discovery?.p ?? state.step;
 								}
 								state.selected = request.input;
-								return state.activation?.p ?? { kind: 'completed', result: { status: 'completed' } };
+								return { kind: 'completed', result: { status: 'completed' } };
 							},
-							cancel: async () => {
-								state.cancelled++;
-								state.cleanupStarted?.complete();
-								await state.cleanup?.p;
-							},
+							cancel: async () => { },
 						},
-						get: async () => {
-							state.confirmationStarted?.complete();
-							return state.confirmation?.p ?? state.accountResult ?? {
-								kind: 'activeAccount',
-								account: { ...choices.find(choice => choice.selectionId === (state.activeSelection ?? state.selected))!, active: true, derivedFrom: 'opaque-runtime-base' },
-							};
-						},
-						set: async () => { throw new Error('Account verification must not switch accounts'); },
+						get: async () => ({
+							kind: 'activeAccount',
+							account: { ...choices.find(choice => choice.selectionId === state.selected)!, active: true, derivedFrom: 'runtime-base' },
+						}),
 						enumerate: async () => ({ kind: 'accounts', items: [] }),
+						set: async () => { throw new Error('Verification must not change the active account'); },
 					},
 				});
 			}
 			override async disconnect() { state.disconnected++; }
 		}();
 		const client = new class extends mock<CopilotClient>() {
-			override async createSession() { state.created++; return session; }
+			override async createSession() { state.created++; state.creating.complete(); return state.starting?.p ?? session; }
 			override async deleteSession() { state.deleted++; }
 		}();
-		const credential = (operation: CopilotAccountOperation, service?: 'github' | 'm365', accountId = 'entra-identity'): AuthenticateParams => {
-			const audience = service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience;
-			return {
-				resource: service ? copilotEntraResources.get(audience)! : copilotEntraDiscoveryResource,
-				scopes: service ? [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`] : ['User.Read'], token: 'synthetic-only',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId }), ...copilotAccountOperationMeta(operation) },
-			};
-		};
 		const runtime = Promise.resolve(client);
 		const provider = new class extends mock<IAgent>() {
 			override readonly id = 'copilotcli';
@@ -121,346 +91,163 @@ suite('Copilot account context', () => {
 				context.authentication?.validateAuthentication(params, context.getProtectedResources().find(resource => resource.resource === params.resource));
 			}
 			override async handleAuthenticationToken(params: AuthenticateParams) {
-				if (readCopilotAccountOperation(params)) {
-					await context.authenticate(runtime, params);
-					return true;
+				if (!await context.authentication?.authenticate(params, context.getProtectedResources().find(resource => resource.resource === params.resource))) {
+					return false;
 				}
-				return context.acceptCredential(params) || await context.authentication!.authenticate(params, context.getProtectedResources().find(resource => resource.resource === params.resource));
+				return true;
+			}
+			override async completeAuthentication(params: AuthenticateParams) {
+				if (params.token && (params.resource === copilotEntraDiscoveryResource || context.state.get().kind === 'choiceRequired')) {
+					await context.authenticate(runtime, params);
+				}
 			}
 		}();
-		const acceptIdentity = async () => {
-			const params = credential({ kind: 'discover' });
-			await authentication.authenticate({ ...params, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'entra-identity' }) }, [provider]);
+		const credential = (service?: 'github' | 'm365', accountId = 'entra-identity'): AuthenticateParams => {
+			const audience = service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience;
+			return {
+				resource: service ? copilotEntraResources.get(audience)! : copilotEntraDiscoveryResource,
+				scopes: service ? [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`] : ['User.Read'],
+				token: 'synthetic-only', _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
+			};
 		};
-		const prepare = async () => {
-			await acceptIdentity();
-			await context.authenticate(runtime, credential({ kind: 'discover' }));
-			for (const service of ['github', 'm365'] as const) {
-				const params = credential({ kind: 'discover' }, service);
-				await authentication.authenticate({ ...params, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'entra-identity' }) }, [provider]);
-			}
-		};
-		const discover = async () => {
-			if (context.state.get().kind !== 'ready' && context.state.get().kind !== 'choiceRequired') {
-				await prepare();
-			}
-			await context.authenticate(runtime, credential({ kind: 'discover' }));
-		};
-		const select = (service: 'github' | 'm365') => context.authenticate(runtime, credential({ kind: 'select', discoveryId: 'opaque-flow', selectionId: service === 'github' ? 'opaque-emu' : 'opaque-m365' }, service));
-		return { context, client, runtime, session, state, published, credential, discover, select, authentication, provider, prepare, acceptIdentity };
+		const authenticate = (params = credential()) => authentication.authenticate(params, [provider]);
+		return { context, state, session, client, runtime, credential, authenticate };
 	}
-
-	test('initial discovery advertises credential preparation without running native discovery or publishing availability', async () => {
-		const f = fixture();
-		await f.acceptIdentity();
-		await f.context.authenticate(f.runtime, f.credential({ kind: 'discover' }));
-		await f.context.authenticate(f.runtime, f.credential({ kind: 'discover' }));
-		assert.deepStrictEqual({ state: f.context.state.get(), nativeSessions: f.state.created, resources: f.context.getProtectedResources().map(resource => resource.resource) }, {
-			state: { kind: 'incomplete', entraAccountId: 'entra-identity' }, nativeSessions: 0,
-			resources: [copilotEntraDiscoveryResource, ...copilotEntraResources.values()],
-		});
-	});
-
-	test('preparing credentials never activates a service and rejects a different identity', async () => {
-		const f = fixture();
-		await f.prepare();
-		assert.throws(() => f.context.acceptCredential(f.credential({ kind: 'discover' }, 'm365', 'another')), /original account/);
-		assert.deepStrictEqual({ kind: f.context.state.get().kind, nativeSessions: f.state.created, selected: f.state.selected }, {
-			kind: 'incomplete', nativeSessions: 0, selected: '',
-		});
-	});
 
 	for (const service of ['github', 'm365'] as const) {
-		test(`waits for choice and confirms ${service} identity before readiness`, async () => {
+		test(`ordinary resource authentication discovers and activates ${service} without operation metadata`, async () => {
 			const f = fixture();
-			await f.discover();
-			assert.throws(() => f.context.requireReady(), /Choose a usable/);
-			const afterDiscovery = f.context.state.get();
-			await f.select(service);
-			const ready = f.context.requireReady();
-			assert.deepStrictEqual({
-				discovery: afterDiscovery.kind, choices: afterDiscovery.kind === 'choiceRequired' && afterDiscovery.choices.map(choice => choice.service),
-				selected: f.state.selected, service: ready.choice.service, identity: ready.entraAccountId,
-				derivedFrom: ready.derivedFrom, display: ready.choice.displayName, published: f.published.length > 1,
-			}, {
-				discovery: 'choiceRequired', choices: ['m365', 'github'],
-				selected: service === 'github' ? 'opaque-emu' : 'opaque-m365', service, identity: 'entra-identity',
-				derivedFrom: 'opaque-runtime-base', display: service === 'github' ? 'different-emu-login' : 'Microsoft display name', published: true,
+			const discovery = await f.authenticate();
+			const offered = f.context.getProtectedResources().map(resource => resource.resource);
+			const beforeChoice = f.context.state.get().kind;
+			const selection = await f.authenticate(f.credential(service));
+			const current = f.context.requireReady();
+			assert.deepStrictEqual({ discovery, beforeChoice, offered, selection, service: current.choice.service, selected: f.state.selected }, {
+				discovery: { authenticated: true }, beforeChoice: 'choiceRequired',
+				offered: [copilotEntraDiscoveryResource, ...choices.map(choice => copilotEntraResources.get(choice.kind === 'loki' ? copilotEntraM365Audience : copilotEntraEmuAudience))],
+				selection: { authenticated: true }, service, selected: service === 'github' ? 'opaque-emu' : 'opaque-m365',
 			});
 		});
 	}
 
-	test('does not expose readiness while activation is pending', async () => {
+	test('a target is not accepted before discovery or for a different Microsoft identity', async () => {
 		const f = fixture();
-		await f.discover();
-		f.state.activation = new DeferredPromise<LoginStep>();
-		const selecting = f.select('m365');
-		assert.strictEqual(f.context.state.get().kind, 'activating');
-		f.state.activation.complete({ kind: 'completed', result: { status: 'completed' } });
-		await selecting;
-		assert.strictEqual(f.context.state.get().kind, 'ready');
-	});
-
-	test('rejects identity/service substitution after runtime activation', async () => {
-		const f = fixture();
-		await f.discover();
-		f.state.activeSelection = 'opaque-emu';
-		await assert.rejects(f.select('m365'), /intended Copilot account/);
-		assert.deepStrictEqual(f.context.state.get(), { kind: 'error', entraAccountId: 'entra-identity', stage: 'activation' });
-	});
-
-	for (const choice of choices) {
-		test(`uses best-effort automatic ${choice.kind} completion only after confirming the runtime account`, async () => {
-			const f = fixture();
-			f.state.step = { kind: 'completed', result: { status: 'completed', host: choice.host, login: choice.login } };
-			f.state.activeSelection = choice.selectionId;
-			await f.discover();
-			const ready = f.context.requireReady();
-			await f.discover();
-			await f.select(ready.choice.service);
-			assert.deepStrictEqual({
-				ready,
-				resources: f.context.getProtectedResources().map(resource => resource.resource),
-				advances: f.state.advances,
-			}, {
-				ready: {
-					kind: 'ready', entraAccountId: 'entra-identity', discoveryId: 'opaque-flow',
-					choice: {
-						service: choice.kind === 'loki' ? 'm365' : 'github',
-						resource: copilotEntraResources.get(choice.kind === 'loki' ? copilotEntraM365Audience : copilotEntraEmuAudience),
-						host: choice.host, selectionId: choice.selectionId, accountName: choice.login, displayName: choice.login,
-					},
-					derivedFrom: 'opaque-runtime-base',
-				},
-				resources: [copilotEntraDiscoveryResource, ready.choice.resource],
-				advances: [undefined],
-			});
-		});
-	}
-
-	test('rejects automatic completion without a matching supported active derived account', async () => {
-		const active = { ...choices[0], active: true, derivedFrom: 'opaque-runtime-base' };
-		const results: AccountResult[] = [
-			{ kind: 'activeAccount' },
-			{ kind: 'activeAccount', account: { ...active, active: false } },
-			{ kind: 'activeAccount', account: { ...active, host: 'https://other.example' } },
-			{ kind: 'activeAccount', account: { ...active, login: 'other-account' } },
-			{ kind: 'activeAccount', account: { ...active, selectionId: undefined } },
-			{ kind: 'activeAccount', account: active, authSelectionId: 'another-selection' },
-			{ kind: 'activeAccount', account: { ...active, derivedFrom: undefined } },
-			{ kind: 'activeAccount', account: { ...active, kind: 'githubDotCom' } },
-			{ kind: 'activeAccount', account: { ...choices[1], active: true, derivedFrom: 'opaque-runtime-base' } },
-		];
-		const states = [];
-		for (const result of results) {
-			const f = fixture();
-			f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
-			f.state.accountResult = result;
-			await assert.rejects(f.discover());
-			states.push(f.context.state.get());
-		}
-		assert.deepStrictEqual(states, results.map(() => ({ kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' })));
-	});
-
-	test('confirms the active authentication handle when the account is not a switch target', async () => {
-		const f = fixture();
-		f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
-		f.state.accountResult = {
-			kind: 'activeAccount', authSelectionId: choices[0].selectionId,
-			account: { ...choices[0], selectionId: undefined, switchable: false, active: true, derivedFrom: 'opaque-runtime-base' },
-		};
-		await f.discover();
-		const ready = f.context.requireReady();
-		await f.context.verifySessionContext(f.session, ready);
-		assert.deepStrictEqual({ kind: ready.kind, service: ready.choice.service, selectionId: ready.choice.selectionId, advances: f.state.advances }, {
-			kind: 'ready', service: 'm365', selectionId: choices[0].selectionId, advances: [undefined],
-		});
-	});
-
-	test('does not publish automatic readiness before confirmation or after authority withdrawal', async () => {
-		const f = fixture();
-		f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
-		f.state.confirmation = new DeferredPromise<AccountResult>();
-		f.state.confirmationStarted = new DeferredPromise<void>();
-		const states: string[] = [];
-		store.add(autorun(reader => states.push(f.context.state.read(reader).kind)));
-		const discovery = f.discover();
-		await f.state.confirmationStarted.p;
-		assert.throws(() => f.context.requireReady());
-		const rejected = assert.rejects(discovery);
-		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
-		f.state.confirmation.complete({ kind: 'activeAccount', account: { ...choices[0], active: true, derivedFrom: 'opaque-runtime-base' } });
-		await rejected;
-		assert.deepStrictEqual(states, ['legacy', 'incomplete', 'discovering', 'signedOut']);
-	});
-
-	for (const step of [
-		{ kind: 'error', message: 'discovery failed' },
-		{ kind: 'completed', result: { status: 'needs-account-selection', accounts: [] } },
-		{ kind: 'completed', result: { status: 'needs-account-selection', accounts: [choices[0], { ...choices[1], selectionId: choices[0].selectionId }] } },
-		{ kind: 'completed', result: { status: 'needs-plaintext-consent' } },
-		{ kind: 'completed', result: { status: 'completed' } },
-		{ kind: 'open-url', url: 'https://unexpected-runtime-auth.example' },
-	] satisfies LoginStep[]) {
-		test(`does not interpret ${JSON.stringify(step)} as no services or ready`, async () => {
-			const f = fixture();
-			f.state.step = step;
-			await assert.rejects(f.discover());
-			assert.deepStrictEqual(f.context.state.get(), { kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' });
-		});
-	}
-
-	test('waits for failed discovery cleanup before starting a retry', async () => {
-		const f = fixture();
-		f.state.step = { kind: 'error', message: 'discovery failed' };
-		f.state.cleanup = new DeferredPromise<void>();
-		f.state.cleanupStarted = new DeferredPromise<void>();
-		const failed = assert.rejects(f.discover(), /discovery failed/);
-		await f.state.cleanupStarted.p;
-		f.state.step = both;
-		const retry = f.discover();
-		await timeout(0);
-		const whileReleasing = { created: f.state.created, kind: f.context.state.get().kind };
-		f.state.cleanup.complete();
-		await Promise.all([failed, retry]);
-		assert.deepStrictEqual({ whileReleasing, created: f.state.created, kind: f.context.state.get().kind }, {
-			whileReleasing: { created: 1, kind: 'error' }, created: 2, kind: 'choiceRequired',
-		});
-	});
-
-	test('rejects stale choices and another Microsoft identity without activating', async () => {
-		const f = fixture();
-		await f.discover();
-		for (const params of [
-			f.credential({ kind: 'select', discoveryId: 'old-flow', selectionId: 'opaque-m365' }, 'm365'),
-			f.credential({ kind: 'select', discoveryId: 'opaque-flow', selectionId: 'opaque-m365' }, 'm365', 'other'),
-			f.credential({ kind: 'select', discoveryId: 'opaque-flow', selectionId: 'opaque-m365' }, 'github'),
-		]) {
-			await assert.rejects(f.context.authenticate(f.runtime, params));
-		}
+		await assert.rejects(f.authenticate(f.credential('m365')));
+		await f.authenticate();
+		await assert.rejects(f.authenticate(f.credential('m365', 'another-account')));
 		assert.deepStrictEqual({ kind: f.context.state.get().kind, selected: f.state.selected }, { kind: 'choiceRequired', selected: '' });
 	});
 
-	test('withdraws readiness immediately on sign-out and rejects late activation', async () => {
+	test('selection honors the runtime-advertised scopes rather than a fixed service scope', async () => {
 		const f = fixture();
-		await f.discover();
-		f.state.activation = new DeferredPromise<LoginStep>();
-		const selecting = f.select('m365');
-		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
-		f.state.activation.complete({ kind: 'completed', result: { status: 'completed' } });
-		await assert.rejects(selecting);
-		assert.deepStrictEqual(f.context.state.get(), { kind: 'signedOut' });
-	});
-
-	test('optional discovery advertisement does not select Microsoft or start a runtime', async () => {
-		const f = fixture();
-		await f.context.reset();
-		assert.deepStrictEqual({ context: f.context.state.get(), resources: f.context.getProtectedResources(), sessions: f.state.created }, {
-			context: { kind: 'legacy' }, resources: [copilotEntraDiscoveryMetadata], sessions: 0,
+		await f.authenticate();
+		const scopes = [`${copilotEntraEmuAudience}/.default`];
+		await f.context.authenticationOptions!.tokenProvider!({
+			kind: 'token', clientId: copilotEntraClientId, accountId: 'entra-identity', reason: 'renewal',
+			audience: copilotEntraEmuAudience, scopes, skipCachedAccessToken: false,
+		}, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+		const offered = f.context.getProtectedResources().find(resource => resource.resource === f.credential('github').resource)?.scopes_supported;
+		const result = await f.authenticate({ ...f.credential('github'), scopes });
+		assert.deepStrictEqual({ offered, result, service: f.context.requireReady().choice.service }, {
+			offered: scopes, result: { authenticated: true }, service: 'github',
 		});
 	});
 
-	test('canonical Microsoft identity delivery does not select the Microsoft route', async () => {
+	test('discovery acquires a challenged credential through normal authentication before completing', async () => {
 		const f = fixture();
-		await f.acceptIdentity();
-		assert.deepStrictEqual({
-			context: f.context.state.get(), nativeSessions: f.state.created,
-			account: f.authentication.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.account?.accountId,
-		}, { context: { kind: 'legacy' }, nativeSessions: 0, account: 'entra-identity' });
-	});
-
-	test('explicit direct selection withdraws Microsoft authority and rejects late activation', async () => {
-		const f = fixture();
-		await f.discover();
-		f.state.activation = new DeferredPromise<LoginStep>();
-		const selecting = assert.rejects(f.select('m365'));
-		await f.context.selectLegacy();
-		f.state.activation.complete({ kind: 'completed', result: { status: 'completed' } });
-		await selecting;
-		assert.deepStrictEqual({ context: f.context.state.get(), resources: f.context.getProtectedResources(), credential: f.authentication.getAuthToken({ resource: copilotEntraResources.get(copilotEntraM365Audience)! }) }, {
-			context: { kind: 'legacy' }, resources: [copilotEntraDiscoveryMetadata], credential: undefined,
+		f.state.discovery = new DeferredPromise<LoginStep>();
+		const discovering = f.authenticate();
+		await f.state.started.p;
+		const credential = f.credential('m365');
+		const token = f.context.authenticationOptions!.tokenProvider!({
+			kind: 'token', clientId: copilotEntraClientId, accountId: 'entra-identity', reason: 'renewal',
+			audience: copilotEntraM365Audience, scopes: [...credential.scopes!], skipCachedAccessToken: false,
+		}, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+		const accepted = await f.authenticate(credential);
+		const acquired = await token;
+		f.state.discovery.complete(both);
+		assert.deepStrictEqual({ accepted, token: acquired, discovery: await discovering, kind: f.context.state.get().kind, selected: f.state.selected }, {
+			accepted: { authenticated: true }, token: { kind: 'token', accountId: 'entra-identity', accessToken: 'synthetic-only' },
+			discovery: { authenticated: true }, kind: 'choiceRequired', selected: '',
 		});
 	});
 
-	test('reset during direct selection cleanup cannot complete the transition', async () => {
+	test('credential waiting honors SDK cancellation without a second client operation', async () => {
 		const f = fixture();
-		await f.discover();
-		f.state.cleanup = new DeferredPromise<void>();
-		f.state.cleanupStarted = new DeferredPromise<void>();
-		const selecting = assert.rejects(f.context.selectLegacy());
-		await f.state.cleanupStarted.p;
-		const reset = f.context.reset();
-		f.state.cleanup.complete();
-		await reset;
-		await selecting;
-		assert.deepStrictEqual(f.context.state.get(), { kind: 'signedOut' });
+		f.state.discovery = new DeferredPromise<LoginStep>();
+		const discovering = f.authenticate();
+		await f.state.started.p;
+		const cancellation = store.add(new CancellationTokenSource());
+		const token = f.context.authenticationOptions!.tokenProvider!({
+			kind: 'token', clientId: copilotEntraClientId, accountId: 'entra-identity', reason: 'renewal',
+			audience: copilotEntraM365Audience, scopes: [`${copilotEntraM365Audience}/.default`], skipCachedAccessToken: false,
+		}, cancellation.token as Parameters<EntraTokenProvider>[1]);
+		cancellation.cancel();
+		f.state.discovery.complete(both);
+		await discovering;
+		assert.deepStrictEqual(await token, { kind: 'cancelled' });
 	});
 
-	test('leaving a choice unanswered preserves Microsoft identity and reoffers the same choices', async () => {
+	test('a confirmed automatic service remains usable without claiming complete discovery', async () => {
 		const f = fixture();
-		await f.discover();
-		const offered = f.context.state.get();
-		await f.discover();
-		assert.deepStrictEqual({
-			context: f.context.state.get(), selected: f.state.selected,
-			resources: f.context.authentication!.getProtectedResources().map(resource => resource.resource),
-			released: f.state.disconnected,
-		}, { context: offered, selected: '', resources: [copilotEntraDiscoveryResource], released: 0 });
+		f.state.selected = 'opaque-m365';
+		f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[0].host, login: choices[0].login } };
+		const result = await f.authenticate();
+		assert.deepStrictEqual({ result, kind: f.context.state.get().kind, service: f.context.requireReady().choice.service }, {
+			result: { authenticated: true }, kind: 'ready', service: 'm365',
+		});
 	});
 
-	test('ordinary credential pushes cannot select an advertised service', async () => {
+	test('runtime replacement restores the selected service without another client authentication', async () => {
 		const f = fixture();
-		await f.discover();
-		const params = f.credential({ kind: 'select', discoveryId: 'opaque-flow', selectionId: 'opaque-m365' }, 'm365');
-		await assert.rejects(f.context.authentication!.authenticate({ ...params, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'entra-identity' }) }));
-		assert.deepStrictEqual({ kind: f.context.state.get().kind, selected: f.state.selected }, { kind: 'choiceRequired', selected: '' });
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const selected = f.context.requireReady();
+		await f.context.releaseSession();
+		await f.context.getSession(selected, f.runtime);
+		assert.deepStrictEqual({ service: f.context.requireReady().choice.service, created: f.state.created, released: f.state.deleted }, {
+			service: 'm365', created: 2, released: 1,
+		});
 	});
 
-	test('verifies a matching conversation without switching accounts and rejects a different account', async () => {
+	test('failed discovery exposes neither invented choices nor readiness', async () => {
 		const f = fixture();
-		await f.discover();
-		await f.select('m365');
-		await f.context.verifySessionContext(f.session, f.context.requireReady());
-		f.state.activeSelection = 'opaque-emu';
-		await assert.rejects(f.context.verifySessionContext(f.session, f.context.requireReady()), /intended Copilot account/);
-		assert.deepStrictEqual({ setupHidden: f.context.isAuthenticationSession(f.session.sessionId), otherHidden: f.context.isAuthenticationSession('other') }, { setupHidden: true, otherHidden: false });
+		f.state.step = { kind: 'completed', result: { status: 'needs-account-selection', accounts: [] } };
+		const result = await f.authenticate();
+		assert.deepStrictEqual({ result, state: f.context.state.get(), resources: f.context.getProtectedResources().map(resource => resource.resource), deleted: f.state.deleted }, {
+			result: { authenticated: false }, state: { kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' },
+			resources: [copilotEntraDiscoveryResource], deleted: 1,
+		});
 	});
 
-	test('rejects a launch captured before an account context change', async () => {
+	test('sign-out cancels pending discovery without publishing late choices', async () => {
 		const f = fixture();
-		await f.discover();
-		await f.select('m365');
-		const original = f.context.requireReady();
+		f.state.discovery = new DeferredPromise<LoginStep>();
+		const discovering = f.authenticate();
+		await f.state.started.p;
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		f.state.discovery.complete(both);
+		assert.deepStrictEqual({ result: await discovering, state: f.context.state.get(), disconnected: f.state.disconnected, deleted: f.state.deleted }, {
+			result: { authenticated: false }, state: { kind: 'legacy' }, disconnected: 1, deleted: 1,
+		});
+	});
+
+	test('a setup session created after sign-out is still released', async () => {
+		const f = fixture();
+		f.state.starting = new DeferredPromise<CopilotSession>();
+		const discovering = f.authenticate();
+		await f.state.creating.p;
 		await f.context.reset();
-		await f.discover();
-		await f.select('github');
-		await assert.rejects(f.context.verifySessionContext(f.session, original));
+		f.state.starting.complete(f.session);
+		await discovering;
+		assert.deepStrictEqual({ state: f.context.state.get(), disconnected: f.state.disconnected, deleted: f.state.deleted }, {
+			state: { kind: 'legacy' }, disconnected: 1, deleted: 1,
+		});
 	});
 
-	test('does not expose the setup session after its account changes', async () => {
-		const f = fixture();
-		await f.discover();
-		await f.select('m365');
-		const context = f.context.requireReady();
-		assert.strictEqual(await f.context.getSession(context), f.session);
-		f.state.activeSelection = 'opaque-emu';
-		await assert.rejects(f.context.getSession(context), /intended Copilot account/);
-	});
-
-	test('gate-off exposes no Microsoft bridge and rejects programmatic setup', async () => {
+	test('the startup gate rejects Microsoft discovery', async () => {
 		const f = fixture(false);
-		await assert.rejects(f.discover(), /unavailable/);
-		assert.deepStrictEqual({ authentication: f.context.authentication, published: f.published, advances: f.state.advances }, { authentication: undefined, published: ['published'], advances: [] });
-	});
-
-	test('sign-out during runtime startup cannot reestablish authority or discovery', async () => {
-		const f = fixture();
-		await f.prepare();
-		const starting = new DeferredPromise<CopilotClient>();
-		const discovery = f.context.authenticate(starting.p, f.credential({ kind: 'discover' }));
-		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
-		starting.complete(f.client);
-		await assert.rejects(discovery);
-		assert.deepStrictEqual({ context: f.context.state.get(), advances: f.state.advances }, { context: { kind: 'signedOut' }, advances: [] });
+		await assert.rejects(f.context.authenticate(f.runtime, f.credential()), /unavailable/);
+		assert.deepStrictEqual({ state: f.context.state.get(), created: f.state.created }, { state: { kind: 'legacy' }, created: 0 });
 	});
 });

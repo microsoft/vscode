@@ -2360,6 +2360,9 @@ export interface IAgent {
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
+	/** Completes provider setup after an accepted credential is available in the canonical store. */
+	completeAuthentication?(params: AuthenticateParams): Promise<void>;
+
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
 

@@ -79,7 +79,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgent, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -96,7 +96,6 @@ import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from 
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
-import { copilotAccountOperationMeta } from '../../common/meta/copilotAccountOperation.js';
 import { CopilotAccountService, ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
@@ -5754,112 +5753,6 @@ suite('CopilotAgent', () => {
 		});
 	}
 
-	for (const enterprise of [false, true]) {
-		test(`explicit Microsoft selection cannot fall back to cached ${enterprise ? 'GHE' : 'GitHub'} until an accepted direct choice`, async () => {
-			const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
-			const endpoints = createTestGitHubEndpointService(enterprise ? 'https://example.ghe.com' : undefined);
-			const { agent, instantiationService, authenticationService } = createTestAgentContext(disposables, {
-				copilotClient: client, gitHubEndpointService: endpoints, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
-			});
-			afterTest(() => disposeAgent(agent));
-			const accounts = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
-			const resource = endpoints.getCopilotResource();
-			await authenticationService.authenticate({ resource: resource.resource, token: 'cached-github', scopes: resource.scopes_supported }, [agent]);
-			await waitForState(agent.models, models => models.length > 0);
-			const backgroundMicrosoftAccepted = await agent.handleAuthenticationToken({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'background-microsoft',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }),
-			});
-			await assert.rejects(agent.handleAuthenticationToken({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'premature-selection',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'select', discoveryId: 'not-offered', selectionId: 'not-offered' }) },
-			}));
-			assert.deepStrictEqual(accounts.state.get(), { kind: 'legacy' });
-			await authenticationService.authenticate({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }),
-			}, [agent]);
-			await agent.handleAuthenticationToken({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-			});
-			const pending = accounts.state.get();
-			const backgroundAccepted = await agent.authenticate(resource.resource, 'background-github');
-			await authenticationService.replay(agent);
-			const direct: AuthenticateParams = {
-				resource: resource.resource, token: 'chosen-github', scopes: resource.scopes_supported,
-				_meta: { ...authenticationAccountMeta({ providerId: enterprise ? 'github-enterprise' : 'github', accountId: 'chosen-account' }), ...copilotAccountOperationMeta({ kind: 'useLegacy', context: pending }) },
-			};
-			for (const rejected of [
-				{ ...direct, resource: copilotEntraDiscoveryResource },
-				{ ...direct, scopes: [] },
-				{ ...direct, token: '' },
-				{ ...direct, expiresIn: -1 },
-				{ ...direct, _meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'useLegacy', context: pending }) } },
-			]) {
-				await assert.rejects(agent.handleAuthenticationToken(rejected));
-			}
-			const afterRejected = accounts.state.get();
-			await agent.handleAuthenticationToken({ resource: copilotEntraDiscoveryResource, token: '' });
-			const afterRevocation = accounts.state.get();
-			const revokedBackgroundAccepted = await agent.authenticate(resource.resource, 'another-background');
-			await assert.rejects(agent.handleAuthenticationToken(direct));
-			const result = await authenticationService.authenticate({
-				...direct, _meta: { ...direct._meta, ...copilotAccountOperationMeta({ kind: 'useLegacy', context: afterRevocation }) },
-			}, [agent]);
-			await waitForState(agent.models, models => models.length > 0);
-			await assert.rejects(agent.handleAuthenticationToken({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'late-microsoft',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'intended' }), ...copilotAccountOperationMeta({ kind: 'discover', context: pending }) },
-			}));
-			assert.deepStrictEqual({
-				pending, backgroundMicrosoftAccepted, backgroundAccepted, afterRejected, afterRevocation, revokedBackgroundAccepted,
-				result, current: accounts.state.get(), token: agent['_githubCredentials'].token,
-				resource: agent.getProtectedResources()[0].resource, models: agent.models.get().map(model => model.id),
-			}, {
-				pending: { kind: 'incomplete', entraAccountId: 'intended' }, backgroundMicrosoftAccepted: true, backgroundAccepted: false,
-				afterRejected: pending, afterRevocation: { kind: 'signedOut' }, revokedBackgroundAccepted: false,
-				result: { authenticated: true }, current: { kind: 'legacy' }, token: 'chosen-github',
-				resource: resource.resource, models: ['gpt-4o'],
-			});
-		});
-	}
-
-	test('a direct choice waits for credential application before publishing the legacy context', async () => {
-		const api = new TestCopilotApiService();
-		const started = new DeferredPromise<void>();
-		const sku = new DeferredPromise<string | undefined>();
-		api.resolveCopilotSkuHandler = async () => { started.complete(); return sku.p; };
-		const { agent, authenticationService, instantiationService } = createTestAgentContext(disposables, {
-			copilotClient: new TestCopilotClient([], []), copilotApiService: api,
-			rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
-		});
-		afterTest(() => disposeAgent(agent));
-		const resource = GITHUB_COPILOT_PROTECTED_RESOURCE;
-		await authenticationService.authenticate({
-			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
-		}, [agent]);
-		await agent.handleAuthenticationToken({
-			resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-			_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-		});
-		const accounts = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
-		const otherProvider = upcastPartial<IAgent>({
-			id: 'other-provider', getProtectedResources: () => [resource], authenticate: async () => true,
-		});
-		const applying = authenticationService.authenticate({
-			resource: resource.resource, scopes: resource.scopes_supported, token: 'cancelled-github',
-			_meta: { ...authenticationAccountMeta({ providerId: 'github', accountId: 'chosen' }), ...copilotAccountOperationMeta({ kind: 'useLegacy', context: accounts.state.get() }) },
-		}, [agent, otherProvider]);
-		await started.p;
-		assert.deepStrictEqual(accounts.state.get(), { kind: 'signedOut' });
-		sku.complete(undefined);
-		assert.deepStrictEqual({ result: await applying, applied: agent['_githubCredentials'].token, context: accounts.state.get() }, {
-			result: { authenticated: true }, applied: 'cancelled-github', context: { kind: 'legacy' },
-		});
-	});
-
 	test('uses injected Copilot homes for SDK startup and plan files despite an inherited override', async () => {
 		const previous = process.env.COPILOT_HOME;
 		process.env.COPILOT_HOME = '/ambient/copilot-home';
@@ -8181,10 +8074,6 @@ suite('CopilotAgent', () => {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
 			}, [agent]);
-			await agent.handleAuthenticationToken({
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-			});
 			const session = AgentSession.uri('copilotcli', 'microsoft-scoped-credentials');
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
@@ -8196,7 +8085,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				launchTokens: launches.map(launch => launch.config.gitHubToken),
 				entraCallbacks: options.filter(option => option.gitHubToken === 'sponsor').map(option => option.entra),
-			}, { launchTokens: ['sponsor'], entraCallbacks: [undefined] });
+			}, { launchTokens: [undefined, 'sponsor'], entraCallbacks: [undefined] });
 		});
 
 		test('discovers and caches models without a host token using only the caller credential', async () => {

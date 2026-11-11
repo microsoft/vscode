@@ -20,7 +20,7 @@ import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../../common/agent.js';
 import { copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../../common/meta/agentAuthenticationAccount.js';
-import { copilotAccountOperationMeta, readCopilotAccountOperation } from '../../../common/meta/copilotAccountOperation.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
 import { CopilotAccountService } from '../../../node/copilot/copilotAccountService.js';
@@ -96,7 +96,7 @@ suite('Copilot account context native SDK', () => {
 			client = new CopilotClient({
 				connection: RuntimeConnection.forStdio(), env, useLoggedInUser: false,
 				requestHandler: new LocalAccountRequests(origin), logLevel: 'error',
-				entra: accounts.authentication!.options,
+				entra: accounts.authenticationOptions,
 			});
 			const accountService = accounts;
 			const runtime = client;
@@ -108,32 +108,35 @@ suite('Copilot account context native SDK', () => {
 					accountService.authentication!.validateAuthentication(params, accountService.getProtectedResources().find(resource => resource.resource === params.resource));
 				}
 				override async handleAuthenticationToken(params: AuthenticateParams) {
-					if (readCopilotAccountOperation(params)) {
-						await accountService.authenticate(Promise.resolve(runtime), params);
-						return true;
+					if (!await accountService.authentication!.authenticate(params, accountService.getProtectedResources().find(resource => resource.resource === params.resource))) {
+						return false;
 					}
-					return accountService.acceptCredential(params) || await accountService.authentication!.authenticate(params, accountService.getProtectedResources().find(resource => resource.resource === params.resource));
+					return true;
+				}
+				override async completeAuthentication(params: AuthenticateParams) {
+					if (params.token && (params.resource === copilotEntraDiscoveryResource || accountService.state.get().kind === 'choiceRequired')) {
+						await accountService.authenticate(Promise.resolve(runtime), params);
+					}
 				}
 			}();
 			const discovery: AuthenticateParams = {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
 			};
-			await authentication.authenticate({ ...discovery, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }) }, [provider]);
-			await authentication.authenticate(discovery, [provider]);
-			assert.deepStrictEqual({ kind: accounts.state.get().kind, requests }, { kind: 'incomplete', requests: [] });
+			const challenged = waitForState(accounts.authentication!.authenticationRequired, requirement => requirement?.resource.resource === copilotEntraResources.get(copilotEntraM365Audience));
+			const discovering = authentication.authenticate(discovery, [provider]);
+			await challenged;
 			assert.deepStrictEqual(await authentication.authenticate({
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
 			}, [provider]), { authenticated: true });
-			assert.deepStrictEqual(await authentication.authenticate(discovery, [provider]), { authenticated: true });
+			assert.deepStrictEqual(await discovering, { authenticated: true });
 			const context = accounts.requireReady();
-			const setup = await accounts.getSession(context);
+			const setup = await accounts.getSession(context, Promise.resolve(client));
 			const catalog = toCopilotAccountModelCatalog(await setup.rpc.model.list());
 			await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
 			await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
 			const policy = await resolveCopilotManagedSettings(setup.rpc.managedSettings, undefined, 5000);
-			await accounts.verifySessionContext(setup, context);
 			assert.deepStrictEqual({
 				service: context.choice.service,
 				setupModels: catalog.models.map(model => model.id),
@@ -147,7 +150,7 @@ suite('Copilot account context native SDK', () => {
 				policyUnresolved: false, globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
 			await accounts.reset();
-			await assert.rejects(accounts.getSession(context), /no longer available/);
+			await assert.rejects(accounts.getSession(context, Promise.resolve(client)), /no longer available/);
 		} finally {
 			try {
 				await accounts?.reset();

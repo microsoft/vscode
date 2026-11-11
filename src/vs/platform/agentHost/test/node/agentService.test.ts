@@ -5791,24 +5791,6 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('dispatchAction', () => {
 
-		test('rejects forged host-owned account state and preserves it on root replacement', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const configuration = getConfigurationService(svc);
-			configuration.publishRootTransientValues?.({ 'test.accountContext': { kind: 'signedOut' } }, true);
-			const actions: { rejected: boolean; context: unknown }[] = [];
-			disposables.add(svc.onDidAction(envelope => {
-				if (envelope.origin?.clientId === 'test-client') {
-					actions.push({ rejected: !!envelope.rejectionReason, context: getStateManager(svc).rootState.config?.values['test.accountContext'] });
-				}
-			}));
-			await svc.dispatchAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { 'test.accountContext': { kind: 'ready' } } }, 'test-client', 1);
-			await svc.dispatchAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: {}, replace: true }, 'test-client', 2);
-			assert.deepStrictEqual(actions, [
-				{ rejected: true, context: { kind: 'signedOut' } },
-				{ rejected: false, context: { kind: 'signedOut' } },
-			]);
-		});
-
 		test('stale and duplicate Stop requests do not abort another turn', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
@@ -24540,6 +24522,29 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- authenticate ---------------------------------------------------
 
 	suite('authenticate', () => {
+
+		test('waits for provider completion after canonical acceptance and isolates completion failure', async () => {
+			const provider: IAgent = copilotAgent;
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			let visible: string | undefined;
+			provider.completeAuthentication = async params => {
+				visible = getAuthenticationService(service).getAuthToken({ resource: params.resource });
+				started.complete();
+				await finish.p;
+				throw new Error('setup failed');
+			};
+			registerTestAgentProvider(service, provider);
+			const completing = service.authenticate({ resource: 'https://api.github.com', token: 'token' });
+			await started.p;
+			finish.complete();
+			const failed = await completing;
+			const other = disposables.add(new MockAgent('claude'));
+			other.getProtectedResources = () => [{ resource: 'https://api.github.com' }];
+			registerTestAgentProvider(service, other);
+			const accepted = await service.authenticate({ resource: 'https://api.github.com', token: 'next-token' });
+			assert.deepStrictEqual({ failed, accepted, visible }, { failed: { authenticated: false }, accepted: { authenticated: true }, visible: 'next-token' });
+		});
 
 		test('validates MCP authentication targets against top-level and child customizations', async () => {
 			registerTestAgentProvider(service, copilotAgent);
