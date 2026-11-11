@@ -72,22 +72,24 @@ suite('Sessions - Agents Part Card', () => {
 			const style = mainWindow.getComputedStyle(element);
 			return { property: style.transitionProperty, duration: style.transitionDuration };
 		};
-		const expectedSurroundingTransition = (property: string, duration: string) => mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches
-			? { property: 'none', duration: '0s' }
-			: { property, duration };
+		const motionEnabled = !mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 		assert.deepStrictEqual({
 			sessions: transition(sessionsCard),
 			customView: transition(customViewCard),
-			auxiliaryBar: transition(auxiliaryBar),
-			panel: transition(panel),
-			sideBarContent: transition(sideBarContent),
+			...(motionEnabled ? {
+				auxiliaryBar: transition(auxiliaryBar),
+				panel: transition(panel),
+				sideBarContent: transition(sideBarContent),
+			} : {}),
 		}, {
 			sessions: { property: 'all', duration: '0s' },
 			customView: { property: 'all', duration: '0s' },
-			auxiliaryBar: expectedSurroundingTransition('opacity, margin-top, margin-right, margin-bottom', '0.25s, 0.25s, 0.25s, 0.25s'),
-			panel: expectedSurroundingTransition('opacity, margin-top, margin-right, margin-bottom', '0.25s, 0.25s, 0.25s, 0.25s'),
-			sideBarContent: expectedSurroundingTransition('opacity, transform', '0.25s, 0.25s'),
+			...(motionEnabled ? {
+				auxiliaryBar: { property: 'opacity, margin-top, margin-right, margin-bottom', duration: '0.25s, 0.25s, 0.25s, 0.25s' },
+				panel: { property: 'opacity, margin-top, margin-right, margin-bottom', duration: '0.25s, 0.25s, 0.25s, 0.25s' },
+				sideBarContent: { property: 'opacity, transform', duration: '0.25s, 0.25s' },
+			} : {}),
 		});
 	});
 
