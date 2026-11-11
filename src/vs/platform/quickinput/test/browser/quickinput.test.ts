@@ -685,10 +685,15 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		const initialWidth = input.getBoundingClientRect().width;
 
 		anchor.style.width = '200px';
-		await raceTimeout(new Promise<void>(resolve => {
-			const check = () => input.getBoundingClientRect().width === 200 ? resolve() : mainWindow.requestAnimationFrame(check);
-			check();
-		}), 2000);
+		let frame = 0;
+		try {
+			await raceTimeout(new Promise<void>(resolve => {
+				const check = () => input.getBoundingClientRect().width === 200 ? resolve() : frame = mainWindow.requestAnimationFrame(check);
+				check();
+			}), 2000);
+		} finally {
+			mainWindow.cancelAnimationFrame(frame);
+		}
 
 		assert.deepStrictEqual({ initialWidth, resizedWidth: input.getBoundingClientRect().width }, { initialWidth: 300, resizedWidth: 200 });
 		quickpick.hide();
