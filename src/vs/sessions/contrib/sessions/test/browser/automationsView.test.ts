@@ -30,7 +30,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -678,6 +678,39 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	}
 }
 
+class FakeRemoteAgentHostService extends mock<IRemoteAgentHostService>() implements IDisposable {
+	private readonly connectionsEmitter = new Emitter<void>();
+	private readonly configuredEntriesEmitter = new Emitter<void>();
+	private _connections: readonly IRemoteAgentHostConnectionInfo[] = [];
+	private _configuredEntries: readonly IRemoteAgentHostEntry[] = [];
+
+	override readonly onDidChangeConnections = this.connectionsEmitter.event;
+	override readonly onDidChangeConfiguredEntries = this.configuredEntriesEmitter.event;
+
+	override get connections(): readonly IRemoteAgentHostConnectionInfo[] {
+		return this._connections;
+	}
+
+	override get configuredEntries(): readonly IRemoteAgentHostEntry[] {
+		return this._configuredEntries;
+	}
+
+	setConnections(connections: readonly IRemoteAgentHostConnectionInfo[]): void {
+		this._connections = connections;
+		this.connectionsEmitter.fire();
+	}
+
+	setConfiguredEntries(configuredEntries: readonly IRemoteAgentHostEntry[]): void {
+		this._configuredEntries = configuredEntries;
+		this.configuredEntriesEmitter.fire();
+	}
+
+	dispose(): void {
+		this.connectionsEmitter.dispose();
+		this.configuredEntriesEmitter.dispose();
+	}
+}
+
 suite('AutomationsCardsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let archiveActionRegistration: IDisposable;
@@ -695,7 +728,17 @@ suite('AutomationsCardsWidget', () => {
 		return !!button && button.style.display !== 'none';
 	}
 
-	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService, storageService?: IStorageService) {
+	function setup(
+		archiveWording: 'archive' | 'done' = 'archive',
+		hoverService: IHoverService = NullHoverService,
+		fileService?: IFileService,
+		storageService?: IStorageService,
+		initialState?: {
+			readonly catalogueState: AutomationCatalogueState;
+			readonly unavailableProviders: readonly IAutomationProviderDescriptor[];
+			readonly configuredEntries: readonly IRemoteAgentHostEntry[];
+		},
+	) {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
 		const agentPluginService = new FakeAgentPluginService();
@@ -704,11 +747,22 @@ suite('AutomationsCardsWidget', () => {
 		const runner = new FakeRunner();
 		const sessionsManagementService = disposables.add(new FakeSessionsManagementService());
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
-		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true }, experimental: { sessionArchiveActionWording: archiveWording } } });
+		const configurationService = new TestConfigurationService({
+			chat: { automations: { enabled: true }, experimental: { sessionArchiveActionWording: archiveWording } },
+			[RemoteAgentHostsEnabledSettingId]: initialState !== undefined,
+			[ENVIRONMENT_PICKER_SETTING]: initialState !== undefined,
+			[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: initialState !== undefined,
+		});
 		const logService = new TestLogService();
 		const commandService = new TestCommandService();
 		const keybindingService = new TestKeybindingService();
 		const telemetryService = new TestDataTelemetryService();
+		const remoteAgentHostService = disposables.add(new FakeRemoteAgentHostService());
+		if (initialState) {
+			automationService.setUnavailableProviders(initialState.unavailableProviders);
+			automationService.setCatalogueState(initialState.catalogueState);
+			remoteAgentHostService.setConfiguredEntries(initialState.configuredEntries);
+		}
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -735,6 +789,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAutomationRunner, runner);
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
+		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		if (fileService) {
 			instantiationService.stub(IFileService, fileService);
@@ -787,7 +842,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
@@ -2741,6 +2796,7 @@ suite('AutomationsCardsWidget', () => {
 			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
 			unavailable: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable')?.style.display,
 			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
+			title: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-cards-state-title')?.textContent,
 			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-unavailable .automations-cards-state-create-button')?.textContent,
 			templates: widget.element.querySelectorAll('.automations-template-card').length,
 		};
@@ -2754,7 +2810,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({ loadingState, errorState, unavailableState, readyState }, {
 			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
 			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
-			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			unavailableState: { loading: 'none', unavailable: '', error: 'none', title: 'No automations yet', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
 			readyState: { loading: 'none', error: 'none', templates: AUTOMATION_TEMPLATES.length },
 		});
 	});
@@ -2814,9 +2870,63 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
 
+	test('renders an initially unavailable disconnected remote without reading uninitialized state', () => {
+		const entry: IRemoteAgentHostEntry = {
+			name: 'Remote host',
+			connection: {
+				type: RemoteAgentHostEntryType.WebSocket,
+				address: '127.0.0.1:65531',
+			},
+		};
+		const { widget } = setup('archive', NullHoverService, undefined, undefined, {
+			catalogueState: 'unavailable',
+			unavailableProviders: [{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }],
+			configuredEntries: [entry],
+		});
+
+		assert.deepStrictEqual({
+			count: widget.element.querySelector('.automations-cards-unavailable .automations-manage-remotes-count')?.textContent,
+			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')?.style.display,
+			previousSibling: widget.element.querySelector('.automations-manage-remotes-target')?.previousElementSibling?.className,
+			hasIcon: !!widget.element.querySelector('.automations-cards-unavailable .automations-cards-state-icon'),
+		}, {
+			count: '0/1 remotes detected',
+			warningDisplay: 'none',
+			previousSibling: 'automations-cards-state-description',
+			hasIcon: false,
+		});
+	});
+
+	test('restores the partial warning message when a disconnected catalogue becomes an error', async () => {
+		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		remoteAgentHostService.setConfiguredEntries([{
+			name: 'Remote host',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
+		}]);
+		automationService.setAutomations([automation()]);
+		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
+		automationService.setCatalogueState('unavailable');
+		const message = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')!;
+		const disconnectedDisplay = message.style.display;
+		automationService.setCatalogueState('error');
+
+		assert.deepStrictEqual({
+			disconnectedDisplay,
+			errorDisplay: message.style.display,
+			error: message.textContent,
+		}, {
+			disconnectedDisplay: 'none',
+			errorDisplay: '',
+			error: 'Some automations could not be loaded.',
+		});
+	});
+
 	for (const hasSavedAutomations of [false, true]) {
 		test(`opens Manage Remotes from disconnected providers ${hasSavedAutomations ? 'with' : 'without'} saved automations`, async () => {
-			const { automationService, widget, configurationService, commandService } = setup();
+			const { automationService, widget, configurationService, commandService, remoteAgentHostService } = setup();
 			const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
 			const setSetting = async (setting: string, value: boolean) => {
 				await configurationService.setUserConfiguration(setting, value);
@@ -2830,6 +2940,10 @@ suite('AutomationsCardsWidget', () => {
 			for (const setting of settings) {
 				await setSetting(setting, true);
 			}
+			remoteAgentHostService.setConfiguredEntries([
+				{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' } },
+				{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65532' } },
+			]);
 			automationService.setAutomations(hasSavedAutomations ? [automation()] : []);
 			automationService.setUnavailableProviders([
 				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
@@ -2837,9 +2951,19 @@ suite('AutomationsCardsWidget', () => {
 			]);
 			automationService.setCatalogueState('unavailable');
 			const selector = hasSavedAutomations ? '.automations-cards-partial-state' : '.automations-cards-unavailable';
-			const container = widget.element.querySelector<HTMLElement>(`${selector} .automations-manage-remotes-link`)!;
-			const link = container.querySelector<HTMLAnchorElement>('a')!;
-			const initial = { display: container.style.display, label: link.textContent, role: link.getAttribute('role'), tabIndex: link.tabIndex };
+			const container = widget.element.querySelector<HTMLElement>(`${selector} .automations-manage-remotes`)!;
+			const link = container.querySelector<HTMLAnchorElement>('.monaco-link')!;
+			const description = widget.element.querySelector<HTMLElement>(hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable-message')!;
+			const initial = {
+				display: container.style.display,
+				label: link.textContent,
+				role: link.getAttribute('role'),
+				tabIndex: link.tabIndex,
+				count: container.querySelector('.automations-manage-remotes-count')?.textContent,
+				ariaLabel: link.getAttribute('aria-label'),
+				children: [...container.children].map(child => child.className),
+				disconnectedWarningDisplay: description.style.display,
+			};
 			link.click();
 			dispatchKeydown(link, { key: 'Enter', keyCode: 13 });
 			dispatchKeydown(link, { key: ' ', keyCode: 32 });
@@ -2854,16 +2978,21 @@ suite('AutomationsCardsWidget', () => {
 			}
 			const restored = container.style.display;
 			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'unsupported' }]);
-			const unsupported = container.style.display;
+			const unsupported = { control: container.style.display, warning: description.textContent, warningDisplay: description.style.display };
 			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
 			automationService.setCatalogueState('ready');
 			assert.deepStrictEqual({
 				initial, singleRemote, disabledSettings, restored, unsupported, ready: container.style.display,
-				sameLink: container.querySelector('a') === link,
+				sameLink: container.querySelector('.monaco-link') === link,
 				commands: commandService.calls.map(call => call.commandId),
 			}, {
-				initial: { display: '', label: 'Manage Remotes', role: 'button', tabIndex: 0 },
-				singleRemote: '', disabledSettings: ['none', 'none', 'none'], restored: '', unsupported: 'none', ready: 'none',
+				initial: {
+					display: '', label: 'Manage Remotes', role: 'button', tabIndex: 0,
+					count: '0/2 remotes detected', ariaLabel: '0/2 remotes detected, Manage Remotes',
+					children: ['automations-manage-remotes-count', 'monaco-link'], disconnectedWarningDisplay: 'none',
+				},
+				singleRemote: '', disabledSettings: ['none', 'none', 'none'], restored: '', ready: 'none',
+				unsupported: { control: 'none', warning: 'Automations are not supported on Host 1.', warningDisplay: '' },
 				sameLink: true,
 				commands: [OPEN_REMOTES_EDITOR_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID],
 			});
@@ -2880,7 +3009,7 @@ suite('AutomationsCardsWidget', () => {
 			];
 			automationService.setUnavailableProviders(providers);
 			automationService.setCatalogueState('unavailable');
-			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable .automations-cards-state-description';
+			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable-message';
 			const description = widget.element.querySelector<HTMLElement>(selector)!;
 			const reasons = [
 				'The agent host is disconnected on Host 1, Host 3.',
@@ -2917,17 +3046,131 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('reports Manage Remotes command failures', async () => {
-		const { automationService, widget, configurationService, commandService, refreshErrors } = setup();
+	test('preserves local disconnected and generic unavailable warnings', async () => {
+		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
+		remoteAgentHostService.setConfiguredEntries([{
+			name: 'Remote host',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
+		}]);
+		automationService.setUnavailableProviders([
+			{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' },
+			{ id: 'local-agent-host', label: 'This Computer', unavailableReasonCode: 'disconnected' },
+		]);
+		automationService.setCatalogueState('unavailable');
+		const warning = widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')!;
+		const remoteReplaced = {
+			control: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes')?.style.display,
+			warning: warning.textContent,
+			warningDisplay: warning.style.display,
+		};
+		automationService.setUnavailableProviders([]);
+		const generic = { warning: warning.textContent, warningDisplay: warning.style.display };
+
+		assert.deepStrictEqual({ remoteReplaced, generic }, {
+			remoteReplaced: {
+				control: '',
+				warning: 'The agent host is disconnected on This Computer.',
+				warningDisplay: '',
+			},
+			generic: {
+				warning: 'Some automations are unavailable.',
+				warningDisplay: '',
+			},
+		});
+	});
+
+	test('updates Manage Remotes detected count for connection and configured-entry changes', async () => {
+		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
+		const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
+		for (const setting of settings) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set(settings),
+			change: { keys: settings, overrides: [] },
+			affectsConfiguration: key => settings.includes(key),
+		});
+
+		const entries = Array.from({ length: 5 }, (_, index): IRemoteAgentHostEntry => ({
+			name: `Host ${index + 1}`,
+			connection: {
+				type: RemoteAgentHostEntryType.WebSocket,
+				address: `127.0.0.1:${65531 + index}`,
+			},
+		}));
+		const connection = (index: number, status: RemoteAgentHostConnectionStatus): IRemoteAgentHostConnectionInfo => ({
+			name: entries[index].name,
+			address: `127.0.0.1:${65531 + index}`,
+			status,
+		});
+
+		remoteAgentHostService.setConfiguredEntries(entries);
+		remoteAgentHostService.setConnections([
+			connection(0, RemoteAgentHostConnectionStatus.connected),
+			connection(1, RemoteAgentHostConnectionStatus.connected),
+			connection(2, RemoteAgentHostConnectionStatus.connecting),
+			connection(3, RemoteAgentHostConnectionStatus.reconnecting),
+			connection(4, RemoteAgentHostConnectionStatus.disconnected),
+		]);
+		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		automationService.setCatalogueState('unavailable');
+
+		const count = widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes-count');
+		const link = widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes .monaco-link');
+		assert.ok(count);
+		assert.ok(link);
+
+		const snapshots: { readonly text: string; readonly ariaLabel: string | null }[] = [];
+		const snapshot = () => snapshots.push({ text: count.textContent ?? '', ariaLabel: link.getAttribute('aria-label') });
+		snapshot();
+
+		remoteAgentHostService.setConnections([
+			connection(0, RemoteAgentHostConnectionStatus.reconnecting),
+			connection(1, RemoteAgentHostConnectionStatus.connecting),
+			connection(2, RemoteAgentHostConnectionStatus.disconnected),
+		]);
+		snapshot();
+
+		remoteAgentHostService.setConnections([connection(0, RemoteAgentHostConnectionStatus.connected)]);
+		remoteAgentHostService.setConfiguredEntries(entries.slice(0, 4));
+		snapshot();
+
+		remoteAgentHostService.setConfiguredEntries([...entries.slice(0, 4), {
+			name: 'Host 6',
+			connection: {
+				type: RemoteAgentHostEntryType.WebSocket,
+				address: '127.0.0.1:65536',
+			},
+		}]);
+		snapshot();
+
+		assert.deepStrictEqual(snapshots, [
+			{ text: '2/5 remotes detected', ariaLabel: '2/5 remotes detected, Manage Remotes' },
+			{ text: '0/5 remotes detected', ariaLabel: '0/5 remotes detected, Manage Remotes' },
+			{ text: '1/4 remotes detected', ariaLabel: '1/4 remotes detected, Manage Remotes' },
+			{ text: '1/5 remotes detected', ariaLabel: '1/5 remotes detected, Manage Remotes' },
+		]);
+	});
+
+	test('reports Manage Remotes command failures', async () => {
+		const { automationService, widget, configurationService, commandService, refreshErrors, remoteAgentHostService } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		remoteAgentHostService.setConfiguredEntries([{
+			name: 'Host 1',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
+		}]);
 		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 		const failure = new Error('Remote Environments could not be opened');
 		const stubbedCommand = stub(commandService, 'executeCommand').rejects(failure);
 		disposables.add(toDisposable(() => stubbedCommand.restore()));
-		widget.element.querySelector<HTMLAnchorElement>('.automations-cards-unavailable .automations-manage-remotes-link a')!.click();
+		widget.element.querySelector<HTMLAnchorElement>('.automations-cards-unavailable .automations-manage-remotes .monaco-link')!.click();
 		await Promise.resolve();
 		assert.deepStrictEqual(refreshErrors, [String(failure)]);
 	});
@@ -5056,7 +5299,7 @@ suite('AutomationsCardsWidget', () => {
 		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
 		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
-		assert.ok(provider.provideContent().includes('Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes.'));
+		assert.ok(provider.provideContent().includes('the unavailable message shows how many remotes are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes.'));
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {
