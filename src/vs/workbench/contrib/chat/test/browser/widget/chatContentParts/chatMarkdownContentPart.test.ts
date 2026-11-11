@@ -1833,13 +1833,18 @@ suite('ChatMarkdownContentPart', () => {
 			mainWindow.document.body.appendChild(frame);
 			await loaded.p;
 			const document = frame.contentDocument!;
-			frame.style.height = `${Math.ceil(document.documentElement.getBoundingClientRect().height + frame.contentWindow!.innerHeight - document.documentElement.clientHeight)}px`;
+			const contentWindow = frame.contentWindow!;
+			// Headless browsers can hide scrollbars even when their size is specified in CSS.
+			const scrollbarHeight = contentWindow.innerHeight - document.documentElement.clientHeight;
+			frame.style.height = `${Math.ceil(document.documentElement.getBoundingClientRect().height + scrollbarHeight)}px`;
+			contentWindow.scrollTo(100, 100);
 			assert.deepStrictEqual({
 				rootFitsVertically: document.documentElement.scrollHeight === document.documentElement.clientHeight,
 				contentOverflows: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-				scrollbarHeight: frame.contentWindow!.innerHeight - document.documentElement.clientHeight,
+				scrollbarHeight: contentWindow.innerHeight - document.documentElement.clientHeight,
+				scrollPosition: { x: contentWindow.scrollX, y: contentWindow.scrollY },
 				unwrapped: document.querySelector('pre')?.parentElement === document.body,
-			}, { rootFitsVertically: true, contentOverflows: true, scrollbarHeight: 16, unwrapped: true });
+			}, { rootFitsVertically: true, contentOverflows: true, scrollbarHeight, scrollPosition: { x: 100, y: 0 }, unwrapped: true });
 		});
 
 		test('keeps a viewport-height body minimum stable while auto-sizing', async () => {
