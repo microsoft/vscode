@@ -890,6 +890,30 @@ suite('Chat window', () => {
 		});
 	});
 
+	test('the editors a chat brings along into a window, the active one that is not the first included, do not count as an editor the user opens: a window showing only its chat stays so', async () => {
+		const opened = async (when: 'second active' | 'user opens after') => {
+			const { service, windows: [target] } = createService(['a']);
+			target.main.group.honorsInactive = true;
+			target.window.setLayoutMode(ChatWindowLayoutMode.ChatOnly);
+			const file = editor();
+			const notes = editor();
+			await service.open(URI.parse('test:/c'), { window: target.window, editors: { editors: [file, notes], activeEditor: when === 'second active' ? notes : file } });
+			const handedOver = target.window.layoutMode.get();
+			if (when === 'user opens after') {
+				target.main.group.open(editor());
+			}
+			return { handedOver, editors: target.main.group.testEditors.length, mode: target.window.layoutMode.get() };
+		};
+
+		assert.deepStrictEqual({
+			secondActive: await opened('second active'),
+			userOpensAfter: await opened('user opens after'),
+		}, {
+			secondActive: { handedOver: ChatWindowLayoutMode.ChatOnly, editors: 2, mode: ChatWindowLayoutMode.ChatOnly },
+			userOpensAfter: { handedOver: ChatWindowLayoutMode.ChatOnly, editors: 3, mode: ChatWindowLayoutMode.SideBySide },
+		});
+	});
+
 	test('the editors a chat brings along into a window go back to where they came from when the chat does not open in that window: it does not resolve, or it shows in another window; one the window showed already stays there too, and the window\'s active editor stays active; with the group they came from gone, they go to the main part\'s active group', async () => {
 		const opened = async (resolvesTo: 'nothing' | 'chat of another window', when?: 'file in window' | 'source gone') => {
 			const { service, events, windows: [target, other], parts, setMainPart } = createService(['a', 'b']);
