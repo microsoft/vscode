@@ -38,12 +38,12 @@ suite('SessionAttentionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const attentionStartTimeStorageKey = 'sessions.inboxNotifications.attentionStartTime';
 
-	function createSession(id: string, status = SessionStatus.Completed, updatedAt = 100, pullRequests: readonly { number: number; owned?: boolean }[] = []): ISession {
+	function createSession(id: string, status = SessionStatus.Completed, updatedAt = 100, pullRequests: readonly { number: number; owned?: boolean; state?: GitHubPullRequestState }[] = []): ISession {
 		const chat = upcastPartial<IChat>({ resource: URI.parse(`test:///chat/${id}`), status: observableValue('chat.status', status) });
 		const gitHubInfo: IGitHubInfo = {
 			owner: 'owner', repo: 'repo',
 			pullRequests: pullRequests.map(ref => ({
-				owner: 'owner', repo: 'repo', number: ref.number, state: 'open',
+				owner: 'owner', repo: 'repo', number: ref.number, state: ref.state ?? GitHubPullRequestState.Open,
 				uri: URI.parse(`https://github.com/owner/repo/pull/${ref.number}`),
 				createdByThisSession: ref.owned ?? true,
 			})),
@@ -520,6 +520,36 @@ suite('SessionAttentionService', () => {
 			restored: ['done', undefined, undefined, 'hold', 'snoozed'],
 		});
 	}));
+
+	for (const mergedAt of [undefined, 'invalid']) {
+		test(`historical merges with ${mergedAt === undefined ? 'missing' : 'invalid'} merge times wait for authoritative metadata`, () => runWithFakedTimers({}, async () => {
+			const start = Date.now();
+			const session = createSession('pr', SessionStatus.Completed, start - 1000, [
+				{ number: 41, state: GitHubPullRequestState.Merged },
+				{ number: 42, state: GitHubPullRequestState.Merged },
+			]);
+			(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+			(session.updatedAt as ISettableObservable<Date>).set(new Date(start + 1000), undefined);
+			const fixture = createFixture([session]);
+			store.add(fixture.service.acquireSessionAttention());
+			const list = fixture.createListModel();
+			const states = [list.getInboxState(session)?.kind];
+			fixture.github.setPullRequest(41, {
+				...openPullRequest(41), state: GitHubPullRequestState.Merged, mergedAt: new Date(start - 1).toISOString(),
+			});
+			states.push(list.getInboxState(session)?.kind);
+			const partial = {
+				...openPullRequest(42), state: GitHubPullRequestState.Merged, mergedAt, updatedAt: new Date(start + 1000).toISOString(),
+			};
+			fixture.github.setPullRequest(42, partial);
+			states.push(list.getInboxState(session)?.kind);
+			fixture.github.setPullRequest(42, { ...partial, updatedAt: new Date(start + 2000).toISOString() });
+			states.push(list.getInboxState(session)?.kind);
+			fixture.github.setPullRequest(42, { ...partial, mergedAt: new Date(start).toISOString() });
+			states.push(list.getInboxState(session)?.kind);
+			assert.deepStrictEqual(states, ['done', 'done', 'done', 'done', undefined]);
+		}));
+	}
 
 	test('PR ownership deduplicates alerts, excludes busy and archived owners, and requires all open owned PRs to pass', () => {
 		const owner = createSession('owner', SessionStatus.Completed, 100, [{ number: 42 }, { number: 43 }]);
