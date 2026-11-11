@@ -68,7 +68,7 @@ export class ChatHtmlPreviewAccessibleView implements IAccessibleViewImplementat
 			return undefined;
 		}
 		const content = this.type === AccessibleViewType.Help
-			? localize('chat.htmlPreview.editorHelp', "This is an expanded HTML response preview. Use Tab and Shift+Tab to reach links to sections and expandable disclosures. External links, scripts, and forms are disabled. Use Find{0} to search the document, or Accessible View{1} to read its text. Close the editor{2} to return to chat, where the preview toolbar offers Show Source and Save HTML. Save HTML exports a sanitized, self-contained document, not the original source.", '<keybinding:editor.action.webvieweditor.showFind>', '<keybinding:editor.action.accessibleView>', '<keybinding:workbench.action.closeActiveEditor>')
+			? localize('chat.htmlPreview.editorHelp', "This is an expanded HTML response preview. Use Tab and Shift+Tab to reach links to sections and expandable disclosures. External links, scripts, and forms are disabled. Use Find{0} to search the document, or Accessible View{1} to read its text. Close the editor{2} to return to chat, where the preview context menu offers Show Source and Save HTML. Focus the HTML preview and press Shift+F10 to open its context menu. Save HTML exports a sanitized, self-contained document, not the original source.", '<keybinding:editor.action.webvieweditor.showFind>', '<keybinding:editor.action.accessibleView>', '<keybinding:workbench.action.closeActiveEditor>')
 			: convertHtmlToMarkdown(input.html);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.ChatHtmlPreview,

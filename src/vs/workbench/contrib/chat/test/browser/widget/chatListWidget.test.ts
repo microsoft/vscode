@@ -71,6 +71,8 @@ import { MockChatSessionsService } from '../../common/mockChatSessionsService.js
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
+import { ChatLayoutService } from '../../../browser/widget/chatLayoutService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -597,6 +599,7 @@ suite('ChatListWidget', () => {
 
 	function stubHtmlPreviewWebviews(instantiationService: ReturnType<typeof workbenchInstantiationService>) {
 		const webviews: { marker: HTMLElement; disposed: boolean }[] = [];
+		instantiationService.stub(IChatLayoutService, store.add(instantiationService.createInstance(ChatLayoutService)));
 		const states = new Map<string, IOutputPartState>();
 		instantiationService.stub(IChatOutputPartStateCache, {
 			get: key => states.get(key),
@@ -673,9 +676,8 @@ suite('ChatListWidget', () => {
 			sourceStillHidden,
 			findKeepsFocus,
 			sourceVisible,
-			pressed: container.querySelector('.chat-html-preview [aria-label="Show Source"]')?.getAttribute('aria-pressed'),
 			matchParents: ranges.map(range => range.startContainer.parentElement?.tagName),
-		}, { sourceStillHidden: true, findKeepsFocus: true, sourceVisible: true, pressed: 'true', matchParents: ['P'] });
+		}, { sourceStillHidden: true, findKeepsFocus: true, sourceVisible: true, matchParents: ['P'] });
 		find.hide();
 	});
 
@@ -770,7 +772,11 @@ suite('ChatListWidget', () => {
 			returnedPreviews.push({ replaced: visible !== previous, oldDisposed: previous.disposed, disposedWhileOffscreen });
 		}
 		const originalPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
-		originalPreview.querySelector<HTMLElement>('[aria-label="Show Source"]')!.click();
+		let previewMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		const contextMenu = sinon.stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => { previewMenu = delegate; });
+		originalPreview.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await previewMenu!.getActions!().find(action => action.id === 'chat.htmlPreview.source')!.run();
+		contextMenu.restore();
 		for (let index = 0; index < 12; index++) {
 			const followup = addRequest(`Short follow-up ${index}`);
 			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('Short response.') });
@@ -789,13 +795,12 @@ suite('ChatListWidget', () => {
 			returnedPreviews,
 			recycled: restoredPreview !== originalPreview,
 			sourceHidden: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
-			sourcePressed: restoredPreview.querySelector('[aria-label="Show Source"]')?.getAttribute('aria-pressed'),
 			reservedHeight: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
 		}, {
 			disposedWhenHidden: true,
 			retainedViewReplaced: true,
 			returnedPreviews: Array.from({ length: 3 }, () => ({ replaced: true, oldDisposed: true, disposedWhileOffscreen: true })),
-			recycled: true, sourceHidden: false, sourcePressed: 'true', reservedHeight: '180px',
+			recycled: true, sourceHidden: false, reservedHeight: '180px',
 		});
 	});
 

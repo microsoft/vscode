@@ -5,6 +5,7 @@
 
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -108,6 +109,9 @@ export interface WebviewOptions {
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
+
+	/** Host-owned actions prepended to this webview's context menu. */
+	getContextMenuActions?(): IAction[];
 }
 
 export interface WebviewContentOptions {

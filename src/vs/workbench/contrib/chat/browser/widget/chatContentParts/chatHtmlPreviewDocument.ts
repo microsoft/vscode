@@ -60,8 +60,8 @@ function namespaceCssReferences(css: string, namespaceId: (id: string) => string
 	return result + css.slice(offset);
 }
 
-/** Builds the same script-free, offline document for inline, expanded, and exported previews. */
-export function createHtmlPreviewDocument(html: string, theme?: { readonly styles: Readonly<WebviewStyles>; readonly activeTheme: string }): string {
+/** Builds script-free, offline previews, with a transparent, unpadded surface when inline. */
+export function createHtmlPreviewDocument(html: string, theme?: { readonly styles: Readonly<WebviewStyles>; readonly activeTheme: string }, presentation: 'document' | 'inline' = 'document'): string {
 	const form = dom.$('form');
 	const namespaceId = (id: string) => id.startsWith(htmlPreviewIdPrefix) || Reflect.has(form.ownerDocument, id) || Reflect.has(form, id) ? htmlPreviewIdPrefix + id : id;
 	const contentRoot = dom.$('div');
@@ -115,7 +115,7 @@ export function createHtmlPreviewDocument(html: string, theme?: { readonly style
 	const content = contentRoot.innerHTML;
 
 	const styles = `
-		body { display: flow-root; box-sizing: border-box; margin: 0; padding: 12px; overflow-wrap: anywhere; color: var(--vscode-editor-foreground, CanvasText); background: var(--vscode-editor-background, Canvas); font-family: var(--vscode-font-family, system-ui); font-size: var(--vscode-font-size, 13px); }
+		body { display: flow-root; box-sizing: border-box; margin: 0; padding: ${presentation === 'inline' ? '0' : '12px'}; overflow-wrap: anywhere; color: var(--vscode-${presentation === 'inline' ? 'foreground' : 'editor-foreground'}, CanvasText); background: ${presentation === 'inline' ? 'transparent' : 'var(--vscode-editor-background, Canvas)'}; font-family: var(--vscode-font-family, system-ui); font-size: var(--vscode-font-size, 13px); ${presentation === 'inline' ? 'line-height: 1.5;' : ''} }
 		img, svg { max-width: 100%; }
 		a[href] { color: var(--vscode-textLink-foreground, LinkText); }
 		:focus-visible { outline: 1px solid var(--vscode-focusBorder, Highlight); outline-offset: 2px; }

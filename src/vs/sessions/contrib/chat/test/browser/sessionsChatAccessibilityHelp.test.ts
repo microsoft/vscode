@@ -140,7 +140,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				thinking: help.includes('only when a live section finishes with its header in view'),
 				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
 				htmlPreview: help.includes('html-preview code fence'),
-				htmlSourceToggle: help.includes('Tab to reach Show Source and press Enter or Space'),
+				htmlSourceToggle: help.includes('Use Tab to focus the HTML preview and press Shift+F10'),
 				htmlAccessibleSource: help.includes('original source is also available in the chat Accessible View'),
 				htmlExport: help.includes('Save HTML asks where to save a sanitized, self-contained HTML file'),
 				htmlExpansion: help.includes('Open Preview opens a larger editor'),
@@ -148,12 +148,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				htmlFindSource: help.includes('Find in Chat searches the original HTML and shows source'),
 				htmlSetting: help.includes(ChatConfiguration.HtmlPreviewEnabled),
 				htmlDisabled: help.includes('Inline HTML previews are disabled'),
-				repoSkillAdvertised: help.includes('/html-preview'),
+				htmlSkillAdvertised: help.includes('built-in /html-preview skill'),
 			}, {
 				modes: visible, checked: visible, setting: visible, thinking: visible, noBackfill: visible,
 				htmlPreview: visible, htmlSourceToggle: rendersHtml, htmlAccessibleSource: rendersHtml, htmlExport: rendersHtml,
 				htmlExpansion: rendersHtml, htmlScrolling: rendersHtml, htmlFindSource: rendersHtml, htmlSetting: visible, htmlDisabled: visible && !htmlEnabled,
-				repoSkillAdvertised: false,
+				htmlSkillAdvertised: rendersHtml,
 			});
 		});
 	}

@@ -3,47 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-html-preview {
-	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-editor-background);
-}
-
-.chat-html-preview-header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--vscode-spacing-size80);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-}
-
-.chat-html-preview-actions {
-	min-width: 0;
-	margin-left: auto;
-}
-
-.chat-html-preview-actions .action-label {
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
-}
-
-.chat-html-preview-actions .actions-container {
-	flex-wrap: wrap;
+.chat-html-preview:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .chat-html-preview-notice {
-	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+	padding-bottom: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
 }
 
 .chat-html-preview-content {
-	height: 200px;
+	height: 1.5em;
 	overflow: hidden;
-	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
-}
-
-.hc-black .chat-html-preview,
-.hc-light .chat-html-preview {
-	border-color: var(--vscode-contrastBorder);
 }

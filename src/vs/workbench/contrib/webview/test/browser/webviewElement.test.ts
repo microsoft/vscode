@@ -10,6 +10,7 @@ import { $, addDisposableListener, append, registerWindow } from '../../../../..
 import { Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
@@ -25,6 +26,8 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileReadStreamOptions, IFileService } from '../../../../../platform/files/common/files.js';
@@ -44,6 +47,7 @@ import { TestFileService } from '../../../../test/common/workbenchTestServices.j
 import { SASH_GRIPPERS_HIDDEN_ATTRIBUTE, SashGrippersController } from '../../../sash/browser/sash.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
+import { WebviewOptions } from '../../browser/webview.js';
 import { FromWebviewMessage, ToWebviewMessage } from '../../browser/webviewMessages.js';
 import { asWebviewUri, WebviewMouseActivity, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../../common/webview.js';
 
@@ -53,7 +57,7 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, options: WebviewOptions = {}) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
@@ -71,8 +75,9 @@ suite('WebviewElement', () => {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const errorNotification = sinon.stub();
+		const contextMenus: (Parameters<IContextMenuService['showContextMenu']>[0] & { menuId?: MenuId })[] = [];
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextMenuService, { onDidHideContextMenu: Event.None });
+		instantiationService.stub(IContextMenuService, { onDidHideContextMenu: Event.None, showContextMenu: delegate => { contextMenus.push(delegate); } });
 		instantiationService.stub(INotificationService, { error: errorNotification });
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
@@ -91,7 +96,7 @@ suite('WebviewElement', () => {
 
 		const webview = store.add(instantiationService.createInstance(TestWebviewElement, {
 			title: 'Test view',
-			options: {},
+			options,
 			contentOptions: {},
 			extension: extensionId ? { id: new ExtensionIdentifier(extensionId) } : undefined,
 		}, upcastPartial<WebviewThemeDataProvider>({
@@ -132,7 +137,7 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent, connectedWhenSourceAssigned,
+			webview, instantiationService, port: channel.port2, errorNotification, contextMenus, frame, container, configurationService, createReadyEvent, connectedWhenSourceAssigned,
 			activeMountListeners: () => addListener.callCount - removeListener.callCount,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
@@ -161,6 +166,26 @@ suite('WebviewElement', () => {
 	async function sendMouseMove(webview: WebviewElement, port: MessagePort, event = mouseMove): Promise<void> {
 		await sendWebviewMessage(webview, port, 'did-mouse-move', event);
 	}
+
+	test('adds host-owned context actions only to the opted-in webview and retains the standard menu', async () => {
+		const action = store.add(new Action('test.preview', 'Preview'));
+		const customized = await createWebview(undefined, 'browser', true, mainWindow, { getContextMenuActions: () => [action] });
+		const ordinary = await createWebview();
+		const result = [];
+		for (const { webview, port, contextMenus } of [customized, ordinary]) {
+			webview.setContextKeyService(store.add(new MockContextKeyService()));
+			await sendWebviewMessage(webview, port, 'did-context-menu', { clientX: 20, clientY: 30, context: {} });
+			const menu = contextMenus[0];
+			result.push({
+				menuId: menu.menuId,
+				actions: menu.getActions?.().map(action => action.id),
+			});
+		}
+		assert.deepStrictEqual(result, [
+			{ menuId: MenuId.WebviewContext, actions: ['test.preview'] },
+			{ menuId: MenuId.WebviewContext, actions: undefined },
+		]);
+	});
 
 	test('assigns the isolated shell URL before attaching or remounting its iframe', async () => {
 		const { frame, container, connectedWhenSourceAssigned, remount } = await createWebview();

@@ -285,6 +285,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			]);
 			contextMenuService.showContextMenu({
 				menuId: MenuId.WebviewContext,
+				getActions: this._options.getContextMenuActions,
 				menuActionOptions: { shouldForwardArgs: true },
 				contextKeyService,
 				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
