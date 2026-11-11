@@ -82,7 +82,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
@@ -4035,10 +4035,8 @@ suite('Sessions - SessionsList', () => {
 				// The checkout reports only its own folder, so only the anchor links it to the opened worktree.
 				const checkout = createFolderSession('checkout', 'checkout', { root: 'file:///repo', repository: 'file:///repo' }, hoursAgo(2));
 				const other = createFolderSession('other', 'other', { root: 'file:///other' }, hoursAgo(3));
-				const harness = createListHarness(disposables, [anchor, checkout, other]);
-				if (placeInGroup) {
-					harness.instantiationService.get(ISessionGroupsService).createGroup('Work', [anchor.sessionId]);
-				}
+				const group: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+				const harness = createListHarness(disposables, [anchor, checkout, other], placeInGroup ? { groups: [group], memberships: new Map([[anchor.sessionId, group.id]]) } : {});
 				const scoped = openScopedList(harness, constObservable([URI.parse('file:///repo.worktrees/x')]));
 				if (excludeClaude) {
 					scoped.list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
@@ -4047,7 +4045,7 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			assert.deepStrictEqual({ grouped: render({}, true, false), filtered: render({ harness: 'claude' }, false, true) }, {
-				grouped: { sessions: ['checkout', 'anchor'], showMore: ['+1 more workspace'] },
+				grouped: { sessions: ['anchor', 'checkout'], showMore: ['+1 more workspace'] },
 				filtered: { sessions: ['checkout'], showMore: ['+1 more workspace'] },
 			});
 		});
@@ -9043,6 +9041,90 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(target);
 			return drag(source, target, container);
 		}
+
+		suite('sections behind a scope\'s more row', () => {
+
+			function renderScopedList(findWidgetContainer?: HTMLElement, groupOptions: IListHarnessOptions = {}) {
+				const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+				const harness = createListHarness(disposables, [
+					createTestSession('Here', { workspaceLabel: 'a', workspaceResource: URI.parse('file:///a'), repository: 'owner/a', createdAt: hoursAgo(1) }).session,
+					createTestSession('Two', { workspaceLabel: 'b', workspaceResource: URI.parse('file:///b'), repository: 'owner/b', createdAt: hoursAgo(2) }).session,
+					createTestSession('One', { workspaceLabel: 'b', workspaceResource: URI.parse('file:///b'), repository: 'owner/b', createdAt: hoursAgo(3) }).session,
+					createTestSession('Grouped', { workspaceLabel: 'b', workspaceResource: URI.parse('file:///b'), repository: 'owner/b', createdAt: hoursAgo(4) }).session,
+				], groupOptions);
+				const scopeFolders = constObservable([URI.parse('file:///a')]);
+				const open = (scoped: boolean) => {
+					const container = harness.createContainer();
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => SessionsGrouping.Workspace,
+						sorting: () => SessionsSorting.Created,
+						scopeFolders: scoped ? scopeFolders : undefined,
+						findWidgetContainer: scoped ? findWidgetContainer : undefined,
+						onSessionOpen: () => { },
+					}));
+					list.layout(300, 800);
+					return { container, list };
+				};
+				return { harness, open };
+			}
+
+			function expandMoreWorkspaces(container: HTMLElement): void {
+				const row = [...container.querySelectorAll<HTMLElement>('.session-show-more-label')].find(label => label.textContent === '+1 more workspace')?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(row);
+				clickRow(row);
+			}
+
+			test('accepts drops between its sessions and onto its header', () => {
+				const group: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+				const { harness, open } = renderScopedList(undefined, { groups: [group], memberships: new Map([['Grouped', group.id]]) });
+				const { container } = open(true);
+				expandMoreWorkspaces(container);
+
+				drag(sessionRow(container, 'One'), sessionRow(container, 'Two'), container);
+				const ontoSession = harness.sortChanges.map(change => [...change.set.keys(), ...change.clear]);
+				const ontoHeader = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'b'), container);
+
+				assert.deepStrictEqual({
+					ontoSession,
+					ontoHeader,
+					removedFromGroups: harness.removedFromGroups,
+				}, {
+					ontoSession: [['One']],
+					ontoHeader: ['b'],
+					removedFromGroups: ['Grouped'],
+				});
+			});
+
+			test('moves its header into a custom group under the section\'s own id', async () => {
+				const group: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+				const moved = renderScopedList(undefined, { groups: [group] });
+				moved.open(true).list.moveHeaderTo('outOfScope:workspace:b', getSessionGroupSectionId(group.id), undefined);
+
+				// A section saved in a group renders in it whether the list is scoped, searched or unscoped.
+				const findWidgetContainer = mainWindow.document.createElement('div');
+				const { open } = renderScopedList(findWidgetContainer, { groups: [group], sectionMemberships: new Map([['workspace:b', group.id]]) });
+				const levelOf = (container: HTMLElement) => sessionRow(container, 'One').getAttribute('aria-level');
+				const scoped = open(true);
+				const scopedLevel = levelOf(scoped.container);
+				const unscopedLevel = levelOf(open(false).container);
+				scoped.list.openFind();
+				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+				assert.ok(findInput);
+				findInput.value = 'One';
+				findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				const searchLevel = levelOf(scoped.container);
+				scoped.list.closeFind();
+				// Closing find disposes its widget after its hide animation.
+				await timeout(350);
+
+				assert.deepStrictEqual({ moved: moved.harness.movedSections.map(({ sectionId, parentId }) => ({ sectionId, parentId })), scopedLevel, unscopedLevel, searchLevel }, {
+					moved: [{ sectionId: 'workspace:b', parentId: group.id }],
+					scopedLevel: '3',
+					unscopedLevel: '3',
+					searchLevel: '3',
+				});
+			});
+		});
 
 		suite('dragging a grouped session out of its group', () => {
 			const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };

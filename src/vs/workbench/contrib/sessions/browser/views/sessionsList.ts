@@ -444,7 +444,7 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 }
 
 function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
-	sectionId = getUnscopedSectionId(sectionId);
+	sectionId = toSemanticSectionId(sectionId);
 	switch (sectionId) {
 		case NEW_SESSION_SECTION_ID:
 			return Codicon.plus;
@@ -519,13 +519,13 @@ const ENVIRONMENT_SECTION_PREFIX = 'environment:';
 
 /** Whether a section lists one workspace, repository, or environment and can be reordered among custom groups. */
 function isSessionGroupingSection(sectionId: string): boolean {
-	sectionId = getUnscopedSectionId(sectionId);
+	sectionId = toSemanticSectionId(sectionId);
 	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX);
 }
 
 /** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
 function getSessionSectionType(sectionId: string): string {
-	sectionId = getUnscopedSectionId(sectionId);
+	sectionId = toSemanticSectionId(sectionId);
 	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
 }
 
@@ -724,8 +724,11 @@ const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
  */
 const OUT_OF_SCOPE_SECTION_PREFIX = 'outOfScope:';
 
-/** The id of a section without the {@link OUT_OF_SCOPE_SECTION_PREFIX} of a scoped list. */
-function getUnscopedSectionId(sectionId: string): string {
+/**
+ * The id of a section as the user's placements, order and collapse state know it: without the presentation-only
+ * {@link OUT_OF_SCOPE_SECTION_PREFIX} of a scoped list. Nothing prefixed is persisted.
+ */
+function toSemanticSectionId(sectionId: string): string {
 	return sectionId.startsWith(OUT_OF_SCOPE_SECTION_PREFIX) ? sectionId.slice(OUT_OF_SCOPE_SECTION_PREFIX.length) : sectionId;
 }
 
@@ -3826,7 +3829,7 @@ function getSectionPlacement(sectionId: string): SessionListPlacement | undefine
 function isSamePlacement(a: SessionListPlacement, b: SessionListPlacement): boolean {
 	const header = getPlacementHeader(a);
 	const other = getPlacementHeader(b);
-	return header.kind === other.kind && header.id === other.id;
+	return header.kind === other.kind && toSemanticSectionId(header.id) === toSemanticSectionId(other.id);
 }
 
 function getPlacementHeader(placement: SessionListPlacement): ISessionDropTargetHeader {
@@ -4710,6 +4713,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
 	private expandedMoreFolders = false;
+	/** The sessions of the scope the list last rendered with, see {@link ISessionsListControlOptions.scopeFolders}. */
+	private renderedScope: { includes(session: ISession): boolean } | undefined;
 	/** The grouping sections that capping currently hides behind the "+N more" row. */
 	private hiddenGroupingSections: readonly ISessionSection[] = [];
 	private openWindowSourceFolder: URI | undefined;
@@ -5852,6 +5857,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// The scope's repositories are known from every session, including those placed in custom groups or filtered out.
 		const sessionsInScope = scopeFolders.length > 0 ? getSessionsInScopeFolders(this.sessions, scopeFolders) : undefined;
 		const scope = sessionsInScope && { includes: (session: ISession) => sessionsInScope.includes(session) || session.sessionId === onboardingSession?.sessionId };
+		this.renderedScope = scope;
 		const getScopedSectionId = (sectionId: string, sessions: readonly ISession[]) =>
 			scope && isSessionGroupingSection(sectionId) && this.getSectionParentId(sectionId) === undefined && !sessions.some(scope.includes)
 				? `${OUT_OF_SCOPE_SECTION_PREFIX}${sectionId}`
@@ -5988,7 +5994,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 
-		const sectionById = new Map(sections.map(section => [this.getSectionGroupKey(section.id), section]));
+		// Sections behind a scope's "+N more" row are top level, so the sections nested in groups are found by their own ids.
+		const sectionById = new Map(sections.filter(section => !section.id.startsWith(OUT_OF_SCOPE_SECTION_PREFIX)).map(section => [this.getSectionGroupKey(section.id), section]));
 		const nestedSectionsByGroup = new Map<string, ISessionSection[]>();
 		for (const section of sections) {
 			const parentId = this.getSectionParentId(section.id);
@@ -7151,7 +7158,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (session.isArchived.get() && !state.archived && !destination.restoresArchived) {
 			return false;
 		}
-		if (placement.kind === 'section' && !this.getUngroupedSectionIds(session).includes(placement.sectionId)) {
+		if (placement.kind === 'section' && !this.getUngroupedSectionIds(session).includes(toSemanticSectionId(placement.sectionId))) {
 			return false;
 		}
 		const groupId = this._sessionGroupsService.getGroupOfSession(session.sessionId) ?? null;
@@ -7981,7 +7988,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), undefined);
 				}
 				// A moved grouping section is promoted so it stays visible (escapes the "+N more" capping).
-				this._sessionSectionOrderService.reorder(topLevelOrder, headerId, drop.targetId, drop.position, groupId === undefined ? headerId : undefined);
+				const sectionId = toSemanticSectionId(headerId);
+				this._sessionSectionOrderService.reorder(topLevelOrder, sectionId, toSemanticSectionId(drop.targetId), drop.position, groupId === undefined ? sectionId : undefined);
 				return;
 			}
 		}
@@ -8180,11 +8188,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * comparison groups nested in it, which belong to their group's placement.
 	 */
 	private getComposedPlacementSessions(placement: SessionListPlacement): readonly ISession[] {
-		const header = placement.kind === 'group'
-			? this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId)
-			: this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === getPlacementHeader(placement).id)
-			?? this.hiddenGroupingSections.find(section => section.id === getPlacementHeader(placement).id);
-		return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
+		if (placement.kind === 'group') {
+			const header = this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId);
+			return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
+		}
+		// A scope can list a section's sessions in two sections: of the scope, and behind its "+N more" row.
+		const sectionId = toSemanticSectionId(getPlacementHeader(placement).id);
+		const sections = [sectionId, `${OUT_OF_SCOPE_SECTION_PREFIX}${sectionId}`]
+			.map(id => this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === id) ?? this.hiddenGroupingSections.find(section => section.id === id))
+			.filter(isDefined);
+		return sections.flatMap(section => section.sessions).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
 	}
 
 	/**
@@ -8665,7 +8678,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => section.sessions)]]);
 		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
-			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id))]]);
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.getGroupingSectionSessions(section.id, grouping))]]);
 			const parentId = this.getSectionParentId(section.id);
 			const groupsInDisplayOrder = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
 			if (groupsInDisplayOrder.length > 0) {
@@ -8962,7 +8975,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return parentId !== undefined && this.canHoldSubgroups(parentId) ? parentId : undefined;
 	}
 
+	/** The sessions of a workspace, repository or environment section, including those behind its "show more" row. */
+	private getGroupingSectionSessions(sectionId: string, grouping: SessionsGrouping): ISession[] {
+		const semanticId = toSemanticSectionId(sectionId);
+		const sessions = this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === semanticId);
+		// A scope splits a top-level section into the sessions of the scope and, behind its "+N more" row, the others.
+		const scope = this.renderedScope;
+		if (!scope || this.getSectionParentId(semanticId) !== undefined) {
+			return sessions;
+		}
+		const outOfScope = sectionId !== semanticId;
+		return sessions.filter(session => scope.includes(session) !== outOfScope);
+	}
+
 	private getSectionGroupKey(sectionId: string): string {
+		sectionId = toSemanticSectionId(sectionId);
 		// Repository grouping's workspace fallback has placement independent of Workspace mode.
 		return this.options.grouping() === SessionsGrouping.Repository && sectionId.startsWith('workspace:')
 			? `${REPOSITORY_SECTION_PREFIX}${sectionId}`
@@ -10050,7 +10077,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 /** Whether a persisted collapse state id belongs to a grouping-specific section. */
 function isGroupingSpecificCollapseStateId(id: string): boolean {
-	id = getUnscopedSectionId(id);
+	id = toSemanticSectionId(id);
 	return id.startsWith('workspace:') || id.startsWith(ENVIRONMENT_SECTION_PREFIX) || id === 'recent' || id === 'older';
 }
 
