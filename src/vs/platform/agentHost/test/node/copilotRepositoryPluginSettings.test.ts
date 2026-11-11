@@ -30,6 +30,13 @@ suite('CopilotRepositoryPluginSettings', () => {
 
 	teardown(() => sinon.restore());
 
+	for (const content of ['{ invalid', '{"enabledPlugins":{"plugin@marketplace":"invalid"}}']) {
+		test(`reports invalid repository inventory as a read failure: ${content}`, async () => {
+			await fileService.writeFile(settings, VSBuffer.fromString(content));
+			await assert.rejects(() => readCopilotRepositoryPluginEnablement(fileService, repository), /Cannot read repository plugin enablement/);
+		});
+	}
+
 	test('restores inheritance without creating settings or removing other choices', async () => {
 		await setCopilotRepositoryPluginEnabled(fileService, repository, 'plugin@marketplace', null);
 		const absent = await fileService.exists(settings);

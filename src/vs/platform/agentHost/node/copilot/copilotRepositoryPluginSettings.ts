@@ -32,12 +32,12 @@ export async function readCopilotRepositoryPluginEnablement(fileService: IFileSe
 	const result = new Map<string, boolean>();
 	if (errors.length || root?.type !== 'object' || (plugins && plugins.type !== 'object')
 		|| (root.children?.filter(property => property.children?.[0].value === 'enabledPlugins').length ?? 0) > 1) {
-		throw new Error(localize('copilot.repositoryPluginSettings.invalid', "Cannot change plugin enablement because '{0}' is not a valid settings object.", resource.fsPath));
+		throw new Error(localize('copilot.repositoryPluginSettings.readInvalid', "Cannot read repository plugin enablement because '{0}' is not a valid settings object.", resource.fsPath));
 	}
 	for (const property of plugins?.children ?? []) {
 		const [key, value] = property.children ?? [];
 		if (!key || !value || typeof key.value !== 'string' || typeof value.value !== 'boolean' || result.has(key.value)) {
-			throw new Error(localize('copilot.repositoryPluginSettings.invalid', "Cannot change plugin enablement because '{0}' is not a valid settings object.", resource.fsPath));
+			throw new Error(localize('copilot.repositoryPluginSettings.readInvalid', "Cannot read repository plugin enablement because '{0}' is not a valid settings object.", resource.fsPath));
 		}
 		result.set(key.value, value.value);
 	}

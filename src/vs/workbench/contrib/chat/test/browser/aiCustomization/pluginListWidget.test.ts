@@ -73,18 +73,29 @@ suite('pluginListWidget', () => {
 		const toggle = widget.appendInstalledPluginToggle(workspaceActions, $('div'), $('div'), item).querySelector('button')!;
 		const ready = { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), label: toggle.getAttribute('aria-label'), badge: workspaceActions.querySelector('.inline-badge')?.textContent };
 		widget.remoteItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }];
-		const pending = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), item).querySelector('button')!;
+		const pendingControls = $('div');
+		const pending = widget.appendInstalledPluginToggle(pendingControls, $('div'), $('div'), item).querySelector('button')!;
+		const pendingBadgeDisabled = pendingControls.querySelector('.plugin-scope-badge')!.getAttribute('aria-disabled');
 		widget.remoteItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }];
 		const globalActions = $('div');
 		widget.appendInstalledPluginToggle(globalActions, $('div'), $('div'), item);
+		widget.remoteItems = [remote];
+		const pendingChanges = widget.getPendingPluginScopeChanges();
+		pendingChanges.set(new Set([widget.getPluginScopeChangeKey(remote)]), undefined);
+		const busyMenuActions = widget.getInstalledPluginActions(item, store.add(new DisposableStore()));
+		pendingChanges.set(new Set(), undefined);
 		assert.deepStrictEqual({
 			labels: actions.filter((action: { label: string }) => action.label).map((action: { label: string }) => action.label),
 			calls, ready, pendingDisabled: pending.disabled,
 			globalBadges: globalActions.querySelectorAll('.inline-badge').length,
+			pendingBadgeDisabled,
+			menuRebuilt: actions[0] !== busyMenuActions[0],
+			busyMenuAvailability: busyMenuActions.slice(0, 2).map((action: { enabled: boolean }) => action.enabled),
 		}, {
 			labels: ['Disable for Workspace', 'Use Global Enablement', 'Open Plugin Folder', 'Open README'],
 			calls: ['repository'], ready: { disabled: false, checked: 'true', label: 'Plugin enablement for azure. Workspace scope. Disable for Workspace', badge: 'This Workspace' }, pendingDisabled: true,
 			globalBadges: 0,
+			pendingBadgeDisabled: 'true', menuRebuilt: true, busyMenuAvailability: [false, false],
 		});
 	});
 

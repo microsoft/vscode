@@ -1520,8 +1520,8 @@ export class PluginListWidget extends Disposable {
 			? localize('pluginWorkspaceEnablementAria', "Plugin enablement for {0}. Workspace scope. {1}", item.name, action.tooltip ?? action.label)
 			: localize('pluginEnablementAria', "Plugin enablement for {0}. {1}", item.name, action.tooltip ?? action.label);
 		let scopeBadge: Button | undefined;
+		const scopeAction = item.actions?.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
 		if (action.scope === 'workspace') {
-			const scopeAction = item.actions?.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
 			const badge = disposables.add(new Button(actions, {
 				...getButtonStyles({
 					buttonSecondaryBackground: undefined,
@@ -1539,7 +1539,7 @@ export class PluginListWidget extends Disposable {
 			badge.element.setAttribute('aria-haspopup', 'menu');
 			badge.element.setAttribute('aria-expanded', 'false');
 			badge.label = localize('pluginWorkspaceScopeBadge', "This Workspace");
-			badge.enabled = scopeAction !== undefined;
+			badge.enabled = scopeAction !== undefined && scopeAction.enabled !== false;
 			disposables.add(this.hoverService.setupDelayedHover(badge.element, {
 				content: scopeAction?.enabled === false && scopeAction.tooltip ? scopeAction.tooltip
 					: localize('pluginWorkspaceScopeDescription', "Enablement is managed separately for this workspace."),
@@ -1587,7 +1587,7 @@ export class PluginListWidget extends Disposable {
 			actions.setAttribute('aria-busy', String(busy));
 			toggle.disabled = busy || action.enabled === false;
 			if (scopeBadge) {
-				scopeBadge.enabled = !busy && item.actions?.some(candidate => candidate.checked === undefined && candidate.scope === 'global') === true;
+				scopeBadge.enabled = !busy && scopeAction !== undefined && scopeAction.enabled !== false;
 			}
 		}));
 		disposables.add(this.hoverService.setupDelayedHover(toggle.domNode, {
