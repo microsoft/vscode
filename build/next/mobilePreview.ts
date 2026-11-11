@@ -277,6 +277,13 @@ async function packageExtensionNotices(root: string, source: string, output: str
 			const parts = path.resolve(path.dirname(mapFile), entry).split(path.sep);
 			const index = parts.lastIndexOf('node_modules');
 			if (index >= 0 && parts[index + 1]) {
+				if (parts[index + 1] === '.pnpm') {
+					// Published maps can point above a package root within its pnpm store entry.
+					const storePackages = parts.slice(0, index + 3).join(path.sep) + path.sep + 'node_modules' + path.sep;
+					assert.ok(parts[index + 2] && [...dependencies].some(dependency => dependency.startsWith(storePackages)),
+						`Unidentified pnpm source-map dependency: ${entry}`);
+					continue;
+				}
 				dependencies.add(parts.slice(0, index + (parts[index + 1].startsWith('@') ? 3 : 2)).join(path.sep));
 			}
 		}

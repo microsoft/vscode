@@ -204,6 +204,13 @@ suite('isolated mobile preview', () => {
 	for (const nodeLinker of ['hoisted', 'isolated']) {
 		test(`extension packaging builds fresh browser output and preserves explicit dependencies and licenses (${nodeLinker})`, async t => {
 			const { root, preview, write } = await createFixture(t);
+			const dependency = nodeLinker === 'hoisted'
+				? 'extensions/auth/node_modules/unused'
+				: 'extensions/auth/node_modules/.pnpm/unused@1.0.0/node_modules/unused';
+			const mappedSource = nodeLinker === 'hoisted'
+				? `${dependency}/src/original.ts`
+				: 'extensions/auth/node_modules/.pnpm/unused@1.0.0/src/original.ts';
+			const sourceMapEntry = path.relative(path.join(preview, 'extensions/auth/dist/browser'), path.join(root, mappedSource)).replaceAll('\\', '/');
 			await write('LICENSE.txt', 'MIT license');
 			await write('extensions/auth/package.json', JSON.stringify({
 				name: 'auth', publisher: 'vscode', version: '1.0.0', license: 'MIT', engines: { vscode: '^1.0.0' },
@@ -217,14 +224,12 @@ suite('isolated mobile preview', () => {
 			const output = path.join(process.argv[process.argv.indexOf('--outputRoot') + 1], 'browser');
 			await mkdir(output, { recursive: true });
 			await writeFile(path.join(output, 'extension.js'), 'fresh browser build');
+			await writeFile(path.join(output, 'extension.js.map'), JSON.stringify({ sources: [${JSON.stringify(sourceMapEntry)}] }));
 		`);
 			await write('extensions/auth/dist/browser/extension.js', 'stale watcher output');
 			await write('extensions/auth/dist/node/extension.js', 'desktop output');
 			await write('extensions/auth/out/unrelated.js', 'old output');
 			await write('extensions/auth/ThirdPartyNotices.txt', 'Extension notices');
-			const dependency = nodeLinker === 'hoisted'
-				? 'extensions/auth/node_modules/unused'
-				: 'extensions/auth/node_modules/.pnpm/unused@1.0.0/node_modules/unused';
 			await write(`${dependency}/package.json`, '{"name":"unused","version":"1.0.0","license":"MIT"}');
 			await write(`${dependency}/LICENSE`, 'Dependency license text');
 			if (nodeLinker === 'isolated') {
@@ -252,6 +257,25 @@ suite('isolated mobile preview', () => {
 			});
 		});
 	}
+
+	test('unidentified pnpm source-map dependencies fail instead of omitting their licenses', async t => {
+		const { root, preview, write } = await createFixture(t);
+		const sourceMapEntry = path.relative(path.join(preview, 'extensions/auth/dist/browser'), path.join(root, 'node_modules/.pnpm/missing@1.0.0/src/original.ts')).replaceAll('\\', '/');
+		await write('LICENSE.txt', 'MIT license');
+		await write('extensions/auth/package.json', '{"name":"auth","publisher":"vscode","version":"1.0.0","license":"MIT","browser":"./dist/browser/extension.js","activationEvents":["*"],"engines":{"vscode":"^1.0.0"}}');
+		await write('extensions/auth/.vscodeignore', 'esbuild.browser.mts\n');
+		await write('extensions/auth/esbuild.browser.mts', `
+			import { mkdir, writeFile } from 'node:fs/promises';
+			import path from 'node:path';
+			const output = path.join(process.argv[process.argv.indexOf('--outputRoot') + 1], 'browser');
+			await mkdir(output, { recursive: true });
+			await writeFile(path.join(output, 'extension.js'), 'browser build');
+			await writeFile(path.join(output, 'extension.js.map'), JSON.stringify({ sources: [${JSON.stringify(sourceMapEntry)}] }));
+		`);
+		writePnpmLockfile(path.join(root, 'extensions/auth/pnpm-lock.yaml'), {});
+		await write('extensions/auth/node_modules/.modules.yaml', '{"nodeLinker":"isolated"}');
+		await assert.rejects(packageMobilePreviewExtensions(root, ['auth']), /Unidentified pnpm source-map dependency/);
+	});
 
 	test('missing extension sources, browser build inputs and required dependencies fail explicitly', async t => {
 		const { root, write } = await createFixture(t);
