@@ -1445,6 +1445,22 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('a width the user gives the terminals\' column while the main part above them is hidden is the main part\'s after a reload', () => {
+		const { mode, grid, open, position, userResize } = setupWithTerminals();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Left });
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		userResize(ChatWindowGridCell.Terminals, 'right', 300);
+		const arrangement = grid.exportArrangement();
+		const restored = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), arrangement }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		restored.layout(1000, 800);
+
+		assert.deepStrictEqual({ hidden: grid.partGrid!.describe(), shape: restored.partGrid!.describe(), main: restored.partGrid!.getCellSize(ChatWindowGridCell.Main).width }, {
+			hidden: 'column(titleRow, row(column(main, terminals), chat, strip))', shape: 'column(titleRow, row(main, chat, strip))', main: 300,
+		});
+	});
+
 	test('the terminal position moves the terminals\' part in the grid, which keeps its height, and the arrangement it moves to is the one a new grid shows', () => {
 		const { position, grid, open, height, userResize } = setupWithTerminals();
 		open();

@@ -210,6 +210,39 @@ function collectCellIds(node: ISerializedNode | ChatWindowArrangementNode): stri
 	return node.type === 'leaf' ? [(node.data as { id: string }).id] : (node.data as readonly (ISerializedNode | ChatWindowArrangementNode)[]).flatMap(collectCellIds);
 }
 
+/**
+ * `shown`, a grid with the cell `id` hidden, with the row or column of that cell as it was in `before`, as both showed:
+ * the cells beside it took its room meanwhile. The rows and columns elsewhere stay as they are now, with the sizes the
+ * user gave them. Where its row or column is new, such as a column the terminals joined it in, it stays as it is.
+ */
+function withLineSharesOf(shown: ISerializedGrid, id: string, before: ISerializedGrid): ISerializedGrid {
+	const line = findLineOf(shown.root, shown.orientation, id);
+	const previousLine = findLineOf(before.root, before.orientation, id);
+	if (!line || !previousLine || line.orientation !== previousLine.orientation) {
+		return shown;
+	}
+	// The cells that share the room as both show: those that show, and the hidden cell; another hidden cell keeps its size
+	const sharing = (child: ISerializedNode) => child.visible !== false || (child.type === 'leaf' && (child.data as { id: string }).id === id);
+	const room = line.children.reduce((sum, child) => child.visible === false ? sum : sum + child.size, 0);
+	const previous = line.children.map(child => {
+		if (!sharing(child)) {
+			return 0;
+		}
+		const ids = collectCellIds(child);
+		return previousLine.children.find(candidate => collectCellIds(candidate).some(candidateId => ids.includes(candidateId)))?.size
+			?? (ids.includes(ChatWindowGridCell.Terminals) && child.visible !== false ? child.size : undefined);
+	});
+	const total = previous.reduce<number>((sum, size) => sum + (size ?? 0), 0);
+	if (!total || previous.some(size => size === undefined)) {
+		return shown;
+	}
+	const cells = line.children.map((child, index) => sharing(child) ? { ...child, size: Math.round(previous[index]! * room / total), visible: undefined } : child);
+	const replaceLine = (node: ISerializedNode): ISerializedNode => node.type === 'leaf' ? node
+		: node.data === line.children ? { ...node, data: cells }
+			: { ...node, data: node.data.map(replaceLine) };
+	return { ...shown, root: replaceLine(shown.root) };
+}
+
 /** The row or column the cell `id` is in, under `node`, a branch along `orientation`. */
 function findLineOf(node: ISerializedNode, orientation: Orientation, id: string): { readonly children: readonly ISerializedNode[]; readonly orientation: Orientation } | undefined {
 	if (node.type === 'leaf') {
@@ -929,9 +962,9 @@ export class ChatWindowGrid extends Disposable {
 	 */
 	exportArrangement(): IChatWindowArrangement | undefined {
 		const shown = this._grid.value?.serializeGrid();
-		// While a part is hidden, the others took its room: as both showed, unless the user moved a part meanwhile
+		const hidden = this._arrangedMode !== undefined ? getHiddenCell(this._arrangedMode) : undefined;
 		const beforeHide = this._beforeHide;
-		const grid = beforeHide?.grid && shown && beforeHide.shape === describeParts(shown) ? beforeHide.grid : shown;
+		const grid = shown && hidden && beforeHide?.grid && beforeHide.shape === describeParts(shown) ? withLineSharesOf(shown, hidden, beforeHide.grid) : shown;
 		const splitLayout = this._arrangedSplitLayout;
 		// While the window closes, its chat and main part leave the grid: what it showed before is what the user arranged
 		if (this._closing || !grid || splitLayout === undefined) {
