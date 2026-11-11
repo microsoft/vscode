@@ -1303,7 +1303,8 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ChatContextKeys.enabled,
+			// The sessions of the Chat view, which does not show while the Agents view replaces it
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});
@@ -1334,7 +1335,9 @@ export class FocusAgentSessionsAction extends Action2 {
 			title: localize2('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+				// The sessions of the Chat view, which does not show while the Agents view replaces it
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,

@@ -29,7 +29,8 @@ class CodexContinuationContribution extends Disposable {
 		@IViewsService views: IViewsService,
 	) {
 		super();
-		if (environment.isSessionsWindow) { return; }
+		// Its guide reveals the session in the Chat view's sessions, which do not show while something replaces the Chat view
+		if (environment.isSessionsWindow || widgets.chatViewHostDelegate) { return; }
 		const guide = this._register(instantiation.createInstance(CodexContinuationGuide));
 		const navigation: ICodexContinuationNavigation = {
 			getActiveWidget: () => widgets.lastFocusedWidget,

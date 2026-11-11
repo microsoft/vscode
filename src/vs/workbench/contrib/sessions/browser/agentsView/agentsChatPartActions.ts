@@ -77,8 +77,6 @@ export function registerAgentsChatPartActions(): IDisposable {
 			});
 		}
 		run(accessor: ServicesAccessor): void {
-			// The chat part's service shows the Chat view again where closing the chat part should
-			accessor.get(IAgentsChatPartService);
 			accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART);
 		}
 	}));

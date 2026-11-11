@@ -26,7 +26,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -55,6 +55,7 @@ import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.j
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
+import { chatAgentLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ElicitationState, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
@@ -268,8 +269,14 @@ export interface IChatViewOpenRequestEntry {
 
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
+/** Whether opening chat with `opts`, or in `mode`, asks for what only local chat serves: Ask or Edit mode, or a chat participant. */
+function requiresLocalChat(opts: IChatViewOpenOptions | undefined, mode: IChatMode | undefined): boolean {
+	const kind = opts?.mode ?? mode?.kind;
+	return kind === ChatModeKind.Ask || kind === ChatModeKind.Edit || !!opts?.query?.trimStart().startsWith(chatAgentLeader);
+}
+
 abstract class OpenChatGlobalAction extends Action2 {
-	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode) {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode, precondition?: ContextKeyExpression) {
 		super({
 			...overrides,
 			icon: Codicon.chatSparkle,
@@ -278,6 +285,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
 				ChatContextKeys.Setup.disabledInWorkspace.negate(),
+				precondition,
 			)
 		});
 	}
@@ -285,8 +293,15 @@ abstract class OpenChatGlobalAction extends Action2 {
 	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
-		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
+		// What replaces the Chat view shows sessions, not local chat: what only local chat serves is not available there
+		const chatViewHostDelegate = widgetService.chatViewHostDelegate;
+		if (chatViewHostDelegate && requiresLocalChat(opts, this.mode)) {
+			accessor.get(INotificationService).info(localize('chat.localChatUnavailable', "Ask and Edit modes and chat participants are not available while the Agents view is enabled."));
+			return;
+		}
+
+		const chatService = accessor.get(IChatService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const hostService = accessor.get(IHostService);
 		const chatAgentService = accessor.get(IChatAgentService);
@@ -306,6 +321,10 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		if (!chatWidget) {
+			// It shows a new-session composer, which takes the query to send
+			if (chatViewHostDelegate && opts?.query) {
+				await chatViewHostDelegate.prefillInput(opts.query);
+			}
 			return;
 		}
 
@@ -641,7 +660,7 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 			id: getOpenChatActionIdForMode(mode),
 			title: localize2('openChatMode', "Open Chat ({0})", mode.label.get()),
 			keybinding
-		}, mode);
+		}, mode, mode.kind === ChatModeKind.Ask || mode.kind === ChatModeKind.Edit ? ChatContextKeys.agentsViewActive.negate() : undefined);
 	}
 }
 
@@ -746,6 +765,11 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
+
+			const chatViewHostDelegate = widgetService.chatViewHostDelegate;
+			if (chatViewHostDelegate) {
+				return chatViewHostDelegate.toggle();
+			}
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 			const chatVisible = viewsService.isViewVisible(ChatViewId);

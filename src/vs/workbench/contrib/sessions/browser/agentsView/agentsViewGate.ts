@@ -5,11 +5,12 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { sessionsListConfiguration } from '../sessionsConfiguration.js';
@@ -22,11 +23,16 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatViewOpenKeybindings } from '../../../chat/browser/chat.js';
+import { CHAT_OPEN_ACTION_ID } from '../../../chat/browser/actions/chatActions.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
-import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AgentsViewAvailable, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
+import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
@@ -74,6 +80,29 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				this._register(instantiationService.createInstance(AgentsChatPartContribution));
+				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService));
+			}
+		});
+	}
+
+	/**
+	 * The chat part replaces the Chat view: the Chat view does not show (`ChatContextKeys.agentsViewActive`), the keys that
+	 * open it open the chat part, and the Secondary Side Bar, which shows the Chat view by default, does not show empty.
+	 */
+	private replaceChatView(contextKeyService: IContextKeyService, layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService, lifecycleService: ILifecycleService): void {
+		ChatContextKeys.agentsViewActive.bindTo(contextKeyService).set(true);
+
+		this._register(KeybindingsRegistry.registerKeybindingRule({
+			...ChatViewOpenKeybindings,
+			id: CHAT_OPEN_ACTION_ID,
+			// Over the Chat view's own
+			weight: KeybindingWeight.WorkbenchContrib + 1,
+			when: ChatContextKeys.agentsViewActive,
+		}));
+
+		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			if (!this._store.isDisposed && layoutService.isVisible(Parts.AUXILIARYBAR_PART) && !paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length) {
+				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
 		});
 	}
@@ -147,10 +176,26 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			ctorDescriptor: new SyncDescriptor(AgentsViewLoadingPane),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewStateReadyContext.negate()),
+			when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewStateReadyContext.negate(), AgentsViewNeedsSetup.negate()),
 			windowEnablement: WindowEnablement.Editor,
 		};
-		viewsRegistry.registerViews([view, loadingView], container);
-		this._register(toDisposable(() => viewsRegistry.deregisterViews([view, loadingView], container)));
+		// Signing in, which the Chat view offered before the chat part replaced it
+		const setupView: IViewDescriptor = {
+			id: AGENTS_VIEW_SETUP_VIEW_ID,
+			name: AGENTS_VIEW_TITLE,
+			containerIcon: Codicon.agent,
+			containerTitle: AGENTS_VIEW_TITLE.value,
+			singleViewPaneContainerTitle: AGENTS_VIEW_TITLE.value,
+			ctorDescriptor: new SyncDescriptor(AgentsViewSetupPane),
+			canToggleVisibility: false,
+			canMoveView: false,
+			when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup),
+			windowEnablement: WindowEnablement.Editor,
+		};
+		viewsRegistry.registerViews([view, loadingView, setupView], container);
+		this._register(toDisposable(() => viewsRegistry.deregisterViews([view, loadingView, setupView], container)));
+		this._register(viewsRegistry.registerViewWelcomeContent(AGENTS_VIEW_SETUP_VIEW_ID, {
+			content: localize('agentsView.setup', "Sign in to see your agent sessions and start new ones.\n[Sign In](command:workbench.action.chat.triggerSetup)"),
+		}));
 	}
 }

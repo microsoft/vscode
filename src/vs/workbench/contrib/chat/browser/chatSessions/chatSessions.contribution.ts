@@ -41,7 +41,8 @@ import { IChatService, ResponseModelState } from '../../common/chatService/chatS
 import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -1923,6 +1924,12 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
 	const progressService = accessor.get(IProgressService);
+
+	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, opens its own sessions
+	if (openOptions.position === ChatSessionPosition.Sidebar && accessor.get(IChatWidgetService).chatViewHostDelegate) {
+		accessor.get(INotificationService).info(localize('chatSessions.chatViewUnavailable', "Opening a chat session in the Chat view is not available while the Agents view is enabled."));
+		return undefined;
+	}
 
 	// Determine resource to open
 	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);

@@ -27,7 +27,15 @@ export const AgentsViewAvailable: ContextKeyExpression = ContextKeyExpr.and(
 )!;
 
 /** When the Sessions view shows in an editor window: where it is available, once its shared state has loaded. */
-export const AgentsViewWhen: ContextKeyExpression = ContextKeyExpr.and(AgentsViewAvailable, AgentsViewStateReadyContext)!;
+/** Whether chat needs signing in or setting up before it shows sessions: then the Agents view shows how to, as the Chat view did. */
+export const AgentsViewNeedsSetup: ContextKeyExpression = ContextKeyExpr.and(
+	ChatEntitlementContextKeys.chatAnonymous.negate(),
+	ContextKeyExpr.or(ChatEntitlementContextKeys.Entitlement.signedOut, ChatEntitlementContextKeys.Setup.installed.negate()),
+)!;
+
+export const AgentsViewWhen: ContextKeyExpression = ContextKeyExpr.and(AgentsViewAvailable, AgentsViewStateReadyContext, AgentsViewNeedsSetup.negate())!;
+
+export const AGENTS_VIEW_SETUP_VIEW_ID = 'workbench.view.agents.setup';
 
 /** The view that shows in place of the Sessions view while its shared state loads, so that its container restores. */
 export const AGENTS_VIEW_LOADING_VIEW_ID = 'workbench.view.agents.loading';

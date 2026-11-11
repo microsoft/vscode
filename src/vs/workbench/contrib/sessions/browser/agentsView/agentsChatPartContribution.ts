@@ -20,6 +20,8 @@ import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycl
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { AgentsChatViewHostDelegate } from './agentsChatViewHostDelegate.js';
 
 /**
  * The chat part of an editor window with the Sessions view. Created as the window starts, before its grid, which then has a
@@ -33,8 +35,12 @@ export class AgentsChatPartContribution extends Disposable {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
+
+		// It replaces the Chat view: what would show the Chat view shows the chat part instead
+		this._register(chatWidgetService.setChatViewHostDelegate(instantiationService.createInstance(AgentsChatViewHostDelegate)));
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartFrame).part);

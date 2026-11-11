@@ -5,13 +5,12 @@
 
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
-export async function openPanelChatAndGetWidget(viewsService: IViewsService, chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
-	await viewsService.openView(ChatViewId, true);
+export async function openPanelChatAndGetWidget(chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
+	await chatService.revealChatView(false);
 	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Chat);
 	if (widgets.length) {
 		return widgets[0];

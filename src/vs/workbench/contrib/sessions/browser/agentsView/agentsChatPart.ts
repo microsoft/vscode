@@ -8,7 +8,8 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -21,7 +22,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -47,7 +47,6 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
-import { ChatViewVisibilityPolicy } from './chatViewVisibilityPolicy.js';
 import { InAgentsChatPartContext } from './agentsView.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
@@ -56,6 +55,9 @@ const CHAT_PART_EDITORS_STORAGE_KEY = 'workbench.chatPart.editors';
 
 /** How long restoring a chat of the chat part waits for its session to load. */
 const RESTORE_SESSION_TIMEOUT = 30_000;
+
+/** How long a composer waits for its view to show, to put a prompt in it. */
+const COMPOSER_VIEW_TIMEOUT = 5_000;
 
 /** A chat that the chat part shows, with its session. */
 export interface IAgentsChatPartChat {
@@ -100,10 +102,13 @@ export interface IAgentsChatPartService {
 	focus(): void;
 
 	/**
-	 * Shows the chat part with the chats it had as it closed, also those of before a reload, and moves focus into it. Without
-	 * any, it shows a new-session composer, aimed at `target`.
+	 * Shows the chat part with the chats it had as it closed, also those of before a reload, and moves focus into it unless
+	 * `preserveFocus`. Without any, it shows a new-session composer, aimed at `target`.
 	 */
-	show(target: INewSessionTarget | undefined): Promise<void>;
+	show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean }): Promise<void>;
+
+	/** Shows a new-session composer, aimed at `target`, with `text` in its input, as {@link openComposer} does. */
+	prefillComposer(target: INewSessionTarget | undefined, text: string): Promise<void>;
 
 	/** Shows again the chats the chat part showed as the window last closed, when the layout restores it shown. */
 	restore(): Promise<void>;
@@ -346,7 +351,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -368,7 +372,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			toggleConversation: () => { },
 		};
 
-		this._register(this._instantiationService.createInstance(ChatViewVisibilityPolicy, () => this._tabCount()));
 		this._register(this._layoutService.onDidChangePartVisibility(({ partId, visible }) => {
 			if (partId === Parts.CHAT_PART && !this._restoring) {
 				this._log(visible ? 'open' : 'close');
@@ -431,13 +434,33 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._part?.activeGroup.focus();
 	}
 
-	async show(target: INewSessionTarget | undefined): Promise<void> {
+	async show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean }): Promise<void> {
 		await this.restore();
 		if (!this._tabCount()) {
-			return this.openComposer(target);
+			return this.openComposer(target, { preserveFocus: options?.preserveFocus });
 		}
 		this._layoutService.setPartHidden(false, Parts.CHAT_PART);
-		this.focus();
+		if (!options?.preserveFocus) {
+			this.focus();
+		}
+	}
+
+	async prefillComposer(target: INewSessionTarget | undefined, text: string): Promise<void> {
+		await this.openComposer(target);
+		const active = this._activeInput.get();
+		const chat = active && this._chats.get(active);
+		if (!chat?.isComposer) {
+			return;
+		}
+		// Its view shows once its editor renders
+		const composerView = derived(reader => chat.view.read(reader)?.composerView.read(reader));
+		const cts = new CancellationTokenSource();
+		try {
+			const view = await raceTimeout(waitForState(composerView, view => !!view, undefined, cts.token).catch(() => undefined), COMPOSER_VIEW_TIMEOUT, () => cts.cancel());
+			view?.prefillInput(text);
+		} finally {
+			cts.dispose();
+		}
 	}
 
 	async restore(): Promise<void> {
@@ -503,7 +526,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	private _log(action: AgentsChatPartAction): void {
-		logAgentsChatPartAction(this._telemetryService, this._viewDescriptorService, action, this._tabCount());
+		logAgentsChatPartAction(this._telemetryService, action, this._tabCount());
 	}
 
 	private async _open(chat: AgentsChatPartChat, options: IAgentsChatPartOpenOptions | undefined): Promise<void> {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
@@ -21,14 +22,20 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { ISessionsStorageService } from '../../../../../services/sessions/browser/sessionsStorageService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { CHAT_OPEN_ACTION_ID } from '../../../../chat/browser/actions/chatActions.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../chat/common/constants.js';
-import { AGENTS_VIEW_CONTAINER_ID, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewWhen } from '../../../browser/agentsView/agentsView.js';
 import { AgentsViewGate } from '../../../browser/agentsView/agentsViewGate.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
@@ -70,9 +77,15 @@ suite('AgentsViewGate', () => {
 		viewVisibility.fire({ id: SessionsViewId, visible: true });
 	}
 
-	function createGate(enabled: boolean, remoteAuthority?: string): AgentsViewGate {
+	let delegates: number;
+	let hiddenParts: Parts[];
+	let contextKeyService: MockContextKeyService;
+
+	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { readonly visible: boolean; readonly containers: string[] }): AgentsViewGate {
 		createdStorageServices = 0;
 		createdChatParts = 0;
+		delegates = 0;
+		hiddenParts = [];
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ISessionsStorageService, new SyncDescriptor(class extends mock<IStorageService>() {
 			constructor() {
 				super();
@@ -87,9 +100,17 @@ suite('AgentsViewGate', () => {
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
-		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+			onDidChangePartVisibility: Event.None,
+			isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && !!auxiliaryBar?.visible,
+			setPartHidden: (hidden: boolean, part: Parts) => { if (hidden) { hiddenParts.push(part); } },
+		}));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		contextKeyService = new MockContextKeyService();
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ setChatViewHostDelegate: () => { delegates++; return toDisposable(() => delegates--); } }));
+		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({ getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [] }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({}));
 		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
 		return disposables.add(instantiationService.createInstance(AgentsViewGate));
 	}
@@ -159,6 +180,53 @@ suite('AgentsViewGate', () => {
 		createGate(true, 'ssh-remote+host');
 
 		assert.deepStrictEqual({ createdChatParts }, { createdChatParts: 0 });
+	});
+
+	test('replaces the Chat view in a local window: it hides it, its keys and what would show it show the chat part', () => {
+		const chatViewKeys = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_OPEN_ACTION_ID && rule.when?.serialize() === ChatContextKeys.agentsViewActive.serialize()).length;
+		const local = createGate(true);
+		const localState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), delegates, chatViewKeys: chatViewKeys() };
+		local.dispose();
+		const afterDispose = { delegates, chatViewKeys: chatViewKeys() };
+		createGate(true, 'ssh-remote+host');
+		const remoteState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), delegates, chatViewKeys: chatViewKeys() };
+
+		assert.deepStrictEqual({ localState, afterDispose, remoteState }, {
+			localState: { active: true, delegates: 1, chatViewKeys: 1 },
+			afterDispose: { delegates: 0, chatViewKeys: 0 },
+			remoteState: { active: undefined, delegates: 0, chatViewKeys: 0 },
+		});
+	});
+
+	test('hides the Secondary Side Bar as the window restores only when, without the Chat view, it would show nothing', async () => {
+		const first = createGate(true, undefined, { visible: true, containers: [] });
+		await Promise.resolve();
+		const empty = hiddenParts;
+		first.dispose();
+		createGate(true, undefined, { visible: true, containers: ['workbench.view.extension.other'] });
+		await Promise.resolve();
+		const withOther = hiddenParts;
+
+		assert.deepStrictEqual({ empty, withOther }, { empty: [Parts.AUXILIARYBAR_PART], withOther: [] });
+	});
+
+	test('shows how to sign in instead of the sessions while chat needs it, and the sessions otherwise', () => {
+		createGate(true);
+		const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(AGENTS_VIEW_CONTAINER_ID)!;
+		const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(container);
+		const shown = (values: Record<string, unknown>) => views.filter(view => view.when?.evaluate({ getValue: <T>(key: string) => ({ 'config.chat.agent.enabled': true, remoteName: '', agentsViewStateReady: true, chatSetupInstalled: true, ...values })[key] as T })).map(view => view.id);
+
+		assert.deepStrictEqual({
+			signedIn: shown({}),
+			signedOut: shown({ chatEntitlementSignedOut: true }),
+			notInstalled: shown({ chatSetupInstalled: false }),
+			anonymous: shown({ chatEntitlementSignedOut: true, chatAnonymous: true }),
+		}, {
+			signedIn: [SessionsViewId],
+			signedOut: [AGENTS_VIEW_SETUP_VIEW_ID],
+			notInstalled: [AGENTS_VIEW_SETUP_VIEW_ID],
+			anonymous: [SessionsViewId],
+		});
 	});
 
 	test('offers no action of the Sessions view that opens the Agents window', () => {

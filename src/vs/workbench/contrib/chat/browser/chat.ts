@@ -83,6 +83,21 @@ export interface ISessionTypePickerDelegate {
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
+/**
+ * What shows the chats a Chat view would show, while it replaces the Chat view, such as the chat part of an editor window
+ * with the Agents view (`chatAgentsViewActive`). See {@link IChatWidgetService.setChatViewHostDelegate}.
+ */
+export interface IChatViewHostDelegate {
+	/** Shows its active chat, or a new-session composer when it has none, and resolves to the widget of the chat it shows. */
+	reveal(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+	/** Shows the chat of `sessionResource`, and resolves to its widget; to `undefined` when it cannot show that chat. */
+	openSession(sessionResource: URI, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+	/** Shows or hides it, as Toggle Chat shows or hides the Chat view. */
+	toggle(): Promise<void>;
+	/** Shows a new-session composer with `text` in its input, such as the query that Open Chat brings. */
+	prefillInput(text: string): Promise<void>;
+}
+
 export interface IChatWidgetService {
 
 	readonly _serviceBrand: undefined;
@@ -126,6 +141,17 @@ export interface IChatWidgetService {
 	 * Reveals the last active widget, or creates a new chat if necessary.
 	 */
 	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
+	/**
+	 * Shows the Chat view, or what replaces it ({@link chatViewHostDelegate}), and resolves to the widget of the chat it shows.
+	 */
+	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
+	/** What replaces the Chat view, if anything does: what would show the Chat view shows it instead. */
+	readonly chatViewHostDelegate: IChatViewHostDelegate | undefined;
+
+	/** Replaces the Chat view with `delegate`, until the returned disposable is disposed. */
+	setChatViewHostDelegate(delegate: IChatViewHostDelegate): IDisposable;
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;

@@ -133,7 +133,7 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
-import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
@@ -2224,6 +2224,9 @@ export class TestChatWidgetService implements IChatWidgetService {
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	async revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	chatViewHostDelegate: IChatViewHostDelegate | undefined = undefined;
+	setChatViewHostDelegate(): IDisposable { return Disposable.None; }
 	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;

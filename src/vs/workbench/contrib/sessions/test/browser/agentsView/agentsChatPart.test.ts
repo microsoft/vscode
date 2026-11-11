@@ -18,11 +18,9 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
-import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
-import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -191,8 +189,6 @@ suite('AgentsChatPartService', () => {
 		}));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
-		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({ onDidPaneCompositeOpen: Event.None }));
-		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({ onDidChangeContainerLocation: Event.None, getViewContainerById: () => null }));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		const sessionsChanged = store.add(new Emitter<never>());
