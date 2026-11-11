@@ -394,16 +394,17 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 	}
 
 	private markUpAttachment(container: HTMLElement, attachmentModel: ChatAttachmentModel, attachmentId: string, readFile: (uri: URI) => Promise<Uint8Array>): IImageCarouselMarkUp {
+		// The attachment is looked up when its markup starts, since an earlier markup in this preview replaced it.
+		const attachment = attachmentModel.attachments.find(candidate => candidate.id === attachmentId);
 		// An image that was not marked up before, such as one that was pasted, starts its markup from what is attached.
-		const screenshot = this.screenshotToolService.getEditableAttachment(attachmentId) ?? loadEditableAttachment(attachmentModel, attachmentId, readFile);
+		const screenshot = (attachment && this.screenshotToolService.getEditableAttachment(attachment)) ?? loadEditableAttachment(attachment, readFile);
 		const markUp = this.screenshotToolService.markUp(container, screenshot, ScreenshotToolSurface.Chat);
-		void markUp.result.then(edit => edit && applyScreenshotToolEdit(attachmentModel, attachmentId, edit, this.screenshotToolService));
+		void markUp.result.then(edit => edit && attachment && applyScreenshotToolEdit(attachmentModel, attachment, edit, this.screenshotToolService));
 		return toImageCarouselMarkUp(markUp);
 	}
 }
 
-async function loadEditableAttachment(attachmentModel: ChatAttachmentModel, attachmentId: string, readFile: (uri: URI) => Promise<Uint8Array>): Promise<IScreenshotToolEditable> {
-	const attachment = attachmentModel.attachments.find(candidate => candidate.id === attachmentId);
+async function loadEditableAttachment(attachment: IChatRequestVariableEntry | undefined, readFile: (uri: URI) => Promise<Uint8Array>): Promise<IScreenshotToolEditable> {
 	const [image] = attachment ? extractImagesFromChatVariables([attachment]) : [];
 	if (!image) {
 		throw new Error('The image is no longer attached.');

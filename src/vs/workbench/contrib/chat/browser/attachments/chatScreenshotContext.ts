@@ -23,13 +23,15 @@ export function convertBufferToScreenshotVariable(buffer: VSBuffer, mimeType?: s
 
 /**
  * Keeps an image attached with the changes of its markup, and remembers its annotations, which its next markup restores.
+ * The changes belong to that attachment, so they are dropped when it was removed or replaced meanwhile.
  */
-export function applyScreenshotToolEdit(attachmentModel: ChatAttachmentModel, attachmentId: string, edit: IScreenshotToolEdit, screenshotToolService: IScreenshotToolService): void {
-	const attachment = attachmentModel.attachments.find(candidate => candidate.id === attachmentId);
-	if (!attachment || !isImageVariableEntry(attachment)) {
+export function applyScreenshotToolEdit(attachmentModel: ChatAttachmentModel, attachment: IChatRequestVariableEntry, edit: IScreenshotToolEdit, screenshotToolService: IScreenshotToolService): void {
+	if (!isImageVariableEntry(attachment) || !attachmentModel.attachments.includes(attachment)) {
 		return;
 	}
-	screenshotToolService.registerEditableAttachment(attachmentId, { original: edit.original, annotationState: edit.annotationState });
 	const { data, mimeType } = getScreenshotToolImageData(edit.image);
-	attachmentModel.updateContext([], [{ ...attachment, value: data.buffer, mimeType }]);
+	// A marked up image is no longer the file it came from, so downloading or recalling it keeps the markup.
+	const marked: IChatRequestVariableEntry = { ...attachment, value: data.buffer, mimeType, references: [] };
+	attachmentModel.updateContext([], [marked]);
+	screenshotToolService.registerEditableAttachment(marked, { original: edit.original, annotationState: edit.annotationState });
 }

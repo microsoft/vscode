@@ -105,7 +105,7 @@ suite('Browser screenshot actions', () => {
 		await feature.addFullPageScreenshotToChat();
 		assert.deepStrictEqual({
 			pageCaptures,
-			attached: attached.map(entry => ({ name: entry.name, mimeType: entry.kind === 'image' ? entry.mimeType : undefined, editable: service.getEditableAttachment(entry.id)?.original.width })),
+			attached: attached.map(entry => ({ name: entry.name, mimeType: entry.kind === 'image' ? entry.mimeType : undefined, editable: service.getEditableAttachment(entry)?.original.width })),
 			tool: service.requests,
 			triggers: telemetry.triggers,
 			captures: telemetry.captures,

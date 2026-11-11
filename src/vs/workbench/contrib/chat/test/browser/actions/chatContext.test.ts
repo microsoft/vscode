@@ -186,7 +186,7 @@ suite('ChatContext', () => {
 		test('captures the window instantly without the screenshot tool', async () => {
 			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick(false);
 			const attachment = await pick.asAttachment(widget);
-			assert.deepStrictEqual({ attachment, tool: service.requests, focused: focusCount(), triggers: telemetry.triggers, captures: telemetry.captures, editable: !!attachment && !!service.getEditableAttachment(attachment.id) }, {
+			assert.deepStrictEqual({ attachment, tool: service.requests, focused: focusCount(), triggers: telemetry.triggers, captures: telemetry.captures, editable: !!attachment && !!service.getEditableAttachment(attachment) }, {
 				attachment: { id: 'screenshot-focused-window', name: 'Screenshot', value: windowScreenshot.buffer, kind: 'image' },
 				tool: [], focused: 0, triggers: ['config.workbench.screenshotTool.enabled'],
 				captures: [{ entryPoint: 'chatAddContext', outcome: 'attached', mode: 'window', usedTool: false }],
@@ -204,7 +204,7 @@ suite('ChatContext', () => {
 				attachment: attachment && { ...attachment, id: 'unique', value: [...attachment.value as Uint8Array] },
 				// Neither capture is dropped as a duplicate of the other or of a screenshot without the tool.
 				distinctIds: new Set([attachment?.id, next?.id, 'screenshot-focused-window']).size,
-				editable: attachment && service.getEditableAttachment(attachment.id),
+				editable: attachment && service.getEditableAttachment(attachment),
 				tool: service.requests, focused: focusCount(), triggers: telemetry.triggers, captures: telemetry.captures,
 			}, {
 				attachment: { id: 'unique', name: 'Screenshot', value: [137, 80, 78, 71, 13, 10], kind: 'image', mimeType: 'image/png' },

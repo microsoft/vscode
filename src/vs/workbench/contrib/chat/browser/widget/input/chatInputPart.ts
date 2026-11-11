@@ -4981,8 +4981,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
 			// Screenshots from the screenshot tool can be marked up: in the Images Preview, or else right away.
-			const screenshot = this.screenshotToolService.getEditableAttachment(attachment.id);
-			const imageOptions = screenshot ? { ...widgetOptions, edit: () => this.editScreenshotAttachment(attachment.id, screenshot) } : widgetOptions;
+			const screenshot = this.screenshotToolService.getEditableAttachment(attachment);
+			const imageOptions = screenshot ? { ...widgetOptions, edit: () => this.editScreenshotAttachment(attachment, screenshot) } : widgetOptions;
 			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, imageOptions, container, this._contextResourceLabels);
 		} else if (isElementVariableEntry(attachment)) {
 			return this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
@@ -5006,10 +5006,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Marks up a screenshot from the screenshot tool, and keeps it attached with the changes.
 	 */
-	private async editScreenshotAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): Promise<void> {
+	private async editScreenshotAttachment(attachment: IChatRequestVariableEntry, screenshot: IScreenshotToolEditable): Promise<void> {
 		const edit = await this.screenshotToolService.edit(screenshot, ScreenshotToolSurface.Chat);
 		if (edit) {
-			applyScreenshotToolEdit(this._attachmentModel, attachmentId, edit, this.screenshotToolService);
+			applyScreenshotToolEdit(this._attachmentModel, attachment, edit, this.screenshotToolService);
 		}
 	}
 

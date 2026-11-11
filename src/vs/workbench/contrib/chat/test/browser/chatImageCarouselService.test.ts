@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolSurface } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatAttachmentModel } from '../../browser/attachments/chatAttachmentModel.js';
 import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, findClickedImageIndex, ICarouselCollectionArgs, ICarouselSection } from '../../browser/chatImageCarouselService.js';
@@ -27,7 +28,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '.
 import { ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
 suite('ChatImageCarouselService helpers', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
 
@@ -592,7 +593,7 @@ suite('ChatImageCarouselService helpers', () => {
 				const pasted = makeImageVariableEntry({ id: 'pasted', name: 'pasted.png', value: png });
 				const marked = await createScreenshotToolImage(VSBuffer.wrap(png), 'image/jpeg');
 				const updates: IChatRequestVariableEntry[][] = [];
-				const registered: [string, IScreenshotToolEditable][] = [];
+				const registered: [object, IScreenshotToolEditable][] = [];
 				const markUps: { screenshot: IScreenshotToolEditable | Promise<IScreenshotToolEditable>; surface: ScreenshotToolSurface }[] = [];
 				const shouldUseTool = sinon.stub().returns(enabled);
 				const executeCommand = sinon.stub().resolves();
@@ -613,7 +614,7 @@ suite('ChatImageCarouselService helpers', () => {
 					upcastPartial<IScreenshotToolService>({
 						shouldUseTool,
 						getEditableAttachment: () => undefined,
-						registerEditableAttachment: (id, screenshot) => registered.push([id, screenshot]),
+						registerEditableAttachment: (attachment, screenshot) => registered.push([attachment, screenshot]),
 						markUp: (_container, screenshot, surface): IScreenshotToolMarkUp => {
 							markUps.push({ screenshot, surface });
 							const edit: IScreenshotToolEdit = { original: marked, annotationState: { actions: [], undoneActions: [], crop: null }, image: marked, annotated: true };
@@ -633,7 +634,8 @@ suite('ChatImageCarouselService helpers', () => {
 					markUps: markUps.map(({ surface }) => surface),
 					original: original?.original.dataUrl === `data:image/png;base64,${encodeBase64(VSBuffer.wrap(png))}`,
 					shown: shown && { mimeType: shown.mimeType, matches: shown.data.byteLength === getScreenshotToolImageData(marked).data.byteLength },
-					registered: registered.map(([id, screenshot]) => [id, screenshot.original === marked]),
+					// The markup is remembered for the attachment that it changed.
+					registered: registered.map(([attachment, screenshot]) => [attachment === updates[0]?.[0], screenshot.original === marked]),
 					updates: updates.map(entries => entries.map(entry => ({ id: entry.id, mimeType: entry.kind === 'image' ? entry.mimeType : undefined, value: entry.value instanceof Uint8Array && entry.value.byteLength === getScreenshotToolImageData(marked).data.byteLength }))),
 				}, enabled ? {
 					triggers: 1,
@@ -641,7 +643,7 @@ suite('ChatImageCarouselService helpers', () => {
 					markUps: ['chat'],
 					original: true,
 					shown: { mimeType: 'image/jpeg', matches: true },
-					registered: [['pasted', true]],
+					registered: [[true, true]],
 					updates: [[{ id: 'pasted', mimeType: 'image/jpeg', value: true }]],
 				} : {
 					triggers: 1,
@@ -654,6 +656,82 @@ suite('ChatImageCarouselService helpers', () => {
 				});
 			});
 		}
+
+		test('remembers a markup for the attachment it changed, which no longer refers to its file', async () => {
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = 4;
+			canvas.height = 3;
+			const png = getScreenshotToolImageData({ dataUrl: canvas.toDataURL('image/png'), width: 4, height: 3 }).data.buffer;
+			const marked = await createScreenshotToolImage(VSBuffer.wrap(png), 'image/jpeg');
+			const annotationState = { actions: [], undoneActions: [], crop: null };
+			const file = URI.file('/workspace/image.png');
+			const attachFile = () => makeImageVariableEntry({ id: file.toString(), name: 'image.png', value: png, references: [{ reference: file, kind: 'reference' }] });
+			// Keeps its entries, like the attachment model of a chat input.
+			const createAttachmentModel = (...initial: IChatRequestVariableEntry[]) => {
+				const attachments = new Map(initial.map(entry => [entry.id, entry]));
+				return upcastPartial<ChatAttachmentModel>({
+					get attachments() { return [...attachments.values()]; },
+					updateContext: (toDelete, upsert) => {
+						for (const id of toDelete) {
+							attachments.delete(id);
+						}
+						for (const entry of upsert) {
+							attachments.set(entry.id, entry);
+						}
+					},
+				});
+			};
+			const screenshotTool = createTestScreenshotToolService(store, true).service;
+			const restored: boolean[] = [];
+			sinon.stub(screenshotTool, 'markUp').callsFake((_container, screenshot): IScreenshotToolMarkUp => ({
+				result: Promise.resolve(screenshot).then(({ original, annotationState: previous }) => {
+					restored.push(!!previous);
+					return { original, annotationState, image: marked, annotated: true };
+				}),
+				focus: () => { },
+				finish: () => { },
+				dispose: () => { },
+			}));
+			const markUp = async (attachmentModel: ChatAttachmentModel) => {
+				const executeCommand = sinon.stub().resolves();
+				const service = new ChatImageCarouselService(
+					upcastPartial<IChatWidgetService>({
+						lastFocusedWidget: upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ getItems: () => [] }), getInput: () => '', attachmentModel }),
+					}),
+					upcastPartial<ICommandService>({ executeCommand }),
+					upcastPartial<IFileService>({ readFile: async () => { throw new Error('Attached images are in memory'); } }),
+					upcastPartial<IChatSessionsService>({}),
+					screenshotTool,
+				);
+				await service.openCarouselAtResource(file, png, { preferCurrentInput: true });
+				const [[, { collection }]] = executeCommand.args as [string, ICarouselCollectionArgs][];
+				const [image] = collection.sections.flatMap(section => section.images);
+				await image.markUp?.(mainWindow.document.createElement('div')).result;
+				return image;
+			};
+
+			// The same file attached to two chats, which is marked up in the first one.
+			const first = createAttachmentModel(attachFile());
+			const second = createAttachmentModel(attachFile());
+			await markUp(first);
+			await markUp(second);
+			const shownAfterMarkUp = await markUp(first);
+			const [markedUp] = first.attachments;
+			// Removing the file and attaching it again starts over from the file.
+			first.updateContext([file.toString()], [attachFile()]);
+			await markUp(first);
+
+			assert.deepStrictEqual({
+				restored,
+				markedUp: { references: markedUp.references, value: markedUp.value instanceof Uint8Array && markedUp.value.byteLength === getScreenshotToolImageData(marked).data.byteLength },
+				// Downloads from the Images Preview, and the input history, use the marked up image rather than the file.
+				downloadsFile: shownAfterMarkUp.uri !== undefined,
+			}, {
+				restored: [false, false, true, false],
+				markedUp: { references: [], value: true },
+				downloadsFile: false,
+			});
+		});
 
 		test('uses the originating chat and retains additional artifact images without duplicating generated images', async () => {
 			const sessionResource = URI.parse('chat-session://test/session');

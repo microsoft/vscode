@@ -141,11 +141,14 @@ export interface IScreenshotToolService {
 	 */
 	markUp(container: HTMLElement, screenshot: IScreenshotToolEditable | Promise<IScreenshotToolEditable>, surface: ScreenshotToolSurface): IScreenshotToolMarkUp;
 
-	/** Remembers a screenshot attached to chat, so that it can be edited while it is attached. */
-	registerEditableAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): void;
+	/**
+	 * Remembers a screenshot attached to chat, so that it can be edited while it is attached. It is remembered for that
+	 * attachment only, not for others with the same id, such as the same image attached elsewhere or attached again.
+	 */
+	registerEditableAttachment(attachment: object, screenshot: IScreenshotToolEditable): void;
 
-	/** Returns a screenshot attached to chat that can be edited. */
-	getEditableAttachment(attachmentId: string): IScreenshotToolEditable | undefined;
+	/** Returns a screenshot attached to chat that can be edited, see {@link registerEditableAttachment}. */
+	getEditableAttachment(attachment: object): IScreenshotToolEditable | undefined;
 
 	/** Moves focus back to the screenshot tool while it is active, or to the latest markup. */
 	focus(): void;

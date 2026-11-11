@@ -90,7 +90,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	private readonly markUps = new Set<IScreenshotToolMarkUp>();
 	/** How many captures and markups each window shows, which overlap when a markup's host lets the user capture. */
 	private readonly activeSurfaces = new Map<CodeWindow, number>();
-	private readonly editableAttachments = new LRUCache<string, IScreenshotToolEditable>(MAX_EDITABLE_ATTACHMENTS);
+	private readonly editableAttachments = new LRUCache<object, IScreenshotToolEditable>(MAX_EDITABLE_ATTACHMENTS);
 	private readonly activeContext: IContextKey<boolean>;
 
 	private readonly _onDidChangeActive = this._register(new Emitter<{ readonly targetWindow: CodeWindow; readonly active: boolean }>());
@@ -142,12 +142,12 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		});
 	}
 
-	registerEditableAttachment(attachmentId: string, screenshot: IScreenshotToolEditable): void {
-		this.editableAttachments.set(attachmentId, screenshot);
+	registerEditableAttachment(attachment: object, screenshot: IScreenshotToolEditable): void {
+		this.editableAttachments.set(attachment, screenshot);
 	}
 
-	getEditableAttachment(attachmentId: string): IScreenshotToolEditable | undefined {
-		return this.editableAttachments.get(attachmentId);
+	getEditableAttachment(attachment: object): IScreenshotToolEditable | undefined {
+		return this.editableAttachments.get(attachment);
 	}
 
 	focus(): void {

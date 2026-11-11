@@ -958,7 +958,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			const name = getScreenshotToolAttachmentName(result);
 			const { data, mimeType } = getScreenshotToolImageData(result.image);
 			const entry: IChatRequestVariableEntry = { id: `browser-screenshot-${generateUuid()}`, name, fullName: name, kind: 'image', value: data.buffer, mimeType };
-			this.screenshotToolService.registerEditableAttachment(entry.id, { original: result.image, annotationState: undefined });
+			this.screenshotToolService.registerEditableAttachment(entry, { original: result.image, annotationState: undefined });
 			if (!await this._attachToChat([entry])) {
 				return;
 			}

@@ -585,7 +585,7 @@ export class ScreenshotContextValuePick implements IChatContextValueItem {
 		this._logCapture('attached', result.mode, stopWatch, true);
 		// Each capture gets its own id, so a second screenshot is not dropped as a duplicate of the first, and can be edited on its own.
 		const entry = { ...convertBufferToScreenshotVariable(data, mimeType), id: generateUuid() };
-		this._screenshotToolService.registerEditableAttachment(entry.id, { original: result.image, annotationState: undefined });
+		this._screenshotToolService.registerEditableAttachment(entry, { original: result.image, annotationState: undefined });
 		return entry;
 	}
 
