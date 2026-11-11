@@ -88,6 +88,54 @@ suite('WorkspaceEditingService', () => {
 
 	suite('setFolderLocation', () => {
 
+		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean }) {
+			const trusted: URI[] = [];
+			const resolved: URI[] = [];
+			const switched: (URI | undefined)[] = [];
+			const folder = { uri: options.current, primaryUri: URI.file('/work/project') };
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{
+					getWorkbenchState: () => WorkbenchState.FOLDER,
+					getWorkspace: () => ({ folders: [options.current.path === '/work/project' ? { uri: options.current } : folder] }),
+					setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); }
+				},
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ extUri },
+				{
+					isWorkspaceTrusted: () => options.currentTrusted ?? options.primaryTrusted,
+					getUriTrustInfo: async () => ({ trusted: options.primaryTrusted }),
+					setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); }
+				},
+				undefined, undefined, undefined,
+				{
+					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
+					setCurrentLocation: () => { }
+				}
+			));
+			return { service, trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
+		}
+
+		test('a wrong primary is rejected without resolving, trusting or switching', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true });
+			await assert.rejects(() => fixture.service.setFolderLocation(URI.file('/work/other'), URI.file('/work/alt')));
+			assert.deepStrictEqual({ resolved: fixture.resolved(), trusted: fixture.trusted(), switched: fixture.switched() }, { resolved: 0, trusted: [], switched: [] });
+		});
+
+		test('trust is inherited from the primary, not from the current location', async () => {
+			const alt = URI.file('/work/alt');
+
+			// Trusted current alternate, untrusted primary: no inheritance
+			const untrustedPrimary = createService({ current: URI.file('/work/b'), primaryTrusted: false, currentTrusted: true });
+			await untrustedPrimary.service.setFolderLocation(URI.file('/work/project'), alt);
+
+			// Untrusted current alternate, trusted primary: inheritance
+			const trustedPrimary = createService({ current: URI.file('/work/b'), primaryTrusted: true, currentTrusted: false });
+			await trustedPrimary.service.setFolderLocation(URI.file('/work/project'), alt);
+
+			assert.deepStrictEqual({ untrustedPrimary: untrustedPrimary.trusted(), trustedPrimary: trustedPrimary.trusted() }, { untrustedPrimary: [], trustedPrimary: [alt.toString()] });
+		});
+
 		test('the last invocation wins regardless of resolution order', async () => {
 			const primary = URI.file('/work/project');
 			const first = URI.file('/work/first');
@@ -98,10 +146,10 @@ suite('WorkspaceEditingService', () => {
 
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); } },
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }] }), setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); } },
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
-				{ isWorkspaceTrusted: () => true, setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
 				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setCurrentLocation: () => { } }
 			));

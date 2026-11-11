@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -53,7 +54,8 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		const results = await Promise.all([...this.providers].map(async ({ provider }) => {
 			try {
 				return await provider.provideLocations(primary, token);
-			} catch {
+			} catch (error) {
+				onUnexpectedError(error);
 				return [];
 			}
 		}));
@@ -76,8 +78,9 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 				if (resolved) {
 					return { ...resolved, providerId: provider.id, builtIn };
 				}
-			} catch {
+			} catch (error) {
 				// a failing provider must not hide the others
+				onUnexpectedError(error);
 			}
 		}
 		return undefined;
