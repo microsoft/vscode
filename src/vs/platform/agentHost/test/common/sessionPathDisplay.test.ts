@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
+import { posix } from '../../../../base/common/path.js';
+import { ExtUri, extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getSessionPathDisplay, type ISessionPathRoot } from '../../common/sessionPathDisplay.js';
@@ -73,14 +74,31 @@ suite('Session path display', () => {
 
 	test('uses explicit path-case semantics and preserves Windows spelling', () => {
 		const fullPath = 'C:\\Users\\Example\\.copilot\\session-state\\MAIN\\files\\report.txt';
-		const resource = URI.file(fullPath);
-		const windowsRoots = [{ root: URI.file('C:\\Users\\Example\\.copilot\\session-state\\main'), session: current }];
+		const resource = URI.file('C:/Users/Example/.copilot/session-state/MAIN/files/report.txt');
+		const windowsRoots = [{ root: URI.file('C:/Users/Example/.copilot/session-state/main'), session: current }];
 		assert.deepStrictEqual([
 			getSessionPathDisplay(fullPath, resource, current, windowsRoots, extUriIgnorePathCase),
 			getSessionPathDisplay(fullPath, resource, current, windowsRoots, extUri),
 		], [
 			{ label: 'This session / files/report.txt', fullPath, session: current, isCurrentSession: true, relativePath: 'files/report.txt' },
 			{ label: fullPath, fullPath },
+		]);
+	});
+
+	test('derives storage-relative suffixes after case-insensitive POSIX file matching', () => {
+		const posixExtUri = new ExtUri(() => true);
+		// Model macOS file-URI relative-path math independently of the test runner's OS.
+		posixExtUri.relativePath = (from, to) => posix.relative(from.path, to.path);
+		const root = URI.file('/custom/copilot/session-state/sdk');
+		const cases = [
+			{ root, path: '/custom/copilot/session-state/SDK' },
+			{ root: root.with({ path: `${root.path}/` }), path: '/custom/copilot/session-state/SDK/files/Report.txt' },
+			{ root, path: '/custom/copilot/session-state/SDK/files/../Report.txt' },
+		];
+		assert.deepStrictEqual(cases.map(({ root, path }) => getSessionPathDisplay(path, URI.file(path), current, [{ root, session: current }], posixExtUri).label), [
+			'This session',
+			'This session / files/Report.txt',
+			'This session / Report.txt',
 		]);
 	});
 

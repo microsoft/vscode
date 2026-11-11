@@ -8673,10 +8673,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _getSessionPathDisplay(path: string): ISessionPathDisplay {
-		return getSessionPathDisplay(path, copilotSdkPathToUri(this._pathMapper, path), this._ownerSessionUri, [
-			...this._getSessionPathRoots(),
-			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: this._ownerSessionUri },
+		const resource = copilotSdkPathToUri(this._pathMapper, path);
+		const ownerSession = this._ownerSessionUri;
+		// The live chat's own storage root is authoritative; only consult other chats on a miss.
+		const currentChatDisplay = getSessionPathDisplay(path, resource, ownerSession, [
+			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: ownerSession },
 		], extUriBiasedIgnorePathCase);
+		if (currentChatDisplay.isCurrentSession) {
+			return currentChatDisplay;
+		}
+		return getSessionPathDisplay(path, resource, ownerSession, this._getSessionPathRoots(), extUriBiasedIgnorePathCase);
 	}
 
 	/**

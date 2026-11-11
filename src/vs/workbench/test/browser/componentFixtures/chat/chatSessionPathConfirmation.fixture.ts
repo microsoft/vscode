@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toSlashes } from '../../../../../base/common/extpath.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPathDisplay } from '../../../../../platform/agentHost/common/sessionPathDisplay.js';
@@ -28,8 +29,8 @@ async function renderConfirmation(context: ComponentFixtureContext, scenario: Sc
 	const sdkId = scenario === 'sibling' ? 'peer-chat-sdk' : isOther ? 'moved-chat-sdk' : 'current-chat-sdk';
 	const rootPath = `C:\\Users\\example\\.copilot\\session-state\\${sdkId}`;
 	const path = `${rootPath}\\files\\notes.txt`;
-	const root = URI.file(rootPath);
-	const display = getSessionPathDisplay(path, URI.file(path), current, scenario === 'unknown' ? [] : [
+	const root = URI.file(toSlashes(rootPath));
+	const display = getSessionPathDisplay(path, URI.joinPath(root, 'files', 'notes.txt'), current, scenario === 'unknown' ? [] : [
 		{ root, session: isOther ? destination : source, title: 'Review authentication' },
 	], extUri);
 	const invocation = toolCallStateToInvocation({

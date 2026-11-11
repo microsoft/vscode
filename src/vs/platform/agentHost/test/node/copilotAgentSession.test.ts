@@ -14517,8 +14517,9 @@ suite('CopilotAgentSession', () => {
 		test('sandbox session path display maps virtual paths without rewriting the grant target', async () => {
 			const home = URI.file('/custom-copilot-home');
 			const workingDirectory = URI.parse('vscode-vfs://github/example/project');
+			const getSessionPathRoots = spy(() => []);
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
-				copilotHome: home.fsPath, workingDirectory,
+				copilotHome: home.fsPath, workingDirectory, getSessionPathRoots,
 				pathMapper: createCopilotSessionPathMapper({ kind: 'virtual', root: workingDirectory }, URI.joinPath(home, 'session-state', 'test-session-1')),
 			});
 			const grant = { path: '/session-state/files/notes.txt', access: 'read' as const };
@@ -14530,12 +14531,61 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				message: typeof signal.state.invocationMessage === 'object' ? signal.state.invocationMessage.markdown.split('\n\n')[0] : signal.state.invocationMessage,
 				grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
+				rootLookups: getSessionPathRoots.callCount,
 			}, {
 				message: 'Allow read access to `files/notes.txt` in this session\'s storage.',
 				grant,
+				rootLookups: 0,
 			});
 			session.respondToPermissionRequest('virtual-grant', false);
 			await pending;
+		});
+
+		test('sandbox session path display checks the current chat before looking up other roots', async () => {
+			const source = URI.parse('copilot:/source');
+			const destination = URI.parse('copilot:/destination');
+			const other = URI.parse('copilot:/other');
+			const owner = disposables.add(new TestChatOwnerRef(source));
+			const home = URI.file('/custom-copilot-home');
+			const currentRoot = URI.joinPath(home, 'session-state', 'test-session-1');
+			const otherRoot = URI.joinPath(home, 'session-state', 'test-session-1-other');
+			const conflictingRoot = URI.joinPath(home, 'session-state', 'conflicting-sdk');
+			const getSessionPathRoots = spy(() => [
+				{ root: currentRoot, session: other, title: 'Other' },
+				{ root: otherRoot, session: other, title: 'Other' },
+				{ root: conflictingRoot, session: source, title: 'Source' },
+				{ root: conflictingRoot, session: other, title: 'Other' },
+			]);
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				copilotHome: home.fsPath, sessionUri: source, owner, getSessionPathRoots,
+			});
+			const cases = [
+				{ path: currentRoot.fsPath, owner: source, message: 'Allow read access to this session\'s storage.', rootLookups: 0 },
+				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow read access to `notes.txt` in this session\'s storage.', rootLookups: 0 },
+				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow read access to `Session "Other" / notes.txt` and retry inside the sandbox.', rootLookups: 1 },
+				{ path: conflictingRoot.fsPath, owner: destination, message: `Allow read access to \`${conflictingRoot.fsPath}\` and retry inside the sandbox.`, rootLookups: 2 },
+			];
+			const snapshots = [];
+			for (const [index, testCase] of cases.entries()) {
+				owner.set(testCase.owner);
+				const toolCallId = `current-chat-first-${index}`;
+				const grant = { path: testCase.path, access: 'read' as const };
+				const request = { kind: 'shell' as const, command: 'cat notes.txt', toolCallId, requestSandboxBypass: true, sandboxPathGrant: grant };
+				const pending = runtime.handlePermissionRequest(request);
+				mockSession.fire('permission.requested', { requestId: toolCallId, permissionRequest: toPermissionRequest(request) });
+				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId);
+				assert.ok(signal.kind === 'pending_confirmation');
+				snapshots.push({
+					message: typeof signal.state.invocationMessage === 'object' ? signal.state.invocationMessage.markdown.split('\n\n')[0] : signal.state.invocationMessage,
+					grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
+					rootLookups: getSessionPathRoots.callCount,
+				});
+				session.respondToPermissionRequest(toolCallId, false);
+				await pending;
+			}
+			assert.deepStrictEqual(snapshots, cases.map(({ path, message, rootLookups }) => ({
+				message, grant: { path, access: 'read' }, rootLookups,
+			})));
 		});
 
 		test('sandbox session path labels follow peer ownership and requester moves without changing grants', async () => {

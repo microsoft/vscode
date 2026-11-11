@@ -45,10 +45,8 @@ export function getSessionPathDisplay(fullPath: string, resource: URI, currentSe
 	if (!isCurrentSession && !match.title?.trim()) {
 		return fallback;
 	}
-	const relativePath = extUri.relativePath(extUri.normalizePath(match.root), normalized);
-	if (relativePath === undefined) {
-		return fallback;
-	}
+	// Use the validated prefix rather than case-sensitive POSIX relative-path math.
+	const relativePath = normalized.path.slice(extUri.normalizePath(match.root).path.length).replace(/^\//, '');
 	const sessionLabel = isCurrentSession
 		? localize('sessionPath.thisSession', "This session")
 		: localize('sessionPath.namedSession', "Session \"{0}\"", match.title);
