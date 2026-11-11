@@ -296,13 +296,15 @@ suite('ChatResponseAccessibleView', () => {
 		const playbook = { kind: 'autoModeResolution' as const, router: 'Workday', playbook: 'bug-fix', resolved: { id: 'opus', name: 'Claude Opus 5.5' } };
 		const item = upcastPartial<IChatResponseViewModel>({
 			isComplete: true,
-			response: upcastPartial<IResponse>({ value: [{ ...playbook, effort: 'medium' }, { ...playbook, defaulted: true }, { ...playbook, kept: true }] }),
+			response: upcastPartial<IResponse>({ value: [{ ...playbook, effort: 'medium' }, { ...playbook, defaulted: true }, { ...playbook, kept: true }, { ...playbook, switchedFrom: 'GPT-5.5' }] }),
 		});
 
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true).map(part => part.text), [
 			'Workday picked its bug-fix playbook on Claude Opus 5.5 \u00b7 Medium effort',
 			'Workday used its bug-fix playbook on Claude Opus 5.5, its fallback',
 			'Workday stayed on its bug-fix playbook on Claude Opus 5.5',
+			// A chat that moved to the router from another model has only this line to name the playbook.
+			'Workday switched from GPT-5.5 to its bug-fix playbook on Claude Opus 5.5',
 		]);
 	});
 

@@ -9,7 +9,7 @@ import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/ag
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
-import { ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
+import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
 
@@ -208,7 +208,7 @@ export class CopilotModelRouter {
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
 		const current = last?.router === router.name ? routes.find(route => routeKey(route) === (last.playbook ?? last.model)) : undefined;
 		return current
-			? this._routeFollowUp(context, current, last?.effort)
+			? this._routeFollowUp(context, current, keptEffort(current, last?.effort))
 			: this._routeFresh(context, last?.model);
 	}
 
@@ -338,6 +338,18 @@ const PREFERENCE_CHARS = 300;
 /** What a routing decision answers with, and what a chat's turns remember a pick by: the playbook's name, or a plain route's model. */
 function routeKey(route: IResolvedModelRoute): string {
 	return route.route.name ?? route.model.id;
+}
+
+/**
+ * The effort a chat keeps on its route. A playbook is kept by name, so its model can be another
+ * one than the effort was chosen for: its `main` was edited, or a model stopped being available.
+ * The chat then gets the closest level that model has.
+ */
+function keptEffort(route: IResolvedModelRoute, effort: string | undefined): string | undefined {
+	if (effort === undefined || route.supportedEfforts.some(level => level === effort)) {
+		return effort;
+	}
+	return isReasoningEffortLevel(effort) ? closestEffort(route.supportedEfforts, reasoningEffortRank(effort)) : undefined;
 }
 
 function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {

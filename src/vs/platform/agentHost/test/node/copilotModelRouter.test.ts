@@ -221,4 +221,21 @@ suite('CopilotModelRouter', () => {
 			picks: 1,
 		});
 	});
+
+	test('a kept playbook whose model has changed keeps an effort that model has', async () => {
+		const content = 'version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Building.\n    main: [big, haiku]\n';
+		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+		// The chat's first turn ran on `big` at an effort only that model has.
+		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'big', playbook: 'feature', effort: 'xhigh' })];
+		const selectionWith = async (available: IAgentModelInfo[]) => (await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'go on', models: available, previousTurns, picker: undefined })).selection;
+		assert.deepStrictEqual({
+			sameModel: await selectionWith([model('big', ['low', 'high', 'xhigh']), ...models]),
+			otherModel: await selectionWith(models),
+			modelWithoutEfforts: await selectionWith([model('haiku')]),
+		}, {
+			sameModel: { id: 'big', config: { [ReasoningEffortConfigKey]: 'xhigh' } },
+			otherModel: { id: 'haiku', config: { [ReasoningEffortConfigKey]: 'high' } },
+			modelWithoutEfforts: { id: 'haiku' },
+		});
+	});
 });
