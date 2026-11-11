@@ -30,7 +30,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -709,6 +710,29 @@ class FakeRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 		this.connectionsEmitter.dispose();
 		this.configuredEntriesEmitter.dispose();
 	}
+}
+
+function tunnelEntry(name: string, tunnelId: string): IRemoteAgentHostEntry {
+	return {
+		name,
+		connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId, clusterId: 'test' },
+	};
+}
+
+function githubEnvironmentEntry(name: string, environmentId: string): IRemoteAgentHostEntry {
+	return {
+		name,
+		connection: {
+			type: RemoteAgentHostEntryType.CloudSandbox,
+			address: `cloudsandbox:${environmentId}`,
+			environmentId,
+			environmentKind: 'user-local',
+		},
+	};
+}
+
+function providerId(entry: IRemoteAgentHostEntry): string {
+	return `agenthost-${agentHostAuthority(getEntryAddress(entry))}`;
 }
 
 suite('AutomationsCardsWidget', () => {
@@ -2875,16 +2899,10 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('renders an initially unavailable disconnected remote without reading uninitialized state', () => {
-		const entry: IRemoteAgentHostEntry = {
-			name: 'Remote host',
-			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: '127.0.0.1:65531',
-			},
-		};
+		const entry = tunnelEntry('Remote host', 'remote');
 		const { widget } = setup('archive', NullHoverService, undefined, undefined, {
 			catalogueState: 'unavailable',
-			unavailableProviders: [{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }],
+			unavailableProviders: [{ id: providerId(entry), label: entry.name, unavailableReasonCode: 'disconnected' }],
 			configuredEntries: [entry],
 		});
 
@@ -2906,12 +2924,10 @@ suite('AutomationsCardsWidget', () => {
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
-		remoteAgentHostService.setConfiguredEntries([{
-			name: 'Remote host',
-			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
-		}]);
+		const entry = tunnelEntry('Remote host', 'remote');
+		remoteAgentHostService.setConfiguredEntries([entry]);
 		automationService.setAutomations([automation()]);
-		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
+		automationService.setUnavailableProviders([{ id: providerId(entry), label: entry.name, unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 		const message = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')!;
 		const disconnectedDisplay = message.style.display;
@@ -2944,15 +2960,17 @@ suite('AutomationsCardsWidget', () => {
 			for (const setting of settings) {
 				await setSetting(setting, true);
 			}
-			remoteAgentHostService.setConfiguredEntries([
-				{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' } },
-				{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65532' } },
-			]);
+			const entries = [
+				tunnelEntry('Host 1', 'host-1'),
+				tunnelEntry('Host 2', 'host-2'),
+			];
+			remoteAgentHostService.setConfiguredEntries(entries);
 			automationService.setAutomations(hasSavedAutomations ? [automation()] : []);
-			automationService.setUnavailableProviders([
-				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
-				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'disconnected' },
-			]);
+			automationService.setUnavailableProviders(entries.map(entry => ({
+				id: providerId(entry),
+				label: entry.name,
+				unavailableReasonCode: 'disconnected' as const,
+			})));
 			automationService.setCatalogueState('unavailable');
 			const selector = hasSavedAutomations ? '.automations-cards-partial-state' : '.automations-cards-unavailable';
 			const container = widget.element.querySelector<HTMLElement>(`${selector} .automations-manage-remotes`)!;
@@ -2972,7 +2990,7 @@ suite('AutomationsCardsWidget', () => {
 			dispatchKeydown(link, { key: 'Enter', keyCode: 13 });
 			dispatchKeydown(link, { key: ' ', keyCode: 32 });
 			await Promise.resolve();
-			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'disconnected' }]);
 			const singleRemote = container.style.display;
 			const disabledSettings = [];
 			for (const setting of settings) {
@@ -2981,9 +2999,9 @@ suite('AutomationsCardsWidget', () => {
 				await setSetting(setting, true);
 			}
 			const restored = container.style.display;
-			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'unsupported' }]);
+			automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'unsupported' }]);
 			const unsupported = { control: container.style.display, warning: description.textContent, warningDisplay: description.style.display };
-			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'disconnected' }]);
 			automationService.setCatalogueState('ready');
 			assert.deepStrictEqual({
 				initial, singleRemote, disabledSettings, restored, unsupported, ready: container.style.display,
@@ -3055,12 +3073,10 @@ suite('AutomationsCardsWidget', () => {
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
-		remoteAgentHostService.setConfiguredEntries([{
-			name: 'Remote host',
-			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
-		}]);
+		const remote = tunnelEntry('Remote host', 'remote');
+		remoteAgentHostService.setConfiguredEntries([remote]);
 		automationService.setUnavailableProviders([
-			{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' },
+			{ id: providerId(remote), label: remote.name, unavailableReasonCode: 'disconnected' },
 			{ id: 'local-agent-host', label: 'This Computer', unavailableReasonCode: 'disconnected' },
 		]);
 		automationService.setCatalogueState('unavailable');
@@ -3086,6 +3102,37 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('ignores disconnected GitHub Environments and excludes them from the remote count', async () => {
+		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		const tunnel = tunnelEntry('benbox3', 'benbox3');
+		const environment = githubEnvironmentEntry('CPC-bevil', 'environment');
+		remoteAgentHostService.setConfiguredEntries([tunnel, environment]);
+		remoteAgentHostService.setConnections([{
+			name: tunnel.name,
+			address: getEntryAddress(tunnel),
+			status: RemoteAgentHostConnectionStatus.connected,
+		}]);
+		automationService.setUnavailableProviders([{
+			id: providerId(environment),
+			label: environment.name,
+			unavailableReasonCode: 'disconnected',
+		}]);
+		automationService.setCatalogueState('unavailable');
+
+		assert.deepStrictEqual({
+			controlDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes')?.style.display,
+			count: widget.element.querySelector('.automations-cards-unavailable .automations-manage-remotes-count')?.textContent,
+			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')?.style.display,
+		}, {
+			controlDisplay: 'none',
+			count: '1/1 remotes detected',
+			warningDisplay: 'none',
+		});
+	});
+
 	test('updates Manage Remotes detected count for connection and configured-entry changes', async () => {
 		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
 		const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
@@ -3099,20 +3146,15 @@ suite('AutomationsCardsWidget', () => {
 			affectsConfiguration: key => settings.includes(key),
 		});
 
-		const entries = Array.from({ length: 5 }, (_, index): IRemoteAgentHostEntry => ({
-			name: `Host ${index + 1}`,
-			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: `127.0.0.1:${65531 + index}`,
-			},
-		}));
+		const entries = Array.from({ length: 5 }, (_, index) => tunnelEntry(`Host ${index + 1}`, `host-${index + 1}`));
+		const githubEnvironment = githubEnvironmentEntry('GitHub Environment', 'environment');
 		const connection = (index: number, status: RemoteAgentHostConnectionStatus): IRemoteAgentHostConnectionInfo => ({
 			name: entries[index].name,
-			address: `127.0.0.1:${65531 + index}`,
+			address: getEntryAddress(entries[index]),
 			status,
 		});
 
-		remoteAgentHostService.setConfiguredEntries(entries);
+		remoteAgentHostService.setConfiguredEntries([...entries, githubEnvironment]);
 		remoteAgentHostService.setConnections([
 			connection(0, RemoteAgentHostConnectionStatus.connected),
 			connection(1, RemoteAgentHostConnectionStatus.connected),
@@ -3120,7 +3162,7 @@ suite('AutomationsCardsWidget', () => {
 			connection(3, RemoteAgentHostConnectionStatus.reconnecting),
 			connection(4, RemoteAgentHostConnectionStatus.disconnected),
 		]);
-		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 
 		const count = widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes-count');
@@ -3143,13 +3185,7 @@ suite('AutomationsCardsWidget', () => {
 		remoteAgentHostService.setConfiguredEntries(entries.slice(0, 4));
 		snapshot();
 
-		remoteAgentHostService.setConfiguredEntries([...entries.slice(0, 4), {
-			name: 'Host 6',
-			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: '127.0.0.1:65536',
-			},
-		}]);
+		remoteAgentHostService.setConfiguredEntries([...entries.slice(0, 4), tunnelEntry('Host 6', 'host-6'), githubEnvironment]);
 		snapshot();
 
 		assert.deepStrictEqual(snapshots, [
@@ -3165,11 +3201,9 @@ suite('AutomationsCardsWidget', () => {
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
-		remoteAgentHostService.setConfiguredEntries([{
-			name: 'Host 1',
-			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
-		}]);
-		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		const entry = tunnelEntry('Host 1', 'host-1');
+		remoteAgentHostService.setConfiguredEntries([entry]);
+		automationService.setUnavailableProviders([{ id: providerId(entry), label: entry.name, unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 		const failure = new Error('Remote Environments could not be opened');
 		const stubbedCommand = stub(commandService, 'executeCommand').rejects(failure);

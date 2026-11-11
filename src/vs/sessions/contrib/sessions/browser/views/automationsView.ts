@@ -30,7 +30,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -395,6 +395,7 @@ class AutomationCardsSection extends Disposable {
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private manageRemotesVisible = false;
 	private managedDisconnectedProviderIds = new Set<string>();
+	private ignoredGitHubEnvironmentProviderIds = new Set<string>();
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
 
@@ -1199,14 +1200,18 @@ class AutomationCardsSection extends Disposable {
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
 			const configuredEntries = this.remoteAgentHostService.configuredEntries;
-			const remoteProviderIds = new Set(configuredEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
-			const remoteProviderLabels = new Set([
-				...configuredEntries.map(entry => entry.name),
-				...this.remoteAgentHostService.connections.map(connection => connection.name),
-			]);
+			const tunnelEntries = configuredEntries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.Tunnel);
+			const tunnelProviderIds = new Set(tunnelEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
+			const githubEnvironmentProviderIds = new Set(configuredEntries
+				.filter(entry => entry.connection.type === RemoteAgentHostEntryType.CloudSandbox && entry.connection.environmentKind === 'user-local')
+				.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
 			const managedDisconnectedProviderIds = new Set(unavailableProviders
 				.filter(provider => provider.unavailableReasonCode === 'disconnected'
-					&& (remoteProviderIds.has(provider.id) || remoteProviderLabels.has(provider.label)))
+					&& tunnelProviderIds.has(provider.id))
+				.map(provider => provider.id));
+			const ignoredGitHubEnvironmentProviderIds = new Set(unavailableProviders
+				.filter(provider => provider.unavailableReasonCode === 'disconnected'
+					&& githubEnvironmentProviderIds.has(provider.id))
 				.map(provider => provider.id));
 			const visible = catalogueState === 'unavailable'
 				&& managedDisconnectedProviderIds.size > 0
@@ -1216,10 +1221,10 @@ class AutomationCardsSection extends Disposable {
 			const connectedAddresses = new Set(this.remoteAgentHostService.connections
 				.filter(connection => RemoteAgentHostConnectionStatus.isConnected(connection.status))
 				.map(connection => normalizeRemoteAgentHostAddress(connection.address)));
-			const connectedCount = configuredEntries.filter(entry =>
+			const connectedCount = tunnelEntries.filter(entry =>
 				connectedAddresses.has(normalizeRemoteAgentHostAddress(getEntryAddress(entry)))
 			).length;
-			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, configuredEntries.length);
+			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, tunnelEntries.length);
 			count.textContent = countLabel;
 			link.setAttribute('aria-label', localize('automationsManageRemotesWithCount', "{0}, Manage Remotes", countLabel));
 			if (!visible && container.contains(DOM.getActiveElement())) {
@@ -1228,9 +1233,12 @@ class AutomationCardsSection extends Disposable {
 			container.style.display = visible ? '' : 'none';
 			const managedProvidersChanged = managedDisconnectedProviderIds.size !== this.managedDisconnectedProviderIds.size
 				|| [...managedDisconnectedProviderIds].some(id => !this.managedDisconnectedProviderIds.has(id));
-			if (this.manageRemotesVisible !== visible || managedProvidersChanged) {
+			const ignoredProvidersChanged = ignoredGitHubEnvironmentProviderIds.size !== this.ignoredGitHubEnvironmentProviderIds.size
+				|| [...ignoredGitHubEnvironmentProviderIds].some(id => !this.ignoredGitHubEnvironmentProviderIds.has(id));
+			if (this.manageRemotesVisible !== visible || managedProvidersChanged || ignoredProvidersChanged) {
 				this.manageRemotesVisible = visible;
 				this.managedDisconnectedProviderIds = managedDisconnectedProviderIds;
+				this.ignoredGitHubEnvironmentProviderIds = ignoredGitHubEnvironmentProviderIds;
 				if (catalogueState === 'unavailable') {
 					this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
 					this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
@@ -1291,17 +1299,17 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
-		const visibleProviders = this.manageRemotesVisible
-			? unavailableProviders.filter(provider => !this.managedDisconnectedProviderIds.has(provider.id))
-			: unavailableProviders;
+		const visibleProviders = unavailableProviders.filter(provider =>
+			!this.ignoredGitHubEnvironmentProviderIds.has(provider.id)
+			&& (!this.manageRemotesVisible || !this.managedDisconnectedProviderIds.has(provider.id)));
 		const reasons = getUnavailableAutomationsReasons(visibleProviders);
-		const replacedAllReasons = this.manageRemotesVisible && unavailableProviders.length > 0 && visibleProviders.length === 0;
-		container.style.display = replacedAllReasons ? 'none' : '';
+		const suppressedAllReasons = unavailableProviders.length > 0 && visibleProviders.length === 0;
+		container.style.display = suppressedAllReasons ? 'none' : '';
 		if (reasons.length === 1) {
 			container.textContent = reasons[0];
 		} else if (reasons.length > 1) {
 			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
-		} else if (!replacedAllReasons) {
+		} else if (!suppressedAllReasons) {
 			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");
 		} else {
 			DOM.clearNode(container);
