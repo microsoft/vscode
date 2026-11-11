@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -86,6 +87,16 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override getSession(resource: URI): ISession | undefined {
 		return this.sessions.find(session => session.resource.toString() === resource.toString());
+	}
+
+	override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this.sessions) {
+			const chat = [...session.chats.get(), session.mainChat.get()].find(chat => isEqual(chat.resource, resource));
+			if (chat) {
+				return { session, chat };
+			}
+		}
+		return undefined;
 	}
 
 	override async markRead(session: ISession): Promise<void> {
@@ -522,6 +533,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly chatModels = constObservable([]);
+		override readonly onDidAcceptRequest = Event.None;
+		override readonly onDidPerformUserAction = Event.None;
 	});
 	if (options.cappedGroupIds?.length) {
 		const state = Object.fromEntries(options.cappedGroupIds.map(groupId => [`group:${groupId}`, false]));

@@ -175,11 +175,12 @@ suite('SessionsListModelService', () => {
 		]);
 	}));
 
-	test('historical unread completions react to modification and read changes across reload', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+	test('historical unread completions remain in Inbox after reading and reload until dismissed', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const isRead = observableValue('historicalRead', false);
 		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
 		const session = { ...createSession('historical'), isRead, updatedAt };
 		sessions.push(session);
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
 		attention.set(new Map([[session.sessionId, {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
 		}]]), undefined);
@@ -187,12 +188,15 @@ suite('SessionsListModelService', () => {
 		const observer = disposables.add(autorun(reader => states.push(service.getInboxState(session, reader)?.kind)));
 		updatedAt.set(new Date(2026, 0, 1, 11), undefined);
 		isRead.set(true, undefined);
-		isRead.set(false, undefined);
 		observer.dispose();
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		assert.deepStrictEqual({ states, restored: service.getInboxState(session)?.kind }, {
-			states: ['done', undefined, 'done', undefined], restored: undefined,
+		const restored = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ states, restored, dismissed: service.getInboxState(session)?.kind }, {
+			states: ['done', undefined], restored: undefined, dismissed: 'done',
 		});
 	}));
 
@@ -215,6 +219,101 @@ suite('SessionsListModelService', () => {
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 		assert.deepStrictEqual({ dismissed, undone, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
 			dismissed: 'done', undone: undefined, restored: ['done', 'hold', 'snoozed', 'untilActivity'],
+		});
+	});
+
+	test('Inbox admission survives reading and notification resolution without overwriting explicit triage', () => {
+		const isRead = observableValue('notificationRead', false);
+		sessions = ['admitted', 'acknowledged', 'held'].map(id => ({
+			...createSession(id, SessionStatus.Completed, { updatedAt: new Date(2025, 0, 1) }), isRead,
+		}));
+		sessionsChangedEmitter.fire({ added: sessions, removed: [], changed: [] });
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['review'], isHistoricalCompletion: false,
+		}])), undefined);
+		const visible = sessions.map(session => service.getInboxState(session)?.kind);
+		service.setInboxState([sessions[1]], 'done');
+		service.setInboxState([sessions[2]], 'hold');
+		isRead.set(true, undefined);
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		const resolved = sessions.map(session => service.getInboxState(session)?.kind);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ visible, resolved, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			visible: [undefined, undefined, undefined], resolved: [undefined, 'done', 'hold'], restored: [undefined, 'done', 'hold'],
+		});
+	});
+
+	test('Inbox admission survives reading while a historical completion is still loading', () => {
+		const isRead = observableValue('loadingRead', false);
+		const loading = observableValue('loading', true);
+		const session = { ...createSession('loading'), isRead, loading };
+		sessions = [session];
+		sessionsChangedEmitter.fire({ added: sessions, removed: [], changed: [] });
+		attention.set(new Map([[session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}]]), undefined);
+		const visible = service.getInboxState(session)?.kind;
+		isRead.set(true, undefined);
+		const readWhileLoading = service.getInboxState(session)?.kind;
+		loading.set(false, undefined);
+		const loaded = service.getInboxState(session)?.kind;
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ visible, readWhileLoading, loaded, restored: service.getInboxState(session)?.kind }, {
+			visible: undefined, readWhileLoading: undefined, loaded: undefined, restored: undefined,
+		});
+	});
+
+	for (const onStartup of [false, true]) {
+		test(`migrates admitted Inbox history to its new identity ${onStartup ? 'on startup' : 'on catalog update'}`, () => {
+			const isRead = observableValue('identityRead', false);
+			const previous = { ...createSession('previous'), isRead };
+			sessions = [previous];
+			sessionsChangedEmitter.fire({ added: sessions, removed: [], changed: [] });
+			const historical = { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true };
+			attention.set(new Map([[previous.sessionId, historical]]), undefined);
+			isRead.set(true, undefined);
+			const current: ISession = { ...previous, sessionId: 'task', resource: URI.parse('session://task'), previousIdentities: [previous] };
+			if (onStartup) {
+				service.dispose();
+			}
+			sessions = [current];
+			attention.set(new Map([[current.sessionId, historical]]), undefined);
+			if (onStartup) {
+				service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			} else {
+				sessionsChangedEmitter.fire({ added: [current], removed: [previous], changed: [] });
+			}
+			const migrated = service.getInboxState(current)?.kind;
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			assert.deepStrictEqual({
+				migrated, restored: service.getInboxState(current)?.kind,
+				stored: JSON.parse(storageService.get('sessionsListControl.inboxState', StorageScope.PROFILE)!),
+			}, { migrated: undefined, restored: undefined, stored: [['task', { kind: 'resumed' }]] });
+		});
+	}
+
+	test('migrates Inbox triage before automatic admission and preserves destination decisions', () => {
+		const previous = ['held', 'admitted'].map(id => createSession(id));
+		service.setInboxState([previous[0]], 'hold');
+		service.setInboxState([previous[1]], undefined);
+		sessions = previous.map(session => ({
+			...session, sessionId: `${session.sessionId}-task`, isRead: constObservable(false), previousIdentities: [session],
+		}));
+		service.setInboxState([sessions[1]], 'done');
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		sessionsChangedEmitter.fire({ added: sessions, removed: previous, changed: [] });
+		const migrated = sessions.map(session => service.getInboxState(session)?.kind);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ migrated, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			migrated: ['hold', 'done'], restored: ['hold', 'done'],
 		});
 	});
 
