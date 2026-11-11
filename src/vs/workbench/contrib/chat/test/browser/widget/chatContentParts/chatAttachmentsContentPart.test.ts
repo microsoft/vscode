@@ -9,6 +9,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -729,6 +730,71 @@ suite('ChatAttachmentsContentPart', () => {
 				markUpButton: { icon: true, tabIndex: -1 },
 			});
 		});
+
+		for (const hydrated of [false, true]) {
+			test(`should show the thumbnail at once when an image is rendered again (hydrated=${hydrated})`, async () => {
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = canvas.height = 16;
+				const bytes = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				const resource = URI.file(`/test/rendered-again-${hydrated}.png`);
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						return { ...await super.readFile(resource), value: bytes };
+					}
+				}()));
+				const image: IChatRequestVariableEntry = {
+					kind: 'image',
+					id: resource.toString(),
+					name: 'image.png',
+					value: hydrated ? resource : bytes.buffer,
+					mimeType: 'image/png',
+					isURL: hydrated,
+					references: [{ kind: 'reference', reference: resource }]
+				};
+				const render = () => {
+					const part = disposables.add(instantiationService.createInstance(ChatAttachmentsContentPart, { variables: [image], sessionResource: undefined }));
+					mainWindow.document.body.appendChild(part.domNode!);
+					disposables.add(toDisposable(() => part.domNode?.remove()));
+					return part;
+				};
+				const thumbnail = (part: ChatAttachmentsContentPart) => part.domNode!.querySelector<HTMLImageElement>('img.chat-attached-context-pill-image');
+				const waitForThumbnail = async (part: ChatAttachmentsContentPart) => {
+					const image = thumbnail(part) ?? await new Promise<HTMLImageElement>(resolve => {
+						const observer = new MutationObserver(() => {
+							const image = thumbnail(part);
+							if (image) {
+								observer.disconnect();
+								resolve(image);
+							}
+						});
+						observer.observe(part.domNode!, { childList: true, subtree: true });
+						disposables.add(toDisposable(() => observer.disconnect()));
+					});
+					await image.decode();
+					return image;
+				};
+
+				const first = render();
+				const url = (await waitForThumbnail(first)).src;
+				// A row that is rendered again disposes its attachments before creating them anew.
+				first.dispose();
+				const second = render();
+				const atOnce = thumbnail(second)?.src;
+				// Let the bytes of the hydrated image load, which renders it once more.
+				await timeout(0);
+				const afterBytesLoaded = thumbnail(second)?.src;
+
+				assert.deepStrictEqual({
+					atOnce: atOnce === url,
+					afterBytesLoaded: afterBytesLoaded === url,
+					width: (await waitForThumbnail(second)).naturalWidth,
+				}, {
+					atOnce: true,
+					afterBytesLoaded: true,
+					width: 16,
+				});
+			});
+		}
 
 		suite('hydrated image attachments', () => {
 			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {

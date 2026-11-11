@@ -586,13 +586,14 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.renderInlineImage(resource, attachment.name, fullName, options.imageBase64Data ?? imageData, ariaLabel, options.imageReveal, options.imageDimensions));
 		} else {
 			const imageElements = this._register(new MutableDisposable<IDisposable>());
-			const renderImageElements = (buffer: Uint8Array) => {
+			const renderImageElements = (buffer: Uint8Array | undefined) => {
 				imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true, image => this.instantiationService.invokeFunction(accessor =>
-					hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer, attachment.kind === 'image' ? attachment.mimeType : undefined), this.element)), hoverHint);
+					hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, buffer ? async () => buffer : undefined, attachment.kind === 'image' ? attachment.mimeType : undefined), this.element)), hoverHint);
 				// createImageElements resets the label; restore the deletion hint after each render.
 				this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 			};
-			renderImageElements(imageData ?? new Uint8Array());
+			// Without bytes, the thumbnail of an earlier render stands in, so that rendering the attachment again does not flash the file icon.
+			renderImageElements(imageData);
 
 			// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
 			if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
@@ -811,7 +812,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
-	buffer: ArrayBuffer | Uint8Array,
+	buffer: ArrayBuffer | Uint8Array | undefined,
 	cacheKey: string,
 	hoverService: IHoverService, ariaLabel: string,
 	currentLanguageModelName: string | undefined,
