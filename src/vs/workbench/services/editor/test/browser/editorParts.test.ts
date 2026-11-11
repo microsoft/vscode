@@ -25,7 +25,7 @@ import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from '../
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
 import { EditorGroupLockActionsHiddenContext } from '../../../../common/contextkeys.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { createEditorParts, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
@@ -319,6 +319,45 @@ suite('Editor Parts', () => {
 			hasRestorableState: parts.hasRestorableState === parts.testMainPart.hasRestorableState
 		}, { applied: true, ownedStaysRegistered: true, ownedGroupStays: true, hasRestorableState: true });
 
+		parts.deleteWorkingSet(workingSet);
+	});
+
+	test('resolving a working set gives the editors applying it opens, without changing the part', async () => {
+		const { parts } = await createServices();
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testTypeId', class implements IEditorSerializer {
+			canSerialize(): boolean { return true; }
+			serialize(editor: EditorInput): string { return (editor as TestFileEditorInput).resource.toString(); }
+			deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput { return instantiationService.createInstance(TestFileEditorInput, URI.parse(serializedEditor), 'testTypeId'); }
+		}));
+		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
+		const second = disposables.add(new TestFileEditorInput(URI.file('/second.txt'), 'testTypeId'));
+		await parts.testMainPart.activeGroup.openEditor(first, { pinned: true });
+		await parts.testMainPart.activeGroup.openEditor(second, { pinned: true });
+		const workingSet = parts.saveWorkingSet('test');
+		await parts.testMainPart.activeGroup.closeAllEditors();
+
+		const resolved = parts.resolveWorkingSet(workingSet);
+		const partWhileResolved = parts.testMainPart.activeGroup.count;
+		await parts.applyWorkingSet(workingSet);
+		const appliedEditors = parts.testMainPart.activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
+		const applied = appliedEditors.map(editor => editor.resource?.toString());
+		appliedEditors.forEach(editor => disposables.add(editor));
+
+		assert.deepStrictEqual({
+			resolved: resolved?.editors.map(editor => editor.resource?.toString()),
+			active: resolved?.activeEditor?.resource?.toString(),
+			partWhileResolved,
+			applied,
+			unknown: parts.resolveWorkingSet({ id: 'unknown', name: 'unknown' }),
+		}, {
+			resolved: ['file:///first.txt', 'file:///second.txt'],
+			active: 'file:///second.txt',
+			partWhileResolved: 0,
+			applied: ['file:///first.txt', 'file:///second.txt'],
+			unknown: undefined,
+		});
+
+		resolved?.editors.forEach(editor => editor.dispose());
 		parts.deleteWorkingSet(workingSet);
 	});
 

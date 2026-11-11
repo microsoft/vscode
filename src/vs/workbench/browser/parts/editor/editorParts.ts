@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, IResolvedEditorWorkingSet, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
+import { ISerializedNode } from '../../../../base/browser/ui/grid/gridview.js';
+import { EditorGroupModel, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -791,6 +794,38 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	getWorkingSets(): IEditorWorkingSet[] {
 		return this.editorWorkingSets.map(workingSet => ({ id: workingSet.id, name: workingSet.name }));
+	}
+
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined {
+		const state = this.editorWorkingSets[this.indexOfWorkingSet(workingSet) ?? -1];
+		if (!state) {
+			return undefined;
+		}
+
+		const editors = new Set<EditorInput>();
+		let activeEditor: EditorInput | undefined;
+		const collect = (node: ISerializedNode): void => {
+			if (node.type === 'branch') {
+				node.data.forEach(collect);
+				return;
+			}
+
+			if (!isSerializedEditorGroupModel(node.data)) {
+				return;
+			}
+			const model = this.instantiationService.createInstance(EditorGroupModel, node.data);
+			try {
+				model.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => editors.add(editor));
+				if (node.data.id === state.main.activeGroup) {
+					activeEditor = model.activeEditor ?? undefined;
+				}
+			} finally {
+				model.dispose();
+			}
+		};
+		collect(state.main.serializedGrid.root);
+
+		return { editors: [...editors], activeEditor };
 	}
 
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void {

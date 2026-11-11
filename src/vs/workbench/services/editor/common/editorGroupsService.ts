@@ -735,6 +735,19 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export interface IResolvedEditorWorkingSet {
+
+	/**
+	 * The editors of the main part's groups, in group and editor order, without duplicates.
+	 */
+	readonly editors: readonly EditorInput[];
+
+	/**
+	 * The editor that was active in the main part's active group.
+	 */
+	readonly activeEditor: EditorInput | undefined;
+}
+
 export interface IEditorWorkingSetOptions {
 	readonly preserveFocus?: boolean;
 }
@@ -850,6 +863,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @returns `true` when the working set as applied.
 	 */
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
+
+	/**
+	 * Resolves the editors of the main part of a working set without applying it or
+	 * changing any part. The returned editors are new instances that the caller owns.
+	 *
+	 * @returns `undefined` when the working set does not exist.
+	 */
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined;
 
 	/**
 	 * Deletes a working set.
