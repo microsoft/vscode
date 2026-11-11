@@ -17,7 +17,8 @@ import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
 import { captureCopilotTelemetryContext, toCopilotTelemetryData } from '../../../node/shared/copilotSkuTelemetry.js';
 import { ITelemetryData, ITelemetryService } from '../../../../telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../../telemetry/common/telemetryUtils.js';
+import type { TelemetryMeasurements, TelemetryProps } from '../../../node/agentHostRestrictedTelemetry.js';
 
 // #region Test Helpers
 
@@ -28,6 +29,14 @@ class DiscoveryTelemetryService extends NullTelemetryServiceShape {
 
 	override publicLog2(name?: string, data?: ITelemetryData): void {
 		this.events.push({ name, data });
+	}
+}
+
+class UtilityTelemetryService extends DiscoveryTelemetryService {
+	readonly ghEvents: { name: string; properties?: TelemetryProps; measurements?: TelemetryMeasurements }[] = [];
+
+	sendGHTelemetryEvent(name: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.ghEvents.push({ name, properties, measurements });
 	}
 }
 
@@ -1225,6 +1234,7 @@ suite('CopilotApiService', () => {
 			await service.utilityChatCompletion('gh-tok', {
 				messages: [{ role: 'user', content: 'Generate a title' }],
 				maxTokens: 32,
+				telemetry: { source: 'title' },
 			});
 
 			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
@@ -1243,6 +1253,7 @@ suite('CopilotApiService', () => {
 
 			await service.utilityChatCompletion('gh-oauth-token', {
 				messages: [{ role: 'user', content: 'Generate a title' }],
+				telemetry: { source: 'title' },
 			});
 
 			assert.deepStrictEqual(requests.map(request => ({
@@ -1274,7 +1285,7 @@ suite('CopilotApiService', () => {
 					? new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })
 					: new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
 			});
-			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }] };
+			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }], telemetry: { source: 'title' as const } };
 
 			await assert.rejects(() => service.utilityChatCompletion('gh-oauth-token', request));
 			await service.utilityChatCompletion('gh-oauth-token', request);
@@ -1284,6 +1295,60 @@ suite('CopilotApiService', () => {
 				modelsCount: 2,
 				completionCount: 2,
 			});
+		});
+
+		test('reports utility completion telemetry on both streams without content', async () => {
+			const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+			try {
+				const telemetry = new UtilityTelemetryService();
+				const requestIds: string[] = [];
+				const service = createService(async (input, init) => {
+					const url = getUrl(input);
+					if (url.endsWith('/copilot_internal/user')) {
+						return userResponse();
+					}
+					if (url.endsWith('/models')) {
+						return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+					}
+					requestIds.push((init?.headers as Record<string, string>)['X-Request-Id']);
+					clock.tick(40);
+					const response = requestIds.length === 1
+						? new Response(JSON.stringify({
+							model: 'gpt-4o-mini-2024-07-18',
+							choices: [{ message: { content: 'Generated title' }, finish_reason: 'stop' }],
+							usage: { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15, prompt_tokens_details: { cached_tokens: 4 }, completion_tokens_details: { reasoning_tokens: 1 } },
+						}), { status: 200 })
+						: new Response('Server error', { status: 500, statusText: 'Internal Server Error' });
+					response.headers.set('x-github-request-id', 'D3ED:ABCD:1234');
+					response.headers.set('x-copilot-service-request-id', requestIds.length === 1 ? 'service-1' : 'not a token');
+					return response;
+				}, undefined, telemetry);
+				const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }], telemetry: { source: 'title' as const, agentSessionId: 'session-1' } };
+
+				await service.utilityChatCompletion('gh-tok', request);
+				await assert.rejects(() => service.utilityChatCompletion('gh-tok', request));
+
+				const properties = { source: 'title', initiatorType: 'agent', requestKind: 'conversation-background', gitHubRequestId: 'D3ED:ABCD:1234' };
+				const success = { ...properties, outcome: 'success', reason: 'stop', requestId: requestIds[0], copilotServiceRequestId: 'service-1' };
+				const failure = { ...properties, outcome: 'error', requestId: requestIds[1] };
+				const successMeasurements = { isBYOK: -1, httpStatus: 200, promptTokenCount: 12, promptCacheTokenCount: 4, completionTokens: 3, tokenCount: 15, reasoningTokens: 1, timeToComplete: 40 };
+				const failureMeasurements = { isBYOK: -1, httpStatus: 500, timeToComplete: 40 };
+				assert.deepStrictEqual({
+					events: telemetry.events.filter(event => event.name === 'agentHost.utilityModelCall'),
+					ghEvents: telemetry.ghEvents,
+				}, {
+					events: [
+						{ name: 'agentHost.utilityModelCall', data: { ...success, ...successMeasurements, agentSessionId: 'session-1', model: new TelemetryTrustedValue('gpt-4o-mini-model'), modelInvoked: new TelemetryTrustedValue('gpt-4o-mini-2024-07-18') } },
+						{ name: 'agentHost.utilityModelCall', data: { ...failure, ...failureMeasurements, agentSessionId: 'session-1', model: new TelemetryTrustedValue('gpt-4o-mini-model') } },
+					],
+					ghEvents: [
+						{ name: 'agentHost.utilityModelCall', properties: { ...success, conversationId: 'session-1', model: 'gpt-4o-mini-model', modelInvoked: 'gpt-4o-mini-2024-07-18' }, measurements: successMeasurements },
+						{ name: 'agentHost.utilityModelCall', properties: { ...failure, conversationId: 'session-1', model: 'gpt-4o-mini-model' }, measurements: failureMeasurements },
+					],
+				});
+			} finally {
+				clock.restore();
+			}
 		});
 
 		test('non-streaming sends stream=false in the body', async () => {

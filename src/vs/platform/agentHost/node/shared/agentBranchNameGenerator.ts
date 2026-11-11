@@ -15,6 +15,8 @@ const MAX_BRANCH_NAME_CANDIDATES = 100;
 
 export interface IAgentBranchNameGeneratorRequest {
 	readonly sessionId: string;
+	/** Agent session the branch is for, used only to attribute the utility model call in telemetry. */
+	readonly agentSessionId?: string;
 	readonly message?: string;
 	readonly githubToken?: string;
 	readonly signal?: AbortSignal;
@@ -61,6 +63,7 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 		try {
 			const rawBranchName = await this._copilotApiService.utilityChatCompletion(request.githubToken, {
 				messages: this._buildBranchNamePrompt(message),
+				telemetry: { source: 'git-branch', agentSessionId: request.agentSessionId },
 			}, {
 				signal: request.signal,
 			});

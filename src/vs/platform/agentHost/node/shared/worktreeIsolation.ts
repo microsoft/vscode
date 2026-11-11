@@ -1200,6 +1200,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
 			const newBranchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
+				agentSessionId: request.sessionUri.scheme === DETACHED_WORKTREE_OWNER_SCHEME ? undefined : AgentSession.id(request.sessionUri),
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,

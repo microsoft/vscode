@@ -47,6 +47,7 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 				{ role: 'system', content: 'You answer math questions with only the integer result, no words, no punctuation.' },
 				{ role: 'user', content: 'What is 1+3?' },
 			],
+			telemetry: { source: 'title' },
 		});
 		assert.ok(answer.includes('4'), `expected the answer to contain "4", got: ${JSON.stringify(answer)}`);
 	});
@@ -59,6 +60,7 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 				{ role: 'system', content: 'You reverse the word the user gives you and reply with only the reversed word, nothing else.' },
 				{ role: 'user', content: 'hello' },
 			],
+			telemetry: { source: 'title' },
 		});
 		assert.strictEqual(answer.trim().toLowerCase(), 'olleh');
 	});
@@ -69,9 +71,11 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 
 		const first = await service.utilityChatCompletion(githubToken!, {
 			messages: [{ role: 'user', content: 'Say "ok" and nothing else.' }],
+			telemetry: { source: 'title' },
 		});
 		const second = await service.utilityChatCompletion(githubToken!, {
 			messages: [{ role: 'user', content: 'Say "ok" and nothing else.' }],
+			telemetry: { source: 'title' },
 		});
 
 		// Both calls succeed; the second reuses endpoint and model discovery.

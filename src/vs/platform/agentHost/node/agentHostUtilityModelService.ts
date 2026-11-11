@@ -8,8 +8,9 @@ import { captureCredentialSource, isAuthRequiredError, type IAgentHostCredential
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
@@ -24,6 +25,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest, UTILITY_DEFAULT_TEMPERATURE, UTILITY_DEFAULT_TOP_P } from './shared/copilotApiService.js';
+import { getUtilityModelCallFailureOutcome, reportUtilityModelCall, type IAgentHostUtilityModelCallReport } from './shared/utilityModelCallTelemetry.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /** LM API vendor of Copilot models; an override naming it is not a BYOK model. */
@@ -116,14 +118,36 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
-		const route = this._resolveRoute(context);
-		if (route.kind === 'copilot') {
-			return this._copilotApiService.utilityChatCompletion(route.githubToken, request, options);
+		const startTime = Date.now();
+		const attributedRequest: ICopilotUtilityChatCompletionRequest = { ...request, telemetry: { ...request.telemetry, agentSessionId: AgentSession.id(context.session) } };
+		let route: UtilityModelRoute;
+		try {
+			route = this._resolveRoute(context);
+		} catch (error) {
+			if (error instanceof AgentHostUtilityModelUnavailableError) {
+				this._reportUnavailable(attributedRequest, error, startTime);
+			}
+			throw error;
 		}
-		return this._byokChatCompletion(route.vendor, route.modelId, request, options?.signal);
+		if (route.kind === 'copilot') {
+			// The Copilot API service reports Copilot calls.
+			return this._copilotApiService.utilityChatCompletion(route.githubToken, attributedRequest, options);
+		}
+		return this._byokChatCompletion(route.vendor, route.modelId, attributedRequest, options?.signal);
+	}
+
+	private _reportUnavailable(request: ICopilotUtilityChatCompletionRequest, error: AgentHostUtilityModelUnavailableError, startTime: number): void {
+		reportUtilityModelCall(this._telemetryService, {
+			context: request.telemetry,
+			outcome: 'unavailable',
+			isBYOK: error.reason !== AgentHostUtilityModelUnavailableReason.CopilotSignInRequired,
+			unavailableReason: error.reason,
+			timeToComplete: Date.now() - startTime,
+		});
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
@@ -274,6 +298,18 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private async _byokChatCompletion(vendor: string, modelId: string, request: ICopilotUtilityChatCompletionRequest, signal: AbortSignal | undefined): Promise<string> {
+		const startTime = Date.now();
+		const report = (outcome: IAgentHostUtilityModelCallReport['outcome'], usage?: IByokLmChatResult['usage']) => reportUtilityModelCall(this._telemetryService, {
+			context: request.telemetry,
+			outcome,
+			isBYOK: true,
+			...(outcome === 'unavailable' ? { unavailableReason: AgentHostUtilityModelUnavailableReason.ByokModelUnavailable } : {}),
+			promptTokenCount: usage?.inputTokens,
+			completionTokens: usage?.outputTokens,
+			tokenCount: usage?.inputTokens !== undefined && usage.outputTokens !== undefined ? usage.inputTokens + usage.outputTokens : undefined,
+			reasoningTokens: usage?.reasoningTokens,
+			timeToComplete: Date.now() - startTime,
+		});
 		// Same keys as the Responses translation, and the same defaults as the Copilot route.
 		const modelOptions: Record<string, unknown> = {
 			temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
@@ -282,6 +318,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		};
 		const connection = this._byokBridgeRegistry.getServingConnection();
 		if (!connection) {
+			report('unavailable');
 			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
 		}
 		const bridgeRequest: IByokLmChatRequest = {
@@ -295,11 +332,18 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 			modelOptions,
 		};
 		this._logService.debug(`[AgentHostUtilityModelService] BYOK utility request: ${vendor}/${modelId}`);
-		const result = await raceAbort(connection.chat(bridgeRequest), signal);
+		let result: IByokLmChatResult;
+		try {
+			result = await raceAbort(connection.chat(bridgeRequest), signal);
+		} catch (error) {
+			report(getUtilityModelCallFailureOutcome(error, signal));
+			throw error;
+		}
+		const text = result.error ? '' : result.output.flatMap(item => item.type === 'message' ? item.content.map(part => part.text) : []).join('');
+		report(text ? 'success' : 'error', result.usage);
 		if (result.error) {
 			throw new Error(`BYOK utility request failed for ${vendor}/${modelId}: ${result.error}`);
 		}
-		const text = result.output.flatMap(item => item.type === 'message' ? item.content.map(part => part.text) : []).join('');
 		if (!text) {
 			throw new Error(`BYOK utility request for ${vendor}/${modelId} returned no text content`);
 		}
