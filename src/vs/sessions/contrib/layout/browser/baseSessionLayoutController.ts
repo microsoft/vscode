@@ -52,6 +52,7 @@ import { ISessionChangesService } from '../../../../workbench/contrib/sessionCha
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
@@ -1396,6 +1397,10 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {
+		const visibleEditors = this._editorService.visibleEditors;
+		if (this._workingSets.has(sessionResource) && visibleEditors.length > 0 && visibleEditors.every(editor => editor instanceof EmptyFileEditorInput)) {
+			return;
+		}
 		this._deleteWorkingSet(sessionResource);
 
 		// Note: the editor part's hidden state is captured eagerly by the [B2]

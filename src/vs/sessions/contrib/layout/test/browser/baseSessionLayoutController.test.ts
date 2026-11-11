@@ -14,6 +14,8 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -25,7 +27,7 @@ import { SessionStatus } from '../../../../../workbench/services/sessions/common
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
@@ -55,6 +57,8 @@ class TestRevealEmptyWorkingSetLayoutController extends BaseLayoutController {
 	protected override _shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart: boolean): boolean { return revealEditorPart; }
 	protected override _shouldHideEditorPartOnApply(editorPartHidden: boolean): boolean { return editorPartHidden; }
 }
+
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
 
 suite('BaseLayoutController', () => {
 
@@ -493,6 +497,28 @@ suite('BaseLayoutController', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
+	});
+
+	test('[B2] switching away does not overwrite a session\'s saved working set while only the empty-file placeholder is visible', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		harness.visibleEditorsList = [store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts))];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`, `session-working-set:${sessionB.resource.toString()}`]);
 	});
 
 	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {
