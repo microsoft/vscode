@@ -54,22 +54,41 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 			return [];
 		}
 		const entries = await this._readOrUndefined(() => this._fileService.resolve(joinPath(primary, '.git', 'worktrees')));
+		if (!entries?.children?.length) {
+			return [];
+		}
 		const locations: IFolderLocation[] = [];
-		for (const entry of entries?.children ?? []) {
+		// The primary's worktrees, resolved once for all of its entries
+		const worktreesDir = await this._worktreesDir(primary);
+		for (const entry of entries.children) {
+			if (token.isCancellationRequested) {
+				return [];
+			}
 			const gitFile = entry.isDirectory ? await this._readLink(joinPath(entry.resource, 'gitdir'), entry.resource) : undefined;
-			const location = gitFile && basename(gitFile) === '.git' ? await this.resolveLocation(primary, dirname(gitFile), token) : undefined;
+			const location = gitFile && basename(gitFile) === '.git' ? await this._resolveLocation(primary, worktreesDir, dirname(gitFile)) : undefined;
 			if (location) {
 				locations.push(location);
 			}
 		}
-		return locations;
+		return token.isCancellationRequested ? [] : locations;
 	}
 
 	async resolveLocation(primary: URI, location: URI, _token: CancellationToken): Promise<IFolderLocation | undefined> {
-		if (primary.scheme !== Schemas.file || location.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqual(primary, location)) {
+		if (primary.scheme !== Schemas.file) {
 			return undefined;
 		}
-		const worktreesDir = joinPath(await this._real(primary), '.git', 'worktrees');
+		return this._resolveLocation(primary, await this._worktreesDir(primary), location);
+	}
+
+	/** Where the worktrees of `primary` are kept: `.git/worktrees` of its real path. */
+	private async _worktreesDir(primary: URI): Promise<URI> {
+		return joinPath(await this._real(primary), '.git', 'worktrees');
+	}
+
+	private async _resolveLocation(primary: URI, worktreesDir: URI, location: URI): Promise<IFolderLocation | undefined> {
+		if (location.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqual(primary, location)) {
+			return undefined;
+		}
 		const locationGitFile = joinPath(await this._real(location), '.git');
 
 		// The folder's `.git` file names an entry of the primary's worktrees
