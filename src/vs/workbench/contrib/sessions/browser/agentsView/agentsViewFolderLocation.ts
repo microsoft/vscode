@@ -252,7 +252,7 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		}));
 		this._updateForChatEnablement();
 
-		// A deleted session is no location's last one
+		// A deleted session is no location's last one. One that a provider replaces is removed only after it was replaced, below
 		this._register(this._sessionsManagementService.onDidChangeAllSessions(e => {
 			let changed = false;
 			for (const removed of e.removed) {
@@ -261,6 +261,19 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 						this._lastSessions.delete(location);
 						changed = true;
 					}
+				}
+			}
+			if (changed) {
+				this._storeLastSessions();
+			}
+		}));
+		// A session that a provider replaced, such as a draft that graduated or one bound to a new resource, stays the last one
+		this._register(this._sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			let changed = false;
+			for (const [location, resource] of this._lastSessions) {
+				if (extUriBiasedIgnorePathCase.isEqual(resource, from.resource)) {
+					this._lastSessions.set(location, to.resource);
+					changed = true;
 				}
 			}
 			if (changed) {
@@ -452,11 +465,19 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	}
 
 	private _rememberSession(location: URI, session: URI): void {
-		const known = this._lastSessions.get(location);
-		if (known && extUriBiasedIgnorePathCase.isEqual(known, session)) {
+		const entries = [...this._lastSessions];
+		const latest = entries.at(-1);
+		if (latest && extUriBiasedIgnorePathCase.isEqual(latest[0], location) && extUriBiasedIgnorePathCase.isEqual(latest[1], session)) {
 			return;
 		}
-		// Most recent last, so the oldest goes first beyond the bound
+		// A session is the last one of the location it works at only: one that came to work elsewhere is not that of where
+		// it worked before
+		for (const [known, resource] of entries) {
+			if (extUriBiasedIgnorePathCase.isEqual(resource, session)) {
+				this._lastSessions.delete(known);
+			}
+		}
+		// Most recent last, also when it was the last one there already, so the oldest goes first beyond the bound
 		this._lastSessions.delete(location);
 		this._lastSessions.set(location, session);
 		for (const [oldest] of this._lastSessions) {

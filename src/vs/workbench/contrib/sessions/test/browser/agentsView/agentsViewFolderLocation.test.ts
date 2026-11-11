@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { SESSION_WORKTREE_ICON } from '../../../common/sessionWorktreeIcon.js';
 import assert from 'assert';
@@ -26,7 +26,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
@@ -35,6 +35,8 @@ import { BrowserWorkspaceEditingService } from '../../../../../services/workspac
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID, AgentsViewFolderLocationProvider, AgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
+import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { AgentsViewLocationSessions } from '../../../browser/agentsView/agentsViewLocationSessions.js';
 
 /** A context key service whose keys change as a test sets them, such as AI features being disabled. */
 class ChangingContextKeyService extends MockContextKeyService {
@@ -156,11 +158,12 @@ suite('AgentsViewFolderLocation', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>(folderLocationService));
 		instantiationService.stub(IStorageService, options?.storage ?? disposables.add(new InMemoryStorageService()));
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
-		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeAllSessions: sessionsChanged.event }));
+		const sessionReplaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeAllSessions: sessionsChanged.event, onDidReplaceSession: sessionReplaced.event }));
 
 		const service = disposables.add(instantiationService.createInstance(AgentsViewFolderLocationService));
 		service.start();
-		return { service, moves, trusted, notifications, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
+		return { service, moves, trusted, notifications, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), replaceSession: (from: ISession, to: ISession) => sessionReplaced.fire({ from, to }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
 
 	test('a linked checkout shows with the icon of a worktree section of the Sessions list', async () => {
@@ -285,6 +288,76 @@ suite('AgentsViewFolderLocation', () => {
 			picked: { worktree: atWorktree.resource.toString(), folder: atFolder.resource.toString() },
 			afterReload: { worktree: atWorktree.resource.toString(), folder: atFolder.resource.toString() },
 			afterDelete: 'none',
+		});
+	});
+
+	test('a session the user opens again stays the most recent, so it is not the one to go once there are too many', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const atFolder = sessionIn('/work/vscode/src');
+		// The folder's own session is the oldest of a full list
+		const stored = [[URI.file('/work/vscode').toString(), atFolder.resource.toString()], ...Array.from({ length: 19 }, (_, index) => [URI.file(`/work/other${index}`).toString(), `session:/other${index}`])];
+		storage.store('agentsView.folderLocation.lastSessions', JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const { service } = createService({ storage });
+
+		await service.switchToSession(atFolder);
+		await service.switchToSession(sessionIn('/work/vscode.worktrees/feature'));
+
+		assert.deepStrictEqual({
+			folder: service.getLastSession(URI.file('/work/vscode'))?.toString(),
+			oldest: service.getLastSession(URI.file('/work/other0'))?.toString(),
+		}, { folder: atFolder.resource.toString(), oldest: undefined });
+	});
+
+	test('a session that a provider replaces stays the last one of its location; a deleted one does not', async () => {
+		const { service, replaceSession, removeSession } = createService();
+		const atWorktree = sessionIn('/work/vscode.worktrees/feature');
+		const rebound = { ...atWorktree, resource: URI.parse('session:/rebound') };
+		const last = () => service.getLastSession(URI.file('/work/vscode.worktrees/feature'))?.toString() ?? 'none';
+
+		await service.switchToSession(atWorktree);
+		// As providers do: the replacement first, then the replaced session's removal
+		replaceSession(atWorktree, rebound);
+		removeSession(atWorktree);
+		const afterRebind = last();
+		removeSession(rebound);
+
+		assert.deepStrictEqual({ afterRebind, afterDelete: last() }, { afterRebind: rebound.resource.toString(), afterDelete: 'none' });
+	});
+
+	test('a session that comes to work in a new worktree is that worktree\'s last session only: returning to the folder shows nothing and stays', async () => {
+		const { service, moves } = createService();
+		const atFolder = sessionIn('/work/vscode/src');
+		const inWorktree = { ...atFolder, workspace: sessionIn('/work/vscode.worktrees/feature').workspace };
+		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
+		let folder = URI.file('/work/vscode');
+		const opened: string[] = [];
+		disposables.add(new AgentsViewLocationSessions(
+			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event }),
+			service,
+			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
+			upcastPartial<ISessionsManagementService>({ getSession: resource => resource.toString() === atFolder.resource.toString() ? inWorktree : undefined }),
+			// As the chat part does: opening a session moves the folder to where it works, unless asked to keep it
+			upcastPartial<IAgentsChatPartService>({ openChat: async (session, _chat, options) => { opened.push(session.resource.toString()); if (!options?.keepFolder) { await service.switchToSession(session); } } }),
+			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => true as T }),
+		));
+		const pick = async (path: string) => {
+			folder = URI.file(path);
+			onDidChangeCurrentLocation.fire({ reason: 'user' });
+			await timeout(0);
+		};
+
+		// The session opens at the folder, then its agent moves it into a new worktree, which the folder follows
+		await service.switchToSession(atFolder);
+		await service.switchToSession(inWorktree);
+		const followed = moves.splice(0);
+		await pick('/work/vscode');
+		const returned = { opened: opened.splice(0), moves: moves.splice(0) };
+		await pick('/work/vscode.worktrees/feature');
+
+		assert.deepStrictEqual({ followed, returned, picked: { opened, moves } }, {
+			followed: ['primary', '/work/vscode.worktrees/feature'],
+			returned: { opened: [], moves: [] },
+			picked: { opened: [atFolder.resource.toString()], moves: [] },
 		});
 	});
 

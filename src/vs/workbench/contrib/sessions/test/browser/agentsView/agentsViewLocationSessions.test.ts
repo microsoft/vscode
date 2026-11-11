@@ -9,8 +9,10 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
@@ -28,6 +30,7 @@ suite('AgentsViewLocationSessions', () => {
 		const opened: string[] = [];
 		const onDidChange = store.add(new Emitter<IFolderLocationChangeEvent>());
 		let folder = primary;
+		let chatEnabled = true;
 		const last = new ResourceMap<URI>(lastSessions);
 		const known = new ResourceMap<ISession>(sessions.map((resource): [URI, ISession] => [resource, upcastPartial<ISession>({ resource })]));
 		store.add(new AgentsViewLocationSessions(
@@ -36,19 +39,20 @@ suite('AgentsViewLocationSessions', () => {
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
 			upcastPartial<ISessionsManagementService>({ getSession: resource => known.get(resource) }),
 			upcastPartial<IAgentsChatPartService>({
-				openChat: async session => {
-					opened.push(session.resource.toString());
+				openChat: async (session, _chat, options) => {
+					opened.push(`${session.resource.toString()} keepFolder=${options?.keepFolder}`);
 					// Opening the session keeps the folder where it is, a change the user did not pick
 					onDidChange.fire({ reason: 'programmatic' });
 				}
 			}),
+			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>(key: string) => (key === ChatContextKeys.enabled.key ? chatEnabled : undefined) as T }),
 		));
 		const pick = async (location: URI, reason: IFolderLocationChangeEvent['reason']) => {
 			folder = location;
 			onDidChange.fire({ reason });
 			await Promise.resolve();
 		};
-		return { opened, pick };
+		return { opened, pick, setChatEnabled: (enabled: boolean) => chatEnabled = enabled };
 	}
 
 	test('picking a location shows the session last picked there, once, and only for changes the user picked', async () => {
@@ -61,7 +65,7 @@ suite('AgentsViewLocationSessions', () => {
 		// Returning to the primary location is a pick too
 		await pick(primary, 'user');
 
-		assert.deepStrictEqual(opened, [a.toString(), b.toString()]);
+		assert.deepStrictEqual(opened, [`${a.toString()} keepFolder=true`, `${b.toString()} keepFolder=true`]);
 	});
 
 	test('a location without a remembered session, or whose session is gone, leaves the chat part as it is', async () => {
@@ -70,6 +74,16 @@ suite('AgentsViewLocationSessions', () => {
 
 		await pick(worktree, 'user');
 		await pick(primary, 'user');
+
+		assert.deepStrictEqual(opened, []);
+	});
+
+	test('a pick that completes once AI features are disabled shows nothing', async () => {
+		const a = URI.parse('agent-host-copilot:/a');
+		const { opened, pick, setChatEnabled } = create([[worktree, a]], [a]);
+
+		setChatEnabled(false);
+		await pick(worktree, 'user');
 
 		assert.deepStrictEqual(opened, []);
 	});
