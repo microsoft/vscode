@@ -38,6 +38,7 @@ export class AgentsChatPartContribution extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IAgentsViewFolderLocationService folderLocationService: IAgentsViewFolderLocationService,
 	) {
 		super();
 
@@ -79,7 +80,7 @@ export class AgentsChatPartContribution extends Disposable {
 			const restored = restoreAgentsChatPart(layoutService, contextKeyService, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)));
 			visible.set(layoutService.isVisible(Parts.CHAT_PART));
 			// Its folder location provider, and the return from a session's location as AI features are disabled
-			instantiationService.invokeFunction(accessor => accessor.get(IAgentsViewFolderLocationService));
+			folderLocationService.start();
 			return restored;
 		}).catch(onUnexpectedError);
 	}
