@@ -7,6 +7,7 @@ import assert from 'assert';
 import { setZoomFactor } from '../../../../../../base/browser/browser.js';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -18,7 +19,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import { IChatPetService } from '../../../../chat/browser/chatPetService.js';
 import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { IScreenshotToolService } from '../../../../screenshotTool/browser/screenshotTool.js';
+import { IScreenshotToolService, ScreenshotToolResult } from '../../../../screenshotTool/browser/screenshotTool.js';
 import { createTestScreenshotToolService } from '../../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IBrowserViewModel } from '../../../common/browserView.js';
 import { BrowserEditor } from '../../../electron-browser/browserEditor.js';
@@ -51,8 +52,9 @@ suite('Browser screenshot actions', () => {
 				return { confirmed: false };
 			},
 		}));
+		let currentUrl = url;
 		const model = upcastPartial<IBrowserViewModel>({
-			url,
+			get url() { return currentUrl; },
 			captureScreenshot: async options => {
 				pageCaptures.push({ ...options });
 				return createPng(4, 2);
@@ -61,7 +63,7 @@ suite('Browser screenshot actions', () => {
 		const browserContainer = $('div');
 		const editor = upcastPartial<BrowserEditor>({ onDidChangeModel: Event.None, model, window: mainWindow, browserContainer });
 		const feature = store.add(instantiationService.createInstance(BrowserEditorChatIntegration, editor));
-		return { feature, service, telemetry, attached, pageCaptures, warnings, browserContainer };
+		return { feature, service, telemetry, attached, pageCaptures, warnings, browserContainer, navigate: (to: string) => { currentUrl = to; } };
 	}
 
 	test('each action attaches its capture right away, where it can be edited, and the tool is limited to the page', async () => {
@@ -123,6 +125,28 @@ suite('Browser screenshot actions', () => {
 		}, {
 			localPage: { warnings: 0, attached: 1 },
 			untrustedPage: { warnings: 1, attached: 0 },
+		});
+	});
+
+	test('warns about the page that it captured, also when the page navigates while the user selects', async () => {
+		const attach = async (from: string, to: string) => {
+			const { feature, service, attached, warnings, navigate } = create(from);
+			const selection = new DeferredPromise<ScreenshotToolResult>();
+			service.result = selection.p;
+			const attaching = feature.addScreenshotToChat();
+			navigate(to);
+			await service.scopes[0]!.capture(undefined);
+			selection.complete({ kind: 'captured', mode: 'page', image: { dataUrl: 'data:image/jpeg;base64,/9j/', width: 4, height: 2 } });
+			await attaching;
+			// The warning is cancelled, which attaches nothing.
+			return { warnings: warnings.length, attached: attached.length };
+		};
+		assert.deepStrictEqual({
+			toUntrustedPage: await attach('http://localhost:3000/', 'https://example.com/'),
+			toLocalPage: await attach('https://example.com/', 'http://localhost:3000/'),
+		}, {
+			toUntrustedPage: { warnings: 1, attached: 0 },
+			toLocalPage: { warnings: 0, attached: 1 },
 		});
 	});
 });

@@ -755,7 +755,8 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 		const stopWatch = StopWatch.create(false);
-		const url = model.url;
+		// The page captures itself once the user has selected, so the content warning is for the URL that it has then.
+		let url = model.url;
 		const result = await this.screenshotToolService.capture(this.editor.window, undefined, {
 			scope: {
 				element: this.editor.browserContainer,
@@ -768,6 +769,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 						quality: 80,
 						screenRect: { x, y, width: Math.round((area.x + area.width) * zoomFactor) - x, height: Math.round((area.y + area.height) * zoomFactor) - y },
 					} : { quality: 80 });
+					url = model.url;
 					return { data, mimeType: 'image/jpeg' };
 				},
 			},
@@ -785,7 +787,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const stopWatch = StopWatch.create(false);
-		const url = model.url;
 		let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
 		try {
 			const image = await createScreenshotToolImage(await model.captureScreenshot({ fullPage: true, format: 'png' }), 'image/png');
@@ -793,7 +794,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		} catch (error) {
 			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		}
-		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, url, stopWatch);
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, model.url, stopWatch);
 	}
 
 	/**
