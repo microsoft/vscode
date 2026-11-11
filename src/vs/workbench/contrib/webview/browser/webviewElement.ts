@@ -93,7 +93,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private _windowId: number | undefined = undefined;
 	private get window() { return typeof this._windowId === 'number' ? getWindowById(this._windowId)?.window : undefined; }
 
-	private _encodedWebviewOriginPromise?: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
 
 	protected get platform(): string { return 'browser'; }
@@ -500,7 +499,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}
 			return id;
 		});
-		this._encodedWebviewOriginPromise = originPromise;
 		originPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed && this._mountId === mountId) {
 				this._initElement(encodedWebviewOrigin, this.extension, this._options, targetWindow);
