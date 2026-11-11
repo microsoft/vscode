@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -15,7 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
-import { renderCommandCenterLabel } from '../../../../browser/parts/titlebar/commandCenterControl.js';
+import { getCommandCenterLabelText, renderCommandCenterLabel } from '../../../../browser/parts/titlebar/commandCenterControl.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { TestViewsService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -26,6 +27,8 @@ suite('Folder Location in Window Title and Command Center', () => {
 
 	const primary = URI.file('/work/repo');
 	const alternate = URI.file('/work/repo.worktrees/feature');
+
+	const noHover = () => Disposable.None;
 
 	function createLocation(description?: string): IResolvedFolderLocation {
 		return { uri: alternate, label: 'feature', description, icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
@@ -81,7 +84,9 @@ suite('Folder Location in Window Title and Command Center', () => {
 	test('command center label renders the location icon, name and branch group', () => {
 		const element = document.createElement('div');
 
-		renderCommandCenterLabel(element, 'repo', createLocation('feature-branch'));
+		const hovers: string[] = [];
+		const disposable = renderCommandCenterLabel(element, 'repo', createLocation('feature-branch'), (_element, content) => { hovers.push(content); return toDisposable(() => hovers.push('disposed')); });
+		disposable.dispose();
 
 		assert.deepStrictEqual({
 			hasLocation: element.classList.contains('has-folder-location'),
@@ -89,7 +94,7 @@ suite('Folder Location in Window Title and Command Center', () => {
 			name: element.querySelector('.folder-location-name')?.textContent,
 			hasIcon: !!element.querySelector('.folder-location-icon'),
 			branch: element.querySelector('.folder-location-branch')?.textContent,
-			branchTitle: element.querySelector<HTMLElement>('.folder-location-branch-group')?.title,
+			hovers,
 			hasBranchIcon: !!element.querySelector('.folder-location-branch-icon'),
 		}, {
 			hasLocation: true,
@@ -97,7 +102,7 @@ suite('Folder Location in Window Title and Command Center', () => {
 			name: 'repo',
 			hasIcon: true,
 			branch: 'feature-branch',
-			branchTitle: 'feature-branch',
+			hovers: ['feature-branch', 'disposed'],
 			hasBranchIcon: true,
 		});
 	});
@@ -105,7 +110,7 @@ suite('Folder Location in Window Title and Command Center', () => {
 	test('command center label without a description has no branch group', () => {
 		const element = document.createElement('div');
 
-		renderCommandCenterLabel(element, 'repo', createLocation());
+		renderCommandCenterLabel(element, 'repo', createLocation(), noHover).dispose();
 
 		assert.deepStrictEqual({
 			aria: element.getAttribute('aria-label'),
@@ -116,14 +121,24 @@ suite('Folder Location in Window Title and Command Center', () => {
 
 	test('command center label resets to plain text at the primary location', () => {
 		const element = document.createElement('div');
-		renderCommandCenterLabel(element, 'repo', createLocation('feature-branch'));
+		renderCommandCenterLabel(element, 'repo', createLocation('feature-branch'), noHover).dispose();
 
-		renderCommandCenterLabel(element, 'repo', undefined);
+		renderCommandCenterLabel(element, 'repo', undefined, noHover).dispose();
 
 		assert.deepStrictEqual({
 			hasLocation: element.classList.contains('has-folder-location'),
 			aria: element.getAttribute('aria-label'),
 			html: element.innerHTML,
 		}, { hasLocation: false, aria: null, html: 'repo' });
+	});
+
+	test('command center label text is the folder name at an alternate location regardless of title format and tabs', () => {
+		const base = { workspaceName: 'repo', customTitle: 'Custom Title', fileName: 'file.ts' };
+		assert.deepStrictEqual({
+			atLocation: getCommandCenterLabelText({ ...base, atFolderLocation: true }),
+			atPrimaryCustom: getCommandCenterLabelText({ ...base, atFolderLocation: false }),
+			atPrimaryFile: getCommandCenterLabelText({ workspaceName: 'repo', fileName: 'file.ts', atFolderLocation: false }),
+			decorated: getCommandCenterLabelText({ ...base, atFolderLocation: true, prefix: '[x]', suffix: '(y)' }),
+		}, { atLocation: 'repo', atPrimaryCustom: 'Custom Title', atPrimaryFile: 'file.ts', decorated: '[x] repo (y)' });
 	});
 });

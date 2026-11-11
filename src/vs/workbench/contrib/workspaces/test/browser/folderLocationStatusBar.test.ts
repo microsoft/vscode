@@ -209,15 +209,15 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	suite('switch command', () => {
 
-		async function pickLocation(choose: (items: { label: string; description?: string; picked?: boolean }[]) => number | undefined) {
+		async function pickLocation(choose: (items: { label: string; description?: string; picked?: boolean }[]) => number | undefined, switchedWhileOpen?: URI) {
 			const calls: [string, string | undefined, string | undefined][] = [];
 			let shown: { label: string; description?: string; picked?: boolean }[] = [];
-			const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
+			let workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 					: id === IWorkspaceFolderLocationService ? { getLocations: async () => [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }
 						: id === IUriIdentityService ? { extUri }
-							: id === IQuickInputService ? { pick: async (items: (IQuickPickItem & { uri: URI })[]) => { shown = items; const index = choose(items); return index === undefined ? undefined : items[index]; } }
+							: id === IQuickInputService ? { pick: async (items: (IQuickPickItem & { uri: URI })[]) => { shown = items; const index = choose(items); if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false); } return index === undefined ? undefined : items[index]; } }
 								: id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p.toString(), l?.toString(), o?.reason]); } } : undefined
 			} as unknown as ServicesAccessor;
 
@@ -241,6 +241,14 @@ suite('FolderLocationStatusBarContribution', () => {
 			assert.deepStrictEqual((await pickLocation(() => 2)).calls, [[primary.toString(), URI.file('/work/other').toString(), 'user']]);
 			assert.deepStrictEqual((await pickLocation(() => 0)).calls, [[primary.toString(), undefined, 'user']]);
 			assert.deepStrictEqual((await pickLocation(() => 1)).calls, []);
+		});
+
+		test('a switch while the picker is open does not drop the user choice', async () => {
+			const other = URI.file('/work/other');
+			// current location (alternate) is picked after another switch moved the folder to `other`
+			assert.deepStrictEqual((await pickLocation(() => 1, other)).calls, [[primary.toString(), alternate.toString(), 'user']]);
+			// picking the location the folder moved to is a no-op
+			assert.deepStrictEqual((await pickLocation(() => 2, other)).calls, []);
 		});
 	});
 });
