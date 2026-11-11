@@ -45,6 +45,8 @@ export interface IChatGroupContext {
 
 	/** Closes the pane of the group, as closing its main chat's tab does. */
 	closePane(): void;
+	/** Closes the group that shows the given chat. */
+	closeChat(resource: URI): void;
 
 	/** Options forwarded to the new-chat views the group creates. */
 	readonly options: IChatViewOptions;
@@ -307,6 +309,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			chat: activeChat,
 			isDetached: context.isDetached,
 			activate: () => context.activate(),
+			close: () => {
+				const chat = activeChat.get();
+				if (chat) {
+					context.closeChat(chat.resource);
+				}
+			},
 		});
 		this._contextDisposables.add(autorun(reader => {
 			const visible = context.chatHeaderVisible.read(reader);

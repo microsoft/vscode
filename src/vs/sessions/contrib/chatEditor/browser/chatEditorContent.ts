@@ -280,6 +280,7 @@ export class ChatEditorContent extends Disposable {
 			session,
 			isDetached: content.state.isDetached,
 			closePane: () => content.close(),
+			closeChat: () => content.close(),
 			options: { session: this._session, chat: this._chat },
 			chats: constObservable([chat]),
 			activeChatResource: constObservable(chat.resource.toString()),

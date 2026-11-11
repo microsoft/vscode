@@ -1208,6 +1208,39 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('middle-clicking a chat header closes only that chat group', async () => {
+		const { configurationService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(paneContent(view, session), options);
+		view.splitChatToSide(secondary.resource);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		const headers = view.element.querySelectorAll<HTMLElement>('.chat-composite-bar-session-title');
+		const event = new MouseEvent('auxclick', { bubbles: true, button: 1, cancelable: true });
+
+		headers[1].dispatchEvent(event);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			defaultPrevented: event.defaultPrevented,
+			groupCount: view.groupCount.get(),
+			groupChats: view['_groups'][0].resourceIds.get(),
+			visibleChats: session.visibleChatTabs.get().map(chat => chat.resource.toString()),
+		}, {
+			defaultPrevented: true,
+			groupCount: 1,
+			groupChats: [main.resource.toString()],
+			visibleChats: [main.resource.toString(), secondary.resource.toString()],
+		});
+	});
+
 	test('single mode replaces the current peer instead of stacking it behind the opened peer', async () => {
 		const { configurationService, sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
