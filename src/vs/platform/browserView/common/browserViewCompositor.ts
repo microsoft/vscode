@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IBrowserViewRect } from './browserView.js';
+
 /** A raw 4-bytes-per-pixel bitmap. */
 export interface IBrowserViewBitmap {
 	readonly data: Uint8Array;
@@ -29,13 +31,32 @@ function blit(target: IBrowserViewBitmap, source: IBrowserViewBitmap, left: numb
 	}
 }
 
+/** Where the page starts in a view whose docked DevTools view leaves it `pageWidth` of the view's width. */
+function getPageLeft(viewWidth: number, pageWidth: number, dockSide: BrowserViewDevToolsDockSide): number {
+	return dockSide === 'left' ? viewWidth - pageWidth : 0;
+}
+
 /**
  * Composes a screenshot of the whole view. A docked DevTools view covers the whole view and leaves
  * a hole for the page, which is captured separately and sits on the side opposite to the dock side.
  */
 export function composeDevToolsScreenshot(page: IBrowserViewBitmap, devTools: IBrowserViewBitmap, dockSide: BrowserViewDevToolsDockSide): IBrowserViewBitmap {
 	const result: IBrowserViewBitmap = { data: devTools.data.slice(), width: devTools.width, height: devTools.height };
-	const pageLeft = dockSide === 'left' ? devTools.width - page.width : 0;
+	const pageLeft = getPageLeft(devTools.width, page.width, dockSide);
 	blit(result, page, pageLeft, 0);
 	return result;
+}
+
+/**
+ * Measures an area of the whole view from the page's top-left instead, and keeps only its part over the page, which
+ * sits in the view as in {@link composeDevToolsScreenshot}. Returns `undefined` when the area only covers DevTools.
+ * The area and the sizes are in view pixels.
+ */
+export function getPageArea(area: IBrowserViewRect, view: { readonly width: number; readonly height: number }, page: { readonly width: number; readonly height: number }, dockSide: BrowserViewDevToolsDockSide): IBrowserViewRect | undefined {
+	const pageLeft = getPageLeft(view.width, page.width, dockSide);
+	const left = Math.max(area.x, pageLeft);
+	const top = Math.max(area.y, 0);
+	const right = Math.min(area.x + area.width, pageLeft + page.width);
+	const bottom = Math.min(area.y + area.height, page.height);
+	return right > left && bottom > top ? { x: left - pageLeft, y: top, width: right - left, height: bottom - top } : undefined;
 }

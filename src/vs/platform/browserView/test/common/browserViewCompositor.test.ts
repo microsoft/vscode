@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { composeDevToolsScreenshot, IBrowserViewBitmap } from '../../common/browserViewCompositor.js';
+import { composeDevToolsScreenshot, getPageArea, IBrowserViewBitmap } from '../../common/browserViewCompositor.js';
 
 suite('composeDevToolsScreenshot', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,5 +49,21 @@ suite('composeDevToolsScreenshot', () => {
 		const devTools = solid(4, 3, D);
 		composeDevToolsScreenshot(solid(3, 3, P), devTools, 'left');
 		assert.deepStrictEqual(render(devTools), ['DDDD', 'DDDD', 'DDDD']);
+	});
+
+	test('measures an area of the view from the page beside a docked panel, keeping only its part over the page', () => {
+		const view = { width: 10, height: 6 };
+		const area = { x: 2, y: 1, width: 6, height: 4 };
+		assert.deepStrictEqual({
+			left: getPageArea(area, view, { width: 6, height: 6 }, 'left'),
+			right: getPageArea(area, view, { width: 6, height: 6 }, 'right'),
+			bottom: getPageArea(area, view, { width: 10, height: 3 }, 'bottom'),
+			onlyOverPanel: getPageArea({ x: 0, y: 1, width: 3, height: 4 }, view, { width: 6, height: 6 }, 'left'),
+		}, {
+			left: { x: 0, y: 1, width: 4, height: 4 },
+			right: { x: 2, y: 1, width: 4, height: 4 },
+			bottom: { x: 2, y: 1, width: 6, height: 2 },
+			onlyOverPanel: undefined,
+		});
 	});
 });

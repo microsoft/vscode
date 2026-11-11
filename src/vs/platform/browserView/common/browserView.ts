@@ -211,6 +211,10 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
 	 */
 	format?: 'jpeg' | 'png';
+	/**
+	 * An area of the view to capture, in view pixels from its top-left. Only its part over the page is captured, so a
+	 * docked DevTools panel is left out.
+	 */
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**
