@@ -15,7 +15,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
-import { SSHAuthMethod, SSHHostKeyDeniedError } from '../../common/sshRemoteAgentHost.js';
+import { SSHAuthMethod, SSHHostKeyDeniedError, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { createSSHProxyJump, rememberSSHProxyJump } from '../../node/sshProxyJump.js';
 import { SSHRemoteAgentHostMainService } from '../../node/sshRemoteAgentHostService.js';
 
@@ -154,12 +154,29 @@ suite('SSH ProxyJump service integration', () => {
 		assert.deepStrictEqual(service.terminations, [service.children[0].pid]);
 	});
 
-	test('new jump operations are not callable on the actual service IPC channel', async () => {
+	test('a resolved configuration crossing IPC cannot authorize a jump helper', async () => {
 		const service = store.add(new JumpTestService());
 		const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
-		for (const method of ['createSSHProxyJump', '_spawnProxyProcess', '_killProxyProcess', '_createProxyTransport', '_jumpFactory']) {
-			await assert.rejects(async () => channel.call(undefined, method, ['anything']), /Method not found/);
-		}
-		assert.deepStrictEqual(service.children, []);
+		const resolved = await channel.call<ISSHResolvedConfig>(undefined, 'resolveSSHConfig', ['work']);
+		const received: ISSHResolvedConfig = JSON.parse(JSON.stringify(resolved));
+		const proxy = await createSSHProxyJump(received, {
+			host: config.host, originalHost: 'work', port: 2200, username: config.username,
+		}, store.add(new NullLogService()), {
+			resolveExecutable: async () => assert.fail('An IPC result must not authorize helper creation'),
+		});
+		const connected = await service.connect(config);
+		assert.deepStrictEqual({
+			received,
+			proxy,
+			trustedConnections: service.children.length,
+		}, {
+			received: {
+				hostname: 'target.internal', user: 'alice', port: 2200,
+				identityFile: [], forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [],
+			},
+			proxy: undefined,
+			trustedConnections: 1,
+		});
+		await service.releaseRelay(connected.connectionId);
 	});
 });

@@ -58,8 +58,9 @@ export async function createSSHProxyJump(
 		return undefined;
 	}
 	const args = buildSSHProxyJumpArguments(jump, target);
-	const executable = await (options.resolveExecutable?.() ?? resolveSSHExecutable());
-	const { DISPLAY: _display, WAYLAND_DISPLAY: _waylandDisplay, ...environment } = options.environment ?? process.env;
+	const inheritedEnvironment = options.environment ?? process.env;
+	const executable = await (options.resolveExecutable?.() ?? resolveSSHExecutable(inheritedEnvironment, logService));
+	const { DISPLAY: _display, WAYLAND_DISPLAY: _waylandDisplay, ...environment } = inheritedEnvironment;
 	const spawnOptions: SpawnOptionsWithoutStdio = {
 		stdio: 'pipe',
 		windowsHide: true,
@@ -79,6 +80,10 @@ export async function createSSHProxyJump(
 	return new SSHProxyJump(child, logService, options.terminate);
 }
 
+/**
+ * Intermediate Windows jump aliases need BatchMode yes in SSH config to avoid native console prompts.
+ * Use Host aliases for intermediate IPv6 addresses when the login shell expands unquoted brackets.
+ */
 export function buildSSHProxyJumpArguments(value: string, target: ISSHProxyJumpTarget): string[] {
 	validateHost(target.host);
 	validatePort(String(target.port));
@@ -99,8 +104,8 @@ export function buildSSHProxyJumpArguments(value: string, target: ISSHProxyJumpT
 		if (jumps.slice(0, -1).some(jump => jump.user?.includes('\\'))) {
 			throw new Error(localize('sshJumpDomainUserInChain', "For intermediate jump hosts, configure domain usernames in SSH Host entries instead of inline in ProxyJump."));
 		}
-		args.push('-J', jumps.slice(0, -1).map(jump =>
-			`${jump.user ? `${jump.user}@` : ''}${bracketHost(jump.host)}${jump.port === undefined ? '' : `:${jump.port}`}`,
+		args.push('-J', jumps.slice(0, -1).map((jump, index) =>
+			`${jump.user ? `${jump.user}@` : ''}${escapeIntermediateHost(jump.host, jumps.length - 1 - index)}${jump.port === undefined ? '' : `:${jump.port}`}`,
 		).join(','));
 	}
 	if (last.port !== undefined) {
@@ -144,23 +149,40 @@ function bracketHost(host: string): string {
 	return host.includes(':') ? `[${host}]` : host;
 }
 
+function escapeIntermediateHost(host: string, expansionPasses: number): string {
+	const percentCount = host.split('%').length - 1;
+	if (percentCount === 0) {
+		return bracketHost(host);
+	}
+	// Each enclosing OpenSSH ProxyCommand performs another percent-expansion pass.
+	const percentLength = 2 ** expansionPasses;
+	if (!Number.isSafeInteger(percentLength) || host.length + percentCount * (percentLength - 1) > 32767) {
+		throw new Error(localize('sshJumpEscapedHostTooLong', "The SSH ProxyJump chain requires an excessively long escaped hostname."));
+	}
+	return bracketHost(host.replace(/%/g, '%'.repeat(percentLength)));
+}
+
 export function getSSHExecutableCandidates(platform: NodeJS.Platform, pathValue: string, windowsDirectory = 'C:\\Windows'): string[] {
 	const paths = platform === 'win32' ? win32 : posix;
 	const executable = platform === 'win32' ? 'ssh.exe' : 'ssh';
 	const candidates: string[] = [];
-	for (const entry of pathValue.split(paths.delimiter)) {
-		if (paths.isAbsolute(entry)) {
+	const isFullyQualified = (value: string) => platform === 'win32'
+		? /^(?:[A-Za-z]:[\\/]|[\\/]{2}(?![?.](?:[\\/]|$))[^\\/?"]+[\\/](?!\.{1,2}(?:[\\/]|$))[^\\/?"]+(?:[\\/]|$))/.test(value) && !value.includes('"')
+		: paths.isAbsolute(value);
+	for (const rawEntry of pathValue.split(paths.delimiter)) {
+		const entry = platform === 'win32' ? rawEntry.replace(/^"(.*)"$/, '$1') : rawEntry;
+		if (isFullyQualified(entry)) {
 			candidates.push(paths.join(entry, executable));
 		}
 	}
-	if (platform === 'win32' && paths.isAbsolute(windowsDirectory)) {
+	if (platform === 'win32' && isFullyQualified(windowsDirectory)) {
 		candidates.push(paths.join(windowsDirectory, 'System32', 'OpenSSH', executable));
 	}
 	return [...new Set(candidates)];
 }
 
-async function resolveSSHExecutable(): Promise<string> {
-	for (const candidate of getSSHExecutableCandidates(process.platform, process.env.PATH ?? '', process.env.WINDIR)) {
+async function resolveSSHExecutable(environment: NodeJS.ProcessEnv, logService: ILogService): Promise<string> {
+	for (const candidate of getSSHExecutableCandidates(process.platform, environment.PATH ?? '', environment.WINDIR)) {
 		try {
 			if ((await fs.stat(candidate)).isFile()) {
 				await fs.access(candidate, constants.X_OK);
@@ -168,8 +190,11 @@ async function resolveSSHExecutable(): Promise<string> {
 			}
 		} catch (error) {
 			const code = (error as NodeJS.ErrnoException).code;
-			if (code !== 'ENOENT' && code !== 'ENOTDIR' && code !== 'EACCES') {
+			if (!code || !['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM', 'ELOOP', 'EINVAL', 'ENAMETOOLONG'].includes(code)) {
 				throw error;
+			}
+			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+				logService.warn(`[SSHRemoteAgentHost] Skipping unusable OpenSSH executable candidate (${code})`);
 			}
 		}
 	}

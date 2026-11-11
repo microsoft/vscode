@@ -6,7 +6,10 @@
 import assert from 'assert';
 import { spawn } from 'child_process';
 import { once } from 'events';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import { timeout } from '../../../../base/common/async.js';
+import { delimiter, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
@@ -45,6 +48,24 @@ suite('SSH ProxyJump', () => {
 			'-o', 'BatchMode=yes', '-J', 'first:2001,alice@[::1]:2002',
 			'-p', '2003', '-W', 'target.internal:2200', '--', 'bob@last',
 		]);
+	});
+
+	test('preserves intermediate percent signs through each nested OpenSSH expansion', () => {
+		assert.deepStrictEqual({
+			twoHops: buildSSHProxyJumpArguments('jump-%%n,last', target),
+			threeHops: buildSSHProxyJumpArguments('[fe80::1%%en0],jump-%%h,last', target),
+			fourHops: buildSSHProxyJumpArguments('[fe80::1%%12],middle,next,last', target),
+		}, {
+			twoHops: ['-o', 'BatchMode=yes', '-J', 'jump-%%n', '-W', 'target.internal:2200', '--', 'last'],
+			threeHops: ['-o', 'BatchMode=yes', '-J', '[fe80::1%%%%en0],jump-%%h', '-W', 'target.internal:2200', '--', 'last'],
+			fourHops: ['-o', 'BatchMode=yes', '-J', '[fe80::1%%%%%%%%12],middle,next', '-W', 'target.internal:2200', '--', 'last'],
+		});
+	});
+
+	test('rejects excessive percent escaping before allocating a large argument', () => {
+		assert.throws(() => buildSSHProxyJumpArguments(
+			['jump-%%n', ...Array<string>(1000).fill('next')].join(','), target,
+		), /excessively long escaped hostname/);
 	});
 
 	test('preserves Windows domain usernames in direct argv but not nested shell hops', () => {
@@ -91,6 +112,40 @@ suite('SSH ProxyJump', () => {
 			posix: ['/usr/bin/ssh'],
 			windows: [String.raw`C:\Tools\ssh.exe`, String.raw`C:\Windows\System32\OpenSSH\ssh.exe`],
 		});
+	});
+
+	test('Windows candidates require a drive or complete UNC share and preserve quoted PATH entries', () => {
+		assert.deepStrictEqual({
+			paths: getSSHExecutableCandidates('win32', String.raw`\Tools;/usr/bin;C:Tools;\\;//server;\\.\pipe;\\?\C:\Tools;"C:\Program Files\OpenSSH";\\server.example\share\bin`),
+			systemRoot: getSSHExecutableCandidates('win32', '', String.raw`\Windows`),
+		}, {
+			paths: [
+				String.raw`C:\Program Files\OpenSSH\ssh.exe`,
+				String.raw`\\server.example\share\bin\ssh.exe`,
+				String.raw`C:\Windows\System32\OpenSSH\ssh.exe`,
+			],
+			systemRoot: [],
+		});
+	});
+
+	test('an unusable PATH candidate does not hide a later OpenSSH executable', async () => {
+		const directory = await fs.mkdtemp(join(tmpdir(), 'vscode-proxyjump-lookup-'));
+		const executable = join(directory, process.platform === 'win32' ? 'ssh.exe' : 'ssh');
+		try {
+			await fs.writeFile(executable, '', { mode: 0o700 });
+			const resolved = rememberSSHProxyJump(parseSSHGOutput('hostname target'), 'proxyjump jump');
+			let selectedExecutable: string | undefined;
+			await assert.rejects(createSSHProxyJump(resolved, target, store.add(new NullLogService()), {
+				environment: { ...process.env, PATH: [join(directory, 'a'.repeat(5000)), directory].join(delimiter) },
+				spawn: selected => {
+					selectedExecutable = selected;
+					throw new Error('No subprocess is needed for executable lookup');
+				},
+			}), /could not be started/);
+			assert.strictEqual(selectedExecutable, executable);
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('relays bytes through an absolute executable and terminates the owned child exactly once', async () => {
