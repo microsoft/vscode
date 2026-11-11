@@ -36,6 +36,7 @@ import { ContributionEnablementState, IEnablementModel, isContributionEnabled } 
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { OrganizationManagedTag } from './customizationOrganizationPolicy.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -263,6 +264,7 @@ interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
 	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly location: MiddleEllipsisPathLabel;
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
@@ -278,6 +280,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 
 	constructor(
 		private readonly _harnessService: ICustomizationHarnessService,
+		private readonly _hoverService: IHoverService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
 		private readonly _showSyncToggle = true,
 	) { }
@@ -290,13 +293,14 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		const templateDisposables = new DisposableStore();
+		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
 		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, syncToggleContainer, name, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, managedTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -306,6 +310,10 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.currentItemId = element.item.plugin.uri.toString();
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
+		templateData.disposables.add(autorun(reader => {
+			const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
+			templateData.managedTag.update(policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+		}));
 
 		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
@@ -364,6 +372,7 @@ interface IPluginRemoteItemTemplateData {
 	readonly container: HTMLElement;
 	readonly name: HTMLElement;
 	readonly badge: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly description: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly statusIcon: HTMLElement;
@@ -398,14 +407,15 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('span.plugin-list-item-name'));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+		const templateDisposables = new DisposableStore();
+		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const statusIcon = DOM.append(container, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
-		const templateDisposables = new DisposableStore();
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, managedTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -424,6 +434,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.badge.style.display = 'none';
 			templateData.badge.title = '';
 		}
+		templateData.managedTag.update(element.item.organizationControl);
 
 		const description = getRemotePluginDescription(element.item);
 		if (description) {
@@ -1084,7 +1095,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 

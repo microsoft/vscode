@@ -26,6 +26,7 @@ import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationM
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { AGENT_DISCOVERY_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { withCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
 import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
@@ -771,6 +772,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				version: plugin.version,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [...pluginChildren.values()],
+				...(plugin.managed ? { _meta: withCustomizationOrganizationMeta(undefined, { requiredEnabled: plugin.managedDesiredEnabled }) } : {}),
 			});
 		}
 		for (const id of pluginIds) {

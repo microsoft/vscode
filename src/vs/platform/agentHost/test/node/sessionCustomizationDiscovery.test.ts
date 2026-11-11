@@ -21,6 +21,7 @@ import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } f
 import { McpServerStatus } from '../../common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../common/state/protocol/mcpAppDefaults.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
 import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
@@ -620,6 +621,29 @@ suite('SessionCustomizationDiscovery', () => {
 		client.rpc.plugins.list = async () => { throw new Error('plugin inventory unavailable'); };
 		const partial = await discovery.discover(client, CancellationToken.None);
 		assert.deepStrictEqual(partial.flatMap(item => item.type === CustomizationType.McpServer ? [item.name] : item.children?.map(child => child.name) ?? []), ['sessionStart', 'server']);
+	});
+
+	test('publishes organization control for plugins managed by enterprise settings', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({
+			hooks: ['required', 'blocked', 'supplied', 'unmanaged'].map(name => ({ id: `${name}-hook`, hookType: 'sessionStart', origin: 'plugin', source: name, enabled: true, pluginId: name })),
+			errors: [], warnings: [],
+		}));
+		client.rpc.plugins.list = async () => ({
+			plugins: [
+				{ id: 'required', name: 'required', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/required', managed: true, managedDesiredEnabled: true },
+				{ id: 'blocked', name: 'blocked', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/blocked', managed: true, managedDesiredEnabled: false },
+				{ id: 'supplied', name: 'supplied', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/supplied', managed: true },
+				{ id: 'unmanaged', name: 'unmanaged', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged', managed: false, managedDesiredEnabled: true },
+			],
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, readCustomizationOrganizationMeta(plugin)])), {
+			required: { requiredEnabled: true },
+			blocked: { requiredEnabled: false },
+			supplied: {},
+			unmanaged: undefined,
+		});
 	});
 
 	test('marks agent instruction rule sources as always apply', async () => {

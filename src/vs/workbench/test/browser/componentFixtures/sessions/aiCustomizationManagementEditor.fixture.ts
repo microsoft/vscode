@@ -67,7 +67,7 @@ import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICopilotExtensionsService } from '../../../../contrib/chat/browser/aiCustomization/copilotExtensionsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationOrganizationControl, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -102,9 +102,10 @@ import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCu
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue, mcpAllowedServersConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -206,6 +207,8 @@ interface IFixtureFile {
 	readonly applyTo?: string;
 	readonly extensionId?: string;
 	readonly extensionDisplayName?: string;
+	/** Set when the user's organization manages this customization. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
 }
 
 function createMockEditorGroup(): IEditorGroup {
@@ -278,6 +281,8 @@ interface IFixtureAgentHostPlugin {
 	readonly statusMessage?: string;
 	/** Organization that requires the plugin. */
 	readonly organization?: string;
+	readonly enabled?: boolean;
+	readonly organizationControl?: ICustomizationOrganizationControl;
 }
 
 function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string, plugins: readonly IFixtureAgentHostPlugin[] = []): ICustomizationItemProvider {
@@ -295,6 +300,8 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				origin: plugin.organization ? { kind: 'account', label: plugin.organization } : undefined,
 				status: plugin.status,
 				statusMessage: plugin.statusMessage,
+				enabled: plugin.enabled,
+				organizationControl: plugin.organizationControl,
 				extensionId: undefined,
 				pluginUri: undefined,
 			}));
@@ -309,6 +316,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 					: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
+				organizationControl: file.organizationControl,
 			}))];
 		},
 		async provideSourceFolders(_sessionResource, type): Promise<readonly ICustomizationSourceFolder[]> {
@@ -771,6 +779,22 @@ const reconciledConnectorMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-93f713b9a912cfbc0384', name: 'github-copilot-connector-93f713b9a912cfbc0384', displayName: 'Microsoft Learn Docs', source: 'managed', sourceUri: undefined },
 	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-94d26095770df60673dd', name: 'github-copilot-connector-94d26095770df60673dd', displayName: 'Azure Data Explorer', source: 'managed', sourceUri: undefined },
 ];
+
+// Organization managed-settings states for the agent-host harness.
+const organizationManagedMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[0], id: 'session/contoso-tickets', name: 'contoso-tickets', displayName: 'Contoso Tickets', source: 'managed', sourceUri: undefined },
+	{ ...activeSessionMcpServers[0], id: 'session/contoso-docs', name: 'contoso-docs', displayName: 'Contoso Docs', source: 'managed', sourceUri: undefined },
+	{ ...activeSessionMcpServers[0] },
+	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:GitHub', name: 'GitHub' },
+];
+
+const organizationManagedHookFiles: IFixtureFile[] = [
+	{ uri: URI.file('/home/dev/.copilot/managed/hooks/audit-tool-calls.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Audit Tool Calls', description: 'Record every tool call for compliance', organizationControl: { requiredEnabled: true } },
+	{ uri: URI.file('/home/dev/.copilot/managed/hooks/block-secrets.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Block Secrets', description: 'Stop prompts that contain credentials', organizationControl: { requiredEnabled: true } },
+];
+
+
+const organizationPluginOnlyPolicy: Record<string, unknown> = { [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]: true };
 
 const allStateMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0] },
@@ -1315,6 +1339,22 @@ interface IRenderEditorOptions {
 	readonly pluginMarketplaceMigrationDeselected?: boolean;
 	/** Describes the badge of the contributed Extensions section, which shows none unless given. */
 	readonly extensionsSectionBadge?: string;
+	/** Settings whose values come from organization policy. */
+	readonly policyConfiguration?: Record<string, unknown>;
+	/** Adds local plugins that organization policy requires or blocks. */
+	readonly organizationManagedLocalPlugins?: boolean;
+}
+
+/** Reports the given settings as organization policy values. */
+class PolicyTestConfigurationService extends TestConfigurationService {
+	constructor(private readonly policy: Record<string, unknown>, configuration: Record<string, unknown>) {
+		super({ ...configuration, ...policy });
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const value = super.inspect<T>(key, overrides);
+		return Object.hasOwn(this.policy, key) ? { ...value, userValue: undefined, userLocalValue: undefined, policyValue: this.policy[key] as T } : value;
+	}
 }
 
 // ============================================================================
@@ -1499,9 +1539,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const requiredPluginResource = customizationMarketplaceResources.find(resource => resource.identifier === 'example/figma-plugin')!;
 	const requiredPluginUri = URI.file('/user/plugins/figma-plugin');
 	const requiredPluginTarget: CustomizationMarketplaceInstallationTarget = { kind: 'plugin', uri: requiredPluginUri };
-	const fixturePlugins = options.customizationMarketplaceInstallationState === 'requiredPlugin'
-		? [...installedPlugins, makeInstalledPlugin('Figma', requiredPluginUri, true, false, undefined, true)]
-		: installedPlugins;
+	const fixturePlugins = [
+		...(options.customizationMarketplaceInstallationState === 'requiredPlugin'
+			? [...installedPlugins, makeInstalledPlugin('Figma', requiredPluginUri, true, false, undefined, true)]
+			: installedPlugins),
+		...(options.organizationManagedLocalPlugins ? [
+			makeInstalledPlugin('Contoso Compliance', URI.file('/workspace/.copilot/plugins/contoso-compliance'), true, false, undefined, true),
+			makeInstalledPlugin('Unapproved Deploy', URI.file('/workspace/.copilot/plugins/unapproved-deploy'), false, true),
+		] : []),
+	];
 	if (options.customizationMarketplaceInstallationState === 'requiredPlugin') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(requiredPluginResource), { kind: 'installed', target: requiredPluginTarget });
 	}
@@ -1528,7 +1574,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const harnessService = createMockHarnessService(options.sessionResource, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
-			const configurationService = marketplaceConfiguration = new TestConfigurationService({
+			const configurationService = marketplaceConfiguration = new PolicyTestConfigurationService(options.policyConfiguration ?? {}, {
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
@@ -4485,6 +4531,109 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			height: 1180,
 		}),
 	}),
+	// Organization managed settings: agent-host plugins the organization requires,
+	// blocks, or requires but could not install.
+	OrgManagedAgentHostPlugins: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			agentHostPlugins: [
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded' },
+				{ name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true } },
+				{ name: 'unapproved-deploy', description: 'Deploys to unapproved environments', scope: 'user', enabled: false, organizationControl: { requiredEnabled: false } },
+				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Required by your organization, but failed to install.', organizationControl: { requiredEnabled: true } },
+				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application', status: 'loaded' },
+			],
+			height: 1180,
+		}),
+	}),
+
+	// Organization managed settings: local plugins whose enablement policy locks.
+	OrgManagedLocalPlugins: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			organizationManagedLocalPlugins: true,
+			height: 1000,
+		}),
+	}),
+
+	// Organization managed settings: skills restricted to plugins.
+	OrgSkillsPluginOnly: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Skills,
+			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.skill || file.storage === PromptsStorage.builtIn),
+			policyConfiguration: organizationPluginOnlyPolicy,
+		}),
+	}),
+
+	// Organization managed settings: agents restricted to plugins.
+	OrgAgentsPluginOnly: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Agents,
+			agentHostFiles: allFiles.filter(file => file.type !== PromptsType.agent || file.storage === PromptsStorage.extension),
+			policyConfiguration: organizationPluginOnlyPolicy,
+		}),
+	}),
+
+	// Organization managed settings: hooks the organization provides are tagged
+	// and locked on, alongside the user's own hooks.
+	OrgManagedHooks: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Hooks,
+			agentHostFiles: [...allFiles, ...organizationManagedHookFiles],
+			height: 800,
+		}),
+	}),
+
+	// Organization managed settings: only organization-provided hooks may load.
+	OrgHooksOrganizationOnly: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Hooks,
+			agentHostFiles: [...allFiles.filter(file => file.type !== PromptsType.hook), ...organizationManagedHookFiles],
+			policyConfiguration: { [COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG]: true },
+		}),
+	}),
+
+	// Organization managed settings: MCP servers restricted to an allowlist,
+	// with organization-provided servers tagged as managed.
+	OrgMcpAllowlist: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers: organizationManagedMcpServers,
+			mcpWorkbenchServers: [],
+			mcpRuntimeServers: [],
+			policyConfiguration: { [mcpAllowedServersConfig]: [{ serverName: 'contoso-tickets' }, { serverName: 'contoso-docs' }, { serverName: 'component-explorer' }, { serverName: 'GitHub' }] },
+		}),
+	}),
+
+	// Organization managed settings: only organization-provided MCP servers may load.
+	OrgMcpOrganizationOnly: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers: organizationManagedMcpServers.filter(server => server.source === 'managed'),
+			mcpWorkbenchServers: [],
+			mcpRuntimeServers: [],
+			policyConfiguration: { [COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true },
+		}),
+	}),
+
+
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
