@@ -131,4 +131,54 @@ suite('workspace images', () => {
 			rmSync(temp, { recursive: true, force: true });
 		}
 	});
+
+	// Only the CI test jobs of product-build.yml start from images, and the image jobs only run in CI
+	// builds. The Windows smoke tests, like the WSL smoke test job of pull requests, don't: WSL cannot
+	// open folders on a volume that is mounted in a folder.
+	test('Azure Pipelines CI test jobs start from images, except the Windows smoke tests', () => {
+		// Alone, or in an and() with the conditions of a stage
+		const ciBuild = /^\$\{\{ if (?:and\(.*, )?eq\(variables\['VSCODE_CIBUILD'\], true\)\)? \}\}$/;
+		const templates = (value: unknown, conditions: readonly string[] = []): { template: string; ci: boolean; parameters: Record<string, string> }[] => {
+			if (Array.isArray(value)) {
+				return value.flatMap(item => templates(item, conditions));
+			}
+			if (!value || typeof value !== 'object') {
+				return [];
+			}
+			const record = value as Record<string, unknown>;
+			return [
+				...(typeof record.template === 'string' ? [{ template: record.template, ci: conditions.some(condition => ciBuild.test(condition)), parameters: (record.parameters ?? {}) as Record<string, string> }] : []),
+				...Object.entries(record).flatMap(([key, child]) => templates(child, key.startsWith('${{ if ') ? [...conditions, key] : conditions)),
+			];
+		};
+		const observed = ['product-build.yml', 'product-build-template.yml', 'product-build-ado-ci.yml'].map(file => {
+			const all = templates(load(readRepositoryFile(`build/azure-pipelines/${file}`).toString(), { schema: FAILSAFE_SCHEMA }));
+			return {
+				file,
+				imageJobs: all.filter(({ template }) => template.endsWith('-workspace-image.yml@self')).map(({ template, ci }) => ({ template: path.posix.basename(template), ci })),
+				testJobs: Object.fromEntries(all.flatMap(({ template, parameters }) => {
+					const platform = /\/product-build-(?<platform>linux|win32|darwin)-ci\.yml@self$/.exec(template)?.groups?.platform;
+					return platform ? [[`${platform} ${parameters.VSCODE_JOB_NAME}`, parameters.VSCODE_WORKSPACE_IMAGE ?? 'none']] : [];
+				})),
+			};
+		});
+		const jobs = ['UnitElectron', 'Unit', 'BrowserRemote', 'Integration', 'AgentHostE2E', 'Smoke'];
+		const testJobs = (image: (platform: string, job: string) => string) => Object.fromEntries([
+			...['win32', 'linux'].flatMap(platform => [...jobs, 'Copilot'].map(job => [`${platform} ${job}`, image(platform, job)])),
+			...jobs.map(job => [`darwin ${job}`, image('darwin', job)]),
+		]);
+		assert.deepEqual(observed, [
+			{
+				file: 'product-build.yml',
+				imageJobs: [
+					{ template: 'product-build-win32-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-linux-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-darwin-workspace-image.yml@self', ci: true },
+				],
+				testJobs: testJobs((platform, job) => platform === 'win32' && job === 'Smoke' ? 'none' : 'use'),
+			},
+			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
+			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
+		]);
+	});
 });

@@ -383,10 +383,15 @@ extends:
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
 
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+              # The test jobs start from its workspace image when the cache has one, without waiting for it
+              - template: build/azure-pipelines/win32/product-build-win32-workspace-image.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: UnitElectron
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -395,6 +400,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Unit
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
@@ -404,6 +410,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -415,6 +422,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -423,10 +431,13 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: AgentHostE2E
                   VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-agent-host-e2e
+              # Without the workspace image, like the WSL smoke test job of pull requests: WSL cannot open folders
+              # on a volume that is mounted in a folder (see .github/workflows/workspace_image/README.md)
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -441,6 +452,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_WORKSPACE_IMAGE: use
                   VSCODE_JOB_NAME: Copilot
                   VSCODE_JOB_DISPLAY_NAME: Copilot Tests
                   VSCODE_TEST_IDS:
