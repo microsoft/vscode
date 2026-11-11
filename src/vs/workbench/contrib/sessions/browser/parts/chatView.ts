@@ -172,6 +172,11 @@ export interface ISessionViewHostOptions {
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */
 	readonly input?: IChatViewInputOptions;
+	/**
+	 * The folders of the host's workspace, such as an editor window's. While there are any, a chat whose session works in
+	 * another local folder shows a banner that offers to switch to it.
+	 */
+	readonly scopeFolders?: IObservable<readonly URI[]>;
 }
 
 /**

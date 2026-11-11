@@ -23,6 +23,7 @@ import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { AgentsChatViewHostDelegate } from './agentsChatViewHostDelegate.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { registerSessionFolderBannerActions } from '../parts/sessionFolderBanner.js';
 
 /**
  * The chat part of an editor window with the Sessions view. Created as the window starts, before its grid, which then has a
@@ -54,6 +55,7 @@ export class AgentsChatPartContribution extends Disposable {
 		instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartFrame).part);
 
 		this._register(registerAgentsChatPartActions());
+		this._register(registerSessionFolderBannerActions());
 
 		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
 		this._register(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
