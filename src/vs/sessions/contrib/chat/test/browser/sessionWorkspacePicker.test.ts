@@ -8815,6 +8815,41 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
+	test('its workspace trigger, as the composer renders it, is read-only for one folder and never clears to no workspace, also where workspaces can be opted out of', () => {
+		const { picker, allowedFolders } = createPicker(['/local/vscode']);
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, clearable: constObservable(true), attachesContext: false }]);
+		const slot = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger')!;
+		const trigger = [...slot.querySelectorAll<HTMLElement>('[role="button"]')].find(element => !element.classList.contains('sessions-workspace-clear-button'))!;
+		const snapshot = () => ({
+			readOnly: trigger.getAttribute('aria-disabled'),
+			popup: trigger.getAttribute('aria-haspopup'),
+			chevrons: trigger.querySelectorAll('.sessions-chat-dropdown-chevron').length,
+			clearHidden: slot.querySelector<HTMLElement>('.sessions-workspace-clear-button')?.hidden,
+		});
+		const oneFolder = snapshot();
+		picker.clearSelection();
+		const afterClear = picker.selectedFolderUri?.path;
+		allowedFolders.set([URI.file('/local/vscode'), URI.file('/local/tools')], undefined);
+
+		assert.deepStrictEqual({ oneFolder, afterClear, twoFolders: snapshot() }, {
+			oneFolder: { readOnly: 'true', popup: 'false', chevrons: 0, clearHidden: true },
+			afterClear: '/local/vscode',
+			twoFolders: { readOnly: 'false', popup: 'listbox', chevrons: 1, clearHidden: true },
+		});
+	});
+
+	test('a selected folder that leaves the window gives way to the window\'s first folder', () => {
+		const { picker, allowedFolders } = createPicker(['/local/a', '/local/b']);
+		const selections: string[] = [];
+		store.add(picker.onDidSelectWorkspace(folder => selections.push(folder?.path ?? 'none')));
+		picker.setSelectedWorkspace(URI.file('/local/b'));
+		allowedFolders.set([URI.file('/local/a')], undefined);
+
+		assert.deepStrictEqual({ selected: picker.selectedFolderUri?.path, selections }, { selected: '/local/a', selections: ['/local/b', '/local/a'] });
+	});
+
 	test('selects no folder outside the window\'s folders', () => {
 		const { picker } = createPicker(['/local/vscode', '/local/tools']);
 		picker.setSelectedWorkspace(URI.file('/local/tools'), { fireEvent: false });

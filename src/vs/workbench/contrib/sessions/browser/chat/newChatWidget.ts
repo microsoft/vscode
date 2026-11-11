@@ -1940,7 +1940,9 @@ export class NewChatWidget extends Disposable {
 		const canOptOut = derived(this, reader => {
 			selectionChanged.read(reader);
 			return !!this._workspaceOptOutTarget.read(reader)
-				&& !!this._workspacePicker.selectedFolderUri;
+				&& !!this._workspacePicker.selectedFolderUri
+				// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
+				&& !this._draftHost?.allowedFolders?.read(reader).length;
 		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
 		const workspaceTrigger: IWorkspacePickerTrigger = {
