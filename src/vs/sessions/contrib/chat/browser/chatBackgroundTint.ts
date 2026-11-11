@@ -32,10 +32,10 @@ import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from '../../../.
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IColorMap, IWorkbenchThemeService } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputFocusBorder, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsGradientTintColor, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
-import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputFocusBorder, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsGradientTintColor, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../workbench/contrib/sessions/common/theme.js';
+import { ISessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 
 export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING = 'chat.agentSessions.backgroundImageTint';
 

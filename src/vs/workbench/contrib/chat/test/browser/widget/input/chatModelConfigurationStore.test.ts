@@ -130,6 +130,70 @@ suite('ChatModelConfigurationStore', () => {
 		};
 	}
 
+	for (const authoredModel of [false, true]) {
+		test(`agent effort preserves model identity and overrides default provenance (authored model: ${authoredModel})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setSchema({ properties: { thinkingLevel: { enum: ['low', 'medium'], default: 'medium' } } }, ['thinkingLevel']);
+			const configuration = createStore(storage, control.service);
+			const selected = { identifier: MODEL, metadata: { ...control.service.lookupLanguageModel(MODEL)!, id: 'shared-id', name: 'Shared', vendor: 'byok' } };
+			const other = { identifier: 'other/model', metadata: { ...selected.metadata, vendor: 'other' } };
+			const currentModel = observableValue('test.currentModel', selected);
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				_modelConfigStore: configuration,
+				_currentLanguageModel: currentModel,
+				getModels: () => [other, selected],
+				_modelSelectionController: { applyProgrammaticSelection: (model: typeof selected) => currentModel.set(model, undefined) },
+			});
+			input['applyModeModelPreference'](authoredModel ? ['Shared (byok)'] : undefined, 'low');
+			assert.deepStrictEqual({
+				model: currentModel.get().identifier,
+				configuration: configuration.getModelConfiguration(MODEL),
+				shared: createStore(storage, control.service).getModelConfiguration(MODEL),
+			}, {
+				model: MODEL,
+				configuration: { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				shared: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'default' },
+			});
+		});
+	}
+
+	test('captured agent effort stays chat-local after restore and unrelated picker changes', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schemaWithContextSize);
+		const configuration = createStore(storage, control.service);
+		configuration.restoreModelConfiguration(MODEL, { thinkingEffort: 'low' }, false);
+		const selectedModel = { identifier: MODEL, metadata: control.service.lookupLanguageModel(MODEL)! };
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_modelConfigStore: configuration,
+			_currentLanguageModel: constObservable(selectedModel),
+			_currentModeObservable: constObservable({ id: 'custom-agent', kind: ChatModeKind.Agent }),
+			_currentPermissionLevel: constObservable(undefined),
+			_attachmentModel: { attachments: [] },
+			_modelSelectionController: {},
+		});
+		const captured = input.getCurrentInputState();
+		const restored = createStore(storage, control.service);
+		restored.restoreModelConfiguration(MODEL, captured.modelConfiguration!, !captured.modelConfigurationIsTransient);
+		await restored.setModelConfiguration(MODEL, { contextSize: 400_000 });
+		const fresh = createStore(storage, control.service);
+		const beforeExplicitChoice = fresh.getModelConfiguration(MODEL);
+		await restored.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual({
+			transient: captured.modelConfigurationIsTransient,
+			restored: restored.getModelConfiguration(MODEL),
+			beforeExplicitChoice,
+			afterExplicitChoice: createStore(storage, control.service).getModelConfiguration(MODEL),
+		}, {
+			transient: true,
+			restored: { thinkingEffort: 'high', contextSize: 400_000 },
+			beforeExplicitChoice: { thinkingEffort: 'medium', contextSize: 400_000 },
+			afterExplicitChoice: { thinkingEffort: 'high', contextSize: 400_000 },
+		});
+	});
+
 	test('managed startup defaults override saved preferences only in untouched new chats', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -1062,6 +1126,7 @@ suite('ChatModelConfigurationStore', () => {
 				_currentSessionTypeObservable: observableValue<string | undefined>('test.sessionType', undefined),
 				_modelSessionTypeOverride: observableValue('test.modelSessionTypeOverride', undefined),
 				_currentLanguageModel: observableValue('test.selectedModel', selectedModel),
+				chatSessionsService: { getChatSessionContribution: () => undefined },
 				chatModeService: { createModes: () => modes },
 				selectedToolsModel: { resetSessionEnablementState() { } },
 				sessionTypeHasOwnModelPool: () => false,

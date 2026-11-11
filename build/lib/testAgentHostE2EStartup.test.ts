@@ -30,6 +30,8 @@ async function createRunnerRepository(repoRoot: string): Promise<IRunnerReposito
 		'test/integration/agentHost/runner.ts',
 		'test/integration/agentHost/child.ps1',
 		'build/lib/electronVersion.ts',
+		'build/npm/pnpm/nativeBuildEnv.ts',
+		'build/lib/pnpm.ts',
 		'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts',
 	]) {
 		await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
@@ -38,8 +40,10 @@ async function createRunnerRepository(repoRoot: string): Promise<IRunnerReposito
 	await fs.writeFile(path.join(repoRoot, 'test/integration/agentHost/package.json'), '{"type":"commonjs"}');
 	await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({
 		type: 'module', scripts: { electron: 'node setup-electron.ts' },
+		nativeBuild: { runtime: 'electron', target: '42.9.3', disturl: 'https://electronjs.org/headers', msBuildId: 'test' },
 	}));
-	await fs.writeFile(path.join(repoRoot, '.npmrc'), 'target="42.9.3"\nms_build_id="test"\n');
+	// Like the repository: `pnpm run` doesn't install dependencies first.
+	await fs.writeFile(path.join(repoRoot, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: false\n');
 	await fs.writeFile(path.join(repoRoot, 'product.json'), JSON.stringify({
 		nameLong: 'Code - OSS', nameShort: 'Code - OSS', applicationName: 'code-oss',
 	}));
@@ -108,7 +112,7 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 			defaultFullProfile: firstRun.includes('Agent Host test profile: full (default)'),
 			prProfile: prRun.includes('Agent Host test profile: pr (default)'),
 			preparations: await fs.readFile(path.join(repoRoot, '.build/preparations'), 'utf8'),
-		}, { reused: true, suitesPassed: 6, defaultFullProfile: true, prProfile: true, preparations: 'prepared\nprepared\n' });
+		}, { reused: true, suitesPassed: 10, defaultFullProfile: true, prProfile: true, preparations: 'prepared\nprepared\n' });
 	} finally {
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}
@@ -135,13 +139,18 @@ test('Agent Host E2E runs only the suites that a --runList file lists, and prepa
 			suitesPassed: [...twoListed.matchAll(/^ {2}PASS (?<suite>[^:]+):/gm)].map(match => match.groups!.suite),
 			noneListed: noneListed.includes('None of the 6 Agent Host E2E suites is listed in'),
 			prepared: await exists(path.join(repoRoot, '.build/preparations')),
-		}, { suitesPassed: ['Conformance', 'Claude'], noneListed: true, prepared: false });
+		}, {
+			// The longest suites run in two processes that split their tests.
+			suitesPassed: ['Conformance (1/2)', 'Conformance (2/2)', 'Claude (1/2)', 'Claude (2/2)'],
+			noneListed: true,
+			prepared: false,
+		});
 	} finally {
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}
 });
 
-test('Agent Host E2E shards take the listed suites in turn, and a shard without suites prepares nothing', async () => {
+test('Agent Host E2E shards take the processes of the listed suites in turn, and a shard without any prepares nothing', async () => {
 	const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-e2e-shard-'));
 	try {
 		const { executable, run } = await createRunnerRepository(repoRoot);
@@ -150,7 +159,7 @@ test('Agent Host E2E shards take the listed suites in turn, and a shard without 
 			'src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts',
 			'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
 		].join('\n'));
-		await fs.writeFile(path.join(repoRoot, 'one.txt'), 'src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts\n');
+		await fs.writeFile(path.join(repoRoot, 'one.txt'), 'src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts\n');
 		const passed = (output: string) => [...output.matchAll(/^ {2}PASS (?<suite>[^:]+):/gm)].map(match => match.groups!.suite);
 		const everySuite = run({}, ['--shard', '2/2']);
 		const firstListed = run({}, ['--shard', '1/2', '--runList', 'three.txt']);
@@ -162,12 +171,13 @@ test('Agent Host E2E shards take the listed suites in turn, and a shard without 
 			everySuite: passed(everySuite),
 			firstListed: passed(firstListed),
 			secondListed: passed(secondListed),
-			emptyShard: emptyShard.includes('Agent Host E2E shard 2/2 has none of the 1 selected suites.'),
+			emptyShard: emptyShard.includes('Agent Host E2E shard 2/2 has none of the 1 processes of the selected suites.'),
 			prepared: await exists(path.join(repoRoot, '.build/preparations')),
 		}, {
-			everySuite: ['Claude', 'Copilot', 'Copilot managed settings'],
-			firstListed: ['Conformance', 'Copilot'],
-			secondListed: ['Claude'],
+			// The longest suites run in two processes, the longest suite first.
+			everySuite: ['Copilot (2/2)', 'Conformance (2/2)', 'Claude (2/2)', 'Codex (2/2)', 'Copilot managed settings'],
+			firstListed: ['Copilot (1/2)', 'Conformance (1/2)', 'Claude (1/2)'],
+			secondListed: ['Copilot (2/2)', 'Conformance (2/2)', 'Claude (2/2)'],
 			emptyShard: true,
 			prepared: false,
 		});

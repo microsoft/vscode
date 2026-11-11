@@ -1,0 +1,33 @@
+parameters:
+  # Operating system of the job (linux, macOS or windows), for templates that know it: only the step
+  # for that OS is added. Empty adds both, and the one for the other OS is skipped at run time.
+  - name: os
+    type: string
+    default: ''
+
+# Removes the packages that the installed projects don't use from the pnpm store that
+# restore-pnpm-store.yml restored, when the cache saves it at the end of the job (its key missed).
+# Also removes the store's links to those projects (in `projects`): the cache follows links when it
+# archives the store on Windows, and the next installation adds its own. Include it after the last
+# installation of the job. A failure doesn't fail the job (continueOnError), and the cache then
+# doesn't save the store.
+steps:
+  - ${{ if ne(parameters.os, 'windows') }}:
+    - script: |
+        set -e
+        pnpm store prune
+        rm -rf "$(pnpm store path)/projects"
+      condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'), ne(variables['Agent.OS'], 'Windows_NT'))
+      displayName: Prune pnpm store
+      continueOnError: true
+
+  - ${{ if or(eq(parameters.os, ''), eq(parameters.os, 'windows')) }}:
+    - powershell: |
+        . $env:BUILD_SOURCESDIRECTORY/build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { pnpm store prune }
+        $StorePath = (pnpm store path)
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $StorePath "projects")
+      condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'), eq(variables['Agent.OS'], 'Windows_NT'))
+      displayName: Prune pnpm store
+      continueOnError: true

@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { CloudSandboxAgentHostContribution } from './cloudSandboxAgentHostContribution.js';
+import { CloudSandboxAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 
 registerWorkbenchContribution2(CloudSandboxAgentHostContribution.ID, CloudSandboxAgentHostContribution, WorkbenchPhase.AfterRestored);

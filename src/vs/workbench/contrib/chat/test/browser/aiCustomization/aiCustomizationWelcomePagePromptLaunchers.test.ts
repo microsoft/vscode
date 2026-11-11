@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -17,6 +18,43 @@ import { AICustomizationManagementSection } from '../../../browser/aiCustomizati
 
 suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('welcome submission delegates harness selection without inserting init', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const calls: { query: string; options: Parameters<IWelcomePageCallbacks['prefillChat']>[1] }[] = [];
+		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
+			parent,
+			{ showGettingStartedBanner: true },
+			new class extends mock<IWelcomePageCallbacks>() {
+				override prefillChat(query: string, options?: Parameters<IWelcomePageCallbacks['prefillChat']>[1]): void {
+					calls.push({ query, options });
+				}
+			}(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly managementSections = [];
+			}(),
+			new class extends mock<IHoverService>() {
+				override setupManagedHover(): ReturnType<IHoverService['setupManagedHover']> {
+					return new class extends mock<ReturnType<IHoverService['setupManagedHover']>>() {
+						override dispose(): void { }
+					}();
+				}
+			}(),
+			'Copilot',
+		));
+		const input = page.container.querySelector<HTMLInputElement>('.welcome-prompts-input')!;
+		input.value = 'Prefer concise commits.';
+		input.dispatchEvent(new mainWindow.Event('input'));
+		page.container.querySelector<HTMLButtonElement>('.welcome-prompts-input-submit')!.click();
+		assert.deepStrictEqual(calls, [{
+			query: 'Prefer concise commits.',
+			options: { isPartialQuery: false, newChat: true, generateCustomizations: true },
+		}]);
+	});
 
 	test('migration card has one native interactive target', () => {
 		const parent = document.createElement('div');

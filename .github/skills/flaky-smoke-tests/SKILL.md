@@ -263,7 +263,7 @@ Six iterations are a useful quick validation sample. Use the default 20 when the
 For smoke-test TypeScript changes:
 
 ```bash
-npm run compile --prefix test/smoke
+pnpm -C test/smoke run compile
 node --experimental-strip-types build/hygiene.ts <changed-file>
 ```
 

@@ -361,6 +361,41 @@ suite('aiCustomizationManagementEditor', () => {
 		], [true, false, false, false]);
 	});
 
+	test('opens an MCP skill bundle after Skills loads and ignores superseded navigation', async () => {
+		const calls: string[] = [];
+		const sectionLoad = new DeferredPromise<void>();
+		const sessionResource = observableValue('session', URI.parse('test:///session'));
+		const editor = {
+			contentNavigationGeneration: 0,
+			selectedSection: AICustomizationManagementSection.McpServers as AICustomizationManagementSection,
+			listWidgetSectionLoad: sectionLoad.p,
+			harnessService: { activeSessionResource: sessionResource },
+			selectSectionById: (section: AICustomizationManagementSection) => {
+				calls.push(`section:${section}`);
+				editor.selectedSection = section;
+				return true;
+			},
+			listWidget: { showSkillBundle: (id: string) => calls.push(`bundle:${id}`) },
+		};
+		const showMcpServerSkills = AICustomizationManagementEditor.prototype.showMcpServerSkills as (
+			this: typeof editor, bundleId: string,
+		) => Promise<void>;
+		const opening = showMcpServerSkills.call(editor, 'opaque/server');
+		const beforeLoaded = [...calls];
+		await sectionLoad.complete();
+		await opening;
+		const superseded = showMcpServerSkills.call(editor, 'old-server');
+		editor.contentNavigationGeneration++;
+		await superseded;
+		const switchedSession = showMcpServerSkills.call(editor, 'other-session-server');
+		sessionResource.set(URI.parse('test:///other-session'), undefined);
+		await switchedSession;
+		assert.deepStrictEqual({ beforeLoaded, calls }, {
+			beforeLoaded: [`section:${AICustomizationManagementSection.Skills}`],
+			calls: [`section:${AICustomizationManagementSection.Skills}`, 'bundle:opaque/server', `section:${AICustomizationManagementSection.Skills}`, `section:${AICustomizationManagementSection.Skills}`],
+		});
+	});
+
 	test('routes installed discovery items to their focused list rows', async () => {
 		const skillUri = URI.file('/skills/security/SKILL.md');
 		const pluginUri = URI.file('/plugins/security');
@@ -418,6 +453,41 @@ suite('aiCustomizationManagementEditor', () => {
 			],
 		});
 	});
+
+	for (const section of [AICustomizationManagementSection.Skills, AICustomizationManagementSection.Plugins]) {
+		test(`retries URI reveal in ${section} until the item is available`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const uri = URI.file('/customizations/example');
+			const attempts: URI[][] = [];
+			let searchCleared = false;
+			const editor = {
+				selectedSection: section,
+				isPromptsSection: (candidate: AICustomizationManagementSection) => candidate === AICustomizationManagementSection.Skills,
+				listWidget: {
+					revealAndSelectFirstItemByUri: (uris: URI[]) => {
+						attempts.push(uris);
+						return attempts.length === 2;
+					},
+					clearSearch: () => { searchCleared = true; },
+				},
+				pluginListWidget: {
+					revealAndSelectItemByUri: async (uri: URI) => {
+						attempts.push([uri]);
+						return attempts.length === 2;
+					},
+				},
+			};
+			const revealCustomizationByUri = Reflect.get(AICustomizationManagementEditor.prototype, 'revealCustomizationByUri') as (
+				this: typeof editor, uri: URI,
+			) => Promise<void>;
+
+			await revealCustomizationByUri.call(editor, uri);
+
+			assert.deepStrictEqual({ attempts, searchCleared }, {
+				attempts: [[uri], [uri]],
+				searchCleared: section === AICustomizationManagementSection.Skills,
+			});
+		}));
+	}
 
 	for (const section of [
 		AICustomizationManagementSection.Agents,

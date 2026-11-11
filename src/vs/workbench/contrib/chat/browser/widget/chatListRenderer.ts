@@ -308,6 +308,10 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 	return index;
 }
 
+function isKeptVisiblePart(part: IChatContentPart | undefined): boolean {
+	return (part instanceof ChatAutoModeResolutionContentPart || part instanceof ChatSystemNotificationContentPart) && part.keepVisible;
+}
+
 function isSessionCreatedOutcomeTool(part: IChatRendererContent): boolean {
 	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
 		&& part.toolSpecificData?.kind === 'sessionCreated';
@@ -1367,7 +1371,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		const progress = this.getPersistentWorkingProgress(response, annotateSpecialMarkdownContent(response.response.value));
-		if (this.stickyProgressResponse !== response) {
+		const responseChanged = this.stickyProgressResponse !== response;
+		if (responseChanged) {
 			this.clearStickyProgress();
 			this.stickyProgressPart.value = this.instantiationService.createInstance(ChatWorkingProgressContentPart, progress, this.chatContentMarkdownRenderer, {
 				element: response,
@@ -1387,10 +1392,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				treeStartIndex: 0,
 			});
 			this.stickyProgressResponse = response;
+			container.classList.remove('hidden');
 		}
-		container.classList.remove('hidden');
-		this.stickyProgressPart.value?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration, progress.backgroundActivity);
-		this.updateStickyProgress();
+		const contentChanged = this.stickyProgressPart.value?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration, progress.backgroundActivity);
+		// Rendering, scrolling and layout handle movement when the status itself is unchanged.
+		if (responseChanged || contentChanged) {
+			this.updateStickyProgress();
+		}
 	}
 
 	updateStickyProgress(): void {
@@ -2913,10 +2921,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		let content: IChatRendererContent[] = [];
-		// Attachments shown as pills inline with the request text are not repeated above it.
+		// Attachments shown as pills inline with the request text are not repeated above it, except images:
+		// a pill only refers to its image, while the thumbnail above shows that the image is attached.
 		const inlineAttachments = this.getInlineRequestAttachments(element);
 		const inlineAttachmentIds = new Set(Array.from(inlineAttachments.values(), attachment => attachment.id));
-		const variables = inlineAttachmentIds.size ? element.variables.filter(variable => !inlineAttachmentIds.has(variable.id)) : element.variables;
+		const variables = inlineAttachmentIds.size ? element.variables.filter(variable => variable.kind === 'image' || !inlineAttachmentIds.has(variable.id)) : element.variables;
 		const explicitFileOrImageVariables = variables.filter(isExplicitFileOrImageVariableEntry);
 		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
 		const explicitFileOrDirectoryVariables = variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
@@ -4149,7 +4158,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& templateData.completedResponseCollapseStartIndex === collapseStartIndex
 			&& templateData.completedResponseCollapseEndIndex === collapseEndIndex
 			&& existingDisclosure.nextSibling === collapseEndRoot
-			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every((part, offset) => !part?.domNode || existingDisclosure.contains(part.domNode) !== warningIndexes.has(collapseStartIndex + offset))
+			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every((part, offset) => !part?.domNode || isKeptVisiblePart(part) || existingDisclosure.contains(part.domNode) !== warningIndexes.has(collapseStartIndex + offset))
 			// Chain rows can be removed after completion (hidden tools flush on the next frame), so the
 			// label must follow the rows that are actually left.
 			&& getVisibleCompletedResponseItemCount(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount
@@ -4172,7 +4181,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				collapseStartChildIndex = workspaceTransitionChildIndex + 1;
 			}
 		}
-		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex).filter(node => !warningNodes.has(node));
+		// Router lines and router notices stay visible above the disclosure, wherever the live turn drew them.
+		const keepVisible = new Set<Node>();
+		templateData.renderedParts?.forEach(part => {
+			let node = isKeptVisiblePart(part) ? part.domNode : undefined;
+			while (node?.parentElement && node.parentElement !== templateData.value) {
+				node = node.parentElement;
+			}
+			if (node) {
+				keepVisible.add(node);
+			}
+		});
+		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex).filter(node => !warningNodes.has(node) && !keepVisible.has(node));
 		const stepCount = getVisibleCompletedResponseItemCount(nodesToCollapse);
 		if (stepCount < 2) {
 			const nextPart = templateData.renderedParts?.[collapseEndIndex];
@@ -4494,14 +4514,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (part.kind !== 'markdownContent') {
 			return false;
 		}
-		return hasEditCodeblockUriTag(part.content.value);
+		return !!part.codeblockUri?.isEdit || hasEditCodeblockUriTag(part.content.value);
 	}
 
 	private isCodeblockComplete(part: IChatRendererContent, element: ChatTreeItem): boolean {
 		if (part.kind !== 'markdownContent') {
 			return true;
 		}
-		return !isResponseVM(element) || element.isComplete || codeblockHasClosingBackticks(part.content.value);
+		return !!part.codeblockUri || !isResponseVM(element) || element.isComplete || codeblockHasClosingBackticks(part.content.value);
 	}
 
 	// todo @justschen initially split up each of the checks to easily see what should be pinned/not pinned, we can probably consolidate this down by a lot once we're more confident in the logic.
@@ -6059,7 +6079,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const hasPendingEditCodeblock = isResponseVM(element) && !element.isComplete
 			&& hasCodeblockUriTag(markdown.content.value)
 			&& !codeblockHasClosingBackticks(markdown.content.value);
-		if (!this.hasEditCodeblockUri(markdown) && !isBlankMarkdown && !hasPendingEditCodeblock) {
+		if (!markdown.codeblockUri?.subAgentInvocationId && !this.hasEditCodeblockUri(markdown) && !isBlankMarkdown && !hasPendingEditCodeblock) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
@@ -6118,14 +6138,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex, templateData);
 		}
 
-		const collapsedToolsMode = this.getCollapsedToolsMode();
-		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
-
-			// append to thinking part when the codeblock is complete
-			const isComplete = this.isCodeblockComplete(markdown, context.element);
-
-			// Check if this markdown should be routed to a subagent content part
-			const subAgentInvocationId = extractSubAgentInvocationIdFromText(markdown.content.value);
+		const isComplete = this.isCodeblockComplete(markdown, context.element);
+		if (isResponseVM(context.element)) {
+			const subAgentInvocationId = markdown.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(markdown.content.value);
 			if (subAgentInvocationId) {
 				const subagentPart = this.getSubagentPart(templateData.renderedParts, subAgentInvocationId);
 				if (subagentPart && markdownPart?.domNode && isComplete) {
@@ -6138,12 +6153,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					const shim = this.renderNoContent(other =>
 						other.kind === 'markdownContent'
 						&& other.content.value === markdown.content.value
-						&& extractSubAgentInvocationIdFromText(other.content.value) === subAgentInvocationId);
+						&& (other.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(other.content.value)) === subAgentInvocationId
+						&& other.codeblockUri === markdown.codeblockUri);
 					this.subagentEditItems.set(shim, { subagentPart, partId: markdownPart.codeblocksPartId });
 					return shim;
 				}
 			}
+		}
 
+		const collapsedToolsMode = this.getCollapsedToolsMode();
+		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 			const shouldPin = this.shouldPinPart(markdown, context.element);
 			if (markdownPart?.domNode && shouldPin && isComplete) {
 				// create thinking part if it doesn't exist yet
@@ -6388,7 +6407,7 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 		if (part.kind === 'hook' || part.kind === 'externalEdit') {
 			return !part.subAgentInvocationId;
 		}
-		return part.kind !== 'markdownContent' || !extractSubAgentInvocationIdFromText(part.content.value);
+		return part.kind !== 'markdownContent' || !(part.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(part.content.value));
 	});
 }
 
@@ -6408,7 +6427,7 @@ function isNestedSubagentContent(part: IChatRendererContent): boolean {
 	if (part.kind === 'hook' || part.kind === 'externalEdit') {
 		return !!part.subAgentInvocationId;
 	}
-	return part.kind === 'markdownContent' && !!extractSubAgentInvocationIdFromText(part.content.value);
+	return part.kind === 'markdownContent' && !!(part.codeblockUri?.subAgentInvocationId ?? extractSubAgentInvocationIdFromText(part.content.value));
 }
 
 export function endsWithCompletedQuestionInteraction(parts: readonly IChatRendererContent[]): boolean {

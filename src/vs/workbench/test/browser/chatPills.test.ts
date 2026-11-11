@@ -24,6 +24,7 @@ import { constObservable, derived, observableValue } from '../../../base/common/
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
@@ -137,6 +138,41 @@ suite('ChatPills', () => {
 			{ preferred: AnchorPosition.ABOVE, fixed: undefined },
 			{ preferred: AnchorPosition.BELOW, fixed: undefined },
 		]);
+	});
+
+	test('shows the dropdown in the window of the pill, not in the window that has focus', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pillWindowContainer = mainWindow.document.createElement('div');
+		const focusedWindowContainer = mainWindow.document.createElement('div');
+		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({
+			get activeContainer() { return focusedWindowContainer; },
+			getContainer: window => window === mainWindow ? pillWindowContainer : focusedWindowContainer,
+		}));
+		let shownIn: HTMLElement | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_user, _preview, _items, _delegate, _anchor, container) => { shownIn = container; },
+			hide: () => { },
+		});
+		const action = store.add(new Action('references', 'References'));
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{
+			title: 'References',
+			entries: [{ id: 'first', label: 'First', open: () => { } }, { id: 'second', label: 'Second', open: () => { } }],
+		}]), {
+			widgetId: 'references',
+			icon: Codicon.references,
+			title: 'References',
+			summaryLabel: count => `${count} References`,
+			summaryAriaLabel: count => `Show ${count} references`,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+
+		container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+
+		assert.strictEqual(shownIn, pillWindowContainer);
 	});
 
 	test('prefetches at most five entries on open and exposes deferred prefetch for virtualized rows', () => {

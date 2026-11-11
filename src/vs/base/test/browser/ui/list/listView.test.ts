@@ -575,6 +575,64 @@ suite('ListView', function () {
 		}, { scrollTop: 300, rowsTop: '-300px', row: 'b' });
 	});
 
+	for (const hide of ['display:none', 'detached'] as const) {
+		test(`measures rows only once a hidden list is shown again (${hide})`, () => {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			type Element = { readonly id: number; readonly height: number };
+			const delegate = new class extends CachedListVirtualDelegate<Element> {
+				protected estimateHeight() { return 100; }
+				getTemplateId() { return 'template'; }
+				hasDynamicHeight() { return true; }
+			};
+			let renders = 0;
+			const renderer: IListRenderer<Element, HTMLElement> = {
+				templateId: 'template',
+				renderTemplate(container) {
+					const content = document.createElement('div');
+					container.appendChild(content);
+					return content;
+				},
+				renderElement(element, _index, content) {
+					renders++;
+					content.style.height = `${element.height}px`;
+				},
+				disposeTemplate() { },
+			};
+			const list = store.add(new ListView<Element>(container, delegate, [renderer], { supportDynamicHeights: true }));
+			list.layout(1000, 800);
+			const update = (index: number, height: number) => {
+				list.withScrollAnchorAtBottom(() => list.splice(index, 1, [{ id: index, height }]));
+				list.scrollTop = list.scrollHeight;
+			};
+			list.withScrollAnchorAtBottom(() => list.splice(0, 0, range(1000).map(id => ({ id, height: 100 }))));
+			list.scrollTop = list.scrollHeight;
+
+			if (hide === 'display:none') {
+				container.style.display = 'none';
+			} else {
+				container.remove();
+			}
+			renders = 0;
+			update(999, 300);
+			const hidden = { renders, scrollHeight: list.scrollHeight };
+
+			if (hide === 'display:none') {
+				container.style.display = '';
+			} else {
+				document.body.appendChild(container);
+			}
+			list.withScrollAnchorAtBottom(() => list.layout(1000, 800));
+			const shown = { scrollHeight: list.scrollHeight, scrollTop: list.scrollTop, lastRowHeight: list.elementHeight(999) };
+
+			assert.deepStrictEqual({ hidden, shown }, {
+				hidden: { renders: 1, scrollHeight: 100000 },
+				shown: { scrollHeight: 100200, scrollTop: 99200, lastRowHeight: 300 },
+			});
+		});
+	}
+
 	test('reuses a bounded row pool while measuring appended rows', function () {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -741,19 +799,24 @@ suite('ListView', function () {
 		};
 
 		const listView = store.add(new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true }));
-		store.add(toDisposable(() => element.remove()));
-		listView.layout(100, 200);
-		assert.throws(() => listView.splice(0, 0, [
-			{ height: 20 },
-			{ height: 20, throwOnRender: true },
-		]), /render failed/);
-		assert.deepStrictEqual({
-			rowsInDom: element.querySelectorAll('.monaco-list-row').length,
-			disposedElements
-		}, {
-			rowsInDom: 1,
-			disposedElements: 1
-		});
+		try {
+			listView.layout(100, 200);
+			assert.throws(() => listView.splice(0, 0, [
+				{ height: 20 },
+				{ height: 20, throwOnRender: true },
+			]), /render failed/);
+			assert.deepStrictEqual({
+				rowsInDom: element.querySelectorAll('.monaco-list-row').length,
+				disposedElements
+			}, {
+				rowsInDom: 1,
+				disposedElements: 1
+			});
+		} finally {
+			// Dispose before a queued animation frame can rerender the element that intentionally throws.
+			listView.dispose();
+			element.remove();
+		}
 	});
 
 	test('does not promote a retained row after a reentrant splice', function () {

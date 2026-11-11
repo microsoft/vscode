@@ -14,7 +14,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ChatInteractivity, MessageKind } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, ChatInteractivity, MessageKind } from '../../common/state/sessionState.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
@@ -76,6 +76,28 @@ suite('AgentHostSessionStateStore', () => {
 			reference.dispose();
 		}
 	}
+
+	test('whenIdle waits for archive persistence while a cold session is still loading', async () => {
+		const { session } = await oldBuildSession();
+		const loading = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		const readState = sinon.stub(database, 'readSessionState').callsFake(async resource => {
+			await loading.complete();
+			await resume.p;
+			readState.restore();
+			return database.readSessionState(resource);
+		});
+		const stateStore = createStore();
+		const writing = stateStore.writeMetadata(session, session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Coalesced);
+		await loading.p;
+		let idle = false;
+		const drained = stateStore.whenIdle(session).then(() => { idle = true; });
+		await timeout(0);
+		const prematurelyIdle = idle;
+		await resume.complete();
+		await Promise.all([writing, drained]);
+		assert.deepStrictEqual({ prematurelyIdle, archived: await database.readSessionArchived(session.toString()) }, { prematurelyIdle: false, archived: true });
+	});
 
 	test('a shared worktree\'s branch is withheld from older builds until it is no longer shared; an older build writing it back keeps the value and has it withheld again (Block 5)', async () => {
 		const session = URI.parse('copilotcli:/shared-owner');
@@ -496,6 +518,18 @@ suite('AgentHostSessionStateStore', () => {
 		await assert.rejects(() => sessionStore.write(session, sessionStatePatch({ values: { configValues: 'late' } }), SessionStateMirrorFlush.Immediate), SessionStateDeletedError);
 		deletion.dispose();
 		assert.strictEqual(sessionStore.peek(session), undefined);
+	});
+
+	test('deletion drains a queued write without inheriting its deletion error', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await sessionStore.load(session);
+		const before = await database.readSessionArchived(session.toString());
+		const rejectedWrite = assert.rejects(sessionStore.writeMetadata(session, session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate), SessionStateDeletedError);
+		const deletion = store.add(sessionStore.beginDeletion(session));
+		await Promise.all([rejectedWrite, deletion.whenDrained]);
+		deletion.dispose();
+		assert.deepStrictEqual({ archived: await database.readSessionArchived(session.toString()), cached: sessionStore.peek(session) }, { archived: before, cached: undefined });
 	});
 
 	test('renders exactly the old format older builds wrote, and names the keys it does not own', async () => {

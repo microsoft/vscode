@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -11,16 +11,15 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { equals } from '../../../../../base/common/objects.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import {
-	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	CloudSandboxRequestError,
 	ICloudSandboxApiService,
-	isCloudSandboxSealedToken,
 	isRetryableCloudSandboxError,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 	type ICloudSandboxConnectionRequest,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { isSealedEnvironmentToken, SEALED_ENVIRONMENT_TOKEN_PREFIX } from '../../../../../platform/github/common/missionControl/environments.js';
 import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxRefreshStopReason } from './cloudSandboxTelemetry.js';
 import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
@@ -35,7 +34,7 @@ export function mergeCloudSandboxConnectionToken(previous: ICloudSandboxClientTo
 	if (hostKey) {
 		const matchesKey = typeof sealedToken === 'string'
 			&& typeof hostKey.key_id === 'string' && hostKey.key_id.length > 0
-			&& sealedToken.startsWith(`${CLOUD_SANDBOX_SEALED_TOKEN_PREFIX}${hostKey.key_id}.`);
+			&& sealedToken.startsWith(`${SEALED_ENVIRONMENT_TOKEN_PREFIX}${hostKey.key_id}.`);
 		const reusedKeyChanged = reusesSealedToken && previous.host_encryption_key !== undefined
 			&& !equals(previous.host_encryption_key, hostKey);
 		if (!matchesKey || reusedKeyChanged) {
@@ -80,6 +79,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 
 	private _refreshInFlight: Promise<boolean> | undefined;
+	private _resume: { readonly ready: DeferredPromise<void>; readonly suspendedAt: number } | undefined;
 
 	constructor(
 		private readonly _address: string,
@@ -93,6 +93,22 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => this._cts.dispose(true)));
+	}
+
+	suspend(): void {
+		this._resume ??= { ready: new DeferredPromise<void>(), suspendedAt: Date.now() };
+	}
+
+	resume(): void {
+		const suspended = this._resume;
+		if (!suspended) {
+			return;
+		}
+		this._resume = undefined;
+		if (this._refreshState.requestFailureStartedAt !== undefined) {
+			this._refreshState.requestFailureStartedAt += Math.max(0, Date.now() - suspended.suspendedAt);
+		}
+		suspended.ready.complete();
 	}
 
 	/** Share an in-flight refresh or refresh expired credentials before opening a replacement transport. */
@@ -112,7 +128,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			const previousToken = this._creds.token.encrypted_github_token;
 			await this.refreshConnectionCredentials();
 			const sealedToken = this._creds.token.encrypted_github_token;
-			if (!sealedToken || !isCloudSandboxSealedToken(sealedToken) || sealedToken === previousToken) {
+			if (!sealedToken || !isSealedEnvironmentToken(sealedToken) || sealedToken === previousToken) {
 				const error = new Error('Sandbox authentication refresh did not provide a new sealed token.');
 				operation.complete('failed', { failurePoint: 'credentialRefresh.authenticationTokenUnchanged' }, error);
 				throw error;
@@ -143,6 +159,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		const previousToken = this._creds.token;
 		let waited = false;
 		while (!this._refreshInFlight) {
+			if (this._resume) {
+				await raceCancellationError(this._resume.ready.p, this._cts.token);
+				continue;
+			}
 			if (!this._refreshState.stopped && this._refreshState.requestFailureStartedAt !== undefined
 				&& Date.now() - this._refreshState.requestFailureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
 				this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted', undefined, { failurePoint: 'credentialRefresh.retryBudget' });
@@ -241,6 +261,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			// the loop as having given up when it was simply torn down.
 			if (this._cts.token.isCancellationRequested || isCancellationError(err) || err instanceof CancellationError) {
 				operation.complete('cancelled', { recoveryAction: 'cancelled' });
+				return false;
+			}
+			if (this._resume && isRetryableCloudSandboxError(err)) {
+				operation.complete('cancelled', { recoveryAction: 'deferred' });
 				return false;
 			}
 			// A rejected request (deleted environment, revoked token) fails identically however

@@ -15,8 +15,14 @@ parameters:
       - smoke-electron
       - smoke-agents-pac-proxy
       - smoke-agents-kerberos-pac-proxy
+      - smoke-agents-basic-proxy
+      - smoke-wsl-kerberos-proxy
+      - smoke-wsl-basic-proxy
       - smoke-browser-chromium
       - smoke-remote
+      - copilot-unit
+      - copilot-simulation
+      - copilot-prompt
       - copilot-extension
       - copilot-completions-core
       - copilot-sanity
@@ -24,16 +30,9 @@ parameters:
     type: string
 
 steps:
+  # A retry of this job skips the test when this step succeeded in an earlier
+  # attempt (see testCheckpoint.ts). It only runs when nothing in the job has
+  # failed, so it only succeeds when the test did. Keep its display name unchanged.
   - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}
     condition: ${{ parameters.condition }}
     displayName: Record ${{ parameters.testId }} checkpoint
-
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
-      targetPath: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_FILE)
-      artifactName: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_ARTIFACT)
-      sbomEnabled: false
-      isProduction: false
-    condition: ${{ parameters.condition }}
-    displayName: Publish ${{ parameters.testId }} checkpoint
-    timeoutInMinutes: 2

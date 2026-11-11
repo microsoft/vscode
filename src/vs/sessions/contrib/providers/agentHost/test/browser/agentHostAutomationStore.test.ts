@@ -31,17 +31,17 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper } from '../../browser/agentHostAutomationStore.js';
+import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.js';
 import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import type { ISyncedCustomizationOrigin } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
+import { ReconnectableAgentHostAutomationStore } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/reconnectableAgentHostAutomationStore.js';
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 class TestAutomationConnection {
 
@@ -458,6 +458,24 @@ suite('AgentHostAutomationStore', () => {
 			],
 			retargeted: [saved, moved, added, missing].map(plugin => ({ id: plugin.id, selected: true, outdated: false })),
 		});
+	});
+
+	test('rebinding the bound connection keeps its catalogue subscription', () => {
+		class CountingConnection extends TestAutomationConnection {
+			subscriptions = 0;
+			override getSubscription(...args: Parameters<TestAutomationConnection['getSubscription']>) {
+				this.subscriptions++;
+				return super.getSubscription(...args);
+			}
+		}
+		const { store } = reconnectable();
+		const connection = disposables.add(new CountingConnection());
+		store.setConnection(connection);
+		store.setConnection(connection);
+		const rebound = connection.subscriptions;
+		store.clearConnection();
+		store.setConnection(connection);
+		assert.deepStrictEqual({ rebound, reconnected: connection.subscriptions }, { rebound: 1, reconnected: 2 });
 	});
 
 	test('customization choices are unsupported without the capability or a connection', async () => {

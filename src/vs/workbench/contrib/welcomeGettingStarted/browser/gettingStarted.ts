@@ -956,8 +956,7 @@ export class GettingStartedPage extends EditorPane {
 		const agentsBanner = createAgentsBanner(
 			{
 				cssClass: 'getting-started-category.agents-banner',
-				source: 'welcomePage',
-				graphic: { element: agentsWindowGraphic.element, shownDesign: agentsWindowGraphic.shownDesign, isExposed: this.categoriesSlideShown },
+				graphic: { element: agentsWindowGraphic.element, shownDesign: agentsWindowGraphic.shownDesign, isExposed: this.categoriesSlideShown, hasMultipleEditorWindows: agentsWindowGraphic.hasMultipleEditorWindows },
 			},
 			this.commandService,
 			this.telemetryService,
