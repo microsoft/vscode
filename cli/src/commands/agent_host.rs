@@ -73,7 +73,10 @@ pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	}
 	if args.github_environment {
 		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
-		github_environment_credential(&ctx).await?;
+		if !args.foreground {
+			let credential = github_environment_credential(&ctx).await?;
+			require_persisted_github_environment_credential(&ctx.paths, &ctx.log, &credential)?;
+		}
 		return start_supervisor(ctx, args).await;
 	}
 	run_foreground(ctx, args).await
@@ -443,13 +446,32 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	Ok(0)
 }
 
-async fn github_environment_credential(ctx: &CommandContext) -> Result<String, AnyError> {
-	let mut auth = Auth::with_namespace(
-		&ctx.paths,
-		ctx.log.clone(),
-		Some("github-environments".into()),
-	);
+fn github_environment_auth(paths: &LauncherPaths, log: &log::Logger) -> Auth {
+	let mut auth = Auth::with_namespace(paths, log.clone(), Some("github-environments".into()));
 	auth.set_provider(AuthProvider::Github);
+	auth
+}
+
+fn require_persisted_github_environment_credential(
+	paths: &LauncherPaths,
+	log: &log::Logger,
+	credential: &str,
+) -> Result<(), AnyError> {
+	let message = "GitHub environment credentials could not be saved for background startup; retry with --foreground";
+	// A fresh Auth reads storage rather than the login instance's in-memory cache.
+	let persisted = github_environment_auth(paths, log)
+		.get_current_credential()
+		.map_err(|e| wrap(e, message))?;
+	if !persisted.is_some_and(|saved| {
+		matches!(saved.provider, AuthProvider::Github) && saved.access_token() == credential
+	}) {
+		return Err(wrap("", message).into());
+	}
+	Ok(())
+}
+
+async fn github_environment_credential(ctx: &CommandContext) -> Result<String, AnyError> {
+	let auth = github_environment_auth(&ctx.paths, &ctx.log);
 	let credential = if auth.get_current_credential()?.is_some() {
 		auth.get_credential().await?
 	} else {
@@ -1116,6 +1138,77 @@ mod tests {
 	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
 	use std::fs;
 	use tokio::net::TcpListener;
+
+	#[tokio::test]
+	async fn github_environment_background_rejects_missing_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::create_dir(paths.root().join("token-github-environments.json")).unwrap();
+		let auth = github_environment_auth(&paths, &log);
+		let credential = auth
+			.login(Some(AuthProvider::Github), Some("fresh-token".into()), None)
+			.await
+			.unwrap();
+
+		assert_eq!(
+			auth.get_current_credential()
+				.unwrap()
+				.unwrap()
+				.access_token(),
+			credential.access_token()
+		);
+		let error = require_persisted_github_environment_credential(
+			&paths,
+			&log,
+			credential.access_token(),
+		)
+		.unwrap_err();
+		assert_eq!(
+			error.to_string(),
+			"GitHub environment credentials could not be saved for background startup; retry with --foreground: "
+		);
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_rejects_mismatched_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::write(paths.root().join("token-github-environments.json"), "null").unwrap();
+		for (provider, token) in [
+			(AuthProvider::Github, "stale-token"),
+			(AuthProvider::Microsoft, "fresh-token"),
+		] {
+			github_environment_auth(&paths, &log)
+				.login(Some(provider), Some(token.into()), None)
+				.await
+				.unwrap();
+
+			let error =
+				require_persisted_github_environment_credential(&paths, &log, "fresh-token")
+					.unwrap_err();
+			assert_eq!(
+				error.to_string(),
+				"GitHub environment credentials could not be saved for background startup; retry with --foreground: "
+			);
+		}
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_accepts_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::write(paths.root().join("token-github-environments.json"), "null").unwrap();
+		let credential = github_environment_auth(&paths, &log)
+			.login(Some(AuthProvider::Github), Some("fresh-token".into()), None)
+			.await
+			.unwrap();
+
+		require_persisted_github_environment_credential(&paths, &log, credential.access_token())
+			.unwrap();
+	}
 
 	#[test]
 	fn github_environment_roots_default_to_local_filesystems() {
