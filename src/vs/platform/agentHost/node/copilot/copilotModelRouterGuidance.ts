@@ -4,29 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { structuralEquals } from '../../../../base/common/equals.js';
-import type { IModelRouterAgentPlan } from '../../common/modelRouterAgents.js';
+import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 
 /**
- * Which model router playbook agents each chat has. They are decided once, by the first message
- * that starts work in the chat, and never change afterwards.
+ * Which model router route's guidance each chat's main agent has. It is decided once, by the first
+ * message that starts work in the chat, and never changes afterwards.
  *
  * A chat is *fresh* from its creation until one of its sessions starts root work. While it is
- * fresh, the turn being sent can hold a *candidate* plan. When work starts, what the working
- * session really got of the plan it was launched with becomes the chat's *committed* plan, which
- * may be none.
+ * fresh, the turn being sent can hold a *candidate* guidance. When work starts, the guidance the
+ * working session was launched with becomes the chat's *committed* guidance, which may be none.
  *
- * Plans are compared by identity: a session is launched with a plan object and stays valid for as
- * long as the chat's plan is that same object. "No plan" is always `undefined`.
+ * Guidance is compared by identity: a session is launched with a guidance object and stays valid
+ * for as long as the chat's guidance is that same object. "No guidance" is always `undefined`.
  *
- * Kept in memory only, so a host restart forgets every chat's plan.
+ * Kept in memory only, so a host restart forgets every chat's guidance.
  */
-export class CopilotModelRouterAgents {
+export class CopilotModelRouterGuidance {
 
 	private readonly _fresh = new Set<string>();
 	/** The turn each fresh chat is on. A candidate belongs to it. */
 	private readonly _currentTurns = new Map<string, string>();
-	private readonly _candidates = new Map<string, IModelRouterAgentPlan>();
-	private readonly _committed = new Map<string, IModelRouterAgentPlan>();
+	private readonly _candidates = new Map<string, IModelRouterGuidance>();
+	private readonly _committed = new Map<string, IModelRouterGuidance>();
 
 	/** Marks a chat that was just created new: not forked, imported or restored. */
 	markFresh(chat: string): void {
@@ -54,32 +53,32 @@ export class CopilotModelRouterAgents {
 	}
 
 	/**
-	 * Offers the plan a turn was routed to. It is taken only while the chat is fresh and still on
-	 * that turn; a routing call that finishes late changes nothing. Returns whether it was taken.
+	 * Offers the guidance of the route a turn was routed to. It is taken only while the chat is fresh
+	 * and still on that turn; a routing call that finishes late changes nothing. Returns whether it was taken.
 	 */
-	setCandidate(chat: string, turnId: string, plan: IModelRouterAgentPlan | undefined): boolean {
+	setCandidate(chat: string, turnId: string, guidance: IModelRouterGuidance | undefined): boolean {
 		if (!this._fresh.has(chat) || this._currentTurns.get(chat) !== turnId) {
 			return false;
 		}
-		if (!plan) {
+		if (!guidance) {
 			this._candidates.delete(chat);
-		} else if (!structuralEquals(this._candidates.get(chat), plan)) {
-			this._candidates.set(chat, plan);
+		} else if (!structuralEquals(this._candidates.get(chat), guidance)) {
+			this._candidates.set(chat, guidance);
 		}
 		return true;
 	}
 
-	/** The plan a session of the chat launches with: the committed one, else the current turn's candidate. */
-	planFor(chat: string): IModelRouterAgentPlan | undefined {
+	/** The guidance a session of the chat launches with: the committed one, else the current turn's candidate. */
+	guidanceFor(chat: string): IModelRouterGuidance | undefined {
 		return this._fresh.has(chat) ? this._candidates.get(chat) : this._committed.get(chat);
 	}
 
 	/**
-	 * A session of the chat started root work. The first time, the plan given here becomes the
-	 * chat's plan for good; later reports change nothing. The caller passes what that session
-	 * really got of the plan it was launched with.
+	 * A session of the chat started root work. The first time, the guidance given here becomes the
+	 * chat's for good; later reports change nothing. The caller passes the guidance that session
+	 * was launched with.
 	 */
-	commit(chat: string, launched: IModelRouterAgentPlan | undefined): void {
+	commit(chat: string, launched: IModelRouterGuidance | undefined): void {
 		if (!this._fresh.delete(chat)) {
 			return;
 		}

@@ -29,7 +29,7 @@ export interface IInboxSessionAttention {
 	readonly notificationIds: readonly string[];
 	/** Links a hydrated input identity to its provisional identity while provider activity is unchanged. */
 	readonly pendingInput?: { readonly notificationId: string; readonly provisionalId: string };
-	/** Completed before sidebar Inbox activation, without outstanding input or actionable notifications. */
+	/** Completed before sidebar Inbox activation without actionable notifications. */
 	readonly isHistoricalCompletion: boolean;
 }
 

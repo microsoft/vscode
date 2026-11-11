@@ -137,6 +137,7 @@ export interface ISessionsListFixtureGroup {
 	/** Fixture-local id used by row references. */
 	readonly id: string;
 	readonly name: string;
+	readonly color?: string;
 	/** Ids of the member sessions. */
 	readonly sessions?: readonly string[];
 	/** Fixture id of the group this group is nested in, listed before it. */
@@ -770,6 +771,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
 				override readonly chatModels: IObservable<Iterable<IChatModel>> = constObservable([]);
+				override readonly onDidAcceptRequest = Event.None;
+				override readonly onDidPerformUserAction = Event.None;
 			}());
 			reg.defineInstance(IFixtureAgentSessionsService, {
 				model: { observeSession: () => constObservable(undefined) },
@@ -1006,6 +1009,9 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 			throw new Error(`Fixture group '${group.id}' must be listed after its parent '${group.parent}'.`);
 		}
 		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId), parentId);
+		if (group.color !== undefined) {
+			groupsService.setGroupColor(created.id, group.color);
+		}
 		groupIds.set(group.id, created.id);
 		if (parentId === undefined) {
 			topLevelIds.push(getSessionGroupSectionId(created.id));

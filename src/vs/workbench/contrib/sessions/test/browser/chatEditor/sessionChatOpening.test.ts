@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatModelHold, IChatWindowChatSession, isChatWindowChatGone } from '../../browser/chatWindowOpening.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatModelHold, IChatWindowChatSession, isChatWindowChatGone } from '../../../browser/chatEditor/sessionChatOpening.js';
 
 suite('Chat window opening (sessions)', () => {
 

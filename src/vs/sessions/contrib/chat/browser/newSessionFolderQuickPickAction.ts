@@ -20,6 +20,9 @@ import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/brow
 import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folderUri?: URI;
@@ -86,6 +89,8 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const fileDialogService = accessor.get(IFileDialogService);
 		const composerService = accessor.get(INewSessionComposerService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatWindowService = accessor.get(IChatWindowService);
 		const chatWindow = resolveChatWindow(accessor, args);
 
@@ -119,7 +124,12 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 			return;
 		}
 		composerService.notifyUserWorkspaceSelection();
-		await sessionsService.openNewSession({ folderUri, providerId });
+		providerId ??= sessionsManagementService.resolveWorkspace(folderUri)?.providerId;
+		await sessionsService.openNewSession();
+		const result = sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
+		if (result !== 'applied') {
+			throw new Error(localize('sessions.newSession.pickFolderQuickPick.failed', "Unable to select the folder for the new session."));
+		}
 	}
 }
 

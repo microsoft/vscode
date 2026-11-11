@@ -17,21 +17,21 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IChatModelReference, IChatPlanReview, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
-import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../../../workbench/contrib/sessions/common/github/types.js';
-import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { getSessionInboxActivity, isSessionInboxStateCurrent, SessionInboxState } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChatModelReference, IChatPlanReview, IChatService, IChatToolInvocation } from '../../../chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
+import { SessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { GitHubPullRequestCIModel } from '../../browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestModel } from '../../browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { IGitHubService } from '../../browser/github/githubService.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/github/types.js';
+import { InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
+import { getSessionInboxActivity, isSessionInboxStateCurrent, SessionInboxState } from '../../common/sessionInbox.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionAttentionService } from '../../browser/sessionAttentionService.js';
 
 suite('SessionAttentionService', () => {
@@ -144,6 +144,39 @@ suite('SessionAttentionService', () => {
 		}, { whileHidden: undefined, initial: ['old', 'late'], metadata: ['old', 'late'], working: ['late'], restored: ['late'], cutoff: start, canvasCutoff: undefined });
 	}));
 
+	test('reading Inbox completions does not dismiss them across restart', () => runWithFakedTimers({ startTime: new Date(2026, 10, 11, 12).getTime() }, async () => {
+		const fixture = createFixture([]);
+		store.add(fixture.service.acquireSessionAttention());
+		const start = Date.now();
+		await timeout(1000);
+		const read = createSession('read', SessionStatus.Completed, Date.now());
+		const unread = createSession('unread', SessionStatus.Completed, Date.now());
+		const actionable = createSession('actionable', SessionStatus.Completed, Date.now(), [{ number: 42 }]);
+		(read.isRead as ISettableObservable<boolean>).set(true, undefined);
+		(actionable.isRead as ISettableObservable<boolean>).set(true, undefined);
+		fixture.setSessions([read, unread, actionable]);
+		const model = fixture.createListModel();
+		const initial = [read, unread, actionable].map(session => model.getInboxState(session)?.kind);
+		fixture.service.dispose();
+		await timeout(1000);
+		const restored = createFixture([read, unread, actionable], fixture.storage);
+		restored.github.setPullRequest(42, openPullRequest(42));
+		restored.github.setCIStatus(42, GitHubCIOverallStatus.Failure);
+		store.add(restored.service.acquireSessionAttention());
+		await timeout(0);
+		const restoredModel = restored.createListModel();
+		const afterRestart = [read, unread, actionable].map(session => restoredModel.getInboxState(session)?.kind);
+		await timeout(1000);
+		(read.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now()), undefined);
+		assert.deepStrictEqual({
+			initial, afterRestart, newCompletion: restoredModel.getInboxState(read)?.kind,
+			cutoff: restored.storage.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE),
+		}, {
+			initial: [undefined, undefined, undefined], afterRestart: [undefined, undefined, undefined],
+			newCompletion: undefined, cutoff: start,
+		});
+	}));
+
 	test('non-PR completions keep notification identities empty across metadata, model residency and new turns', () => {
 		const session = createSession('complete');
 		const fixture = createFixture([session]);
@@ -162,6 +195,46 @@ suite('SessionAttentionService', () => {
 			resident: initial, unloaded: initial, next: [], loaded: [],
 		});
 	});
+
+	test('reading sessions returned by activity still requires dismissal after restart', () => runWithFakedTimers({ startTime: new Date(2026, 10, 11, 12).getTime() }, async () => {
+		const fixture = createFixture([]);
+		store.add(fixture.service.acquireSessionAttention());
+		await timeout(1000);
+		const sessions = ['read', 'unread', 'explicit', 'snoozed'].map(id => createSession(id, SessionStatus.Completed, Date.now()));
+		fixture.setSessions(sessions);
+		const model = fixture.createListModel();
+		model.setInboxState(sessions, 'done');
+		await timeout(1000);
+		for (const session of sessions) {
+			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now()), undefined);
+		}
+		for (const session of [sessions[0], sessions[2], sessions[3]]) {
+			(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		}
+		model.setInboxState([sessions[2]], undefined);
+		model.setInboxState([sessions[3]], Date.now() + 100);
+		await timeout(101);
+		const before = sessions.map(session => model.getInboxState(session)?.kind);
+		model.dispose();
+		fixture.service.dispose();
+		await timeout(1000);
+		const restored = createFixture(sessions, fixture.storage);
+		store.add(restored.service.acquireSessionAttention());
+		const restoredModel = restored.createListModel();
+		const after = sessions.map(session => restoredModel.getInboxState(session)?.kind);
+		restoredModel.setInboxState([sessions[0]], 'done');
+		restoredModel.dispose();
+		const reloadedModel = restored.createListModel();
+		const dismissed = reloadedModel.getInboxState(sessions[0])?.kind;
+		await timeout(1000);
+		(sessions[0].lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now()), undefined);
+		assert.deepStrictEqual({ before, after, dismissed, newCompletion: reloadedModel.getInboxState(sessions[0])?.kind }, {
+			before: [undefined, undefined, undefined, undefined],
+			after: [undefined, undefined, undefined, undefined],
+			dismissed: 'done',
+			newCompletion: undefined,
+		});
+	}));
 
 	test('existing completed-session triage stays current until provider activity changes', () => {
 		const session = createSession('complete');

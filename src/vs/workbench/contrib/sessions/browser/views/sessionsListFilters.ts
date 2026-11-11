@@ -158,6 +158,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	private _inboxScope: IInboxScope = {};
 	get inboxScope(): IInboxScope { return this._inboxScope; }
 	get hasInboxScope(): boolean { return this._inboxScope.workspace !== undefined || this._inboxScope.environment !== undefined; }
+	get hasInboxWorkspaceScope(): boolean { return !!this._inboxScope.workspace && this._inboxScope.workspace !== 'none'; }
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private readonly changeSignal = observableSignalFromEvent(this, this.onDidChange);

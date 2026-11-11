@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerContentDropTarget } from '../../../../workbench/browser/dnd.js';
-import { $ } from '../../../../base/browser/dom.js';
-import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
-import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
-import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
-import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
-import { IEditorPaneTitleMenu } from '../../../../workbench/browser/parts/editor/editor.js';
-import { IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/contrib/chatWindow/common/chatWindowInputOnly.js';
-import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { registerContentDropTarget } from '../../../../browser/dnd.js';
+import { $ } from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ViewEditorInput } from '../../../../browser/parts/editor/viewEditorInput.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../browser/parts/editor/viewEditorRegistry.js';
+import { IEditorPaneTitleMenu } from '../../../../browser/parts/editor/editor.js';
+import { IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { decideStackedChatInputOnlyWhileDragging } from '../../../chatWindow/common/chatWindowInputOnly.js';
+import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
+import { AbstractChatView, ISessionViewHostOptions } from '../parts/chatView.js';
 import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
 
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { URI } from '../../../../base/common/uri.js';
-import { EditorInputCapabilities, GroupIdentifier, Verbosity } from '../../../../workbench/common/editor.js';
-import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
-import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
-import { getSessionChatAncestors } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeaderBar.js';
-import { getSessionConversationStatusAriaLabel } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { ChatWindowSessionDropTarget } from '../../chatWindow/browser/chatWindowSessionDropTarget.js';
-import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { EditorInputCapabilities, GroupIdentifier, Verbosity } from '../../../../common/editor.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsListModelService } from '../sessionsListModelService.js';
+import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
+import { getSessionChatAncestors } from '../parts/sessionHeaderBar.js';
+import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /** The view type of the chat of a session, shown as an editor: the chat part of a chat window shows it. */
 export const SESSION_CHAT_VIEW_TYPE = 'sessions.chat';
@@ -79,6 +78,11 @@ export interface ISessionChatViewHost {
 	readonly active: IObservable<boolean>;
 	/** Called with what the editor shows once it is created, until the returned disposable is disposed. */
 	attach(view: ChatEditorContent): IDisposable;
+	/**
+	 * Takes what is dropped on the view of the chat, `element`, and opens it, such as a session or chat that a chat window opens
+	 * beside `chat`, until the returned disposable is disposed. Without it, the view takes only what the chat input does.
+	 */
+	createDropTarget?(element: HTMLElement, chat: () => URI | undefined): IDisposable;
 	/**
 	 * What shows the chat: the last attached of those attached, such as the view where the chat moves to while the one it
 	 * moves from is still there.
@@ -287,7 +291,10 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		this.element = $('.session-chat-view-editor.sessions-window-host');
 		// The chat takes what is dropped on it, such as files to attach; editors dropped on the edges of its part split it.
 		this._register(registerContentDropTarget(this.element));
-		this._register(instantiationService.createInstance(ChatWindowSessionDropTarget, this.element, () => host?.content.get()?.chat.get().resource));
+		// What its host opens on a drop, such as a session or chat that a chat window opens beside it
+		if (host?.createDropTarget) {
+			this._register(host.createDropTarget(this.element, () => host.content.get()?.chat.get().resource));
+		}
 		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
 		// its window's main part, as the main window's chat reads the one of its editor area.
 		const scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
@@ -365,12 +372,38 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 	}
 }
 
-Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({
-	viewType: SESSION_CHAT_VIEW_TYPE,
-	name: localize('sessionChatViewEditor', "Chat"),
-	providesTitle: true,
-	createView: (instantiationService, input) => instantiationService.createInstance(ChatEditorView, hosts.get(input)),
-});
+let sessionChatViewEditorRegistration: { readonly registration: IDisposable; references: number } | undefined;
+
+/**
+ * Registers the view editor of the chat of a session ({@link SESSION_CHAT_VIEW_TYPE}), until every returned disposable is
+ * disposed: the Agents window and the chat part of an editor window share one registration.
+ */
+export function registerSessionChatViewEditor(): IDisposable {
+	if (!sessionChatViewEditorRegistration) {
+		sessionChatViewEditorRegistration = {
+			registration: Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({
+				viewType: SESSION_CHAT_VIEW_TYPE,
+				name: localize('sessionChatViewEditor', "Chat"),
+				providesTitle: true,
+				createView: (instantiationService, input) => instantiationService.createInstance(ChatEditorView, hosts.get(input)),
+			}),
+			references: 0,
+		};
+	}
+	const entry = sessionChatViewEditorRegistration;
+	entry.references++;
+	let disposed = false;
+	return toDisposable(() => {
+		if (disposed) {
+			return;
+		}
+		disposed = true;
+		if (--entry.references === 0) {
+			entry.registration.dispose();
+			sessionChatViewEditorRegistration = undefined;
+		}
+	});
+}
 
 /**
  * What the tab of the editor of `chat` of `session`, named `name`, shows of the chat besides its name: its status, as the

@@ -98,7 +98,7 @@ export interface ISubmitFeedbackOptions {
 	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
-	/** Sends to the explicit target chat without opening a widget; rejects on failure. */
+	/** Sends to the explicit target chat without a widget; accepts selected Created comments only on success and rejects on failure. */
 	readonly background?: boolean;
 	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
 	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
