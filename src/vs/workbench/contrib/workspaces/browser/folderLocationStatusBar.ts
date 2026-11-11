@@ -7,7 +7,9 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { basename } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -29,7 +31,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	constructor(
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -61,6 +65,15 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			this.entry.value.update(props);
 		} else {
 			this.entry.value = this.statusbarService.addEntry(props, 'status.workspace.folderLocation', StatusbarAlignment.LEFT, 1000);
+			this.notificationService.prompt(
+				Severity.Info,
+				localize('folderLocationSwitched', "The folder is now at the location '{0}'. Select the status bar entry to return to {1}.", location.label, primaryName),
+				[{
+					label: localize('returnToPrimaryLocation', "Return to Primary Location"),
+					run: () => this.commandService.executeCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID)
+				}],
+				{ neverShowAgain: { id: 'workbench.folderLocation.switched', scope: NeverShowAgainScope.APPLICATION } }
+			);
 		}
 	}
 }
