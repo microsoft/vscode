@@ -103,6 +103,15 @@ export class SessionsListingScopeFilter extends Disposable {
 		super();
 
 		this._register(onDidChangeAllSessions(e => {
+			if (this._initialized && !this._pendingChanges.length && !e.added.length && !e.removed.length && e.changed.length) {
+				// Changes of sessions only, such as of their status as they stream: what they are listed by, their workspaces,
+				// the scope follows itself, so the sessions it lists stay as they are
+				const changed = e.changed.flatMap(session => this._listed.get(session.sessionId) ?? []);
+				if (changed.length) {
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed });
+				}
+				return;
+			}
 			this._pendingChanges.push(e);
 			this._allSessionsChanged.trigger(undefined);
 		}));

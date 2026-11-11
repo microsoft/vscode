@@ -15,6 +15,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { parseGitHubOrigin, readFolderGitRepository, WorkspaceFolderRepositories } from '../../../browser/agentsView/workspaceFolderRepositories.js';
+import { parseGitHubRepositoryFromGitConfig } from '../../../browser/gitHubRepositoryResolver.js';
 
 suite('WorkspaceFolderRepositories', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -111,7 +112,7 @@ suite('WorkspaceFolderRepositories', () => {
 	});
 
 	test('parses the GitHub repository of the origin remote', () => {
-		const origin = (url: string, remote = 'origin') => parseGitHubOrigin(`[core]\n\tbare = false\n[remote "${remote}"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${remote}/*\n`);
+		const origin = (url: string, remote = 'origin', headerComment = '') => parseGitHubOrigin(`[core]\n\tbare = false\n[remote "${remote}"]${headerComment}\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${remote}/*\n`);
 		assert.deepStrictEqual({
 			https: origin('https://github.com/Microsoft/VSCode.git'),
 			httpsWithoutSuffix: origin('https://github.com/microsoft/vscode'),
@@ -121,6 +122,13 @@ suite('WorkspaceFolderRepositories', () => {
 			quoted: origin('"https://github.com/microsoft/vscode.git"'),
 			comment: origin('https://github.com/microsoft/vscode.git # the main repository'),
 			quotedWithComment: origin('"git@github.com:microsoft/vscode.git" ; a comment'),
+			headerHashComment: origin('https://github.com/microsoft/vscode.git', 'origin', ' # the main repository'),
+			headerSemicolonComment: origin('https://github.com/microsoft/vscode.git', 'origin', '; the main repository'),
+			// Only origin's URL counts, also with comments on both headers
+			originAfterCommentedUpstream: parseGitHubOrigin('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n[remote "origin"] ; y\n\turl = git@github.com:microsoft/vscode.git\n'),
+			commentedUpstreamOnly: parseGitHubOrigin('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n'),
+			// The other callers of the shared parser read headers exactly as before
+			otherCallersHeaderComment: parseGitHubRepositoryFromGitConfig('[remote "origin"] # comment\n\turl = https://github.com/microsoft/vscode.git\n'),
 			otherHost: origin('https://gitlab.com/microsoft/vscode.git'),
 			otherRemote: origin('https://github.com/microsoft/vscode.git', 'upstream'),
 		}, {
@@ -132,6 +140,11 @@ suite('WorkspaceFolderRepositories', () => {
 			quoted: 'microsoft/vscode',
 			comment: 'microsoft/vscode',
 			quotedWithComment: 'microsoft/vscode',
+			headerHashComment: 'microsoft/vscode',
+			headerSemicolonComment: 'microsoft/vscode',
+			originAfterCommentedUpstream: 'microsoft/vscode',
+			commentedUpstreamOnly: undefined,
+			otherCallersHeaderComment: undefined,
 			otherHost: undefined,
 			otherRemote: undefined,
 		});

@@ -32,13 +32,15 @@ export async function resolveGitHubRepositoryFromGitConfig(fileService: IFileSer
 
 /**
  * The GitHub repository of a remote of a git `config`: of `origin` first and then of any other remote. With a
- * `remoteName`, only of that remote, whose value is read as git does: without its quotes, escapes and inline comment.
+ * `remoteName`, only of that remote, read as git does: its section header can end with a comment, and its value is read
+ * without its quotes, escapes and inline comment.
  */
 export function parseGitHubRepositoryFromGitConfig(content: string, supportedHosts?: readonly string[], remoteName?: string): IGitHubRemoteInfo | undefined {
 	const remotes: { readonly name: string; readonly url: string }[] = [];
 	let sectionRemote: string | undefined;
 	for (const line of content.split(/\r?\n/)) {
-		const section = /^\s*\[\s*remote\s+"([^"]+)"\s*\]\s*$/i.exec(line);
+		// Read as git does with a remoteName: a header can end with a comment
+		const section = (remoteName === undefined ? /^\s*\[\s*remote\s+"([^"]+)"\s*\]\s*$/i : /^\s*\[\s*remote\s+"([^"]+)"\s*\]\s*(?:[#;].*)?$/i).exec(line);
 		if (section) {
 			sectionRemote = section[1];
 			continue;

@@ -34,6 +34,7 @@ import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/ses
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_LOADING_VIEW_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewStateReadyContext, AgentsViewWhen } from './agentsView.js';
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
+import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
 import { AgentsViewLoadingPane } from './agentsViewLoadingPane.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -85,6 +86,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		// the list shares with the Agents window loads as the first of them needs it.
 		this.registerOnFirstShown(instantiationService, () => {
 			this._register(registerSessionsListActions());
+			this._register(registerAgentsViewNewSessionActions());
 			this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
 		});
 

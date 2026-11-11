@@ -12,6 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
@@ -49,6 +50,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		@ILogService private readonly _logService: ILogService,
 		@ISessionOpenTelemetryService private readonly _sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 	}
@@ -219,7 +221,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		if (!draftSlot) {
 			const target = options?.folderUri
 				? { folderUri: options.folderUri, providerId: options.providerId, sessionTypeId: options.sessionTypeId }
-				: getAgentsChatPartComposerTarget(this._workspaceContextService);
+				: getAgentsChatPartComposerTarget(this._workspaceContextService, this._editorService);
 			await this._chatPart.openComposer(target, { sideBySide: options?.toSide });
 			return { session: undefined, trustDeclined: false };
 		}

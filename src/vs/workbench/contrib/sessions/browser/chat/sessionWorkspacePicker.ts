@@ -143,6 +143,12 @@ export interface IWorkspacePickerOptions {
 	 * than reading it from the recent workspaces it shares with the main window's composer.
 	 */
 	readonly ownNoWorkspaceSelection?: boolean;
+	/**
+	 * The only folders the picker offers and selects, such as the folders of an editor window: no recent workspace, no
+	 * browse action and no No Workspace. With a single folder, the picker shows it read-only. Unset or empty, it offers any
+	 * workspace.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
 }
 
 export interface IWorkspacePickerGroupAction {
@@ -517,6 +523,19 @@ export class WorkspacePicker extends Disposable {
 				resolveWorkspace: (folderUri, preferredProviderId) => this._resolveFolder(folderUri, preferredProviderId),
 			}));
 		this._watchProviderSessionTypes();
+		const allowedFolders = this.options.allowedFolders;
+		if (allowedFolders) {
+			// Whether the picker is read-only follows its allowed folders, such as as a folder joins the window; a selected
+			// folder that leaves them, such as one removed from the window, gives way to the first of them
+			this._register(autorun(reader => {
+				allowedFolders.read(reader);
+				const allowed = this._getAllowedFolders();
+				if (allowed && this._selectedFolderUri && !this._isAllowedFolder(this._selectedFolderUri)) {
+					this.setSelectedWorkspace(allowed[0], { persist: false });
+				}
+				this._updateTriggerLabel();
+			}));
+		}
 		if (this._sessionWorkspaceFallback) {
 			this._register(this._sessionWorkspaceFallback.onDidChange(() => this._restoreAutomaticSelection()));
 		}
@@ -796,7 +815,7 @@ export class WorkspacePicker extends Disposable {
 	 */
 	showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
 		const triggerElement = anchor ?? this._triggerElement;
-		if (!triggerElement) {
+		if (!triggerElement || this._isReadOnly()) {
 			return;
 		}
 		const alreadyVisible = this.actionWidgetService.isVisible;
@@ -1316,6 +1335,10 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selected project.
 	 */
 	clearSelection(): void {
+		// Restricted to its allowed folders, it always has one of them
+		if (this._getAllowedFolders()) {
+			return;
+		}
 		this.options.onUserSelection?.();
 		this._selectionGeneration++;
 		this._hidePicker();
@@ -1378,6 +1401,9 @@ export class WorkspacePicker extends Disposable {
 		source = NewSessionWorkspacePreselectionSource.User,
 		origin = WorkspaceSelectionOrigin.User,
 	): void {
+		if (!this._isAllowedFolder(folderUri)) {
+			return;
+		}
 		if (source === NewSessionWorkspacePreselectionSource.User) {
 			this.options.onUserSelection?.();
 		}
@@ -1760,6 +1786,10 @@ export class WorkspacePicker extends Disposable {
 	 * recent folders.
 	 */
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
+		const allowedFolders = this._getAllowedFolders();
+		if (allowedFolders) {
+			return this._buildAllowedFolderItems(allowedFolders);
+		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 		const environment = this._getEnvironment();
 		const hasEnvironmentPicker = !!environment || this.options.environmentPickerEnabled?.get() === true;
@@ -2241,7 +2271,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
-		return this.options.getNoWorkspaceOption?.();
+		return this._getAllowedFolders() ? undefined : this.options.getNoWorkspaceOption?.();
 	}
 
 	protected _getNoWorkspaceLabel(): string {
@@ -2293,8 +2323,10 @@ export class WorkspacePicker extends Disposable {
 			const reflectsWorkspace = options.reflectsWorkspace === true;
 			const noWorkspaceSelected = reflectsWorkspace && this._getNoWorkspaceOption()?.isSelected === true;
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
-			const clearable = reflectsWorkspace && options.clearable?.get() === true;
+			// Restricted to its allowed folders, it has no No Workspace to clear to
+			const clearable = reflectsWorkspace && options.clearable?.get() === true && !this._getAllowedFolders();
 			const canClear = clearable && workspace !== undefined;
+			const readOnly = reflectsWorkspace && this._isReadOnly();
 			contents.slot.classList.toggle('workspace-clearable', canClear);
 			if (contents.clearButton) {
 				contents.clearButton.element.hidden = !canClear;
@@ -2352,9 +2384,16 @@ export class WorkspacePicker extends Disposable {
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : emptyLabel));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
-				: label && label !== emptyLabel
-					? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
-					: options.ariaLabel);
+				: readOnly && workspace && label
+					? localize('workspacePicker.windowFolderAriaLabel', "New session in this window's folder {0}", label)
+					: label && label !== emptyLabel
+						? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
+						: options.ariaLabel);
+			if (reflectsWorkspace) {
+				trigger.setAttribute('aria-disabled', String(readOnly));
+				trigger.setAttribute('aria-haspopup', readOnly ? 'false' : 'listbox');
+				trigger.classList.toggle('read-only', readOnly);
+			}
 			if (label) {
 				contents.label ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 				contents.label.textContent = label;
@@ -2368,6 +2407,11 @@ export class WorkspacePicker extends Disposable {
 			} else {
 				contents.badge?.dispose();
 				contents.badge = undefined;
+			}
+			if (readOnly) {
+				contents.chevron?.remove();
+				contents.chevron = undefined;
+				return;
 			}
 			if (!contents.chevron) {
 				contents.chevron = renderIcon(Codicon.chevronDownCompact);
@@ -2386,16 +2430,24 @@ export class WorkspacePicker extends Disposable {
 			: workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : localize('pickWorkspace', "workspace");
 		const icon = noWorkspaceSelected ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
+		const readOnly = this._isReadOnly();
 		trigger.setAttribute('aria-label', noWorkspaceSelected
 			? localize('workspacePicker.noWorkspaceSelectedAriaLabel', "New session with no workspace")
 			: workspace
-				? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
+				? readOnly
+					? localize('workspacePicker.windowFolderAriaLabel', "New session in this window's folder {0}", label)
+					: localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
 				: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
+		trigger.setAttribute('aria-disabled', String(readOnly));
+		trigger.setAttribute('aria-haspopup', readOnly ? 'false' : 'listbox');
+		trigger.classList.toggle('read-only', readOnly);
 
 		contents.icon = dom.append(trigger, renderIcon(icon));
 		contents.label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		contents.label.textContent = label;
-		dom.append(trigger, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');
+		if (!readOnly) {
+			dom.append(trigger, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');
+		}
 	}
 
 	private _getWorkspaceLabel(workspace: ISessionWorkspace, providerId: string | undefined): string {
@@ -2688,7 +2740,50 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _canRestoreWorkspace(): boolean {
-		return !this.isNoWorkspaceSelected() && (this.options.canRestoreWorkspace?.() ?? true);
+		// Restricted to its allowed folders, the picker selects only what its composer asks for or the user picks
+		return !this._getAllowedFolders() && !this.isNoWorkspaceSelected() && (this.options.canRestoreWorkspace?.() ?? true);
+	}
+
+	/** The folders the picker is restricted to; none restrict it. */
+	private _getAllowedFolders(): readonly URI[] | undefined {
+		const allowedFolders = this.options.allowedFolders?.get();
+		return allowedFolders?.length ? allowedFolders : undefined;
+	}
+
+	private _isAllowedFolder(folderUri: URI): boolean {
+		const allowedFolders = this._getAllowedFolders();
+		return !allowedFolders || allowedFolders.some(folder => this.uriIdentityService.extUri.isEqual(folder, folderUri));
+	}
+
+	/** Whether the picker only shows its one allowed folder, without offering any other. */
+	protected _isReadOnly(): boolean {
+		const allowedFolders = this._getAllowedFolders();
+		return !!allowedFolders && allowedFolders.length <= 1;
+	}
+
+	/** The items of a picker restricted to its allowed folders: one for each folder a provider resolves. */
+	private _buildAllowedFolderItems(allowedFolders: readonly URI[]): IActionListItem<IWorkspacePickerItem>[] {
+		const items: IActionListItem<IWorkspacePickerItem>[] = [];
+		for (const folderUri of allowedFolders) {
+			const resolved = this._resolveFolder(folderUri, this._isSelectedFolder(folderUri) ? this._selectedResolved?.providerId : undefined);
+			if (!resolved) {
+				continue;
+			}
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: resolved.workspace.label,
+				description: resolved.workspace.description,
+				group: { title: '', icon: this._getWorkspaceIcon(resolved.workspace) },
+				disabled: this._isProviderUnavailable(resolved.providerId),
+				item: {
+					id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+					folderUri,
+					providerId: resolved.providerId,
+					checked: this._isSelectedFolder(folderUri) || undefined,
+				},
+			});
+		}
+		return items;
 	}
 
 	/**

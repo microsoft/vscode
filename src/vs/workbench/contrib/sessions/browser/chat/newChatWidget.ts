@@ -415,6 +415,7 @@ export class NewChatWidget extends Disposable {
 			},
 			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
+			allowedFolders: this._draftHost?.allowedFolders,
 		}));
 		this._register(this._workspacePicker.onDidChangeSelection(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._register(this._workspacePicker.onDidChangeDevContainerAvailability(() => this._environmentWorkspaceChanged.trigger(undefined)));
@@ -1958,7 +1959,9 @@ export class NewChatWidget extends Disposable {
 		const canOptOut = derived(this, reader => {
 			selectionChanged.read(reader);
 			return !!this._workspaceOptOutTarget.read(reader)
-				&& !!this._workspacePicker.selectedFolderUri;
+				&& !!this._workspacePicker.selectedFolderUri
+				// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
+				&& !this._draftHost?.allowedFolders?.read(reader).length;
 		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
 		const workspaceTrigger: IWorkspacePickerTrigger = {
