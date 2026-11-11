@@ -96,6 +96,7 @@ class AutomationsDialogAccessibilityHelp implements IAccessibleViewImplementatio
 		const content = [
 			localize('automationsDialog.help.overview', "You are in the New or Edit Automation dialog."),
 			localize('automationsDialog.help.configuration', "In manual creation or editing, review the name, prompt, target, trigger, and provider settings. Some target choices are fixed when editing. Create or Save saves the automation; an empty name is derived from the prompt. Validation and operation errors appear in the footer. Use Tab and Shift+Tab between controls, and Cancel or Escape to close without saving."),
+			localize('automationsDialog.help.agentHint', "When creating an automation, the hint below the title offers /automate. Shift+Tab from Name to reach it, then press Enter or Space to close this form without saving and open New Session with /automate pre-filled. The prompt is not sent automatically."),
 		].join('\n');
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,

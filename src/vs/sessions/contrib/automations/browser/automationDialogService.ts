@@ -16,7 +16,9 @@ import { getErrorMessage, isCancellationError } from '../../../../base/common/er
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { equals } from '../../../../base/common/objects.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -25,6 +27,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultButtonStyles, defaultDialogStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -34,6 +37,8 @@ import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -95,6 +100,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
+		@ICommandService private readonly commandService: ICommandService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -219,6 +225,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 			updateNotificationCenter();
 		};
 		let saveInProgress = false;
+		let openAgentSession = false;
+		let agentHint: Link | undefined;
+		let agentHintElement: HTMLElement | undefined;
 		const saveCancellation = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const completion = new DeferredPromise<IAutomationDialogResult | undefined>();
 
@@ -469,13 +478,39 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
+					if (!isEdit) {
+						const hint = DOM.append(formPane, $('p.automation-authoring-hint'));
+						const text = parseLinkedText(localize('automation.dialog.agentHint', "Try using [/automate]({0}) to have an agent help create an automation", `command:${NEW_SESSION_ACTION_ID}`));
+						for (const node of text.nodes) {
+							if (typeof node === 'string') {
+								hint.append(node);
+							} else {
+								const label = $('code', undefined, node.label);
+								agentHint = disposables.add(this.instantiationService.createInstance(Link, hint, { ...node, label }, {
+									opener: () => {
+										if (saveInProgress || completion.isSettled || this.configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+											return;
+										}
+										openAgentSession = true;
+										closeDialog(undefined);
+									},
+								}));
+								agentHintElement = label.parentElement ?? undefined;
+							}
+						}
+					}
 					const form = DOM.append(formPane, $('.automation-form'));
 					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, dialogContextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
 					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
-					setSaving = handle.setSaving;
+					setSaving = (saving, committing) => {
+						handle.setSaving(saving, committing);
+						if (agentHint) {
+							agentHint.enabled = !saving;
+						}
+					};
 					setOwnership = handle.setOwnership;
 					getCustomizationIds = handle.getCustomizationIds;
 					waitForCustomizationChoices = handle.waitForCustomizationChoices;
@@ -485,6 +520,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
 						() => [
+							...(agentHintElement ? [agentHintElement] : []),
 							...getFocusableElements(),
 							...(notificationAction ? [notificationAction.element] : []),
 							...(saveButton ? [saveButton.element] : []),
@@ -494,7 +530,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 						() => !saveInProgress && handle.acceptPromptSuggestion(),
 						() => !saveInProgress && handle.cancelInputPopup(),
 					));
-					focusFirst = () => keyboardNavigation.focusFirst();
+					focusFirst = () => {
+						if (agentHintElement) {
+							getFocusableElements()[0]?.focus();
+						} else {
+							keyboardNavigation.focusFirst();
+						}
+					};
 					for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
 						disposables.add(DOM.addDisposableListener(DOM.getWindow(container), type, (event: KeyboardEvent) => {
 							if (commitInProgress && event.key === 'Escape') {
@@ -553,6 +595,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 			result = await completion.p;
 		} finally {
 			disposables.dispose();
+		}
+		if (openAgentSession) {
+			const options: INewSessionInAgentsWindowOptions = { prompt: '/automate ', prefillPrompt: true };
+			await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, options);
 		}
 		return result;
 	}

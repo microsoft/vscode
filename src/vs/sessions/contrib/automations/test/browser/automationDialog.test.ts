@@ -56,6 +56,7 @@ import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../.
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatInputPart, IChatInputPartOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -265,6 +266,12 @@ suite('Automation dialog creation', () => {
 			return child;
 		});
 		disposables.add(toDisposable(() => createChild.restore()));
+		const commandRequests: { id: string; options: unknown; dialogOpen: boolean; inputDisposed: boolean }[] = [];
+		instantiationService.stub(ICommandService, {
+			executeCommand: async (id, options) => {
+				commandRequests.push({ id, options, dialogOpen: container.classList.contains('automation-dialog-open'), inputDisposed: inputDisposables.isDisposed });
+			},
+		});
 		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
@@ -273,7 +280,7 @@ suite('Automation dialog creation', () => {
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
-			result, saveButton, cancelButton, nameInput, promptInput, container, providers, actionWidgetService, sessionHostService, contextKeyService,
+			result, saveButton, cancelButton, nameInput, promptInput, container, providers, actionWidgetService, sessionHostService, contextKeyService, commandRequests,
 			keybindingService: instantiationService.get(IKeybindingService),
 			getDialogOutcomes: () => telemetryService.events.filter(event => event.name === 'automation.dialogOutcome').map(event => event.data),
 			getInputEditorOptions: () => inputCreations.flatMap(spy => spy.getCalls())
@@ -333,6 +340,55 @@ suite('Automation dialog creation', () => {
 			},
 		};
 	}
+
+	for (const activation of ['click', 'Enter', ' ']) {
+		test(`the agent hint closes the creation form before opening a prefilled New Session (${activation})`, async () => {
+			let commits = 0;
+			const dialog = openDialog({ commit: async () => { commits++; } });
+			const hint = dialog.container.querySelector<HTMLElement>('.automation-authoring-hint')!;
+			const link = hint.querySelector<HTMLAnchorElement>('a')!;
+			const text = hint.textContent;
+			const nameInitiallyFocused = DOM.isActiveElement(dialog.nameInput);
+			dialog.nameInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+			const linkReachedByKeyboard = DOM.isActiveElement(link);
+			if (activation === 'click') {
+				link.click();
+			} else {
+				link.dispatchEvent(new KeyboardEvent('keydown', { key: activation, keyCode: activation === 'Enter' ? 13 : 32, bubbles: true, cancelable: true }));
+			}
+			link.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({ text, nameInitiallyFocused, linkReachedByKeyboard, result, commits, requests: dialog.commandRequests }, {
+				text: 'Try using /automate to have an agent help create an automation',
+				nameInitiallyFocused: true, linkReachedByKeyboard: true, result: undefined, commits: 0,
+				requests: [{ id: NEW_SESSION_ACTION_ID, options: { prompt: '/automate ', prefillPrompt: true }, dialogOpen: false, inputDisposed: true }],
+			});
+		});
+	}
+
+	test('the agent hint cannot interrupt saving or committing', async () => {
+		const commit = new DeferredPromise<void>();
+		const dialog = openDialog({ commit: async () => commit.p });
+		const link = dialog.container.querySelector<HTMLAnchorElement>('.automation-authoring-hint a')!;
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		await timeout(0);
+		link.click();
+		const saving = { disabled: link.getAttribute('aria-disabled'), open: dialog.container.classList.contains('automation-dialog-open') };
+		await commit.complete();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ saving, result: result?.kind, requests: dialog.commandRequests }, {
+			saving: { disabled: 'true', open: true }, result: 'create', requests: [],
+		});
+	});
+
+	test('editing does not offer a shortcut to create another automation', async () => {
+		const dialog = openDialog({ existing: eventAutomation({ issues: { types: ['opened'] } }) }, eventConfiguration());
+		const hint = dialog.container.querySelector('.automation-authoring-hint');
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.strictEqual(hint, null);
+	});
 
 	test('Alt+F1 reaches accessibility help throughout the dialog and owned help retains focus', async () => {
 		const dialog = openDialog();

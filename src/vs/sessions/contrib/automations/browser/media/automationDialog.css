@@ -225,6 +225,17 @@
 	padding: 4px 14px 6px;
 }
 
+.automation-authoring-hint {
+	margin: 0 0 var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+}
+
+.automation-authoring-hint code {
+	font-family: var(--monaco-monospace-font);
+}
+
 /*
  * Theme the native overflow scrollbar on the dialog body so it matches
  * the rest of VS Code. Without this the dialog
