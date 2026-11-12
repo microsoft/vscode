@@ -110,6 +110,8 @@ User-created groups form a tree without a depth limit. In every grouping mode, o
 
 A comparison is one sortable entry alongside ordinary sessions, in its automatic section or an explicitly chosen custom group. Its creation time is the comparison's creation time; its updated time is the latest participant update. Manual sort keys are stored under the comparison group's section identity, independently for each ordering mode. Comparison membership and participant display order remain comparison-owned: moving the parent never regroups or reorders individual participants. A comparison cannot hold subgroups.
 
+Outside Inbox, an agent-created comparison without an explicit custom-group placement appears beneath its initiating chat's session when that session has a rendered, unarchived row. This is presentation only: participants remain independent sessions, and comparison lifecycle and bulk actions do not become operations on the caller. If the caller is unavailable, filtered out, or capped, the comparison keeps its ordinary placement. Inbox continues to place it by participant attention state.
+
 A workspace, repository, or environment section can belong to one custom group at any depth. This places the section, not its sessions, in that group: future matching sessions follow it, and higher-precedence placements remain unchanged. Section placement is remembered independently for each grouping mode, including the workspace fallback in Repository mode, and only applies in that mode. Nested sections do not consume the top-level Recent section limit, while their own session limits still apply. Temporarily empty sections retain their parents and child order without rendering an empty automatic header.
 
 ### Quick chats

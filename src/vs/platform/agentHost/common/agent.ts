@@ -14,6 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
@@ -340,6 +341,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	readonly enabled?: boolean;
 	/** Effective activation in the exact live chat; absent before that chat is initialized. */
 	readonly effectiveEnabled?: boolean;
+	/** Explicit repository override; null inherits global state, absent means unavailable. */
+	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
@@ -1034,6 +1037,11 @@ export interface IAgentChatContext {
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * Who authored the message of the current send, resolved by the host and supplied only for that send.
+	 * Providers pass it to their runtime instead of presenting every message as the user's.
+	 */
+	readonly messageProvenance?: AgentMessageProvenance;
 	/**
 	 * The VS Code chat surface the owning session was created for, from its surface
 	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
@@ -2045,7 +2053,7 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Persists enablement at the requested scope, deriving the repository from the target chat. */
-	setPluginEnabled?(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled?(plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
@@ -2167,8 +2175,9 @@ export interface IAgent {
 	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
 	 * A promise that resolves false hands the message back unsent, for example because the turn it was
 	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 * `provenance` is who authored the message, as the host resolved it.
 	 */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, provenance?: AgentMessageProvenance): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
@@ -2371,6 +2380,14 @@ export interface IAgent {
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
+
+	/**
+	 * Completes provider setup after an accepted credential is available in the canonical store.
+	 *
+	 * TODO@TylerLeonhardt: Combine this with {@link IAgent.authenticate} and {@link IAgent.handleAuthenticationToken}
+	 * into a single hook that runs once the credential is stored.
+	 */
+	completeAuthentication?(params: AuthenticateParams): Promise<void>;
 
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;

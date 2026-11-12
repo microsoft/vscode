@@ -2658,6 +2658,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+/* An image in the input ends with a Mark Up button, which mirrors the remove button that starts the pill. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment.can-mark-up {
+	padding-right: 0;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.chat-attached-context-mark-up-button {
+	order: 1;
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }

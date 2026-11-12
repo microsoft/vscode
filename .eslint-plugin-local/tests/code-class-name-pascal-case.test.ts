@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
-import tseslint from 'typescript-eslint';
 import rule from '../code-class-name-pascal-case.ts';
 
 RuleTester.describe = suite;
@@ -13,7 +12,7 @@ RuleTester.it = test;
 
 const error = (name: string) => ({ message: `Class name \`${name}\` must match one of the following formats: PascalCase` });
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-class-name-pascal-case', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-class-name-pascal-case', rule, {
 	valid: [
 		{ name: 'PascalCase', code: `class SignService {}` },
 		{ name: 'anonymous class expression', code: `const service = class {};` },

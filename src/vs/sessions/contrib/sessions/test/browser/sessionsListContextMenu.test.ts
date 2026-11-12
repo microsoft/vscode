@@ -300,6 +300,7 @@ suite('Sessions list context menus', () => {
 			menu: [
 				'Open in',
 				'New Nested Session',
+				'Open Customizations',
 				'---',
 				'Mark as Unread',
 				'Mark as Done',
@@ -399,6 +400,7 @@ suite('Sessions list context menus', () => {
 		}, {
 			menu: [
 				'Open in',
+				'Open Customizations',
 				'---',
 				'Mark as Unread',
 				'Mark as Done',

@@ -20,7 +20,7 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -45,8 +45,11 @@ import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IChatAccessibilityService, IChatWidgetService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IWebviewElement, IWebviewService } from '../../../../webview/browser/webview.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
+import { ChatFindWidget, IChatFindHost } from '../../../browser/widget/chatFind/chatFindWidget.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
@@ -68,6 +71,8 @@ import { MockChatSessionsService } from '../../common/mockChatSessionsService.js
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
+import { ChatLayoutService } from '../../../browser/widget/chatLayoutService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -376,6 +381,7 @@ suite('ChatListWidget', () => {
 			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' },
 		});
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, true);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
@@ -589,6 +595,213 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual(viewModel.getItems().filter(isResponseVM).map(response => response.requestId), [
 			failed.id, cancelled.id, streaming.id, final.id,
 		]);
+	});
+
+	function stubHtmlPreviewWebviews(instantiationService: ReturnType<typeof workbenchInstantiationService>) {
+		const webviews: { marker: HTMLElement; disposed: boolean }[] = [];
+		instantiationService.stub(IChatLayoutService, store.add(instantiationService.createInstance(ChatLayoutService)));
+		const states = new Map<string, IOutputPartState>();
+		instantiationService.stub(IChatOutputPartStateCache, {
+			get: key => states.get(key),
+			set: (key, state) => states.set(key, state),
+		});
+		instantiationService.stub(IChatWidgetService, { getWidgetBySessionResource: () => undefined });
+		instantiationService.stub(IWebviewService, {
+			createWebviewElement: () => {
+				const state = { marker: dom.$('div'), disposed: false };
+				webviews.push(state);
+				return new class extends mock<IWebviewElement>() {
+					override readonly onFatalError = Event.None;
+					override readonly onDidWheel = Event.None;
+					override readonly intrinsicContentSize = constObservable({ width: 500, height: 180 });
+					override setHtml(): void { }
+					override setContextKeyService(): void { }
+					override mountTo(parent: HTMLElement): void {
+						parent.appendChild(state.marker);
+					}
+					override reinitializeAfterDismount(): void { }
+					override dispose(): void {
+						state.disposed = true;
+						state.marker.remove();
+					}
+				}();
+			},
+		});
+		return webviews;
+	}
+
+	test('HTML preview Find reveals matching source and ignores preview controls', async () => {
+		const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		stubHtmlPreviewWebviews(instantiationService);
+		const text = 'Report';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<p>FindNeedle</p>\n```\n\nShow Source refers to the artifact.') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const host: IChatFindHost = {
+			transcriptDomNode: widget.domNode,
+			getItems: () => viewModel.getItems(),
+			onDidChangeContent: Event.None,
+			reveal: (item, relativeTop) => widget.reveal(item, relativeTop),
+			getTemplateDataForRequestId: id => widget.getTemplateDataForRequestId(id),
+			onDidRerenderRow: widget.onDidRerender,
+			editorsInUse: () => widget.editorsInUse(),
+			getCodeBlockInfoForEditor: uri => widget.getCodeBlockInfoForEditor(uri),
+			getScrollTop: () => widget.scrollTop,
+			setScrollTop: top => { widget.scrollTop = top; },
+			getRenderHeight: () => widget.renderHeight,
+			getViewportAnchorItemId: () => widget.lastVisibleItem?.id,
+		};
+		const find = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+		find.show('Show Source');
+		await retry(async () => {
+			const current = mainWindow.CSS.highlights.get('chat-find-current-match');
+			assert.ok(current && current.size > 0);
+		}, 10, 50);
+		const ranges = [...mainWindow.CSS.highlights.get('chat-find-current-match')!];
+		const sourceStillHidden = container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden;
+		find.show('FindNeedle');
+		await retry(async () => {
+			assert.strictEqual(container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden, false);
+		}, 10, 50);
+		await waitForStableLayout(widget);
+		const findKeepsFocus = mainWindow.document.activeElement === find.getDomNode().querySelector('input');
+		const sourceVisible = container.querySelector<HTMLElement>('.chat-html-preview-source')!.getBoundingClientRect().height > 0;
+		assert.deepStrictEqual({
+			sourceStillHidden,
+			findKeepsFocus,
+			sourceVisible,
+			matchParents: ranges.map(range => range.startContainer.parentElement?.tagName),
+		}, { sourceStillHidden: true, findKeepsFocus: true, sourceVisible: true, matchParents: ['P'] });
+		find.hide();
+	});
+
+	for (const supportsHtmlPreviews of [false, true]) {
+		test(`updates existing responses when HTML previews are enabled or disabled (supported: ${supportsHtmlPreviews})`, async () => {
+			const { instantiationService, configurationService, model, container, widget } = createWidget(
+				{ rendererOptions: { renderHtmlPreviews: supportsHtmlPreviews } },
+				configuration => configuration.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, false),
+				true,
+			);
+			const webviews = stubHtmlPreviewWebviews(instantiationService);
+			const text = 'Show a report';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<h1>Report</h1>\n```') });
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const state = () => ({
+				preview: !!container.querySelector('.chat-html-preview'),
+				source: [...container.querySelectorAll('.view-line')].some(line => !line.closest('[hidden]') && line.textContent?.includes('<h1>Report</h1>')),
+				activeWebviews: webviews.filter(webview => !webview.disposed && webview.marker.isConnected).length,
+			});
+			const states = [state()];
+			for (const enabled of [true, false, true]) {
+				await configurationService.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([ChatConfiguration.HtmlPreviewEnabled]),
+					affectsConfiguration: key => key === ChatConfiguration.HtmlPreviewEnabled,
+				}));
+				await waitForStableLayout(widget);
+				states.push(state());
+			}
+			assert.deepStrictEqual(states, [false, true, false, true].map(enabled => ({
+				preview: supportsHtmlPreviews && enabled,
+				source: !supportsHtmlPreviews || !enabled,
+				activeWebviews: supportsHtmlPreviews && enabled ? 1 : 0,
+			})));
+		});
+	}
+
+	test('recreates detached HTML webviews when scrolling a response back into view', async () => {
+		const { instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		const webviews = stubHtmlPreviewWebviews(instantiationService);
+		const addRequest = (text: string) => model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		const request = addRequest('Show an HTML report');
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<h1>Report</h1>\n```') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const initialWebview = webviews.find(webview => webview.marker.isConnected)!;
+		const parent = container.parentElement!;
+		widget.setVisible(false);
+		const disposedWhenHidden = initialWebview.disposed;
+		container.remove();
+		parent.appendChild(container);
+		widget.setVisible(true);
+		await waitForStableLayout(widget);
+		const retainedViewReplaced = initialWebview.disposed && webviews.find(webview => webview.marker.isConnected) !== initialWebview;
+		const response = viewModel.getItems().find(isResponseVM)!;
+		for (let index = 0; index < 8; index++) {
+			const followup = addRequest(`Follow-up ${index}`);
+			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString(`Response ${index}.\n\n`.repeat(20)) });
+			followup.response?.complete();
+		}
+		widget.refresh();
+		widget.reveal(response, 0);
+		await waitForStableLayout(widget);
+
+		const returnedPreviews: { replaced: boolean; oldDisposed: boolean; disposedWhileOffscreen: boolean }[] = [];
+		for (let pass = 0; pass < 3; pass++) {
+			const previous = webviews.find(webview => webview.marker.isConnected)!;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.strictEqual(container.querySelector('.chat-html-preview'), null, 'The preview must actually leave the rendered viewport');
+			const disposedWhileOffscreen = previous.disposed;
+			const width = pass % 2 === 0 ? 360 : 500;
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			widget.reveal(response, 0);
+			await waitForStableLayout(widget);
+			const visible = webviews.find(webview => webview.marker.isConnected);
+			assert.ok(visible);
+			returnedPreviews.push({ replaced: visible !== previous, oldDisposed: previous.disposed, disposedWhileOffscreen });
+		}
+		const originalPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
+		let previewMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		const contextMenu = sinon.stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => { previewMenu = delegate; });
+		originalPreview.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await previewMenu!.getActions!().find(action => action.id === 'chat.htmlPreview.source')!.run();
+		contextMenu.restore();
+		for (let index = 0; index < 12; index++) {
+			const followup = addRequest(`Short follow-up ${index}`);
+			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('Short response.') });
+			followup.response?.complete();
+		}
+		widget.refresh();
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+		assert.strictEqual(container.querySelector('.chat-html-preview'), null);
+		widget.reveal(response, 0);
+		await waitForStableLayout(widget);
+		const restoredPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
+		assert.deepStrictEqual({
+			disposedWhenHidden,
+			retainedViewReplaced,
+			returnedPreviews,
+			recycled: restoredPreview !== originalPreview,
+			sourceHidden: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+			reservedHeight: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
+		}, {
+			disposedWhenHidden: true,
+			retainedViewReplaced: true,
+			returnedPreviews: Array.from({ length: 3 }, () => ({ replaced: true, oldDisposed: true, disposedWhileOffscreen: true })),
+			recycled: true, sourceHidden: false, reservedHeight: '180px',
+		});
 	});
 
 	suite('generated image preview retention', () => {

@@ -142,6 +142,7 @@ import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
 import './services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
+import '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -243,6 +244,9 @@ import './contrib/sessions/browser/agentsView/agentsView.contribution.js';
 import './contrib/sessions/providers/agentsView/browser/agentsViewProviders.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
+
+// Screenshot Tool
+import './contrib/screenshotTool/browser/screenshotTool.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
