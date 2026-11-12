@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceFolderLocationService, IResolvedFolderLocation } from '../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWindowFolderLocation } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -53,7 +53,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	) {
 		super();
 
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.persist(this.folderLocationService.currentLocation)));
+		this._register(this.folderLocationService.onDidChangeLocation(e => this.persist(this.folderLocationService.getLocation(e.folder))));
 
 		const persisted = environmentService.folderLocation;
 		if (persisted) {
@@ -69,8 +69,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	}
 
 	private isAtAlternate(location: URI): boolean {
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		return !!folder && this.folderLocationService.isAtAlternateLocation() && this.uriIdentityService.extUri.isEqual(folder.uri, location);
+		const folder = this.contextService.getWorkspace().folders[0];
+		return !!folder && this.folderLocationService.isAtAlternateLocation(folder) && this.uriIdentityService.extUri.isEqual(folder.uri, location);
 	}
 
 	private async restore(persisted: IWindowFolderLocation, token: CancellationToken): Promise<void> {
@@ -89,7 +89,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 		// The location is applied at startup without validation, so a missing one is detected here
 		const exists = await this.isDirectory(location);
-		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
+		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
 		}
 
@@ -99,12 +99,12 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		}
 
 		const resolved = await this.resolve(primary, location, token);
-		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
+		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
 		}
 
 		if (resolved) {
-			this.folderLocationService.setCurrentLocation(resolved);
+			this.folderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved);
 		} else {
 			await this.returnToPrimary(persisted, primary, location, token);
 		}
@@ -180,7 +180,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER && !this.folderLocationService.isAtAlternateLocation()) {
+		const folder = this.contextService.getWorkspace().folders[0];
+		if (folder && !this.folderLocationService.isAtAlternateLocation(folder)) {
 			this.discard(persisted);
 		}
 	}
