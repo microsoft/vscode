@@ -639,7 +639,9 @@ export class NewChatWidget extends Disposable {
 				}
 				this._captureSavedDraftTarget();
 			}));
-			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer, (draft, token) => this._restoreSavedDraft(draft, token));
+			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer,
+				(draft, token) => this._restoreSavedDraft(draft, token),
+				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }));
 			let wasVisible = true;
 			this._register(autorun(reader => {
 				const visible = this.options.hostVisible?.read(reader) ?? true;

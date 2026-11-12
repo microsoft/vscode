@@ -58,7 +58,7 @@ suite('Saved session draft lifecycle', () => {
 	test('default-off preserves the singleton behavior without creating a collection or draft history', () => {
 		const { service, storage, navigation } = create(false);
 		const composer = service.createComposer();
-		const registration = disposables.add(service.registerComposer(composer, async () => { }));
+		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		composer.updateInput({ inputText: 'unsent', attachments: [] });
 		registration.dispose();
 		assert.deepStrictEqual({
@@ -71,7 +71,7 @@ suite('Saved session draft lifecycle', () => {
 	test('saves several compositions, resumes the same identity, and retains them on live disable', async () => {
 		const { service, config } = create();
 		const first = service.createComposer();
-		const registration = disposables.add(service.registerComposer(first, async () => { }));
+		const registration = disposables.add(service.registerComposer(first, async () => { }, () => { }));
 		first.updateInput({ inputText: 'first', attachments: [] });
 		registration.dispose();
 		const second = service.createComposer();
@@ -79,7 +79,7 @@ suite('Saved session draft lifecycle', () => {
 		disposables.add(service.registerComposer(second, async draft => {
 			restored = draft;
 			second.updateInput(draft.input);
-		}));
+		}, () => { }));
 		second.updateInput({ inputText: 'second', attachments: [] });
 		await service.open(first.id);
 		const titles = service.sections.get().flatMap(section => section.items.map(item => item.title)).sort();
@@ -89,6 +89,67 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual({ titles, restoredId: restored?.id, composerId: second.id, hidden }, {
 			titles: ['first', 'second'], restoredId: first.id, composerId: first.id, hidden: [],
 		});
+	});
+
+	test('starting a new composition saves and clears the input, then resumes its text, attachments and target', async () => {
+		const { service } = create();
+		const composer = service.createComposer();
+		const input = { inputText: 'keep this request', attachments: [{ kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') }], references: undefined };
+		const target = { folderUri: URI.file('/workspace'), providerId: 'provider', sessionTypeId: 'agent', modelId: 'model', groupId: 'group' };
+		let visibleInput = input;
+		disposables.add(service.registerComposer(composer, async draft => {
+			composer.updateInput(draft.input);
+		}, () => { visibleInput = { inputText: '', attachments: [], references: undefined }; }));
+		composer.target = target;
+		composer.updateInput(input);
+		const id = composer.id;
+		const saved = service.stowAndClear();
+		const cleared = {
+			visibleInput, input: composer.input, newIdentity: composer.id !== id,
+			savedInput: saved?.input, savedTarget: saved?.target,
+		};
+		composer.updateInput({ inputText: 'another request', attachments: [] });
+		await service.open(id);
+		assert.deepStrictEqual({ cleared, restored: composer.input, titles: service.sections.get()[0].items.map(item => item.title).sort() }, {
+			cleared: { visibleInput: { inputText: '', attachments: [], references: undefined }, input: { inputText: '', attachments: [] }, newIdentity: true, savedInput: input, savedTarget: target },
+			restored: input, titles: ['another request', 'keep this request'],
+		});
+	});
+
+	test('starting a new composition preserves disabled drafts and does not create empty drafts', () => {
+		const results = [false, true].map(enabled => {
+			const { service } = create(enabled);
+			const composer = service.createComposer();
+			let cleared = false;
+			disposables.add(service.registerComposer(composer, async () => { }, () => { cleared = true; }));
+			composer.updateInput({ inputText: enabled ? '  ' : 'keep singleton input', attachments: [] });
+			const id = composer.id;
+			service.stowAndClear();
+			return { cleared, sameIdentity: composer.id === id, input: composer.input.inputText, sections: service.sections.get() };
+		});
+		assert.deepStrictEqual(results, [
+			{ cleared: false, sameIdentity: true, input: 'keep singleton input', sections: [] },
+			{ cleared: false, sameIdentity: true, input: '  ', sections: [] },
+		]);
+	});
+
+	test('a failed save leaves the current input and identity intact', () => {
+		const { service, storage } = create();
+		const composer = service.createComposer();
+		let cleared = false;
+		disposables.add(service.registerComposer(composer, async () => { }, () => { cleared = true; }));
+		composer.updateInput({ inputText: 'must not lose this', attachments: [] });
+		const id = composer.id;
+		const store = storage.store;
+		storage.store = () => { throw new Error('Storage unavailable'); };
+		try {
+			assert.throws(() => service.stowAndClear(), /Storage unavailable/);
+			assert.deepStrictEqual({ cleared, sameIdentity: composer.id === id, input: composer.input.inputText }, {
+				cleared: false, sameIdentity: true, input: 'must not lose this',
+			});
+		} finally {
+			storage.store = store;
+		}
 	});
 
 	test('overlapping opens cannot save the previous input under the next draft identity', async () => {
@@ -104,7 +165,7 @@ suite('Saved session draft lifecycle', () => {
 				await resume.p;
 			}
 			composer.updateInput(draft.input);
-		}));
+		}, () => { }));
 		const openingFirst = service.open(first.id);
 		await started.p;
 		const openingSecond = service.open(second.id);
@@ -123,7 +184,7 @@ suite('Saved session draft lifecycle', () => {
 		disposables.add(service.registerComposer(composer, async value => {
 			composer.updateInput({ inputText: '', attachments: [] });
 			composer.updateInput(value.input);
-		}));
+		}, () => { }));
 		navigation.length = 0;
 		await service.open(draft.id);
 		assert.deepStrictEqual(navigation, [draft.id]);
@@ -132,7 +193,7 @@ suite('Saved session draft lifecycle', () => {
 	test('background completion removes only the submitted draft and never a newer composition', () => {
 		const { service, sent } = create();
 		const composer = service.createComposer();
-		disposables.add(service.registerComposer(composer, async () => { }));
+		disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		const input = { inputText: 'sent input', attachments: [] };
 		composer.updateInput(input);
 		composer.willSend(input);
@@ -149,7 +210,7 @@ suite('Saved session draft lifecycle', () => {
 	test('emptying a saved composition removes its old record on navigation away', () => {
 		const { service } = create();
 		const composer = service.createComposer();
-		const registration = disposables.add(service.registerComposer(composer, async () => { }));
+		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		composer.updateInput({ inputText: 'old input', attachments: [] });
 		service.stow(composer);
 		composer.updateInput({ inputText: '  ', attachments: [] });
@@ -161,7 +222,7 @@ suite('Saved session draft lifecycle', () => {
 		const { service } = create();
 		const composer = service.createComposer();
 		let restored: ISavedSessionDraft | undefined;
-		const registration = disposables.add(service.registerComposer(composer, async draft => { restored = draft; }));
+		const registration = disposables.add(service.registerComposer(composer, async draft => { restored = draft; }, () => { }));
 		composer.updateInput({ inputText: 'delete me', attachments: [] });
 		service.stow(composer);
 		await service.sections.get()[0].items[0].actions.find(action => action.id === 'sessions.drafts.delete')!.run();
@@ -172,7 +233,7 @@ suite('Saved session draft lifecycle', () => {
 	test('failed send after navigation retains the original prompt', () => {
 		const { service } = create();
 		const composer = service.createComposer();
-		const registration = disposables.add(service.registerComposer(composer, async () => { }));
+		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		const input = { inputText: 'recover me', attachments: [] };
 		composer.updateInput(input);
 		composer.willSend(input);

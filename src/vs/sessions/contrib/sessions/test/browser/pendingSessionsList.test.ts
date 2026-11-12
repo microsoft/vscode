@@ -15,6 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
@@ -96,6 +98,34 @@ suite('Sessions - pending list items', () => {
 			pending: list.getTreeSnapshot().some(node => node.type === 'section' && (node.id === 'drafts' || node.id === 'scheduled')),
 		}, { opened: [session.resource.toString()], inventory: ['normal'], pending: false });
 	});
+
+	for (const indentItems of [false, true]) {
+		test(`draft and scheduled rows use normal session dots and indentation with indentItems=${indentItems}`, () => {
+			const session = createTestSession('normal').session;
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'sessions.list.indentItems': indentItems }));
+			});
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+				pendingSections: constObservable<readonly IPendingSessionSection[]>([
+					{ id: 'drafts', label: 'Drafts', items: [item('draft')] },
+					{ id: 'scheduled', label: 'Scheduled', items: [item('scheduled', { kind: 'scheduled' })] },
+				]), onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			const draft = list.getItemRow({ pendingSession: 'draft' })!.querySelector<HTMLElement>('.session-item')!;
+			for (const size of [2, 6, 16]) {
+				list.element.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
+			const normal = list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-item')!;
+			const scheduled = list.getItemRow({ pendingSession: 'scheduled' })!.querySelector<HTMLElement>('.session-item')!;
+			const appearance = (element: HTMLElement) => ({
+				icon: element.querySelector('.session-icon > span')?.className,
+				indent: mainWindow.getComputedStyle(element).marginLeft,
+			});
+			assert.deepStrictEqual([appearance(draft), appearance(scheduled)], [appearance(normal), appearance(normal)]);
+		});
+	}
 
 	test('keyboard opens pending items without normal session actions, and context actions disable for multi-select', async () => {
 		const harness = createListHarness(disposables, []);

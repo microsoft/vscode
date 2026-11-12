@@ -446,74 +446,74 @@ suite('AgentHostAutomationStore', () => {
 		});
 	}
 
-		for (const { name, resourceUris, toClient } of agentHostConnectionKinds) {
-			test(`follow-up maps exact advertised opaque conversation identity through ${name}`, async () => {
-				const conversation = { sessionResource: URI.parse('client-session:/opaque'), chatResource: URI.parse('client-session:/opaque#second') };
-				const backend = { session: URI.parse('vendor-session:/unrelated-owner'), chat: URI.parse('ahp-chat:/arbitrary-conversation') };
-				const { store } = reconnectable(true, activeClientService, {
-					supportsExistingChatAutomation: true,
-					toHost: resource => resourceUris.toAgentHost(resource),
-					fromHost: resource => resourceUris.fromAgentHost(resource),
-					resourceSchemeForProvider: provider => provider,
-					resolveBackendSession: resource => resource.toString() === conversation.sessionResource.toString() ? backend.session : undefined,
-					resolveBackendChat: resource => resource.toString() === conversation.chatResource.toString() ? backend.chat : undefined,
-					conversationFromHost: (session, chat) => session.toString() === backend.session.toString() && chat.toString() === backend.chat.toString() ? conversation : undefined,
-				});
-				const connection = disposables.add(new TestAutomationConnection());
-				connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {}, existingConversation: {}, customizations: {} } }, undefined);
-				store.setConnection(connection);
-				const request: Message = {
-					text: 'Review changes', origin: { kind: MessageKind.Automation },
-					attachments: [{ type: MessageAttachmentKind.Resource, uri: toClient(URI.file('/workspace/file.ts')).toString(), label: 'file' }],
-				};
-				const created = await store.createAutomation({
-					...createOptions(), conversation, purpose: 'scheduledChat', request,
-					sessionTemplate: { modelId: 'old-model', config: { autoApprove: 'all' } },
-					schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-				});
-				const action = connection.dispatched[0].action;
-				assert.ok(action.type === ActionType.AutomationCreateRequested);
-				assert.deepStrictEqual({
-					supported: store.supportsExistingChatAutomation.get(), projected: created.conversation, template: created.sessionTemplate,
-					target: action.definition.conversation, model: action.definition.session.model, config: action.definition.session.config,
-					customizations: action.definition.session.customizations, request: created.request,
-				}, {
-					supported: true, projected: conversation, template: undefined,
-					target: { session: backend.session.toString(), chat: backend.chat.toString() },
-					model: undefined, config: undefined, customizations: undefined, request,
-				});
-				const rejectedAt = '2027-01-01T10:00:01.000Z';
-				connection.setAutomation({
-					resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove], runs: [],
-					createdAt: created.createdAt, modifiedAt: created.updatedAt, oneTimeRun: 'ahp-automation-run:/rejected', oneTimeDispatchRejectedAt: rejectedAt,
-				});
-				assert.deepStrictEqual({
-					rejectedAt: store.getAutomation(created.id)?.oneTimeDispatchRejectedAt,
-					dispatchedAt: store.getAutomation(created.id)?.oneTimeDispatchedAt,
-				}, { rejectedAt, dispatchedAt: undefined });
+	for (const { name, resourceUris, toClient } of agentHostConnectionKinds) {
+		test(`follow-up maps exact advertised opaque conversation identity through ${name}`, async () => {
+			const conversation = { sessionResource: URI.parse('client-session:/opaque'), chatResource: URI.parse('client-session:/opaque#second') };
+			const backend = { session: URI.parse('vendor-session:/unrelated-owner'), chat: URI.parse('ahp-chat:/arbitrary-conversation') };
+			const { store } = reconnectable(true, activeClientService, {
+				supportsExistingChatAutomation: true,
+				toHost: resource => resourceUris.toAgentHost(resource),
+				fromHost: resource => resourceUris.fromAgentHost(resource),
+				resourceSchemeForProvider: provider => provider,
+				resolveBackendSession: resource => resource.toString() === conversation.sessionResource.toString() ? backend.session : undefined,
+				resolveBackendChat: resource => resource.toString() === conversation.chatResource.toString() ? backend.chat : undefined,
+				conversationFromHost: (session, chat) => session.toString() === backend.session.toString() && chat.toString() === backend.chat.toString() ? conversation : undefined,
 			});
-		}
-
-		test('follow-up requires both an eligible local provider and explicit host capability', async () => {
-			for (const eligible of [false, true]) {
-				const { store } = reconnectable(true, activeClientService, {
-					supportsExistingChatAutomation: eligible,
-					toHost: resource => resource, fromHost: resource => resource, resourceSchemeForProvider: provider => provider,
-				});
-				const connection = disposables.add(new TestAutomationConnection());
-				connection.initializeResult.set({
-					...connection.initializeResult.get()!,
-					automations: { create: {}, oneTime: {}, ...(!eligible ? { existingConversation: {} } : {}) },
-				}, undefined);
-				store.setConnection(connection);
-				await assert.rejects(store.createAutomation({
-					...createOptions(), purpose: 'scheduledChat',
-					conversation: { sessionResource: URI.parse('client:/session'), chatResource: URI.parse('client:/session#peer') },
-					schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-				}), /does not support scheduling/);
-				assert.deepStrictEqual({ supported: store.supportsExistingChatAutomation.get(), dispatches: connection.dispatched.length }, { supported: false, dispatches: 0 });
-			}
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {}, existingConversation: {}, customizations: {} } }, undefined);
+			store.setConnection(connection);
+			const request: Message = {
+				text: 'Review changes', origin: { kind: MessageKind.Automation },
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: toClient(URI.file('/workspace/file.ts')).toString(), label: 'file' }],
+			};
+			const created = await store.createAutomation({
+				...createOptions(), conversation, purpose: 'scheduledChat', request,
+				sessionTemplate: { modelId: 'old-model', config: { autoApprove: 'all' } },
+				schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			});
+			const action = connection.dispatched[0].action;
+			assert.ok(action.type === ActionType.AutomationCreateRequested);
+			assert.deepStrictEqual({
+				supported: store.supportsExistingChatAutomation.get(), projected: created.conversation, template: created.sessionTemplate,
+				target: action.definition.conversation, model: action.definition.session.model, config: action.definition.session.config,
+				customizations: action.definition.session.customizations, request: created.request,
+			}, {
+				supported: true, projected: conversation, template: undefined,
+				target: { session: backend.session.toString(), chat: backend.chat.toString() },
+				model: undefined, config: undefined, customizations: undefined, request,
+			});
+			const rejectedAt = '2027-01-01T10:00:01.000Z';
+			connection.setAutomation({
+				resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove], runs: [],
+				createdAt: created.createdAt, modifiedAt: created.updatedAt, oneTimeRun: 'ahp-automation-run:/rejected', oneTimeDispatchRejectedAt: rejectedAt,
+			});
+			assert.deepStrictEqual({
+				rejectedAt: store.getAutomation(created.id)?.oneTimeDispatchRejectedAt,
+				dispatchedAt: store.getAutomation(created.id)?.oneTimeDispatchedAt,
+			}, { rejectedAt, dispatchedAt: undefined });
 		});
+	}
+
+	test('follow-up requires both an eligible local provider and explicit host capability', async () => {
+		for (const eligible of [false, true]) {
+			const { store } = reconnectable(true, activeClientService, {
+				supportsExistingChatAutomation: eligible,
+				toHost: resource => resource, fromHost: resource => resource, resourceSchemeForProvider: provider => provider,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.initializeResult.set({
+				...connection.initializeResult.get()!,
+				automations: { create: {}, oneTime: {}, ...(!eligible ? { existingConversation: {} } : {}) },
+			}, undefined);
+			store.setConnection(connection);
+			await assert.rejects(store.createAutomation({
+				...createOptions(), purpose: 'scheduledChat',
+				conversation: { sessionResource: URI.parse('client:/session'), chatResource: URI.parse('client:/session#peer') },
+				schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			}), /does not support scheduling/);
+			assert.deepStrictEqual({ supported: store.supportsExistingChatAutomation.get(), dispatches: connection.dispatched.length }, { supported: false, dispatches: 0 });
+		}
+	});
 	test('one-time dispatch receipt survives history eviction and uses the projected run identity', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);

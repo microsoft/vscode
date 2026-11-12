@@ -38,7 +38,8 @@ export interface ISessionDraftsService {
 	readonly enabled: IObservable<boolean>;
 	readonly sections: IObservable<readonly IPendingSessionSection[]>;
 	createComposer(): SessionDraftComposer;
-	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>): IDisposable;
+	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>, clear: () => void): IDisposable;
+	stowAndClear(): ISavedSessionDraft | undefined;
 	open(id: string): Promise<void>;
 	save(input: IChatDraft, target: ISavedSessionDraftTarget, id?: string): ISavedSessionDraft;
 	restoreRecovery(input: IChatDraft, target: ISavedSessionDraftTarget): Promise<void>;
@@ -108,7 +109,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	readonly enabled: IObservable<boolean>;
 	readonly sections: IObservable<readonly IPendingSessionSection[]>;
 	private readonly model: SavedSessionDrafts;
-	private current: { composer: SessionDraftComposer; restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void> } | undefined;
+	private current: { composer: SessionDraftComposer; restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>; clear: () => void } | undefined;
 	private readonly sends = new Map<ISendRequestOptions, { draft: ISavedSessionDraft; sessionId: string }>();
 	private readonly openQueue = new Sequencer();
 	private opening = false;
@@ -216,8 +217,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		return composer;
 	}
 
-	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>): IDisposable {
-		this.current = { composer, restore };
+	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>, clear: () => void): IDisposable {
+		this.current = { composer, restore, clear };
 		this.updateNavigation(composer);
 		const saved = this.enabled.get() && this.model.drafts.get().find(draft => draft.id === composer.id);
 		if (saved) {
@@ -232,6 +233,26 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 				this.current = undefined;
 			}
 		});
+	}
+
+	stowAndClear(): ISavedSessionDraft | undefined {
+		const current = this.current;
+		if (!this.enabled.get() || !current || current.composer.isSending) {
+			return undefined;
+		}
+		if (this.opening || current.composer.isScheduling) {
+			throw new Error(localize('draft.newSessionBusy', "Wait for the draft to finish opening or scheduling before starting a new session."));
+		}
+		const saved = this.stow(current.composer);
+		if (saved) {
+			this.clearLegacyInput(current.composer);
+			this.storageService.remove(activeDraftKey, StorageScope.WORKSPACE);
+			// Change identity before clearing: emptying the old identity would delete the saved draft.
+			current.composer.id = generateUuid();
+			current.composer.updateInput({ inputText: '', attachments: [] });
+			current.clear();
+		}
+		return saved;
 	}
 
 	stow(composer: SessionDraftComposer): ISavedSessionDraft | undefined {

@@ -935,9 +935,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		};
 		return {
 			...message,
-			...(message.attachments ? { attachments: message.attachments.map(attachment => attachment.type === MessageAttachmentKind.Resource
-				? { ...attachment, uri: mapUri(attachment.uri) }
-				: attachment) } : {}),
+			...(message.attachments ? {
+				attachments: message.attachments.map(attachment => attachment.type === MessageAttachmentKind.Resource
+					? { ...attachment, uri: mapUri(attachment.uri) }
+					: attachment)
+			} : {}),
 			...(message.model ? { model: { ...message.model, id: toHost ? this._toHostModelId(message.model.id, provider) : this._projectModelId(message.model.id, provider)! } } : {}),
 			...(message.agent ? { agent: { ...message.agent, uri: mapUri(message.agent.uri) } } : {}),
 		};

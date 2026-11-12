@@ -31,10 +31,12 @@ export async function captureScheduledChatRequest(
 		const common = {
 			label: entry.name,
 			...(entry._meta ? { _meta: entry._meta } : {}),
-			...(range ? { range: {
-				start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
-				end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
-			} } : {}),
+			...(range ? {
+				range: {
+					start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
+					end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
+				}
+			} : {}),
 		};
 		if ((entry.kind === 'file' || entry.kind === 'symbol') && isLocation(entry.value)) {
 			if (entry.value.uri.scheme !== Schemas.untitled) {

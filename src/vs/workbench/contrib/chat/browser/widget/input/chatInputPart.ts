@@ -65,7 +65,7 @@ import { IActionViewItemService, type IActionViewItemFactory } from '../../../..
 import { getFlatActionBarActions, MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { ChatQueuePickerActionItem } from './chatQueuePickerActionItem.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -4436,21 +4436,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
-					if (secondaryExecuteActions().length) {
-						return this.instantiationService.createInstance(class extends DropdownWithPrimaryActionViewItem {
-							override render(container: HTMLElement): void {
-								super.render(container);
-								this._primaryAction.element?.classList.add('action-item', 'chat-submit-button');
-							}
-						}, action, {
-							id: 'chat.sendOptions', label: localize('chat.sendOptions', "More Send Options"), tooltip: '', class: undefined, enabled: true, run: () => { },
-						}, { getActions: secondaryExecuteActions }, '', { hoverDelegate: options.hoverDelegate });
-					}
+					const hasSecondaryActions = secondaryExecuteActions().length > 0;
 					const submitLabel = this.options.hostSubmit?.label;
-					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
+					const createPrimaryAction = () => this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
-							container.classList.add('chat-submit-button');
+							container.classList.toggle('chat-submit-button', !hasSecondaryActions);
 							if (submitLabel) {
 								const labelElement = dom.append(container, dom.$('span.chat-submit-button-label'));
 								labelElement.setAttribute('aria-hidden', 'true');
@@ -4458,6 +4449,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 									const label = submitLabel.read(reader);
 									labelElement.textContent = label ?? '';
 									container.classList.toggle('labeled', !!label);
+									container.classList.toggle('chat-submit-button', !hasSecondaryActions || !!label);
 									this.updateAriaLabel();
 								}));
 							}
@@ -4471,6 +4463,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							}
 						}
 					}, action, options);
+					return hasSecondaryActions
+						? this.instantiationService.createInstance(ChatQueuePickerActionItem, action, { ...options, primaryAction: createPrimaryAction() })
+						: createPrimaryAction();
 				}
 				if ((action.id === ChatSpeechToTextPreparingAction.ID || action.id === ChatSpeechToTextConnectingAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(DictationDownloadActionViewItem, action, options);

@@ -17,6 +17,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { SessionsListFilters } from './sessionsListFilters.js';
 import type { SessionListItem } from './sessionsList.js';
@@ -140,7 +141,9 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		if (!isPendingSessionItem(item)) {
 			return;
 		}
-		DOM.reset(template.icon, DOM.$(`span${ThemeIcon.asCSSSelector(item.kind === 'draft' ? Codicon.edit : Codicon.clock)}`));
+		const icon = DOM.$(`span${ThemeIcon.asCSSSelector(Codicon.circleSmallFilled)}`);
+		icon.style.color = asCssVariable('agentSessionReadIndicator.foreground');
+		DOM.reset(template.icon, icon);
 		template.title.set(item.title, createMatches(node.filterData));
 		template.description.textContent = item.description;
 		template.compactDescription.textContent = item.description;

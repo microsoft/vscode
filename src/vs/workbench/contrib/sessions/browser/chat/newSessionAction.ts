@@ -28,6 +28,7 @@ import { WindowCanvasInput, IWindowCanvasService } from '../windowCanvas.js';
 import { ICreateNewSessionOptions, inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { INewSessionComposerService } from '../newSessionComposerService.js';
+import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 
 /** The folder, provider and agent a new session inherits ({@link getInheritedNewSessionTarget}). */
@@ -111,6 +112,9 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const activeSession = mainWindowHost.session.get();
+		if (!options?.toSide) {
+			accessor.get(ISessionDraftsService).stowAndClear();
+		}
 		const sendPrompt = (): void => {
 			if (!options?.prompt) {
 				return;
