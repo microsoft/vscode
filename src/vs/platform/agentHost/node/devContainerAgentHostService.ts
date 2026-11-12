@@ -486,6 +486,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean, persistUserState?: boolean): Promise<IPreparedDevContainerSample> {
+		let errorValues: IDevContainerStateErrorValues | undefined;
 		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
 			onContainerStarted,
 			docker: async args => {
@@ -494,8 +495,17 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				this._reportOutput(connectionId, result.stdout + result.stderr);
 				return result;
 			},
-			devcontainer: args => this._runDevContainer(connectionId, args, token),
-			linkUserState: async (containerId, remoteUser) => { await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, token); },
+			devcontainer: async args => {
+				const stage = args[0] === 'up' ? 'up' : args[0] === 'run-user-commands' ? 'userCommands' : undefined;
+				if (!stage) {
+					return this._runDevContainer(connectionId, args, token);
+				}
+				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				return { stdout, stderr, code };
+			},
+			linkUserState: async (containerId, remoteUser) => {
+				errorValues = { homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, token), user: remoteUser };
+			},
 			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
 				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
 				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
@@ -684,20 +694,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private async _runUserCommands(connectionId: string, selectorArgs: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, errorValues: IDevContainerStateErrorValues): Promise<void> {
-		const result = await this._runDevContainerStage(connectionId, 'userCommands', true, ['run-user-commands', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs], token, environment, stdout => stdout.trim().split('\n').reverse().some(line => {
-			try {
-				return !devContainerUserCommandsResultValidator.validate(JSON.parse(line)).error;
-			} catch {
-				return false;
-			}
-		}) || undefined, errorValues);
+		const result = await this._runDevContainerStage(connectionId, 'userCommands', true, ['run-user-commands', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs], token, environment, parseDevContainerUserCommandsResult, errorValues);
 		if (!result.parsed) {
 			throw new Error(localize('devContainerAgentHost.lifecycleFailed', "Dev Container lifecycle commands failed: {0}", result.stdout.trim() || result.stderr.trim()));
 		}
 	}
 
 	/** Runs a Dev Container CLI command; `parsed` is set only if it succeeded. Optionally reports the outcome for user state telemetry. */
-	private async _runDevContainerStage<T>(connectionId: string, stage: 'up' | 'userCommands', report: boolean, args: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, parse: (stdout: string) => T | undefined, errorValues?: IDevContainerStateErrorValues): Promise<{ stdout: string; stderr: string; parsed: T | undefined }> {
+	private async _runDevContainerStage<T>(connectionId: string, stage: 'up' | 'userCommands', report: boolean, args: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, parse: (stdout: string) => T | undefined, errorValues?: IDevContainerStateErrorValues): Promise<{ stdout: string; stderr: string; code: number; parsed: T | undefined }> {
 		let result: { stdout: string; stderr: string; code: number };
 		try {
 			result = await this._runDevContainer(connectionId, args, token, environment);
@@ -714,7 +718,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				? { connectionId, stage, outcome: 'succeeded' }
 				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code, errorMessage: getDevContainerCliErrorMessage(result.stdout, result.stderr, errorValues) });
 		}
-		return { stdout: result.stdout, stderr: result.stderr, parsed: succeeded ? parsed : undefined };
+		return { stdout: result.stdout, stderr: result.stderr, code: result.code, parsed: succeeded ? parsed : undefined };
 	}
 
 	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
@@ -1366,6 +1370,17 @@ export function parseDevContainerUpResult(output: string): IDevContainerUpResult
 		}
 	}
 	return undefined;
+}
+
+/** Whether `run-user-commands` output ends in a success result. */
+function parseDevContainerUserCommandsResult(output: string): true | undefined {
+	return output.trim().split('\n').reverse().some(line => {
+		try {
+			return !devContainerUserCommandsResultValidator.validate(JSON.parse(line)).error;
+		} catch {
+			return false;
+		}
+	}) || undefined;
 }
 
 /** A failed Dev Container CLI command's error result and Docker daemon error, or its stderr, for telemetry. */

@@ -201,6 +201,59 @@ suite('Dev Container samples', () => {
 		});
 	});
 
+	test('reports sample CLI stages for user state telemetry with sanitized errors', async () => {
+		const config = { image: 'sample-image' };
+		const github = new class extends mock<IGitHubService>() {
+			override acquireAnonymousClient() {
+				return upcastPartial<IGitHubAnonymousClient>({
+					content: upcastPartial<IContentClient>({ resolveRef: async () => commit, getRawFile: async () => JSON.stringify(config) }),
+					dispose: () => { },
+				});
+			}
+		}();
+		const configuration = new TestConfigurationService({});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const host = store.add(new class extends DevContainerAgentHostMainService {
+			prepareSample() {
+				return this._prepareSample('sample', sample, CancellationToken.None, () => { }, false, true);
+			}
+			protected override async _runDocker(args: readonly string[]) {
+				const stdout = args[0] === 'volume'
+					? args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath }) : ''
+					: args.includes('cat') ? JSON.stringify(config) : '';
+				return { stdout, stderr: '', code: 0 };
+			}
+			protected override async _runDevContainer(_connectionId: string, args: readonly string[]) {
+				return args[0] === 'up'
+					? { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 }
+					: { stdout: JSON.stringify({ outcome: 'error', message: 'postCreateCommand failed: cannot write /home/vscode/.npm as vscode' }), stderr: '', code: 1 };
+			}
+			protected override async _getContainerMounts() {
+				return [{ Type: 'volume', Source: '/volumes/state', Destination: '/.vscode-volume', Name: `vscode-state-${'0'.repeat(52)}` }];
+			}
+			protected override async _resolveShellEnvironment() {
+				return {};
+			}
+			protected override async _runLocalCommand(_command: string, args: readonly string[]) {
+				return { stdout: args.includes('vscode') ? '1000\n1000\n/home/vscode\n' : '', stderr: '', code: 0 };
+			}
+		}(
+			new NullLogService(), new class extends mock<IProductService>() { }(), NullTelemetryService,
+			configuration, new class extends mock<INativeEnvironmentService>() { override readonly userDataPath = cacheDirectory; }(),
+			new class extends mock<IRequestService>() { }(), github,
+		));
+		const reports: object[] = [];
+		store.add(host.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
+		await assert.rejects(host.prepareSample(), /devcontainer run-user-commands failed \(exit 1\)/);
+		const progress = { restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' };
+		assert.deepStrictEqual(reports, [
+			{ stage: 'mount', outcome: 'added', target: 'volume' },
+			{ stage: 'up', outcome: 'succeeded' },
+			{ stage: 'link', outcome: 'linked', target: 'volume', ...progress },
+			{ stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand failed: cannot write ~/.npm as <user>' },
+		]);
+	});
+
 	test('keeps sandbox Docker options in the generated sample config through lifecycle setup', async () => {
 		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
 		const configurations: object[] = [];
