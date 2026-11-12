@@ -9,7 +9,11 @@ import { isObject } from '../../../../base/common/types.js';
 type ModelCatalog = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>;
 type SessionModelCatalog = Awaited<ReturnType<CopilotSession['rpc']['model']['list']>>;
 
-/** The session API carries the runtime's model records as JSON rather than the server API's typed list. */
+/**
+ * The session API carries the runtime's model records as JSON rather than the server API's typed list.
+ *
+ * TODO@TylerLeonhardt: follow up with the runtime to type the session model list, then remove this conversion and its shape checks.
+ */
 export function toCopilotAccountModelCatalog(catalog: SessionModelCatalog): ModelCatalog {
 	if (!catalog.list.length) {
 		throw new Error('The selected Copilot account returned no usable models.');
