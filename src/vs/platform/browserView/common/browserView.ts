@@ -454,6 +454,18 @@ export interface IBrowserViewPermissionRequestEvent {
 	device?: IBrowserViewDeviceRequest;
 }
 
+/**
+ * A page called `window.prompt()`. The page's renderer stays blocked until the request is answered
+ * via {@link IBrowserViewService.respondToPrompt}.
+ */
+export interface IBrowserViewPromptRequestEvent {
+	requestId: string;
+	/** Origin of the frame that called `prompt()`, which may differ from the top-level page. */
+	origin: string;
+	message: string;
+	defaultValue: string;
+}
+
 export interface IBrowserViewDeviceRequest {
 	requestId: string;
 	deviceType: BrowserDeviceType;
@@ -602,6 +614,7 @@ export interface BrowserViewEventData {
 	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
+	onDidRequestPrompt: IBrowserViewPromptRequestEvent;
 	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
 	onDidRequestOpenExternal: string;
 }
@@ -853,6 +866,15 @@ export interface IBrowserViewService {
 	 * @param deviceId The selected device id, or `null` to cancel
 	 */
 	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/**
+	 * Answer a `window.prompt()` request raised via {@link BrowserViewEventData.onDidRequestPrompt}.
+	 *
+	 * @param id The browser view identifier
+	 * @param requestId The prompt request to answer
+	 * @param value The entered text, or `null` if the prompt was cancelled
+	 */
+	respondToPrompt(id: string, requestId: string, value: string | null): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

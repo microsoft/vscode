@@ -332,6 +332,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._getBrowserView(id).selectDevice(requestId, deviceId);
 	}
 
+	async respondToPrompt(id: string, requestId: string, value: string | null): Promise<void> {
+		this._getBrowserView(id).respondToPrompt(requestId, value);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
@@ -534,6 +538,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			onDidChangeDeviceEmulation: view.emulator.onDidChange,
 			onDidChangeAudiences: view.onDidChangeAudiences,
 			onDidRequestPermission: view.onDidRequestPermission,
+			onDidRequestPrompt: view.onDidRequestPrompt,
 			onDidChangePermissions: view.onDidChangePermissions,
 			onDidRequestOpenExternal: view.onDidRequestOpenExternal,
 		};

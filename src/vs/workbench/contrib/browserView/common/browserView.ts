@@ -59,6 +59,7 @@ import {
 	IBrowserViewState,
 	IBrowserDeviceProfile,
 	IBrowserViewPermissionRequestEvent,
+	IBrowserViewPromptRequestEvent,
 	IBrowserElementSelectionState,
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
@@ -577,6 +578,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent>;
+	readonly onDidRequestPrompt: Event<IBrowserViewPromptRequestEvent>;
 	readonly onDidRequestOpenExternal: Event<string>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
@@ -600,6 +602,7 @@ export interface IBrowserViewModel extends IDisposable {
 	deleteHistory(entryIds?: readonly number[]): Promise<void>;
 	setPermissions(origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
 	selectDevice(requestId: string, deviceId: string | null): Promise<void>;
+	respondToPrompt(requestId: string, value: string | null): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
@@ -633,6 +636,7 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 		onDidPickArea: store.add(new Emitter<BrowserViewEventData['onDidPickArea']>()),
 		onDidRemoveElementComment: store.add(new Emitter<BrowserViewEventData['onDidRemoveElementComment']>()),
 		onDidRequestPermission: store.add(new Emitter<BrowserViewEventData['onDidRequestPermission']>()),
+		onDidRequestPrompt: store.add(new Emitter<BrowserViewEventData['onDidRequestPrompt']>()),
 		onDidRequestOpenExternal: store.add(new Emitter<BrowserViewEventData['onDidRequestOpenExternal']>()),
 		onDidSelectElement: store.add(new Emitter<BrowserViewEventData['onDidSelectElement']>()),
 	};
@@ -684,6 +688,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get onDidChangeAreaSelectionActive() { return this._remoteEvents.onDidChangeAreaSelectionActive.event; }
 	get onDidRequestPermission() { return this._remoteEvents.onDidRequestPermission.event; }
 	get onDidRequestOpenExternal() { return this._remoteEvents.onDidRequestOpenExternal.event; }
+
+	private readonly _onDidRequestPrompt = this._register(new Emitter<IBrowserViewPromptRequestEvent>());
+	readonly onDidRequestPrompt: Event<IBrowserViewPromptRequestEvent> = this._onDidRequestPrompt.event;
 
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
@@ -762,6 +769,15 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this.permissions.hydrate(initialState.permissions);
 		this._register(this._remoteEvents.onDidChangePermissions.event(
 			snapshot => this.permissions.hydrate(snapshot)));
+
+		// With no UI attached to show it, answer a prompt right away so the page isn't left blocked.
+		this._register(this._remoteEvents.onDidRequestPrompt.event(request => {
+			if (this._onDidRequestPrompt.hasListeners()) {
+				this._onDidRequestPrompt.fire(request);
+			} else {
+				void this.respondToPrompt(request.requestId, null);
+			}
+		}));
 
 		// Sync initial zoom
 		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isInMemory);
@@ -1003,6 +1019,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async selectDevice(requestId: string, deviceId: string | null): Promise<void> {
 		return this.browserViewService.selectDevice(this.id, requestId, deviceId);
+	}
+
+	async respondToPrompt(requestId: string, value: string | null): Promise<void> {
+		return this.browserViewService.respondToPrompt(this.id, requestId, value);
 	}
 
 	/**

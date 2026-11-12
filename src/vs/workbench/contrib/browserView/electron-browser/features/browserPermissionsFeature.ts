@@ -406,7 +406,7 @@ function showPermissionsPicker(quickInputService: IQuickInputService, model: IBr
 	}
 }
 
-function displayOrigin(origin: string): string {
+export function displayOrigin(origin: string): string {
 	try {
 		return new URL(origin).host || origin;
 	} catch {

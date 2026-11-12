@@ -8,7 +8,8 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, IBrowserViewPromptRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { BrowserViewPrompts } from './browserViewPrompts.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -118,6 +119,9 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
+
+	private readonly _prompts = this._register(new BrowserViewPrompts(() => this._wantsVisibility && !this._isDisposed));
+	readonly onDidRequestPrompt: Event<IBrowserViewPromptRequestEvent> = this._prompts.onDidRequestPrompt;
 
 	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
 	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
@@ -455,6 +459,7 @@ export class BrowserView extends Disposable {
 		});
 
 		webContents.on('render-process-gone', (_event, details) => {
+			this._prompts.settleAll();
 			this._lastError = {
 				url: webContents.getURL(),
 				errorCode: details.exitCode,
@@ -462,6 +467,25 @@ export class BrowserView extends Disposable {
 			};
 
 			fireLoadingEvent(false);
+		});
+
+		// A blocked `prompt()` can't outlive the document that called it.
+		webContents.on('did-start-navigation', (details) => {
+			if (details.isMainFrame && !details.isSameDocument) {
+				this._prompts.settleAll();
+			}
+		});
+
+		// `window.prompt()` is replaced in the preload and blocks the page on this synchronous message.
+		webContents.ipc.on('vscode:browserView:prompt', (event, message: string, defaultValue: string) => {
+			const respond = (value: string | null) => {
+				event.returnValue = value;
+			};
+			if (typeof message !== 'string' || typeof defaultValue !== 'string') {
+				respond(null);
+				return;
+			}
+			this._prompts.request(event.senderFrame?.origin ?? webContents.getURL(), message, defaultValue, respond);
 		});
 
 		// Navigation events (when URL actually changes)
@@ -1095,6 +1119,10 @@ export class BrowserView extends Disposable {
 	 * Answer an in-progress hardware-device chooser. Pass the chosen device id,
 	 * or `null` to cancel the chooser.
 	 */
+	respondToPrompt(requestId: string, value: string | null): void {
+		this._prompts.respond(requestId, value);
+	}
+
 	selectDevice(requestId: string, deviceId: string | null): void {
 		this.session.permissions.resolveDevice(requestId, deviceId);
 	}
@@ -1144,6 +1172,9 @@ export class BrowserView extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
+
+		// Unblock any page waiting on a prompt before its webContents is closed.
+		this._prompts.settleAll();
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();
