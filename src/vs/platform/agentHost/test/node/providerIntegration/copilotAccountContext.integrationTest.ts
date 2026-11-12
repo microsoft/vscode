@@ -139,6 +139,15 @@ suite('Copilot account context native SDK', () => {
 			await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
 			// The runtime cannot resolve this account's managed settings yet, so the host applies none to its catalog.
 			await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
+			const policyRequests: Parameters<CopilotClient['rpc']['managedSettings']['resolve']>[0][] = [];
+			let policyCompletions = 0;
+			const resolvePolicy = client.rpc.managedSettings.resolve;
+			client.rpc.managedSettings.resolve = async request => {
+				policyRequests.push(request);
+				const result = await resolvePolicy(request);
+				policyCompletions++;
+				return result;
+			};
 			const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, undefined, undefined, accounts);
 			const plan = {
 				client, sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
@@ -147,6 +156,9 @@ suite('Copilot account context native SDK', () => {
 				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
 			};
 			const conversation = store.add(await launcher.launch({ ...plan, kind: 'create', model: { id: modelId } }, testRuntime));
+			assert.deepStrictEqual({ requests: policyRequests, completions: policyCompletions }, {
+				requests: [{ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath }], completions: 1,
+			});
 			const conversationModels = toCopilotAccountModelCatalog(await conversation.session.rpc.model.list());
 			const resumed = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
 			const resumedModels = toCopilotAccountModelCatalog(await resumed.session.rpc.model.list());
@@ -162,6 +174,8 @@ suite('Copilot account context native SDK', () => {
 				configured: conversation.usesMicrosoftAuthentication && resumed.usesMicrosoftAuthentication,
 				selectedModel: currentModel.modelId,
 				readToolAvailable: tools.tools.some(tool => tool.name === 'view'),
+				policyRequests,
+				policyCompletions,
 				globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
 				sourceUnchanged: accounts.requireReady() === context,
 				catalogFetched: requests.some(request => request.path === '/models'),
@@ -170,6 +184,8 @@ suite('Copilot account context native SDK', () => {
 				service: 'm365', setupModels: [modelId], conversationModels: [modelId], resumedModels: [modelId],
 				configured: true,
 				selectedModel: modelId, readToolAvailable: true,
+				policyRequests: Array.from({ length: 2 }, () => ({ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath })),
+				policyCompletions: 2,
 				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
 			await accounts.reset();
