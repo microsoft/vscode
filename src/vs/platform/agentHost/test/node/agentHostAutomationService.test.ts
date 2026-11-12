@@ -2916,6 +2916,54 @@ suite('AgentHostAutomationService', () => {
 			}));
 		}
 
+		test('a retried Run Now still starts the pending scheduled run it reused after a restart while scheduled work is held', () => runWithFakedTimers({ useFakeTimers: true, startTime: wokeAt, maxTaskCount: 100 }, async () => {
+			const scheduledRun: AutomationRunState = {
+				resource: 'ahp-automation-run:/scheduled',
+				automation: 'ahp-automation:/review-changes',
+				origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z' },
+				lifecycle: { status: AutomationRunStatus.Pending, createdAt: '2026-01-01T01:00:00.000Z' },
+				sessions: [],
+			};
+			storageService.set('automations', {
+				catalog: {
+					automations: [{
+						resource: scheduledRun.automation,
+						definition: {
+							...definition(),
+							triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+						},
+						nextRunAt: '2026-01-01T02:00:00.000Z',
+						runs: [],
+						operations: [AutomationOperation.Update, AutomationOperation.Run],
+						createdAt: '2026-01-01T00:00:00.000Z',
+						modifiedAt: '2026-01-01T00:00:00.000Z',
+						_meta: { 'vscode.scheduleCursors': { hourly: '2026-01-01T02:00:00.000Z' } },
+					}],
+				},
+				runs: [scheduledRun],
+				manualRunRequests: [],
+			});
+			await storageService.whenIdle();
+			const available = observableValue('available', false);
+			const { started, execution } = startRecorder('reused-scheduled-run-restart');
+			systemWake.setFullyAwake(false);
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			const params: RunAutomationParams = { channel: 'ahp-automations://', automation: scheduledRun.automation, requestId: 'reuse-scheduled-run' };
+			const service = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+			const reused = await service.runAutomation(params);
+			service.dispose();
+
+			const restored = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+			const retried = await restored.runAutomation(params);
+			available.set(true, undefined);
+			await timeout(1_000);
+
+			assert.deepStrictEqual({ reused: reused.resource, retried: retried.resource, started: started.isSettled }, {
+				reused: scheduledRun.resource, retried: scheduledRun.resource, started: true,
+			});
+		}));
+
 		test('a due schedule whose claim waits behind another change still waits for readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 59), maxTaskCount: 100 }, async () => {
 			const { started, execution } = startRecorder('queued-claim');
 			const service = createService(execution);
