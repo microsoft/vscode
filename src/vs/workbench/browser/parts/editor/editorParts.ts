@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement, onDidChangeFallbackActiveWindow } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -129,6 +129,14 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private registerListeners(): void {
 		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
 		this.whenReady.then(() => this.registerGroupsContextKeyListeners());
+
+		// Without focus in any window, the active window and with it
+		// the active group can change without a part getting focus
+		this._register(onDidChangeFallbackActiveWindow(() => {
+			if (this._parts.size > 1) {
+				this._onDidActiveGroupChange.fire(this.activeGroup);
+			}
+		}));
 	}
 
 	protected createMainEditorPart(): MainEditorPart {

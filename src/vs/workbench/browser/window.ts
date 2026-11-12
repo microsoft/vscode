@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor, isSafari, isMobileStandalone, onDidChangeZoomLevel, setFullscreen } from '../../base/browser/browser.js';
-import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, setFallbackActiveWindow, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { IPixelRatioMonitor, PixelRatio } from '../../base/browser/pixelRatio.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
@@ -122,6 +122,11 @@ export abstract class BaseWindow extends Disposable {
 			) {
 				this.hostService.focus(targetWindow);
 			}
+		} else if (!hasAppFocus()) {
+
+			// Without focus in any window, such as with windows that are never
+			// shown, remember the window as the active one (no-op unless enabled)
+			setFallbackActiveWindow(targetWindow.vscodeWindowId);
 		}
 	}
 

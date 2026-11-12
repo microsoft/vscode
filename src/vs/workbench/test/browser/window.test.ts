@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
-import { IRegisteredCodeWindow, trackAttributes } from '../../../base/browser/dom.js';
+import { enableFallbackActiveWindow, getActiveDocument, IRegisteredCodeWindow, registerWindow, trackAttributes } from '../../../base/browser/dom.js';
 import { IPixelRatioMonitor } from '../../../base/browser/pixelRatio.js';
-import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -270,5 +270,37 @@ suite('Window', () => {
 
 			disposables.dispose();
 		});
+	});
+
+	test('focus in a window while no window has focus makes it the fallback active window, as for hidden windows', () => {
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const otherWindow = iframe.contentWindow!;
+		ensureCodeWindow(otherWindow, 6262);
+		store.add(registerWindow(otherWindow));
+
+		const mainHasFocus = mainWindow.document.hasFocus;
+		mainWindow.document.hasFocus = () => false;
+		otherWindow.document.hasFocus = () => false;
+		store.add(toDisposable(() => mainWindow.document.hasFocus = mainHasFocus));
+
+		class FocusTestWindow extends BaseWindow {
+			constructor(window: CodeWindow) {
+				super(window, undefined, new TestHostService(), TestEnvironmentService, new TestContextMenuService(), new TestLayoutService());
+			}
+			protected override enableMultiWindowAwareTimeout(): void { }
+		}
+		store.add(new FocusTestWindow(otherWindow));
+		const element = otherWindow.document.body.appendChild(otherWindow.document.createElement('div'));
+		element.tabIndex = 0;
+
+		element.focus();
+		const whenDisabled = getActiveDocument() === otherWindow.document;
+
+		store.add(enableFallbackActiveWindow());
+		element.focus();
+		const whenEnabled = getActiveDocument() === otherWindow.document;
+
+		assert.deepStrictEqual({ whenDisabled, whenEnabled }, { whenDisabled: false, whenEnabled: true });
 	});
 });

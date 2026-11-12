@@ -8,13 +8,12 @@ import { IHostService, IToastOptions, IToastResult } from '../browser/host.js';
 import { FocusMode, INativeHostService } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedAuxiliaryWindow, IOpenedMainWindow } from '../../../../platform/window/common/window.js';
 import { Disposable, DisposableSet, IDisposable } from '../../../../base/common/lifecycle.js';
 import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
-import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { disposableWindowInterval, enableFallbackActiveWindow, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow, setFallbackActiveWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -36,12 +35,19 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly isHiddenWindowMode: boolean;
+
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super();
+
+		this.isHiddenWindowMode = this.environmentService.args['hidden-window'] === true && !!this.environmentService.extensionTestsLocationURI;
+		if (this.isHiddenWindowMode) {
+			enableFallbackActiveWindow(); // hidden windows never get focus
+		}
 
 		this.onDidChangeFocus = Event.latch(
 			Event.any(
@@ -196,6 +202,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	//#region Lifecycle
 
 	focus(targetWindow: Window, options?: { mode?: FocusMode }): Promise<void> {
+		if (this.isHiddenWindowMode && options?.mode !== FocusMode.Notify) {
+			setFallbackActiveWindow(getWindowId(targetWindow)); // hidden windows never get focus, notify only flashes the window
+		}
+
 		return this.nativeHostService.focusWindow({
 			mode: options?.mode,
 			targetWindowId: getWindowId(targetWindow)
