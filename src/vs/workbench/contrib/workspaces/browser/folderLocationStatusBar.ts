@@ -5,6 +5,7 @@
 
 import { DisposableResizeObserver, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -141,7 +142,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.worktreeCompact.id}) ${location.label}`,
+			text: `$(${location.icon?.id ?? Codicon.worktree.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", getFolderLocationText(location), primaryName),
 			command: SWITCH_FOLDER_LOCATION_COMMAND_ID,
@@ -259,14 +260,20 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const quickPick = store.add(quickInputService.createQuickPick<ILocationQuickPickItem>({ useSeparators: false }));
 		quickPick.placeholder = localize('switchFolderLocationPlaceholder', "Select a Location for the Folder");
 		quickPick.matchOnDescription = true;
-		quickPick.items = [primaryItem];
+		// Seed the current location so that accepting before the lookup resolves keeps it
+		const folderLocationService = accessor.get(IWorkspaceFolderLocationService);
+		const currentLocation = folderLocationService.currentLocation;
+		const currentSeed = folder.primaryUri && currentLocation ? toItem(folder.uri, currentLocation.label, currentLocation.description, currentLocation.icon ?? Codicon.worktree) : undefined;
+		const seedItems = currentSeed ? [primaryItem, currentSeed] : [primaryItem];
+		quickPick.items = seedItems;
+		quickPick.activeItems = [currentSeed ?? primaryItem];
 		quickPick.busy = true;
 		const cts = store.add(new CancellationTokenSource());
 		const picked = await new Promise<ILocationQuickPickItem | undefined>(resolve => {
 			store.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0])));
 			store.add(quickPick.onDidHide(() => resolve(undefined)));
 			quickPick.show();
-			accessor.get(IWorkspaceFolderLocationService).getLocations(primary, cts.token).then(locations => {
+			folderLocationService.getLocations(primary, cts.token).then(locations => {
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
@@ -277,8 +284,13 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					quickPick.activeItems = [currentItem];
 				}
 				quickPick.busy = false;
-			}, () => {
-				quickPick.busy = false;
+			}, error => {
+				if (!cts.token.isCancellationRequested) {
+					quickPick.busy = false;
+					if (!isCancellationError(error)) {
+						onUnexpectedError(error);
+					}
+				}
 			});
 		}).finally(() => {
 			cts.cancel();
