@@ -161,15 +161,15 @@ Keep background and boundary selectors independent. For example, a normal-theme 
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.monaco-workbench:is(.hc-black, .hc-light) .control:is(:hover, .hovered):not(:focus-visible, [aria-expanded='true']) {
+.monaco-workbench:is(.hc-black, .hc-light) .control:is(:hover, .hovered):not(:focus-visible, .focus-visible, [aria-expanded='true']) {
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 }
 
-.monaco-workbench:is(.hc-black, .hc-light) .control:focus-visible {
+.monaco-workbench:is(.hc-black, .hc-light) .control:is(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
 
-.monaco-workbench:is(.hc-black, .hc-light) :is(.control[aria-expanded='true'], details[open] > summary.control) {
+.monaco-workbench:is(.hc-black, .hc-light) :is(.control[aria-expanded='true'], details[open] > summary.control):not(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 }
 ```

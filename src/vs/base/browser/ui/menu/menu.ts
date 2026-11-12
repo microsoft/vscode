@@ -144,7 +144,7 @@ export class Menu extends ActionBar {
 			if (event.equals(KeyCode.Tab)) {
 				e.preventDefault();
 			}
-		}));
+		}, true));
 
 		if (options.enableMnemonics) {
 			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {

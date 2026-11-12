@@ -53,6 +53,7 @@ function renderActionList(context: ComponentFixtureContext, navigation: 'keyboar
 		throw new Error('Expected a model row with context-window details');
 	}
 	if (navigation === 'mouse') {
+		row.classList.add('hovered');
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 	if (row.getBoundingClientRect().right - description.getBoundingClientRect().right < 12) {

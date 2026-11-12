@@ -305,6 +305,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		if (!row) {
 			throw new Error(`Expected mode picker item: ${hoveredItem}`);
 		}
+		row.classList.add('hovered');
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 	if (hoveredTrigger) {

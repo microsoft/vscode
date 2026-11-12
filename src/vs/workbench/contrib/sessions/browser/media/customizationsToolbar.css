@@ -95,7 +95,7 @@
 }
 
 .ai-customization-toolbar .ai-customization-header:focus:not(:focus-visible) {
-	outline: none !important;
+	outline: none;
 }
 
 .ai-customization-toolbar .ai-customization-header-label {

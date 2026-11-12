@@ -619,6 +619,47 @@ suite('Menu', () => {
 		});
 	});
 
+	test('keyboard navigation restores the focus outline after pointer navigation', () => {
+		for (const theme of ['hc-black', 'hc-light']) {
+			const host = append(document.body, $(`.${theme}`));
+			host.style.setProperty('--vscode-menu-selectionBorder', '#007fd4');
+			host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+			host.style.setProperty('--vscode-strokeThickness', '1px');
+			disposables.add(toDisposable(() => host.remove()));
+			const menu = disposables.add(new Menu(host, [
+				disposables.add(new Action('first', 'First')),
+				disposables.add(new Action('second', 'Second')),
+			], {}, unthemedMenuStyles));
+			menu.focus(true);
+			const menuElement = host.querySelector<HTMLElement>('.monaco-menu')!;
+			const items = [...host.querySelectorAll<HTMLElement>('.action-item')];
+			const firstItem = items[0];
+			firstItem.classList.add('hovered');
+
+			const states = [
+				{ key: 'ArrowDown', keyCode: 40 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'Home', keyCode: 36 },
+				{ key: 'End', keyCode: 35 },
+			].map(({ key, keyCode }) => {
+				firstItem.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+				const focusedItem = host.querySelector<HTMLElement>('.action-item.focused > .action-menu-item')!;
+				focusedItem.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true }));
+				const nextFocusedItem = host.querySelector<HTMLElement>('.action-item.focused > .action-menu-item')!;
+				return {
+					focused: items.indexOf(nextFocusedItem.parentElement!),
+					keyboard: menuElement.classList.contains('keyboard-navigation'),
+					mouse: menuElement.classList.contains('mouse-navigation'),
+					outline: getWindow(nextFocusedItem).getComputedStyle(nextFocusedItem).outlineStyle,
+				};
+			});
+
+			assert.deepStrictEqual(states, [1, 1, 0, 1].map(focused => ({
+				focused, keyboard: true, mouse: false, outline: 'solid',
+			})), theme);
+		}
+	});
+
 	test('high contrast selection outline does not apply to nested submenu items (#327543)', () => {
 		const host = append(document.body, $('div'));
 		disposables.add(toDisposable(() => host.remove()));

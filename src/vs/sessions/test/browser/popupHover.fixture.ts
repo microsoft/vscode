@@ -44,6 +44,7 @@ function renderPopupHover(context: ComponentFixtureContext): void {
 	actionList.layout(actionList.computeListHeight());
 	actionList.focus();
 	const actionRow = actionList.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')[1];
+	actionRow.classList.add('hovered');
 	actionRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 
 	const menuHost = DOM.append(container, DOM.$('.popup-hover-menu'));
@@ -55,6 +56,7 @@ function renderPopupHover(context: ComponentFixtureContext): void {
 	], {}, defaultMenuStyles));
 	menu.focus(true);
 	const menuRow = menuHost.querySelectorAll<HTMLElement>('.action-item')[1];
+	menuRow.classList.add('hovered');
 	menuRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 
 	if (isHighContrast(theme.type)) {

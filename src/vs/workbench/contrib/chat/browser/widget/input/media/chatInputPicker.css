@@ -65,7 +65,7 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
-.monaco-workbench:is(.hc-black, .hc-light) .chat-input-picker-split:not(.disabled, [aria-disabled='true']) > .chat-input-picker-split-button:not([aria-disabled='true'])[aria-expanded='true'] {
+.monaco-workbench:is(.hc-black, .hc-light) .chat-input-picker-split:not(.disabled, [aria-disabled='true']) > .chat-input-picker-split-button:not([aria-disabled='true'], :focus-visible, .focus-visible)[aria-expanded='true'] {
 	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }

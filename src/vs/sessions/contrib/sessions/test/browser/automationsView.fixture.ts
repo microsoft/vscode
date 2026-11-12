@@ -581,7 +581,9 @@ async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomat
 			throw new Error('Automation card was not rendered');
 		}
 		ctx.focus({ focus: () => main.focus({ focusVisible: true }) });
-		await waitForFixtureDomCondition(ctx.container.ownerDocument.body, () => ctx.container.ownerDocument.querySelector('.monaco-hover') !== null, ctx.disposableStore);
+		if (ctx.overrideFocus) {
+			await waitForFixtureDomCondition(ctx.container.ownerDocument.body, () => ctx.container.ownerDocument.querySelector('.monaco-hover') !== null, ctx.disposableStore);
+		}
 	} else if (options.interaction === 'templateHover') {
 		node.element.querySelector<HTMLElement>('.automations-template-card')?.classList.add('hovered');
 	} else if (options.interaction === 'templateSectionHover') {
