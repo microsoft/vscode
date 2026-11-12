@@ -420,6 +420,17 @@ jobs:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # The changed unit test files of the plan (see the List changed unit test files step of pr.yml),
+      # each alone in a fresh window: a test file that passes above only because another test file
+      # registers what it reads fails here.
+      - name: 🧪 Run changed unit test files alone (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && hashFiles('.build/test-plan/isolate.txt') != '' }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --isolate --workers 4 --rerun-failed-files 2 --runList .build/test-plan/isolate.txt
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: 🧪 Run unit tests (node.js)
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
@@ -432,8 +443,9 @@ jobs:
         env:
           DEBUG: "*browser*"
 
+      # The node.js integration tests never launch an extension host, so they don't use these extensions
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node') || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           pnpm run gulp \

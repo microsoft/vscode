@@ -69,6 +69,7 @@ class MockProtocolClient extends Disposable {
 	readonly onDidReceiveOtlpLogs = Event.None;
 	readonly onDidConnectionDiagnostic = Event.None;
 	readonly connectionState = 'connecting' as const;
+	connectionError: ProtocolError | undefined;
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
 	readonly triggerVscodeUpgradeCalls: string[] = [];
@@ -1519,20 +1520,42 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual((await recovered).address, address);
 		}));
 
-		test('authentication restoration failure rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('protocol incompatibility rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:failed-auth-wait');
 			const address = getEntryAddress(entry);
 			const client = disposables.add(new MockProtocolClient(address));
 			await reconnectStagedConnection(factory, entry, client);
 			client.fireConnectionState('reconnecting');
-			const recovered = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			const recovered = assert.rejects(service.waitForConnection(address), /protocol versions/);
 			client.fireConnectionState('incompatible');
 			await recovered;
-			await assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			await assert.rejects(service.waitForConnection(address), /protocol versions/);
 		}));
 
-		test('authentication restoration failure is terminal rather than an outer retry', () => runWithFakedTimers({}, async () => {
+		test('recovery preserves host protocol versions and the advertised server upgrade method', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:upgrade-after-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const waiting = assert.rejects(service.waitForConnection(address), /host requires an upgrade/);
+			client.connectionError = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'host requires an upgrade', {
+				supportedVersions: ['2.0.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' },
+			});
+			client.fireConnectionState('incompatible');
+			await waiting;
+			const status = service.connections[0].status;
+			assert.ok(RemoteAgentHostConnectionStatus.isIncompatible(status));
+			const upgrade = await service.triggerServerUpgrade(address, status.vscodeUpgradeMethod!);
+			assert.deepStrictEqual({ status, upgrade, methods: client.triggerVscodeUpgradeCalls }, {
+				status: RemoteAgentHostConnectionStatus.incompatible('host requires an upgrade', ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0'], '_vscodeUpgrade'),
+				upgrade: { ok: true, upgradeStarted: true }, methods: ['_vscodeUpgrade'],
+			});
+		});
+
+		test('protocol incompatibility stops outer retries', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:auth');
 			const client = disposables.add(new MockProtocolClient(getEntryAddress(entry)));
@@ -1552,9 +1575,40 @@ suite('RemoteAgentHostService', () => {
 					{ state: 'reconnecting', time: 1000 },
 					{ state: 'failed', time: 3000 },
 				],
-				status: RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', ['1.0.0', '0.10.0', '0.9.0']),
+				status: RemoteAgentHostConnectionStatus.incompatible('The remote agent host does not support this client\'s protocol versions.', ['1.0.0', '0.10.0', '0.9.0']),
 			});
 		}));
+
+		for (const scenario of ['automatic', 'manual', 'recovery'] as const) {
+			test(`rejected authentication retains its recovery guidance without retrying (${scenario})`, () => runWithFakedTimers({}, async () => {
+				const factory = createFactory();
+				const entry = cloudSandboxEntry('Environment', 'cloudsandbox:rejected-auth');
+				const address = getEntryAddress(entry);
+				const client = disposables.add(new MockProtocolClient(address));
+				if (scenario === 'recovery') {
+					await reconnectStagedConnection(factory, entry, client);
+					client.fireConnectionState('reconnecting');
+					const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+					client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
+					await waiting;
+				} else {
+					factory.stage(entry, client);
+					service.reconnect(address, scenario === 'manual');
+					const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+					await waitForFactoryConnection(factory, 1);
+					client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
+					await client.connectDeferred.error(new InitialAuthenticationError(new Error('credential rejected')));
+					await waiting;
+				}
+				await timeout(60_000);
+				assert.deepStrictEqual({ creations: factory.createdConnectionCount, status: service.connections[0].status, error: service.connections[0].lastConnectionError }, {
+					creations: 1,
+					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.AuthenticationFailed),
+					error: 'Authentication failed. Reconnect to sign in again.',
+				});
+				service.dispose();
+			}));
+		}
 
 		for (const initiallyConnected of [false, true]) {
 			test(`does not restart client-owned recovery after ${initiallyConnected ? 'a live connection' : 'an initial handshake'} gives up`, () => runWithFakedTimers({}, async () => {
@@ -1781,41 +1835,37 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(factory.createdConnectionCount, 1);
 		});
 
-		for (const authenticationFailure of [false, true]) {
-			test(`keeps an incompatible factory connection addressable for server upgrade after ${authenticationFailure ? 'authentication' : 'protocol negotiation'} failure`, async () => {
-				const factory = createFactory();
-				const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
-				const client = new MockProtocolClient('cloud:incompatible');
-				factory.stage(entry, client);
-				service.reconnect(getEntryAddress(entry));
-				const wait = service.waitForConnection(getEntryAddress(entry));
-				await waitForFactoryConnection(factory, 1);
-				const changed = Event.toPromise(service.onDidChangeConnections);
-				const error = authenticationFailure
-					? new InitialAuthenticationError(new Error('Unsupported protocol version'))
-					: new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
-				const originalFailure = assert.rejects(wait, rejected => rejected === error);
-				client.fireConnectionState('incompatible');
-				const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
-				client.connectDeferred.error(error);
-				await changed;
-				await Promise.all([originalFailure, joiningFailure]);
+		test('keeps a protocol-incompatible factory connection addressable for server upgrade', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
+			const client = new MockProtocolClient('cloud:incompatible');
+			factory.stage(entry, client);
+			service.reconnect(getEntryAddress(entry));
+			const wait = service.waitForConnection(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 1);
+			const changed = Event.toPromise(service.onDidChangeConnections);
+			const error = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
+			const originalFailure = assert.rejects(wait, rejected => rejected === error);
+			client.fireConnectionState('incompatible');
+			const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
+			client.connectDeferred.error(error);
+			await changed;
+			await Promise.all([originalFailure, joiningFailure]);
 
-				const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
+			const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
-				assert.deepStrictEqual({
-					status: service.connections[0].status,
-					connectedConnection: service.getConnection('cloud:incompatible'),
-					upgradeCalls: client.triggerVscodeUpgradeCalls,
-					upgradeResult,
-				}, {
-					status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], authenticationFailure ? undefined : ['2.0.0']),
-					connectedConnection: undefined,
-					upgradeCalls: ['_vscodeUpgrade'],
-					upgradeResult: { ok: true, upgradeStarted: true },
-				});
+			assert.deepStrictEqual({
+				status: service.connections[0].status,
+				connectedConnection: service.getConnection('cloud:incompatible'),
+				upgradeCalls: client.triggerVscodeUpgradeCalls,
+				upgradeResult,
+			}, {
+				status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0']),
+				connectedConnection: undefined,
+				upgradeCalls: ['_vscodeUpgrade'],
+				upgradeResult: { ok: true, upgradeStarted: true },
 			});
-		}
+		});
 
 		test('records factory and setup stages before an entry exists and preserves failure evidence', async () => {
 			const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();

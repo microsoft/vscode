@@ -418,6 +418,17 @@ suite('SessionTypePicker', () => {
 		});
 	});
 
+	test('exposes the selected session type without a workspace', () => {
+		const copilot = sessionType('cloud', 'copilot', 'Copilot');
+		const claude = sessionType('remote', 'claude', 'Claude');
+		management.setSessionTypes([copilot, claude]);
+		const picker = createPicker(disposables, observableValue<ISession | undefined>('session', undefined), management, storage);
+		picker.setSessionWorkspaceFolderSource(constObservable(undefined));
+		picker.pick({ providerId: 'remote', sessionTypeId: 'claude' });
+
+		assert.deepStrictEqual(picker.selectedSessionType, claude);
+	});
+
 	for (const hostClass of ['new-chat-session-options', 'new-chat-bottom-container', 'new-session-quick-chat-header']) {
 		test(`an environment without harnesses hides the whole picker in ${hostClass} and restores its label when types arrive`, () => {
 			const copilot = sessionType('local', 'copilot-cli', 'Copilot');

@@ -70,7 +70,7 @@ export function renderIssueReporterRepositoryPicker(
 		const action = store.add(new Action(`issueReporter.repository.${index}`, name, undefined, true, () => {
 			if (!store.isDisposed) {
 				onDidSelect(name);
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				container.querySelector<HTMLElement>('.issue-reporter-repository-picker')?.focus();
 			}
 		}));

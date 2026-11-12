@@ -42,6 +42,7 @@ import { IPaneCompositePartService } from '../../../../services/panecomposite/br
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
+import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -200,10 +201,13 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, context?: IMarshalledAgentSessionContext) {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
-		const sessionsToMarkRead = agentSessionsService.model.sessions.filter(session => !session.isArchived() && !session.isRead());
+		const sessions = isMarshalledAgentSessionContext(context) && context.showAutomationRuns
+			? agentSessionsService.model.sessionsIncludingAutomationRuns ?? agentSessionsService.model.sessions
+			: agentSessionsService.model.sessions;
+		const sessionsToMarkRead = sessions.filter(session => !session.isArchived() && !session.isRead());
 		if (sessionsToMarkRead.length === 0) {
 			return;
 		}
@@ -411,6 +415,31 @@ export class CollapseAllAgentSessionSectionsAction extends Action2 {
 //#endregion
 
 //#region Session Actions
+
+export class OpenAgentSessionCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.openCustomizations',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'navigation',
+				order: 6,
+				when: ChatContextKeys.enabled,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+		const sessions = isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context] : [];
+		if (sessions.length !== 1) {
+			throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+		}
+		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+	}
+}
 
 abstract class BaseAgentSessionAction extends Action2 {
 

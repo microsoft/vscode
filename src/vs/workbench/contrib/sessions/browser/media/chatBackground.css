@@ -122,3 +122,19 @@
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
+
+/*
+ * An editor part that shows chats over the chat surface, such as a chat part, paints the surface itself, whatever window
+ * it is in, as the Sessions part does: its content and editors show it through. A chat window's card paints it instead
+ * (`chatWindow.css`), with rules that take precedence.
+ */
+.monaco-workbench .part.editor.sessions-chat-surface {
+	/* Over the inline background of the part. */
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+.monaco-workbench .part.editor.sessions-chat-surface > .content,
+.monaco-workbench .part.editor.sessions-chat-surface .editor-container {
+	/* Over the inline backgrounds of the part's content and of its editors. */
+	background-color: transparent !important;
+}
