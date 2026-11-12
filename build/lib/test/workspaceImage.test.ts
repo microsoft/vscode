@@ -152,8 +152,9 @@ suite('workspace images', () => {
 				...Object.entries(record).flatMap(([key, child]) => templates(child, key.startsWith('${{ if ') ? [...conditions, key] : conditions)),
 			];
 		};
-		const observed = ['product-build.yml', 'product-build-template.yml', 'product-build-ado-ci.yml'].map(file => {
-			const all = templates(load(readRepositoryFile(`build/azure-pipelines/${file}`).toString(), { schema: FAILSAFE_SCHEMA }));
+		const observed = ['product-build.yml', 'product-build-template.yml', 'product-build-ado-ci.yml', 'product-build-ci.yml'].map(file => {
+			// Every job of product-build-ci.yml is a CI job
+			const all = templates(load(readRepositoryFile(`build/azure-pipelines/${file}`).toString(), { schema: FAILSAFE_SCHEMA }), file === 'product-build-ci.yml' ? [`\${{ if eq(variables['VSCODE_CIBUILD'], true) }}`] : []);
 			return {
 				file,
 				imageJobs: all.filter(({ template }) => template.endsWith('-workspace-image.yml@self')).map(({ template, ci }) => ({ template: path.posix.basename(template), ci })),
@@ -180,6 +181,15 @@ suite('workspace images', () => {
 			},
 			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
+			{
+				file: 'product-build-ci.yml',
+				imageJobs: [
+					{ template: 'product-build-win32-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-linux-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-darwin-workspace-image.yml@self', ci: true },
+				],
+				testJobs: testJobs((platform, job) => platform === 'win32' && job === 'Smoke' ? 'none' : 'use'),
+			},
 		]);
 	});
 

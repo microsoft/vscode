@@ -403,12 +403,21 @@ suite('Artifact Integration Presentation', () => {
 		f.contextView.layout();
 	}
 
+	/** Opens the whole artifact's details as its Details section does, or a status section's when given. */
 	async function open(f: Fixture, a: Artifact, section?: number): Promise<HTMLElement> {
-		(section === undefined ? a.main : a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[section]).click();
+		if (section === undefined) {
+			f.controller.toggle(a.presentation, a.main);
+		} else {
+			sections(a)[section].click();
+		}
 		await settle(f);
 		const panel = f.host.querySelector<HTMLElement>('.artifact-integration-panel');
 		assert.ok(panel);
 		return panel;
+	}
+
+	function sections(a: Artifact): HTMLElement[] {
+		return [...a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')];
 	}
 
 	function button(panel: HTMLElement, label: string): HTMLElement {
@@ -975,8 +984,37 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({
 			hover: hover().content, acquired: a.acquired, inline: a.entry.get().inlinePill === a.presentation.inlinePill,
 			labels: [...a.container.querySelectorAll('.chat-pill-label')].map(element => element.textContent),
-			popup: a.main.getAttribute('aria-haspopup'), expanded: a.main.getAttribute('aria-expanded'),
-		}, { hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'], popup: 'dialog', expanded: 'false' });
+			main: { label: a.main.getAttribute('aria-label'), description: a.main.getAttribute('aria-description'), popup: a.main.getAttribute('aria-haspopup') },
+			sections: sections(a).map(section => ({ popup: section.getAttribute('aria-haspopup'), expanded: section.getAttribute('aria-expanded') })),
+		}, {
+			hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'],
+			main: { label: 'Open #42', description: 'Open: compact status', popup: null },
+			sections: [{ popup: 'dialog', expanded: 'false' }, { popup: 'dialog', expanded: 'false' }],
+		});
+	});
+
+	test('the main part opens the resource, and a Details section toggles the details while there are no status sections', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.main.click();
+		await settle(f);
+		const afterMain = { opens: a.counts().resourceOpens, selected: f.controller.selected.get(), acquired: [...a.acquired] };
+		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [] } }));
+		const details = sections(a);
+		details[0].click();
+		await settle(f);
+		const opened = { selected: f.controller.selected.get() === a.presentation, expanded: details[0].getAttribute('aria-expanded') };
+		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [{ id: 'status', icon: { id: 'pass' }, label: '2/2', detailsId: 'checks' }] } }));
+		assert.deepStrictEqual({
+			afterMain, opened,
+			details: details.map(section => ({ label: section.textContent, ariaLabel: section.getAttribute('aria-label'), icon: !!section.querySelector('.codicon-chevron-down') })),
+			replaced: sections(a).map(section => section.textContent),
+		}, {
+			afterMain: { opens: 1, selected: undefined, acquired: [] },
+			opened: { selected: true, expanded: 'true' },
+			details: [{ label: '', ariaLabel: 'Show artifact details: Open: compact status', icon: true }],
+			replaced: ['2/2'],
+		});
 	});
 
 	test('an integration pill shares pointer hovers across its adjacent section buttons', () => {
@@ -1023,7 +1061,7 @@ suite('Artifact Integration Presentation', () => {
 		}, { beforeDelay: undefined, firstShown: true, sectionShownImmediately: true });
 	}));
 
-	test('main click opens full details; the title navigates and shell actions remain available', async () => {
+	test('whole-artifact details show the full title, which navigates, and shell actions remain available', async () => {
 		const f = fixture();
 		const a = f.artifact();
 		const panel = await open(f, a);
@@ -1035,8 +1073,8 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({
 			before, after: a.counts(), title: panel.querySelector('h2')?.textContent,
 			description: panel.querySelector('.artifact-details-description-content')?.textContent,
-			selected: a.container.classList.contains('artifact-pill-selected'), expanded: a.main.getAttribute('aria-expanded'),
-			controls: a.main.getAttribute('aria-controls'), rootId: panel.parentElement?.id,
+			selected: a.container.classList.contains('artifact-pill-selected'), expanded: sections(a)[0].getAttribute('aria-expanded'),
+			controls: sections(a)[0].getAttribute('aria-controls'), rootId: panel.parentElement?.id,
 			acquired: a.acquired,
 			headerActions: [...panel.querySelectorAll('.artifact-header-actions [role="button"]')].map(element => element.getAttribute('aria-label')),
 			footerActions: [...panel.querySelectorAll('.artifact-general-actions [role="button"]')].map(element => element.textContent),
@@ -1176,14 +1214,18 @@ suite('Artifact Integration Presentation', () => {
 		]);
 	});
 
-	test('the active main pill toggles closed; Escape and Close restore focus to the trigger', async () => {
+	test('the Details section toggles closed; Escape and Close restore focus to the main part', async () => {
 		const f = fixture();
 		const a = f.artifact();
+		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [] } }));
+		const [details] = sections(a);
 		const results = [];
 		for (const method of ['toggle', 'escape', 'close']) {
-			const panel = await open(f, a);
+			details.click();
+			await settle(f);
+			const panel = f.host.querySelector<HTMLElement>('.artifact-integration-panel')!;
 			if (method === 'toggle') {
-				a.main.click();
+				details.click();
 			} else if (method === 'escape') {
 				const action = button(panel, 'Fix CI');
 				action.focus();
@@ -1191,7 +1233,7 @@ suite('Artifact Integration Presentation', () => {
 			} else {
 				button(panel, 'Close Artifact Details').click();
 			}
-			results.push({ selected: f.controller.selected.get() !== undefined, focused: getActiveElement() === a.main, expanded: a.main.getAttribute('aria-expanded') });
+			results.push({ selected: f.controller.selected.get() !== undefined, focused: getActiveElement() === a.main, expanded: details.getAttribute('aria-expanded') });
 		}
 		assert.deepStrictEqual(results, Array(3).fill({ selected: false, focused: true, expanded: 'false' }));
 	});
@@ -1202,8 +1244,8 @@ suite('Artifact Integration Presentation', () => {
 		const b = f.artifact('second');
 		const first = await open(f, a);
 		const root = first.parentElement;
-		b.main.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-		const second = await open(f, b);
+		sections(b)[0].dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+		const second = await open(f, b, 0);
 		assert.deepStrictEqual({
 			sameRoot: second.parentElement === root, contextShows: f.contextShows(), title: second.querySelector('h2')?.textContent,
 			selection: [a, b].map(a => a.container.classList.contains('artifact-pill-selected')),
@@ -2025,7 +2067,7 @@ suite('Artifact Integration Presentation', () => {
 		const a = f.artifact();
 		await open(f, a);
 		f.sentiment.set({ hidden: true }, undefined);
-		a.main.click();
+		sections(a)[0].click();
 		const hidden = f.controller.selected.get() === undefined;
 		f.sentiment.set({ hidden: false }, undefined);
 		await open(f, a);
@@ -2610,8 +2652,9 @@ suite('Artifact Integration Presentation', () => {
 			assert.deepStrictEqual({
 				states,
 				sameTabs: [...panel.querySelectorAll('[role="tab"]')].every((tab, index) => tab === tabs[index]),
-				pillSections: a.container.querySelectorAll('.artifact-pill-sections [role="button"]').length,
-			}, { states: [[true, true], [true, true], [true, true], [true, true]], sameTabs: true, pillSections: 0 });
+				// Only the Details section remains to reach the details.
+				pillSections: sections(a).map(section => section.getAttribute('aria-label')),
+			}, { states: [[true, true], [true, true], [true, true], [true, true]], sameTabs: true, pillSections: ['Show artifact details: Open: compact status'] });
 		});
 
 		test('tabbed lists retain tabs and controls across refresh and collapse when the selected list is removed', async () => {
@@ -2833,18 +2876,29 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('Autopilot partial enablement is explicit and failed writes never fabricate saved consent', async () => {
+		test('Autopilot master is on while any rule is on, revokes only enabled rules, and failed writes keep saved state', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
+			const summary = () => panel.querySelector('.artifact-autopilot-summary')?.textContent;
 			const before = master.getAttribute('aria-checked');
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
 			master.click();
 			await settle(f);
-			assert.deepStrictEqual({ before, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
-				before: 'false', after: 'false', summary: '1 of 3 on',
+			const failed = { checked: master.getAttribute('aria-checked'), summary: summary() };
+			a.setConfigureResult(Promise.resolve());
+			master.click();
+			await settle(f);
+			assert.deepStrictEqual({ before, failed, after: { checked: master.getAttribute('aria-checked'), summary: summary() }, configured: a.configured, errors: f.errors, invoked: a.invoked }, {
+				before: 'true',
+				failed: { checked: 'true', summary: '1 of 3 on' },
+				after: { checked: 'false', summary: '0 of 3 on' },
+				configured: [
+					{ integrationId: 'test', revision: 4, values: { fix: false } },
+					{ integrationId: 'test', revision: 4, values: { fix: false } },
+				],
 				errors: ['The artifact operation failed: Consent revision changed'], invoked: [],
 			});
 		});

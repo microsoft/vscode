@@ -2283,7 +2283,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('persists repository plugin enablement separately from global installation state', async () => {
+	test('persists repository plugin enablement in each chat working directory, separately from global state', async () => {
 		const client = new TestCopilotClient([]);
 		client.pluginInstallations = [{ name: 'spark', marketplace: 'copilot-plugins', enabled: false }];
 		const gitService = new TestAgentHostGitService();
@@ -2300,23 +2300,38 @@ suite('CopilotAgent', () => {
 		setDefaultSessionStub(agent, 'repository-plugin-enablement', {
 			workingDirectory: URI.file('/different-repository'),
 			reloadPlugins: async () => { },
+			listInstalledPlugins: async () => [{
+				name: 'spark', marketplace: 'copilot-plugins',
+				enabled: JSON.parse((await fileService.readFile(URI.file('/different-repository/.github/copilot/settings.json'))).value.toString()).enabledPlugins['spark@copilot-plugins'] ?? false,
+			}],
 		});
 		setPeerChatStub(agent, chat, {
 			workingDirectory: URI.file('/repository/nested'),
 			reloadPlugins: async (reason: string) => { reloads.push(reason); },
+			listInstalledPlugins: async () => [{
+				name: 'spark', marketplace: 'copilot-plugins',
+				enabled: JSON.parse((await fileService.readFile(URI.file('/repository/nested/.github/copilot/settings.json'))).value.toString()).enabledPlugins['spark@copilot-plugins'] ?? false,
+			}],
 		}, 'sdk-repository-plugin-peer');
 		const resolveRepository = spy(agent['_gitService'], 'getRepositoryRoot');
 		afterTest(async () => resolveRepository.restore());
 
 		await agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat);
-		const resource = joinPath(gitService.repositoryRoot, '.github', 'copilot', 'settings.json');
+		const resource = URI.file('/repository/nested/.github/copilot/settings.json');
 		const enabled = JSON.parse((await fileService.readFile(resource)).value.toString());
+		const enabledInventory = (await agent.listPluginInstallations(session, chat))[0];
 		await agent.setPluginEnabled('spark@copilot-plugins', false, 'repository', session, chat);
+		const disabledInventory = (await agent.listPluginInstallations(session, chat))[0];
 		await agent.setPluginEnabled('spark@copilot-plugins', false, 'repository', session);
+		await agent.setPluginEnabled('spark@copilot-plugins', null, 'repository', session, chat);
+		const inheritedInventory = (await agent.listPluginInstallations(session, chat))[0];
 
 		assert.deepStrictEqual({
 			enabled,
-			disabled: JSON.parse((await fileService.readFile(resource)).value.toString()),
+			inherited: JSON.parse((await fileService.readFile(resource)).value.toString()),
+			repositoryChoices: [enabledInventory, disabledInventory, inheritedInventory].map(plugin => plugin.repositoryEnabled),
+			defaultChat: JSON.parse((await fileService.readFile(URI.file('/different-repository/.github/copilot/settings.json'))).value.toString()),
+			parentSettingsCreated: await fileService.exists(joinPath(gitService.repositoryRoot, '.github', 'copilot', 'settings.json')),
 			global: client.pluginInstallations.map(plugin => plugin.enabled),
 			globalWrites: [enable.callCount, disable.callCount],
 			reloads,
@@ -2324,13 +2339,37 @@ suite('CopilotAgent', () => {
 			options: resolveRepository.args.map(args => args[1]),
 		}, {
 			enabled: { enabledPlugins: { 'spark@copilot-plugins': true } },
-			disabled: { enabledPlugins: { 'spark@copilot-plugins': false } },
+			inherited: { enabledPlugins: {} },
+			repositoryChoices: [true, false, null],
+			defaultChat: { enabledPlugins: { 'spark@copilot-plugins': false } },
+			parentSettingsCreated: false,
 			global: [false],
 			globalWrites: [0, 0],
-			reloads: ['enablement', 'enablement', 'enablement'],
-			directories: [URI.file('/repository/nested'), URI.file('/repository/nested'), URI.file('/different-repository')],
-			options: [{ refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }],
+			reloads: ['enablement', 'enablement', 'enablement', 'enablement'],
+			directories: [URI.file('/repository/nested'), URI.file('/repository/nested'), URI.file('/different-repository'), URI.file('/repository/nested')],
+			options: [{ refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }],
 		});
+	});
+
+	test('reports a repository plugin decision that the SDK does not apply', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'spark', marketplace: 'test', enabled: true }];
+		const gitService = new TestAgentHostGitService();
+		gitService.repositoryRoot = URI.file('/repository');
+		const { agent, fileService } = createTestAgentContext(disposables, { copilotClient: client, gitService });
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'repository-plugin-not-applied');
+		setDefaultSessionStub(agent, 'repository-plugin-not-applied', {
+			workingDirectory: URI.file('/repository/nested'),
+			reloadPlugins: async () => { },
+			listInstalledPlugins: async () => [{ name: 'spark', marketplace: 'test', enabled: true }],
+		});
+		await assert.rejects(() => agent.setPluginEnabled('spark@test', false, 'repository', session), /was saved, but the runtime did not apply it/);
+		assert.deepStrictEqual({
+			saved: JSON.parse((await fileService.readFile(URI.file('/repository/nested/.github/copilot/settings.json'))).value.toString()),
+			global: client.pluginInstallations.map(plugin => plugin.enabled),
+		}, { saved: { enabledPlugins: { 'spark@test': false } }, global: [true] });
 	});
 
 	test('rejects unsupported repository plugin targets without falling back to global enablement', async () => {
@@ -2348,6 +2387,7 @@ suite('CopilotAgent', () => {
 		setPeerChatStub(agent, chat, target);
 
 		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository'), /active chat/);
+		await assert.rejects(agent.setPluginEnabled('source-id', null, 'global'), /must be enabled or disabled/);
 		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', URI.file('/wrong-session'), chat), /active chat/);
 		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat), /filesystem working directory/);
 		target.workingDirectory = URI.file('/repository');

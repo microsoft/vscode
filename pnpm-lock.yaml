@@ -68,8 +68,8 @@ importers:
         specifier: ^7.5.8
         version: 7.5.8
       '@vscode/codicons':
-        specifier: ^0.0.46-49
-        version: 0.0.46-49
+        specifier: ^0.0.46-51
+        version: 0.0.46-51
       '@vscode/copilot-api':
         specifier: ^0.5.2
         version: 0.5.2
@@ -5434,8 +5434,8 @@ packages:
   '@vscode/codicons@0.0.46-36':
     resolution: {integrity: sha512-K030Z2AGo4P1gIZfT8X6dNyjficRhA3mDbBfuTObHY4M8+QdyIocc7c2nLfLhZC629oUVVPflJery0CjSfrrUw==}
 
-  '@vscode/codicons@0.0.46-49':
-    resolution: {integrity: sha512-0McyVlyRjenut3PBwULxuaC5YoKPF8qkNHf9DhS6UOXUmLr31Ga6vECnNx70SSIZnI4ULLOEktcIkRqiwFvkbg==}
+  '@vscode/codicons@0.0.46-51':
+    resolution: {integrity: sha512-TqjsO8e2miThsSriFpEulLriv8cFJui9ZFP6kGD/Hagx7LgEw8YkU5Cspqd+Om1WfXz/aJMWGfXkNq3VRQXgoQ==}
 
   '@vscode/component-explorer-cli@0.2.1-163':
     resolution: {integrity: sha512-tfyMKIcLBNAFtGIeIO7dbkTtPbBdPmJIVx8+7q4qgcKUK5CW4XFgbgTbJdl9JOCSEYP8NvqSdx2PtqX0+y33EQ==}
@@ -16270,7 +16270,7 @@ snapshots:
 
   '@vscode/codicons@0.0.46-36': {}
 
-  '@vscode/codicons@0.0.46-49': {}
+  '@vscode/codicons@0.0.46-51': {}
 
   '@vscode/component-explorer-cli@0.2.1-163(playwright@1.61.1)(typanion@3.14.0)':
     dependencies:

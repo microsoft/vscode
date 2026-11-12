@@ -27,6 +27,7 @@ const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
+const REMOTES_WIDGET = '.remotes-widget:visible';
 
 // The Agents Window active session input reuses the workbench `ChatInputPart`,
 // so its model picker renders the same `.model-picker-name` / `.model-picker-config`
@@ -220,6 +221,23 @@ export class AgentsWindow {
 		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
 		await this.selectRemoteFolder(distro, workspacePath, expectedFolderEntry);
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
+	}
+
+	/**
+	 * Opens the Remote Environments editor, connects the remote `name` unless it is connected, and waits for an enabled
+	 * action of its row labeled `actionLabel`.
+	 */
+	async waitForRemoteAction(name: string, actionLabel: string, timeoutMs: number = 60_000): Promise<void> {
+		await this.quickaccess.runCommand('sessions.openRemotes');
+		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
+		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
+		const disconnect = widget.getByLabel(`Disconnect ${name}`, { exact: true });
+		await connect.or(disconnect).first().waitFor({ timeout: 30_000 });
+		if (await connect.isVisible()) {
+			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
+			await connect.click();
+		}
+		await widget.locator('.action-label:not(.disabled)').and(widget.getByLabel(actionLabel, { exact: true })).waitFor({ timeout: timeoutMs });
 	}
 
 	async getRemoteConnectionDiagnostics(): Promise<string> {

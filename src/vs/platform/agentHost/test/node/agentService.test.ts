@@ -3891,6 +3891,7 @@ suite('AgentService (node dispatcher)', () => {
 			await managementService.setPluginEnabled(provider.id, 'direct-source', true, 'global');
 			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false, 'global', session, chat);
 			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', true, 'repository', session, chat);
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', null, 'repository', session, chat);
 			const inventory = await managementService.listPluginInstallations(provider.id, session, chat);
 
 			assert.deepStrictEqual({ inventory, calls }, {
@@ -3901,6 +3902,7 @@ suite('AgentService (node dispatcher)', () => {
 					['enablement', 'direct-source', true, 'global', undefined, undefined],
 					['enablement', 'spark@copilot-plugins', false, 'global', session.toString(), chat.toString()],
 					['enablement', 'spark@copilot-plugins', true, 'repository', session.toString(), chat.toString()],
+					['enablement', 'spark@copilot-plugins', null, 'repository', session.toString(), chat.toString()],
 					['inventory', session.toString(), chat.toString()],
 				],
 			});

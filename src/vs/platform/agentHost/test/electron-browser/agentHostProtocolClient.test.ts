@@ -26,7 +26,8 @@ import { AgentHostClientState, AgentHostProtocolClient, RetryableAuthenticationE
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
-import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, GitHubEnvironmentChangedNotification } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
@@ -481,6 +482,27 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: { ...update, revision: -1 } });
 		assert.deepStrictEqual({ received, errors: errors.args }, {
 			received: [update], errors: [['[ArtifactIntegrations] Invalid update from the agent host']],
+		});
+	});
+
+	test('tracks the GitHub environment status the host reports', async () => {
+		const log = new NullLogService();
+		const errors = sinon.spy(log, 'error');
+		const statuses: (IAgentHostGitHubEnvironmentStatus | undefined)[] = [];
+		const unsupported = createClient();
+		await connectClient(unsupported.client, unsupported.transport);
+		statuses.push(unsupported.client.gitHubEnvironment.get());
+		const { client, transport } = createClient(undefined, undefined, undefined, log);
+		await connectClient(client, transport, { [AgentHostGitHubEnvironmentCapabilityMetaKey]: { instanceId: 'instance' } });
+		statuses.push(client.gitHubEnvironment.get());
+		const registered: IAgentHostGitHubEnvironmentStatus = { instanceId: 'instance', registration: { accountId: 'account', environmentId: 'environment', name: 'Remote' } };
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: GitHubEnvironmentChangedNotification, params: registered });
+		statuses.push(client.gitHubEnvironment.get());
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: GitHubEnvironmentChangedNotification, params: { registration: registered.registration } });
+		statuses.push(client.gitHubEnvironment.get());
+		assert.deepStrictEqual({ statuses, errors: errors.args.length }, {
+			statuses: [undefined, { instanceId: 'instance' }, registered, registered],
+			errors: 1,
 		});
 	});
 
