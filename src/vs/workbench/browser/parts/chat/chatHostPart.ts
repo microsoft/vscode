@@ -11,7 +11,7 @@ import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/c
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
-import { getFloatingEditorVerticalMargins, getFloatingPaneCompositeHorizontalMargins, IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { getFloatingEditorVerticalMargins, getFloatingEditorVerticalOuterEdges, getFloatingPaneCompositeHorizontalMargins, IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { Part } from '../../part.js';
 
 /**
@@ -97,6 +97,8 @@ export class ChatHostPart extends Part {
 			({ left: marginLeft, right: marginRight } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, Parts.CHAT_PART));
 			({ top: marginTop, bottom: marginBottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow));
 		}
+		// The edge it shares with the title bar is drawn as the other cards at that edge draw it (chatHostPart.css)
+		this.element.classList.toggle('floating-part-outer-top', getFloatingEditorVerticalOuterEdges(this.layoutService).top);
 		this.element.style.margin = `${marginTop}px ${marginRight}px ${marginBottom}px ${marginLeft}px`;
 		this.element.style.width = `calc(100% - ${marginLeft + marginRight}px)`;
 		this.element.style.height = `calc(100% - ${marginTop + marginBottom}px)`;

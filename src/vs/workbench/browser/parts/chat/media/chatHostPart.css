@@ -34,3 +34,16 @@
 .monaco-workbench.floating-panels > .monaco-grid-view .part.chat > .content .part.editor {
 	margin: 0;
 }
+
+/*
+ * What the part shows draws its card's edge inside its own box, and what it lays over itself, such as a chat background,
+ * stays inside that edge rather than covering it.
+ */
+.monaco-workbench .part.chat > .content .part.editor {
+	position: relative;
+}
+
+/* In compact density each card draws its own top edge at the title bar, as the editor card beside it does. */
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .part.chat.floating-part-outer-top > .content .part.editor {
+	--modern-ui-floating-card-top-border-color: var(--modern-ui-floating-card-stroke-color);
+}

@@ -246,4 +246,44 @@ suite('ChatHostPart', () => {
 			chatEdgeIsDrawn: true,
 		});
 	});
+
+	test('in compact density, the chat card draws its edges as the cards beside it do, which a layer over what it shows, such as a chat background, does not cover', () => {
+		const store = disposables.add(new DisposableStore());
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench.floating-panels.modern-ui.modern-ui-compact'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 400px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --vscode-surface-border: rgb(1, 2, 3); --vscode-foreground: rgb(255, 255, 255);';
+		const grid = append(workbench, $('.monaco-grid-view'));
+		grid.style.cssText = 'width: 300px; height: 400px;';
+		const layoutService = upcastPartial<IWorkbenchLayoutService>({
+			registerPart: () => toDisposable(() => { }),
+			mainContainer: workbench,
+			isFloatingPanelsEnabled: () => true,
+			isModernUICompact: () => true,
+			getPanelSpacing: () => 0,
+			getSideBarPosition: () => Position.LEFT,
+			getPanelPosition: () => Position.BOTTOM,
+			getPanelAlignment: (): PanelAlignment => 'center',
+			isVisible: (part: Parts) => part !== Parts.PANEL_PART,
+		});
+		const chatPart = store.add(new ChatHostPart(new TestThemeService(), store.add(new TestStorageService()), layoutService));
+		const chatElement = append(grid, $('.part.chat'));
+		chatPart.create(chatElement);
+		const content = $('.part.editor');
+		content.style.cssText = 'width: 100%; height: 100%;';
+		// As the chat background is laid over the editor part the chat part shows
+		const layer = append(content, $('.layer'));
+		layer.style.cssText = 'position: absolute; inset: 0;';
+		store.add(chatPart.setContent(upcastPartial<IContentPart>({ element: content, minimumWidth: 0, onDidChange: Event.None, setVisible: () => { }, layout: () => { } })));
+		chatPart.layout(300, 400, 0, 0);
+
+		const card = content.getBoundingClientRect();
+		const covered = layer.getBoundingClientRect();
+		const style = mainWindow.getComputedStyle(content);
+		const result = {
+			uncoveredEdge: [covered.top - card.top, card.right - covered.right, card.bottom - covered.bottom],
+			topEdgeColor: style.getPropertyValue('--modern-ui-floating-card-top-border-color').trim(),
+		};
+		store.dispose();
+		assert.deepStrictEqual(result, { uncoveredEdge: [1, 1, 1], topEdgeColor: 'rgb(1, 2, 3)' });
+	});
 });
