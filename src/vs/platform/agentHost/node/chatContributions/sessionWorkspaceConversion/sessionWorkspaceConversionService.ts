@@ -33,7 +33,8 @@ import { IAgentHostAuthenticationService } from '../../agentHostAuthenticationSe
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentHostTurnService.js';
 import type { IAgentHostCredentialSource } from '../../../common/agentHostCredentials.js';
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
-import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution, type IResolvedExternalWorktreeProject } from '../../shared/worktreeIsolation.js';
+import { getRepositoryRootFromWorktree } from '../../../common/worktreePaths.js';
 import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { isSessionScopedStateKey } from '../../agentHostSessionStateMirror.js';
@@ -69,6 +70,7 @@ interface IPendingSessionWorkspaceConversion {
 	resolvedWorkingDirectory?: URI;
 	transition?: IAgentWorkspaceTransitionRecord;
 	transitionPersisted?: boolean;
+	externalWorktree?: IResolvedExternalWorktreeProject;
 }
 
 interface IResolvedWorkspace {
@@ -452,7 +454,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			continuation = this._beginContinuation(pending);
 			pending.continuationTurnId = continuation.turnId;
 			if (pending.showTransition) {
-				pending.transition = this._createWorkspaceTransition(pending);
+				pending.transition = await this._createWorkspaceTransition(pending);
 			}
 			pending.resolvedWorkingDirectory = pending.chatOnly
 				? pending.replaceSessionWorkspace
@@ -554,7 +556,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				}
 				workspace = await this._resolveWorkspace(session, chat, workspaceFolder, pending.isolation, trustRequired, initiatingClientId, pending.prompt, this._stateManager.getSessionState(session.toString())?.config?.values, pending.credentials);
 				if (!pending.isolation) {
-					const externalWorktree = await this._worktreeIsolation.resolveExternalWorktreeProject(workspaceFolder);
+					const externalWorktree = pending.externalWorktree ?? await this._worktreeIsolation.resolveExternalWorktreeProject(workspaceFolder);
 					workspace = { ...workspace, project: externalWorktree?.project ?? { uri: workspaceFolder, displayName: basename(workspaceFolder) } };
 					workspaceMetadata = externalWorktree?.metadata;
 				}
@@ -571,6 +573,14 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					},
 				};
 			} else {
+				if (!pending.isolation && this._worktreeIsolation.supported) {
+					try {
+						const externalWorktree = pending.externalWorktree ?? await this._worktreeIsolation.resolveExternalWorktreeProject(workspaceFolder);
+						workspaceMetadata = externalWorktree?.metadata;
+					} catch {
+						// Ignore errors
+					}
+				}
 				prepared = await host.prepareChatWorkingDirectory(session, workspaceFolder, {
 					isolation: pending.isolation ? 'worktree' : 'folder', forceNewWorktree: pending.isolation, prompt: pending.prompt ?? '',
 					...(pending.credentials ? { credentialSource: pending.credentials } : {}),
@@ -757,7 +767,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		let externalWorktreeMetadata: Readonly<Record<string, string>> | undefined;
 		if (!worktreeApplied && this._worktreeIsolation.supported) {
 			try {
-				const externalWorktree = await this._worktreeIsolation.resolveExternalWorktreeProject(authoritativeWorkingDirectory);
+				const externalWorktree = (pending.externalWorktree && isEqual(authoritativeWorkingDirectory, pending.workspaceFolder))
+					? pending.externalWorktree
+					: await this._worktreeIsolation.resolveExternalWorktreeProject(authoritativeWorkingDirectory);
 				project = externalWorktree?.project;
 				externalWorktreeMetadata = externalWorktree?.metadata;
 			} catch (error) {
@@ -1087,13 +1099,29 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		return continuation;
 	}
 
-	private _createWorkspaceTransition(pending: IPendingSessionWorkspaceConversion): IAgentWorkspaceTransitionRecord {
+	private async _createWorkspaceTransition(pending: IPendingSessionWorkspaceConversion): Promise<IAgentWorkspaceTransitionRecord> {
 		const workspaceName = basename(pending.workspaceFolder) || pending.workspaceFolder.path;
+		let isWorktree = pending.isolation;
+		if (!isWorktree) {
+			if (this._worktreeIsolation.supported) {
+				try {
+					pending.externalWorktree ??= await this._worktreeIsolation.resolveExternalWorktreeProject(pending.workspaceFolder);
+					if (pending.externalWorktree) {
+						isWorktree = true;
+					}
+				} catch {
+					// Ignore errors resolving external worktree
+				}
+			}
+			if (!isWorktree && getRepositoryRootFromWorktree(pending.workspaceFolder) !== undefined) {
+				isWorktree = true;
+			}
+		}
 		return {
 			content: pending.isolation
 				? localize('agentHost.chatIsolationTransitionLabel', "Workspace changed to a new worktree of {0}", workspaceName)
 				: localize('agentHost.workspaceTransitionLabel', "Workspace changed to {0}", workspaceName),
-			workspaceKind: pending.isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
+			workspaceKind: isWorktree ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 			workspaceName,
 		};
 	}

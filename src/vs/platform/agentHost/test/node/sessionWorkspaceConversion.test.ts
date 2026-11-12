@@ -2450,6 +2450,24 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('sets worktree transition kind when changing workspace to an existing worktree', async () => {
+		const repository = URI.file('/workspace/project');
+		const worktree = URI.file('/workspace/project.worktrees/existing-feature');
+		const worktreeIsolation = new TestWorktreeIsolation(worktree, repository);
+		const harness = createHarness(worktreeIsolation);
+		makeFolderSession(harness);
+		completePriorTurn(harness.stateManager, harness.chat);
+		harness.agent.getDescriptor = () => ({ provider: 'copilot', displayName: 'Copilot', description: '' });
+		harness.agent.setChatWorkingDirectory = async () => { };
+		await changeWorkspaceViaTool(harness, harness.chat, worktree);
+		const transition = (await harness.database.getTurnWorkspaceTransitions()).get('continuation-1');
+		assert.deepStrictEqual(transition, serializeAgentWorkspaceTransition({
+			content: 'Workspace changed to existing-feature',
+			workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
+			workspaceName: 'existing-feature',
+		}));
+	});
+
 	for (const isolation of [false, true]) {
 		test(`quick-chat attachment preserves live and persisted settings with isolation=${isolation}`, async () => {
 			const harness = createHarness(new TestWorktreeIsolation(URI.file('/workspace/project.worktrees/task')));
