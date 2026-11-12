@@ -82,16 +82,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _terminalCountContextKey: IContextKey<number>;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
-	private _defaultCwd: URI | undefined;
+	private _panelDefaultCwd: Promise<URI> | undefined;
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 
-	setDefaultCwd(cwd: URI | undefined): void {
-		this._defaultCwd = cwd;
+	setPanelDefaultCwd(cwd: Promise<URI> | undefined): void {
+		this._panelDefaultCwd = cwd;
 	}
 
-	getDefaultCwd(): URI | undefined {
-		return this._defaultCwd;
+	getPanelDefaultCwd(): Promise<URI> | undefined {
+		return this.isProcessSupportRegistered && getActiveWindow() === mainWindow ? this._panelDefaultCwd : undefined;
 	}
 
 	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
@@ -1200,8 +1200,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 					throw new Error('Cannot split without an active instance');
 				}
 				shellLaunchConfig.cwd = await getCwdForSplit(parent, this._workspaceContextService.getWorkspace().folders, this._commandService, this._terminalConfigurationService);
-			} else if (useDefaultCwd && !shellLaunchConfig.hideFromUser && this._defaultCwd) {
-				shellLaunchConfig.cwd = this._defaultCwd;
+			} else if (
+				useDefaultCwd
+				&& !shellLaunchConfig.hideFromUser
+				&& !shellLaunchConfig.extHostTerminalId
+				&& await this.resolveLocation(options?.location) === TerminalLocation.Panel
+			) {
+				const panelDefaultCwd = this.getPanelDefaultCwd();
+				if (panelDefaultCwd) {
+					shellLaunchConfig.cwd = await panelDefaultCwd;
+				}
 			}
 		}
 	}

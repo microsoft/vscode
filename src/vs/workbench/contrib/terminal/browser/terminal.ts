@@ -567,9 +567,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
 
-	/** Overrides the cwd used by explicit local user terminals when creation does not provide one. */
-	setDefaultCwd(cwd: URI | undefined): void;
-	getDefaultCwd(): URI | undefined;
+	/** Overrides the cwd used by explicit local user terminals created in the main window panel. */
+	setPanelDefaultCwd(cwd: Promise<URI> | undefined): void;
+	getPanelDefaultCwd(): Promise<URI> | undefined;
 
 	/**
 	 * Creates and focuses a terminal.

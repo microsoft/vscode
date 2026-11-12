@@ -1361,11 +1361,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(contextKeyService);
 		this._customViewAllowsPanelKey = CustomViewAllowsPanelContext.bindTo(contextKeyService);
 		this.sessionActivityBarSizeKey = SessionActivityBarSizeContext.bindTo(accessor.get(IContextKeyService));
-		const isPhoneLayout = derived(this, reader => this.layoutPolicy.viewportClass.read(reader) === 'phone');
 		this._register(autorun(reader => {
+			const descriptor = this.customViewService.activeCustomViewOpen.read(reader)?.descriptor;
 			this._applyCustomViewGridVisibility(
-				this.customViewService.activeCustomViewOpen.read(reader)?.descriptor,
-				isPhoneLayout.read(reader),
+				descriptor,
+				descriptor?.allowPanel === true && this.layoutPolicy.viewportClass.read(reader) === 'phone',
 			);
 		}));
 
@@ -2904,6 +2904,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const allowsPanel = descriptor?.allowPanel === true && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout;
 		const wasCustomViewVisible = this.partVisibility.customViewGrid;
 		const customViewAllowedPanel = this._customViewAllowsPanel;
+		const customViewVisibilityChanged = visible !== wasCustomViewVisible;
 		if (this.partVisibility.customViewGrid === visible && this._customViewAllowsPanel === allowsPanel) {
 			// Swapping one custom view for another only changes what is rendered.
 			this.customViewGridPartService.setView(descriptor);
@@ -2942,11 +2943,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		this._applyingCustomViewGridVisibility = true;
+		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
 		try {
 			// Suspended so the desktop width sync cannot read the transient node
 			// widths as a sash drag and write back the desired visibility.
 			this._runWithEditorResizeSyncSuspended(() => {
 				if (this.getPanelAlignment() === 'center' && allowsPanel !== customViewAllowedPanel) {
+					this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
 					const panelTarget = allowsPanel ? this.customViewGridPartView : this.sessionsPartView;
 					this.workbenchGrid.moveView(this.panelPartView, this._viewMoveSizing(this.panelPartView, 'height'), panelTarget, Direction.Down);
 				}
@@ -2961,6 +2964,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				}
 			});
 		} finally {
+			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
 			this.sessionsPartService.setContentVisible(!visible);
 			this._applyingCustomViewGridVisibility = false;
 		}
@@ -2985,9 +2989,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 		this.layout();
 
-		if (visible) {
+		if (visible && (customViewVisibilityChanged || (customViewAllowedPanel && !allowsPanel && this.hasFocus(Parts.PANEL_PART)))) {
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
-		} else {
+		} else if (customViewVisibilityChanged) {
 			this.sessionsService.focusActiveSession();
 		}
 	}

@@ -301,7 +301,7 @@ suite('SessionsTerminalContribution', () => {
 	let showBackgroundCalls: number[];
 	let disposeOnCreatePaths: Set<string>;
 	let defaultCwdCalls: (URI | undefined)[];
-	let localDefaultCwdCalls: (URI | undefined)[];
+	let localDefaultCwdCalls: (Promise<URI> | undefined)[];
 	let vetoSafeDispose: boolean;
 	let safeDisposeBarrier: DeferredPromise<void> | undefined;
 	let logService: TestLogService;
@@ -374,10 +374,10 @@ suite('SessionsTerminalContribution', () => {
 			override get activeInstance(): ITerminalInstance | undefined {
 				return activeInstanceId !== undefined ? terminalInstances.get(activeInstanceId) : undefined;
 			}
-			override setDefaultCwd(cwd: URI | undefined): void {
+			override setPanelDefaultCwd(cwd: Promise<URI> | undefined): void {
 				localDefaultCwdCalls.push(cwd);
 			}
-			override getDefaultCwd(): URI | undefined {
+			override getPanelDefaultCwd(): Promise<URI> | undefined {
 				return localDefaultCwdCalls.at(-1);
 			}
 			override async createTerminal(opts?: any): Promise<ITerminalInstance> {
@@ -483,7 +483,7 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 
 		assert.deepStrictEqual({
-			local: localDefaultCwdCalls.at(-1)?.toString(),
+			local: (await localDefaultCwdCalls.at(-1))?.toString(),
 			agentHost: defaultCwdCalls.at(-1),
 		}, {
 			local: HOME_DIR.toString(),
@@ -511,7 +511,7 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.deepStrictEqual({
 			created: createdTerminals.length,
-			localDefault: localDefaultCwdCalls.at(-1)?.toString(),
+			localDefault: (await localDefaultCwdCalls.at(-1))?.toString(),
 		}, {
 			created: 0,
 			localDefault: HOME_DIR.toString(),

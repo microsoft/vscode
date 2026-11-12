@@ -457,6 +457,16 @@ export abstract class BaseLayoutController extends Disposable {
 			this._syncPanelView(shown ? this._ownerKeyFor(shown, reader) : undefined);
 		}));
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.CUSTOM_VIEW_GRID_PART && !e.visible) {
+				const shown = this._shownByMainWindow();
+				if (this._isPanelVisibilityPerSession) {
+					this._syncPanelVisibility(shown ? this._panelVisibilityKeyFor(shown) : undefined);
+				}
+				if (this._isPanelViewPerSession) {
+					this._syncPanelView(shown ? this._ownerKeyFor(shown) : undefined);
+				}
+				return;
+			}
 			if (!this._isPanelViewPerSession || e.partId !== Parts.PANEL_PART || !e.visible) {
 				return;
 			}

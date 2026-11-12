@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IReader, observableFromPromise } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -149,7 +149,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	) {
 		super();
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
-		const userHome = observableFromPromise(this._pathService.userHome());
+		const userHome = this._pathService.userHome();
 
 		// Seed with sessions that are already archived (e.g. restored archived
 		// from a previous window) so they are not treated as newly archived on
@@ -192,12 +192,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			if (this._customViewService.activeCustomView.read(reader)?.allowPanel) {
-				const cwd = userHome.read(reader).value;
-				this._terminalService.setDefaultCwd(cwd);
+				this._terminalService.setPanelDefaultCwd(userHome);
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
-			this._terminalService.setDefaultCwd(undefined);
+			this._terminalService.setPanelDefaultCwd(undefined);
 			const session = this._mainWindowHost.session.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
 			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
@@ -1055,7 +1054,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 }
 
-registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.BlockRestore);
 
 /** The terminals of chat windows, showing the terminals of the sessions that {@link SessionsTerminalContribution} tracks. */
 class SessionsChatWindowTerminals extends ChatWindowTerminals {

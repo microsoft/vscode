@@ -357,6 +357,25 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
 	});
 
+	test('[B6] restores the session panel state after a custom view closes', () => {
+		createWorkbenchPanelController();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		harness.activePaneCompositeId = 'view.a';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+		harness.activePaneCompositeId = 'view.b';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.b'), viewContainerLocation: ViewContainerLocation.Panel });
+		harness.openPaneCompositeCalls = [];
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: false });
+
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
 	test('[B6] persists the session\'s panel view', () => {
 		createWorkbenchPanelController();
 		harness.partVisibility.set(Parts.PANEL_PART, true);

@@ -169,7 +169,7 @@ suite('Sessions - Workbench', () => {
 	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
 	const captureSidePaneComposition = Workbench.prototype.captureSidePaneComposition as (this: ITestWorkbench) => ISidePaneState;
 	const restoreSidePaneComposition = Workbench.prototype.restoreSidePaneComposition as (this: ITestWorkbench, composition: ISidePaneState) => void;
-	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
+	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined, isPhoneLayout?: boolean) => void;
 	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const updateMobileCustomViewNavigation = Reflect.get(Workbench.prototype, '_updateMobileCustomViewNavigation') as (this: ITestWorkbench) => void;
@@ -4773,6 +4773,37 @@ suite('Sessions - Workbench', () => {
 			panel: true,
 			panelGridNode: true,
 		});
+	});
+
+	test('reparenting a centered panel preserves editor constraints', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, panel: true, sessions: true } }) as ITestWorkbench & IPanelAlignmentTestHarness;
+		host._panelAlignment = 'center';
+		let overrideDuringMove: IViewSize | undefined;
+		host.workbenchGrid.moveView = () => {
+			overrideDuringMove = host._maximumEditorDimensionsOverride;
+			host.getMaximumEditorDimensions(host.mainContainer);
+		};
+
+		applyCustomViewGridVisibility.call(host, { allowPanel: true });
+
+		assert.deepStrictEqual({
+			overrideDuringMove: !!overrideDuringMove,
+			overrideAfterMove: host._maximumEditorDimensionsOverride,
+		}, {
+			overrideDuringMove: true,
+			overrideAfterMove: undefined,
+		});
+	});
+
+	test('responsive panel availability changes preserve focus outside the panel', () => {
+		const host = createHost({ single: true, focusedPart: Parts.EDITOR_PART, partVisibility: { panel: true, sessions: true } });
+		const descriptor = { allowPanel: true };
+		applyCustomViewGridVisibility.call(host, descriptor, false);
+		host.focusedParts.splice(0);
+
+		applyCustomViewGridVisibility.call(host, descriptor, true);
+
+		assert.deepStrictEqual(host.focusedParts, []);
 	});
 
 	test('closing the panel from a custom view returns focus to that view', () => {

@@ -1242,8 +1242,10 @@ export function registerTerminalActions() {
 					eventOrOptions.location = { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) };
 				}
 
+				const resolvedLocation = await c.service.resolveLocation(eventOrOptions.location);
+				const panelDefaultCwd = resolvedLocation === TerminalLocation.Panel ? c.service.getPanelDefaultCwd() : undefined;
 				let instance: ITerminalInstance | undefined;
-				if (eventOrOptions.cwd || c.service.getDefaultCwd() || folders.length <= 1) {
+				if (eventOrOptions.cwd || panelDefaultCwd || folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
 					// single root or a context-specific default is available.
 					instance = await c.service.createTerminal(eventOrOptions);

@@ -62,6 +62,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/cont
 import { openOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -5446,12 +5447,29 @@ suite('AutomationsCardsWidget', () => {
 
 	test('accessibility help explains Terminal and Output access', () => {
 		const { instantiationService } = setup();
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			override readonly viewportClass = constObservable<'desktop'>('desktop');
+		});
 		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
 		assert.ok(provider.provideContent().includes('New local terminals start in your user profile because this view has no active session workspace.'));
+	});
+
+	test('accessibility help omits panel shortcuts on phone layouts', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			override readonly viewportClass = constObservable<'phone'>('phone');
+		});
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+
+		assert.ok(!provider.provideContent().includes('New local terminals start in your user profile because this view has no active session workspace.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {
