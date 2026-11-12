@@ -90,7 +90,10 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 		throw new Error(`Invalid CLI commit: ${product.commit}`);
 	}
 	const commit = product.commit?.toLowerCase();
-	const latestDownload = `curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
+	// The update server can be slow or return 5xx; retry transient failures within a bounded time.
+	// A commit build that was never published still 404s right away and falls back to the latest CLI.
+	const curl = (retryMaxTimeSeconds: number) => `curl -fsSL --connect-timeout 20 --max-time 75 --retry 6 --retry-delay 5 --retry-max-time ${retryMaxTimeSeconds}`;
+	const latestDownload = `${curl(180)} "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
 	return [
 		'set -e',
 		'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
@@ -99,7 +102,7 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 		`cli_dir="$HOME/${legacyDirectory}"`,
 		`cli_bin="$cli_dir/${archive}"`,
 		...(commit ? [
-			`if curl -fsSL "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
+			`if ${curl(60)} "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
 			`cli_dir="$HOME/${serverDirectory}"`,
 			`cli_bin="$cli_dir/${archive}-${commit}"`,
 			`echo "Installing ${quality} CLI matching desktop commit ${commit}"`,
