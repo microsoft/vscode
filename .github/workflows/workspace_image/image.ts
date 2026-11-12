@@ -784,6 +784,60 @@ export async function mountDarwinImage(source: Source, file: string, root: strin
 	return unmount;
 }
 
+/**
+ * Recreates a packed VHDX image in the temporary file `file`, attaches it through the file system
+ * cache and mounts its volume at the folder `root`, on Windows, and returns how to unmount it. The
+ * first PowerShell of a job takes seconds to start, so `vhdScript` (vhd.ps1) starts while the image
+ * downloads, compiles the virtual disk API, and attaches the VHDX when it is complete. A volume can
+ * only be mounted at an empty folder, which `vacate` leaves once the image is written. `trust` trusts
+ * the Dev Drive of the image. `released` runs after every release.
+ */
+export async function mountWindowsImage(source: Source, file: string, root: string, connections: number, options: { readonly vhdScript: string; readonly trust: boolean; readonly vacate: () => void; readonly released: () => void }): Promise<() => void> {
+	const ready = `${file}.ready`;
+	fs.rmSync(file, { force: true });
+	fs.rmSync(ready, { force: true });
+	const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', options.vhdScript, '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', ...(options.trust ? ['-Trust'] : [])], { stdio: 'inherit', signal: downloads.signal });
+	const exited = exitCode(attach);
+	// Leaves `root` an empty folder, whatever vhd.ps1 did before it failed or was stopped: it may have
+	// attached the VHDX (for good, beyond its process), and mounted its volume. Deleting the VHDX also
+	// frees the memory that Windows keeps the temporary file in.
+	const release = () => {
+		// Fails when no volume is mounted at the folder
+		if (spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'ignore' }).status === 0) {
+			log(`unmounted the image from ${root}`);
+		}
+		fs.rmSync(ready, { force: true });
+		try {
+			fs.rmSync(file, { force: true });
+		} catch {
+			// Windows keeps an attached VHDX open
+			spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'Dismount-DiskImage -ImagePath $env:WORKSPACE_IMAGE_VHDX | Out-Null'], { stdio: 'inherit', timeout: 30_000, env: { ...process.env, WORKSPACE_IMAGE_VHDX: file } });
+			try {
+				fs.rmSync(file, { force: true });
+				log('detached the image');
+			} catch (err) {
+				log(`could not detach the image: ${err}`);
+			}
+		}
+		options.released();
+	};
+	try {
+		log(await unpack(source, file, { sparse: false, temporary: true, connections }));
+		options.vacate();
+		fs.writeFileSync(ready, '');
+		const code = await exited;
+		if (code !== 0) {
+			throw new Error(`vhd.ps1 exited with ${code}`);
+		}
+	} catch (err) {
+		attach.kill();
+		await exited;
+		release();
+		throw err;
+	}
+	return release;
+}
+
 /** Mounts a disk image at the root folder, and returns how to unmount it */
 async function mount(source: Source, root: string, connections: number): Promise<() => void> {
 	const temp = process.env.RUNNER_TEMP ?? os.tmpdir();
@@ -797,59 +851,20 @@ async function mount(source: Source, root: string, connections: number): Promise
 			const file = path.join(temp, 'workspace-image.asif');
 			return mountDarwinImage(source, file, root, connections, ['diskutil', 'image', 'attach', '--nobrowse', '--mountPoint', root, file], ['diskutil', 'unmount', 'force', root]);
 		}
-		case 'win32': {
-			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache. The
-			// first PowerShell of a job takes seconds to start, so one starts while the image downloads,
-			// compiles the virtual disk API, and attaches the VHDX when it is complete.
-			const file = path.join(temp, 'workspace-image.vhdx');
-			const ready = `${file}.ready`;
-			fs.rmSync(file, { force: true });
-			fs.rmSync(ready, { force: true });
-			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit', signal: downloads.signal });
-			const exited = exitCode(attach);
-			// Leaves the workspace an empty folder on drive C, whatever vhd.ps1 did before it failed or
-			// was stopped: it may have attached the VHDX (for good, beyond its process), and mounted its
-			// volume. Deleting the VHDX also frees the memory that Windows keeps the temporary file in.
-			const release = () => {
-				// Fails when no volume is mounted at the folder
-				if (spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'ignore' }).status === 0) {
-					log(`unmounted the image from ${root}`);
-				}
-				fs.rmSync(ready, { force: true });
-				try {
-					fs.rmSync(file, { force: true });
-				} catch {
-					// Windows keeps an attached VHDX open
-					spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'Dismount-DiskImage -ImagePath $env:WORKSPACE_IMAGE_VHDX | Out-Null'], { stdio: 'inherit', timeout: 30_000, env: { ...process.env, WORKSPACE_IMAGE_VHDX: file } });
-					try {
-						fs.rmSync(file, { force: true });
-						log('detached the image');
-					} catch (err) {
-						log(`could not detach the image: ${err}`);
-					}
-				}
-				fs.mkdirSync(ws, { recursive: true });
-				if (fs.readdirSync(ws).length) {
-					log(`${ws} is not empty`);
-				}
-			};
-			try {
-				log(await unpack(source, file, { sparse: false, temporary: true, connections }));
+		case 'win32':
+			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache
+			return mountWindowsImage(source, path.join(temp, 'workspace-image.vhdx'), root, connections, {
+				vhdScript: path.join(import.meta.dirname, 'win32', 'vhd.ps1'),
+				trust: true,
 				// A volume can only be mounted at an empty folder
-				fs.rmdirSync(ws);
-				fs.writeFileSync(ready, '');
-				const code = await exited;
-				if (code !== 0) {
-					throw new Error(`vhd.ps1 exited with ${code}`);
-				}
-			} catch (err) {
-				attach.kill();
-				await exited;
-				release();
-				throw err;
-			}
-			return release;
-		}
+				vacate: () => fs.rmdirSync(ws),
+				released: () => {
+					fs.mkdirSync(ws, { recursive: true });
+					if (fs.readdirSync(ws).length) {
+						log(`${ws} is not empty`);
+					}
+				},
+			});
 		default:
 			throw new Error(`No workspace images on ${process.platform}`);
 	}

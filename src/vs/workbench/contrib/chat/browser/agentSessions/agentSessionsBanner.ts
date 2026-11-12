@@ -34,14 +34,21 @@ type AgentsBannerClickedClassification = {
 export interface IAgentsBannerResult {
 	readonly element: HTMLElement;
 	readonly disposables: DisposableStore;
-	/** Whether the banner is shown, see {@link canShowAgentsBanner}. */
+	/** Whether the banner is shown, that is, whether {@link isAgentsWindowAvailable} holds. */
 	readonly visible: IObservable<boolean>;
 }
 
-/** Returns whether the desktop Agents window is available and agent mode and AI features are enabled. */
-export function canShowAgentsBanner(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
+/**
+ * Returns whether the desktop Agents window is available and agent mode and AI features are enabled.
+ * The banner is shown while this holds, and its button either offers GitHub sign-in or opens the
+ * Agents window (see {@link createAgentsBanner}).
+ *
+ * Matches `OPEN_AGENTS_WINDOW_PRECONDITION`: chat that is merely disabled does not count as
+ * unavailable, because new profiles keep the chat extension disabled until chat setup completes.
+ */
+export function isAgentsWindowAvailable(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
 	const sentiment = chatEntitlementService.sentiment;
-	if (sentiment.hidden || sentiment.disabled || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+	if (sentiment.hidden || sentiment.disabledInWorkspace || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 		return false;
 	}
 	return !!CommandsRegistry.getCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID);
@@ -98,7 +105,7 @@ export function createAgentsBanner(
 	const element = $(`.${options.cssClass}`, {}, ...(options.graphic ? [options.graphic.element] : []), button);
 	const visible = observableValue<boolean>('agentsBannerVisible', false);
 	const updateVisibility = () => {
-		const isVisible = canShowAgentsBanner(chatEntitlementService, configurationService);
+		const isVisible = isAgentsWindowAvailable(chatEntitlementService, configurationService);
 		setVisibility(isVisible, element);
 		button.disabled = !isVisible;
 		visible.set(isVisible, undefined);

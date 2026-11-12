@@ -220,6 +220,7 @@ export class ChatSubmitAction extends SubmitAction {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverFocused.negate(),
 					ChatContextKeys.withinEditSessionDiff.negate(),
 				),
 				primary: KeyCode.Enter,

@@ -1276,6 +1276,14 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('prompt presentation carries how the action describes itself while it runs', () => run(async store => {
+		const f = fixture(store, { id: 'act', label: 'Analyse', iconId: 'graph', activityLabel: 'Analysing', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) });
+		const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+		const requested = await model.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		assert.deepStrictEqual(f.submitted[0].presentation?.action, { label: 'Analyse', iconId: 'graph', activityLabel: 'Analysing' });
+	}));
+
 	test('prompt-supplied details replace the linked details in the presentation and are not part of the prompt', () => run(async store => {
 		const promptDetails = {
 			title: 'Failing', availability: { kind: 'available' as const }, links: [{ kind: 'action' as const, actionId: 'act' }],
@@ -1308,7 +1316,7 @@ suite('Artifact Integrations', () => {
 		['3', []],
 	] as const) {
 		test(`a prompt an item action starts for ${itemId === '2' ? 'a listed' : 'an unlisted'} item is presented as that action on its own item`, () => run(async store => {
-			const f = fixture(store, { id: 'fix', label: 'Fix Issues…', iconId: 'sparkle', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: `Fix #${itemId}` } }) });
+			const f = fixture(store, { id: 'fix', label: 'Fix Issues…', iconId: 'sparkle', activityLabel: 'Fixing Issues', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: `Fix #${itemId}` } }) });
 			const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
 			const binding = f.bindings[0];
 			const issue = (id: string) => ({ id, label: `#${id}`, icon: { id: 'issues' }, resource: `https://github.com/o/r/issues/${id}`, actions: ['fixIssue'] });
@@ -1325,7 +1333,7 @@ suite('Artifact Integrations', () => {
 			const requested = await model.invoke('test', 'fix', 'invoking-chat', 'manual', undefined, { detailsId: 'issues', itemId });
 			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
 			assert.deepStrictEqual({ action: f.submitted[0].presentation?.action, details: f.submitted[0].presentation?.details }, {
-				action: { label: 'Fix Issue', iconId: 'wand' },
+				action: { label: 'Fix Issue', iconId: 'wand', activityLabel: 'Fixing Issues' },
 				details: expectedDetails,
 			});
 		}));

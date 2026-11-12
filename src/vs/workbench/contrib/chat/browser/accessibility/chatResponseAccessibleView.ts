@@ -14,6 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -30,12 +31,13 @@ import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultIn
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getChatNativeComponentsRenderer, getNativeComponentsFenceInfo } from '../widget/chatContentParts/chatNativeComponents.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
-	readonly when = ChatContextKeys.inChatSession;
+	readonly when = ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.hoverFocused.negate());
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const storageService = accessor.get(IStorageService);

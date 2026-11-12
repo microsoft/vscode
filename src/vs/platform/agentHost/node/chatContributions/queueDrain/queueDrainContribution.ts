@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isThenable } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
+import { resolveAgentMessageProvenance } from '../../../common/agentMessageProvenance.js';
 import { getPendingSteeringMessages } from '../../../common/agentSessionMessage.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IDispatchedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { captureCredentialSource, isAuthRequiredError, type IAgentHostQueuedCredentialSource } from '../../../common/agentHostCredentials.js';
 import { ActionType, isChatAction, type ChatAction, type ChatPendingMessageSetAction } from '../../../common/state/sessionActions.js';
 import { getErrorResponsePart, isAhpChatChannel, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -23,7 +25,12 @@ import { startTurn } from '../../agentHostTurnStarter.js';
 import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
-const PendingSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
+interface IPendingMessageSender extends IQueuedMessageSender {
+	readonly queuedCredentials?: IAgentHostQueuedCredentialSource;
+	waitingForCredentials?: boolean;
+}
+
+const PendingSender = createChatMementoKey<IPendingMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 const SubmittedSteering = createChatMementoKey<ReadonlySet<string>>('queueDrain.submittedSteering', () => new Set());
 
 /** Owns pending-message synchronization and decides when a queued turn can be admitted. */
@@ -31,6 +38,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 
 	static readonly id = 'queueDrain';
 	readonly order = 200;
+	private readonly _credentialListeners = this._register(new DisposableMap<ProtocolURI, DisposableMap<string, IDisposable>>());
 
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
@@ -50,14 +58,24 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				this._tryConsumeNextQueuedMessage(chat);
 			}
 		}));
+		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => this._credentialListeners.deleteAndDispose(chat)));
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
+		if (turn.reason.kind !== 'success' && turn.reason.kind !== 'localCommand') {
+			const state = this._stateManager.getChatState(turn.channel);
+			for (const message of [...(state?.queuedMessages ?? []), ...(state ? getPendingSteeringMessages(state) : [])]) {
+				const sender = this._context.memento(PendingSender, turn.channel, message.id).get();
+				if (sender) {
+					sender.waitingForCredentials = false;
+				}
+			}
+		}
 		if (turn.reason.kind === 'cancelled') {
 			const state = this._stateManager.getChatState(turn.channel);
 			if (state) {
 				for (const message of getPendingSteeringMessages(state)) {
-					this._context.deleteMemento(PendingSender, turn.channel, message.id);
+					this._forgetPendingSender(turn.channel, message.id);
 					this._stateManager.dispatchServerAction(turn.channel, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: message.id });
 				}
 			}
@@ -75,11 +93,11 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 
 		const action = observed.action;
 		if (action.type === ActionType.ChatPendingMessageSet && this._stateManager.getChatState(observed.channel)?.queuedMessages?.some(message => message.id === action.id)) {
-			this._context.memento(PendingSender, observed.channel, action.id).set({
+			this._rememberPendingSender(observed.channel, action.id, {
 				clientId: observed.clientId,
 				clientContext: observed.clientContext,
 				...(observed.credentials ? { credentials: observed.credentials } : {}),
-			}, undefined);
+			});
 		}
 		if (action.type === ActionType.ChatPendingMessageRemoved && action.kind === PendingMessageKind.Steering) {
 			this._withdrawSubmittedSteering(observed.channel, action.id);
@@ -103,7 +121,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				credentials: dispatched.credentials,
 			};
 			if (this._isAcceptedQueuedMessage(dispatched.channel, action) || this._isAcceptedSteeringMessage(dispatched.channel, action)) {
-				this._context.memento(PendingSender, dispatched.channel, action.id).set(sender, undefined);
+				this._rememberPendingSender(dispatched.channel, action.id, sender);
 			}
 		}
 		if (!this._handlePendingMessageAction(dispatched.channel, action)) {
@@ -124,7 +142,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		switch (action.type) {
 			case ActionType.ChatTurnStarted:
 				if (action.queuedMessageId !== undefined) {
-					this._context.deleteMemento(PendingSender, channel, action.queuedMessageId);
+					this._forgetPendingSender(channel, action.queuedMessageId);
 				}
 				this._syncPendingMessages(channel);
 				return true;
@@ -139,7 +157,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				return true;
 			case ActionType.ChatPendingMessageRemoved:
 				if (!this._stateManager.getChatState(channel)?.queuedMessages?.some(message => message.id === action.id)) {
-					this._context.deleteMemento(PendingSender, channel, action.id);
+					this._forgetPendingSender(channel, action.id);
 				}
 				this._syncPendingMessages(channel);
 				return true;
@@ -148,6 +166,29 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				return true;
 			default:
 				return false;
+		}
+	}
+
+	private _rememberPendingSender(channel: ProtocolURI, id: string, sender: IQueuedMessageSender): void {
+		const queuedCredentials = sender.credentials?.createQueuedCredentialSource?.(channel);
+		this._forgetPendingSender(channel, id);
+		this._context.memento(PendingSender, channel, id).set({ ...sender, queuedCredentials }, undefined);
+		if (queuedCredentials) {
+			let listeners = this._credentialListeners.get(channel);
+			if (!listeners) {
+				listeners = new DisposableMap();
+				this._credentialListeners.set(channel, listeners);
+			}
+			listeners.set(id, queuedCredentials.onDidChange(() => this._tryConsumeNextQueuedMessage(channel, id)));
+		}
+	}
+
+	private _forgetPendingSender(channel: ProtocolURI, id: string): void {
+		this._context.deleteMemento(PendingSender, channel, id);
+		const listeners = this._credentialListeners.get(channel);
+		listeners?.deleteAndDispose(id);
+		if (listeners?.size === 0) {
+			this._credentialListeners.deleteAndDispose(channel);
 		}
 	}
 
@@ -200,7 +241,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			}
 			submitted.set(new Set([...submitted.get(), message.id]), undefined);
 			const sender = this._context.memento(PendingSender, channel, message.id).get();
-			const handoff = provider.sendSteeringMessage(URI.parse(channel), message, sender);
+			const handoff = provider.sendSteeringMessage(URI.parse(channel), message, sender, resolveAgentMessageProvenance(message.message, state.origin));
 			if (handoff === false) {
 				submitted.set(new Set([...submitted.get()].filter(id => id !== message.id)), undefined);
 			} else if (isThenable(handoff)) {
@@ -242,7 +283,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 	}
 
-	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
+	private _tryConsumeNextQueuedMessage(channel: ProtocolURI, retryMessageId?: string): void {
 		if (this._conversionService.isPending(channel) || this._stateManager.isChatAdmissionHeld(channel)) {
 			return;
 		}
@@ -265,24 +306,58 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 		// Steering that arrived too late to steer a turn runs next, ahead of queued messages.
 		const message = steering[0] ?? state.queuedMessages?.find(message => message.kind !== PendingMessageKind.Steering);
-		if (!message) {
+		if (!message || (retryMessageId !== undefined && message.id !== retryMessageId)) {
 			return;
 		}
 		const host = this._getHost();
 		if (!host) {
 			return;
 		}
-		const sender = this._context.memento(PendingSender, channel, message.id).get() ?? {
+		const sender: IPendingMessageSender = this._context.memento(PendingSender, channel, message.id).get() ?? {
 			clientId: undefined,
 			clientContext: {
 				...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 				hostLaunchKind: host.hostLaunchKind,
 			},
 		};
+		if (retryMessageId !== undefined && !sender.waitingForCredentials) {
+			return;
+		}
+		let credentials = sender.credentials;
+		if (sender.queuedCredentials) {
+			try {
+				credentials = sender.queuedCredentials.resolve();
+				if (!credentials) {
+					this._waitForCredentials(channel, sender);
+					return;
+				}
+				const session = this._chatOwnership.requireChatOwner(channel);
+				const provider = this._providerService.getProviderForChat(session, channel);
+				if (provider) {
+					const resources = provider.getProtectedResources().map(resource => resource.resource === credentials?.principal?.apiOrigin
+						? { ...resource, required: true }
+						: resource);
+					credentials = captureCredentialSource(credentials, resources);
+				}
+			} catch (error) {
+				if (!isAuthRequiredError(error)) {
+					throw error;
+				}
+				this._waitForCredentials(channel, sender);
+				return;
+			}
+		}
 		// Drop the entry rather than blanking it: the memento is keyed by message
 		// id, so a long-lived chat would otherwise retain one per message queued.
-		this._context.deleteMemento(PendingSender, channel, message.id);
-		this._admitQueuedTurn(host, channel, message.message, message.id, sender);
+		this._forgetPendingSender(channel, message.id);
+		this._admitQueuedTurn(host, channel, message.message, message.id, { ...sender, credentials });
+	}
+
+	private _waitForCredentials(channel: ProtocolURI, sender: IPendingMessageSender): void {
+		if (!sender.waitingForCredentials) {
+			sender.waitingForCredentials = true;
+			this._logService.info(`[QueueDrainContribution] Keeping queued message pending until its sponsor authenticates for chat ${channel}`);
+		}
 	}
 
 	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {

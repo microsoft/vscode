@@ -93,7 +93,7 @@ import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerial
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -189,7 +189,7 @@ suite('ChatListRenderer', () => {
 
 		suite('getFinalResponseStartIndex', () => {
 			for (const serialized of [false, true]) {
-				test(`completed response folding crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
+				test(`completed response folding crosses only one trailing single-tool gap and its reasoning (serialized=${serialized})`, async () => {
 					const invocation = new ChatToolInvocation(
 						{ invocationMessage: 'Finish bookkeeping' },
 						{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -207,6 +207,10 @@ suite('ChatListRenderer', () => {
 						[thinking, markdown, tool, tool, summary],
 						[markdown, tool, markdown, tool, summary],
 						[markdown, tool, thinking, summary],
+						[tool, markdown, thinking, tool, thinking, summary],
+						[markdown, tool, thinking, tool, summary],
+						[markdown, thinking, summary],
+						[tool, thinking, summary],
 						[tool, summary],
 						[tool],
 					];
@@ -218,12 +222,38 @@ suite('ChatListRenderer', () => {
 						{ contiguous: 4, singleToolGap: 1 },
 						{ contiguous: 4, singleToolGap: 4 },
 						{ contiguous: 4, singleToolGap: 2 },
-						{ contiguous: 3, singleToolGap: 3 },
+						{ contiguous: 3, singleToolGap: 0 },
+						{ contiguous: 5, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 4 },
+						{ contiguous: 2, singleToolGap: 2 },
+						{ contiguous: 2, singleToolGap: 2 },
 						{ contiguous: 1, singleToolGap: 1 },
 						{ contiguous: undefined, singleToolGap: undefined },
 					]);
 				});
 			}
+
+			test('completed response folding does not keep an edit code block as the answer', async () => {
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Verify the edit' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'verify', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				const editBlock = '```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/progress.ts</vscode_codeblock_uri>\nexport const enabled = true;\n```';
+				const edit = { kind: 'markdownContent', content: new MarkdownString(`${editBlock}\n\n`) } as const;
+				const standaloneEdit = { kind: 'markdownContent', content: new MarkdownString('```\n\n```'), codeblockUri: { kind: 'codeblockUri', uri: URI.file('/workspace/progress.ts'), isEdit: true, isStandalone: true } } as const;
+				const editWithAnswer = { kind: 'markdownContent', content: new MarkdownString(`${editBlock}\n\nDetailed response`) } as const;
+				const thinking = { kind: 'thinking', value: 'Reasoning' } as const;
+				const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const cases: IChatRendererContent[][] = [
+					[tool, edit, thinking, tool, summary],
+					[tool, edit, tool, summary],
+					[tool, standaloneEdit, tool, summary],
+					[tool, editWithAnswer, thinking, tool, summary],
+				];
+				assert.deepStrictEqual(cases.map(content => getFinalResponseStartIndex(content, true)), [4, 3, 3, 1]);
+			});
 
 			test('preserves the single-tool answer boundary when session outcomes move', async () => {
 				const outcome = new ChatToolInvocation(
@@ -2445,6 +2475,36 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	test('sticky progress measures placement once per frame while streaming renders repeat', async () => {
+		const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outsideViewport = false;
+		let measurements = 0;
+		renderer.setWorkingProgressContainer(sticky, () => {
+			measurements++;
+			return outsideViewport;
+		});
+		renderer.renderElement(node, 0, template);
+		const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
+		await nextFrame();
+		const progress = container.querySelector('.chat-working-progress');
+		measurements = 0;
+
+		outsideViewport = true;
+		for (let i = 0; i < 20; i++) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('More progress. ') });
+			renderer.renderElement(node, 0, template);
+		}
+		const beforeFrame = { measurements, sticky: progress?.parentElement === sticky };
+		await nextFrame();
+
+		assert.deepStrictEqual({ beforeFrame, measurements, sticky: progress?.parentElement === sticky }, {
+			beforeFrame: { measurements: 0, sticky: false },
+			measurements: 1,
+			sticky: true,
+		});
+	});
+
 	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
 		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
 		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
@@ -2577,8 +2637,8 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('single-tool completed response collapse', () => {
-		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
-			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
+		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean, reasonBeforeMarkdown = false, ids = ['initial-work', 'follow-up-work', 'final-bookkeeping']): Promise<void> {
+			for (const id of ids) {
 				const tool = new ChatToolInvocation(
 					{ invocationMessage: id, pastTenseMessage: id },
 					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -2587,6 +2647,9 @@ suite('ChatListRenderer', () => {
 				await tool.didExecuteTool(undefined);
 				model.acceptResponseProgress(request, serialized ? tool.toJSON() : tool);
 				if (id !== 'initial-work') {
+					if (reasonBeforeMarkdown) {
+						model.acceptResponseProgress(request, { kind: 'thinking', value: `Reasoning after ${id}`, id: `reasoning-after-${id}` });
+					}
 					model.acceptResponseProgress(request, {
 						kind: 'markdownContent',
 						content: new MarkdownString(id === 'final-bookkeeping' ? 'Task completed.' : 'Detailed answer with the full analysis.'),
@@ -2626,6 +2689,61 @@ suite('ChatListRenderer', () => {
 				}
 			}
 		}
+
+		// Conversation folds the earlier work into one section, which needs no disclosure.
+		for (const [progressVerbosity, collapsedLabel] of [[ChatProgressVerbosity.Verbose, 'Completed 3 steps'], [ChatProgressVerbosity.Compact, 'Completed 2 steps'], [ChatProgressVerbosity.Conversation, undefined]] as const) {
+			for (const initiallyComplete of [false, true]) {
+				test(`preserves the detailed answer when reasoning follows the final tool (${progressVerbosity}, restored=${initiallyComplete})`, async () => {
+					const setup = createPersistentProgressRenderer({ progressVerbosity, chatMode: ChatModeKind.Agent });
+					const { disposables, configurationService, request, renderer, template, node } = setup;
+					configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					await addCompletionResponse(setup, initiallyComplete, true);
+					if (!initiallyComplete) {
+						renderer.renderElement(node, 0, template);
+					}
+					request.response?.complete();
+					renderer.renderElement(node, 0, template);
+					await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+					await timeout(0);
+					assert.deepStrictEqual({
+						collapsedLabel: template.completedResponseDisclosure?.querySelector('summary')?.textContent,
+						visibleMarkdown: Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim()),
+					}, {
+						collapsedLabel,
+						visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'],
+					});
+					disposables.dispose();
+				});
+			}
+		}
+
+		test('waits for the closing summary to finish revealing before collapsing', async () => {
+			const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			const { disposables, configurationService, request, renderer, template, node } = setup;
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'word');
+			const markdownParts = () => template.renderedParts?.filter(part => part instanceof ChatMarkdownContentPart) ?? [];
+			await addCompletionResponse(setup, false, true, ['initial-work', 'follow-up-work']);
+			renderer.renderElement(node, 0, template);
+			const answer = markdownParts()[0];
+			if (!answer.isRenderComplete) {
+				await Event.toPromise(answer.onDidFinishRendering);
+			}
+			await addCompletionResponse(setup, false, true, ['final-bookkeeping']);
+			renderer.renderElement(node, 0, template);
+			const summary = markdownParts()[1];
+			const revealing = markdownParts().map(part => !part.isRenderComplete);
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const collapsedWhileRevealing = !!template.completedResponseDisclosure;
+			if (!summary.isRenderComplete) {
+				await Event.toPromise(summary.onDidFinishRendering);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ revealing, collapsedWhileRevealing, collapsed: !!template.completedResponseDisclosure }, { revealing: [false, true], collapsedWhileRevealing: false, collapsed: true });
+			disposables.dispose();
+		});
 
 		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot]) {
 			for (const subagent of [false, true]) {
@@ -7932,6 +8050,105 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	function createPersistentWorkingPart(fixture: ReturnType<typeof createPersistentProgressRenderer>, working: IChatWorkingProgress): ChatWorkingProgressContentPart {
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = fixture.response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		return fixture.disposables.add(fixture.instantiationService.createInstance(ChatWorkingProgressContentPart, working, fixture.instantiationService.get(IMarkdownRendererService), context));
+	}
+
+	test('persistent progress rotates a generic phrase after ten seconds without a new piece', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0 });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		await timeout(9999);
+		const beforeRotation = part.workingLabel;
+		await timeout(1);
+		const rotated = part.workingLabel;
+		await timeout(5000);
+		part.updateWorkingContent(undefined, true, false, 1);
+		const newPiece = part.workingLabel;
+		await timeout(9999);
+		const beforeNewPieceRotation = part.workingLabel;
+		await timeout(1);
+		const afterNewPieceRotation = part.workingLabel;
+		// A piece that arrives within the minimum dwell keeps the phrase, and still restarts the ten seconds.
+		await timeout(500);
+		part.updateWorkingContent(undefined, true, false, 2);
+		await timeout(9999);
+		const beforeSamePhraseRotation = part.workingLabel;
+		await timeout(1);
+		const afterSamePhraseRotation = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true, 2);
+		await timeout(30_000);
+		const blocked = part.workingLabel;
+		part.updateWorkingContent(undefined, true, false, 2);
+		const resumed = part.workingLabel;
+		fixture.request.response?.complete();
+		await timeout(30_000);
+
+		assert.deepStrictEqual({
+			beforeRotation, rotated, newPiece, beforeNewPieceRotation, afterNewPieceRotation,
+			beforeSamePhraseRotation, afterSamePhraseRotation, blocked, resumed, afterCompletion: part.workingLabel,
+		}, {
+			beforeRotation: first, rotated: other, newPiece: first, beforeNewPieceRotation: first, afterNewPieceRotation: other,
+			beforeSamePhraseRotation: other, afterSamePhraseRotation: first, blocked: 'Waiting for your response', resumed: first, afterCompletion: first,
+		});
+	}));
+
+	test('persistent progress keeps rotating generic phrases until it reports prolonged inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0, showDelayedProgressMessage: true });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		const delayed = 'This is taking a little longer than usual';
+		await timeout(5000);
+		const labelsEveryTenSeconds: string[] = [];
+		for (let index = 0; index < 12; index++) {
+			labelsEveryTenSeconds.push(part.workingLabel);
+			await timeout(10_000);
+		}
+
+		assert.deepStrictEqual(labelsEveryTenSeconds, [first, other, first, other, first, other, first, other, first, delayed, delayed, delayed]);
+	}));
+
+	test('persistent progress wipes to a new label and reports it at once', () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced() { return false; }
+		}());
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', content: new MarkdownString('Working'), isActive: true });
+		fixture.container.appendChild(part.domNode);
+		const getWipe = (label: Element) => label.classList.contains('chat-activity-label-wipe-out') ? 'out' : label.classList.contains('chat-activity-label-wipe-in') ? 'in' : undefined;
+		const state = () => {
+			const label = part.domNode.querySelector('.progress-step');
+			assert.ok(label);
+			return { text: label.textContent?.trim(), wipe: getWipe(label), reported: part.workingLabel };
+		};
+		const endWipe = () => {
+			const label = part.domNode.querySelector('.progress-step');
+			assert.ok(label);
+			label.dispatchEvent(new AnimationEvent(dom.EventType.ANIMATION_END, { animationName: `chat-activity-label-wipe-${getWipe(label)}` }));
+		};
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'));
+		const leaving = state();
+		endWipe();
+		const arriving = state();
+		endWipe();
+
+		assert.deepStrictEqual({ leaving, arriving, settled: state() }, {
+			leaving: { text: 'Working', wipe: 'out', reported: 'Waiting for your response' },
+			arriving: { text: 'Waiting for your response', wipe: 'in', reported: 'Waiting for your response' },
+			settled: { text: 'Waiting for your response', wipe: undefined, reported: 'Waiting for your response' },
+		});
+	});
+
 	for (const incremental of [false, true]) {
 		test(`persistent progress reports provider background shells instead of inactivity (incremental=${incremental})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
@@ -9228,6 +9445,8 @@ suite('ChatListRenderer', () => {
 
 	async function addCompletedProgressResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, finalText = 'Final review.\n\nAll checks passed.'): Promise<void> {
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: '**Checking the implementation**\nReview the current changes.' });
+		// Several tools follow this text, so it folds with the work instead of being kept as a single-tool tail.
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Checking the remaining paths.\n\nComparing the results.') });
 		for (const id of ['first', 'second']) {
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: `Read ${id} file` },
@@ -9237,7 +9456,6 @@ suite('ChatListRenderer', () => {
 			model.acceptResponseProgress(request, tool);
 			await tool.didExecuteTool(undefined);
 		}
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Checking the remaining paths.\n\nComparing the results.') });
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'second', value: '**Verifying the result**\nCheck the external reference.' });
 		const externalTool = new ChatToolInvocation(
 			{ invocationMessage: 'Read external reference' },
@@ -10991,7 +11209,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
+	test('conversation progress collapses reasoning and tool calls into one section named by its activity, then by what it did', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		store.add(toDisposable(() => clock.restore()));
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
@@ -11041,8 +11259,8 @@ suite('ChatListRenderer', () => {
 		}, {
 			thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
 			reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
-			thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-			finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+			thinkingAgain: { title: 'Thinking: Compare the results.', expanded: 'false', order: ['section', 'progress'] },
+			finished: { title: 'Finished with 1 step', expanded: 'false', order: ['section', 'markdown', 'progress'] },
 			rows: ['reasoning', 'tool', 'reasoning'],
 			toolChains: 0,
 		});
@@ -11126,7 +11344,7 @@ suite('ChatListRenderer', () => {
 			title: sections[0]?.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent?.trim(),
 		}, {
 			sections: 1,
-			title: 'Thinking',
+			title: 'Thinking: the results.',
 		});
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);

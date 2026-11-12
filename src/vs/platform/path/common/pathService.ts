@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export const IPathService = createDecorator<IPathService>('pathService');
 
 export interface IResourcePathProvider {
-	getOperatingSystem(resource: URI): Promise<OperatingSystem | undefined>;
+	getPath(resource: URI): Promise<IPath | undefined>;
 }
 
 /**
