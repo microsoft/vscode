@@ -1707,6 +1707,8 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			permissionResource: e.permissionResource,
 			permissionUrl: e.permissionUrl,
+			mcpServerName: e.mcpServerName,
+			mcpToolName: e.mcpToolName,
 			toolInput: e.shellCommand ?? getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
