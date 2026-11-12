@@ -11,7 +11,7 @@ import { IResizeEvent, ResizableHTMLElement } from '../../../../base/browser/ui/
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -33,7 +33,7 @@ import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
-import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IRect, ISize, ISizeRange, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetObstacle, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IRect, ISize, ISizeRange, isInTheWayOf, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
 const closeIcon = registerIcon('review-comment-close', Codicon.close, nls.localize('closeIcon', "Icon to close a floating review comment."));
@@ -51,8 +51,10 @@ const emptyRangeHighlightOptions = ModelDecorationOptions.register({
 export interface ICommentThreadFloatingWidgetHost {
 	getLayout(widget: ReviewFloatingWidget): ICommentThreadFloatingWidgetLayout | undefined;
 	setLayout(widget: ReviewFloatingWidget, layout: ICommentThreadFloatingWidgetLayout): void;
-	/** The areas, in document coordinates, taken up by the other floating widgets of the editor. */
-	getOccupiedRects(widget: ReviewFloatingWidget): readonly IRect[];
+	/** Adds a widget to the floating widgets of the editor, until the returned disposable is disposed. */
+	addWidget(widget: ReviewFloatingWidget): IDisposable;
+	/** The other floating widgets of the editor. */
+	getOtherWidgets(widget: ReviewFloatingWidget): readonly ReviewFloatingWidget[];
 }
 
 interface IResizeSession {
@@ -159,6 +161,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
+		// Other widgets are placed around this one as soon as it's shown, which can be before its owner has added it.
+		this._register(_host.addWidget(this));
 
 		this._resizable = this._register(new ResizableHTMLElement());
 		this._domNode = this._resizable.domNode;
@@ -335,14 +339,15 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * The area taken up by the widget in document coordinates, or `undefined` when it isn't shown.
+	 * The area taken up by the widget in document coordinates, and where its code starts, or `undefined` when it isn't
+	 * shown.
 	 */
-	getDocumentRect(): IRect | undefined {
+	getDocumentRect(): IFloatingWidgetObstacle | undefined {
 		if (!this._isAttached || !this._layout) {
 			return undefined;
 		}
 		const { width, height } = this._resizable.size;
-		return { top: this._getDocumentTop(this._layout, height), left: this._renderedLeft, width, height };
+		return { top: this._getDocumentTop(this._layout, height), left: this._renderedLeft, width, height, codeTop: this._codeGeometry.getVerticalBounds().top };
 	}
 
 	override dispose(): void {
@@ -388,19 +393,23 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	private _show(): void {
 		const wasExpanded = this._isExpanded;
+		const wasAttached = this._isAttached;
 		this._isExpanded = true;
 		if (this._commentThread.collapsibleState !== languages.CommentThreadCollapsibleState.Expanded) {
 			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		}
 
 		this._attach();
-		if (!this._layout) {
+		if (wasAttached) {
+			this._applySize();
+			this._render();
+		} else {
 			this._sizeModel.resetGrowth();
-			this._layout = this._host.getLayout(this) ?? this._computeDefaultLayout();
-			this._storeLayout();
+			// A widget that the user moved or resized goes where the user put it. The others are placed among the
+			// other widgets, in the order of their code.
+			const layout = this._layout ?? this._host.getLayout(this);
+			this._placeAmongOtherWidgets(layout?.isChosenByUser ? layout : undefined);
 		}
-		this._applySize();
-		this._render();
 		this._updateEmptyRangeHighlight();
 
 		if (!wasExpanded) {
@@ -515,8 +524,9 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	/**
 	 * Where the widget goes and how large it is until the user moves or resizes it. The widget is laid out to measure
 	 * its content, and may be left at another width than the layout's until the layout is applied.
+	 * @param obstacles The areas that other widgets take up, which the widget is placed around.
 	 */
-	private _computeDefaultLayout(): ICommentThreadFloatingWidgetLayout {
+	private _computeDefaultLayout(obstacles: readonly IFloatingWidgetObstacle[]): ICommentThreadFloatingWidgetLayout {
 		this._sizeModel.resetGrowth();
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
 		const bounds = this._getHorizontalBounds();
@@ -531,7 +541,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			minLeft: bounds.left + EDGE_MARGIN,
 			maxRight: bounds.right,
 			code,
-			obstacles: this._host.getOccupiedRects(this),
+			obstacles,
 			scrollableHeight: this._getScrollableHeight()
 		};
 		const isNewComment = !this._commentThread.comments?.length;
@@ -544,7 +554,69 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			placement = (code && isNewComment ? this._placeBesideCode(request, code, widthRange) : undefined) ?? { ...computeFloatingWidgetPlacement(request), width: request.width };
 		}
 		const { top, left, centered, width } = placement;
-		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined };
+		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined, isChosenByUser: false };
+	}
+
+	/**
+	 * Places the widget around the other widgets, or where the user put it, and places the automatically placed widgets
+	 * that it's in the way of again, so that the widgets stay in the order of their code. Those are the ones for later
+	 * code, and, for a widget that the user moved or resized, also the ones for earlier code, which may have been placed
+	 * where it is while it was hidden. Widgets that the user moved or resized stay where they are. Widgets that aren't in
+	 * the way stay where they are as well, so placing a widget only moves the ones that it must.
+	 * @param layoutChosenByUser Where the user put the widget, when the user moved or resized it.
+	 */
+	private _placeAmongOtherWidgets(layoutChosenByUser?: ICommentThreadFloatingWidgetLayout): void {
+		const otherWidgets = this._host.getOtherWidgets(this);
+		if (layoutChosenByUser) {
+			this._layout = layoutChosenByUser;
+			this._applySize();
+			this._render();
+		} else {
+			this._placeAutomatically(otherWidgets);
+		}
+		const placed = this.getDocumentRect();
+		if (!placed) {
+			return;
+		}
+		const widgetsToMove: { widget: ReviewFloatingWidget; rect: IFloatingWidgetObstacle }[] = [];
+		for (const widget of otherWidgets) {
+			const rect = widget.getDocumentRect();
+			if (rect && !widget._layout?.isChosenByUser && (layoutChosenByUser || rect.codeTop > placed.codeTop)) {
+				widgetsToMove.push({ widget, rect });
+			}
+		}
+		widgetsToMove.sort((a, b) => a.rect.codeTop - b.rect.codeTop);
+		// Each widget that is placed again can be in the way of the widgets for code after its own.
+		const movedRects = [placed];
+		const allWidgets = [this, ...otherWidgets];
+		for (const { widget, rect } of widgetsToMove) {
+			if (movedRects.some(movedRect => isInTheWayOf(rect, movedRect))) {
+				widget._placeAutomatically(allWidgets.filter(other => other !== widget));
+				const movedRect = widget.getDocumentRect();
+				if (movedRect) {
+					movedRects.push(movedRect);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Places the widget where it goes until the user moves or resizes it, around the given other widgets that the user
+	 * moved or resized, or that are for code that doesn't start after its own.
+	 */
+	private _placeAutomatically(otherWidgets: readonly ReviewFloatingWidget[]): void {
+		const codeTop = this._codeGeometry.getVerticalBounds().top;
+		const obstacles: IFloatingWidgetObstacle[] = [];
+		for (const widget of otherWidgets) {
+			const rect = widget.getDocumentRect();
+			if (rect && (widget._layout?.isChosenByUser || rect.codeTop <= codeTop)) {
+				obstacles.push(rect);
+			}
+		}
+		this._layout = this._computeDefaultLayout(obstacles);
+		this._storeLayout();
+		this._applySize();
+		this._render();
 	}
 
 	/**
@@ -797,7 +869,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			const left = clamp(startLeft + moveEvent.clientX - startX, bounds.left, Math.max(bounds.left, bounds.right - this._resizable.size.width));
 			// The widget is now where the user puts it, which includes any upward shift for its expanded reply.
 			this._sizeModel.clearUpwardShift();
-			this._layout = { ...startLayout, left, offsetTop: top - this._codeGeometry.getVerticalBounds().top };
+			this._layout = { ...startLayout, left, offsetTop: top - this._codeGeometry.getVerticalBounds().top, isChosenByUser: true };
 			this._render();
 		}, () => {
 			this._domNode.classList.remove('dragging');
@@ -810,10 +882,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			return;
 		}
 		// Restore the initial placement and size.
-		this._layout = this._computeDefaultLayout();
-		this._storeLayout();
-		this._applySize();
-		this._render();
+		this._placeAmongOtherWidgets();
 	}
 
 	private _onWillResize(): void {
@@ -872,7 +941,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			offsetTop,
 			left: session.west ? session.left + session.width - width : session.left,
 			width,
-			height: session.vertical ? height : session.layout.height
+			height: session.vertical ? height : session.layout.height,
+			isChosenByUser: true
 		};
 		this._render();
 

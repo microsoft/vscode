@@ -26,7 +26,7 @@ import { agentModelConfigurationReportKey } from '../../../../../../platform/age
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { branchCreationSourcesRequestMeta } from '../../../../../../platform/agentHost/common/meta/branchCreationSources.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type AgentProvider, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentPluginInstallation, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -5049,6 +5049,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
+	get setPluginEnabled(): ((provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>) | undefined {
+		const connection = this.connection;
+		return connection?.setPluginEnabled
+			? (provider, plugin, enabled, scope, session, chat) => connection.setPluginEnabled!(provider, plugin, enabled, scope, session, chat)
+			: undefined;
+	}
+
+	get listPluginInstallations(): ((provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>) | undefined {
+		const connection = this.connection;
+		return connection?.listPluginInstallations
+			? (provider, session, chat) => connection.listPluginInstallations!(provider, session, chat)
+			: undefined;
+	}
 
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
@@ -8907,11 +8920,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		this._assertSessionAvailable(chatId);
+		this._assertSendConnectionAvailable(options);
 		const newSession = this._getNewSession(chatId);
 		if (newSession) {
 			return this._sendNewSessionRequest(newSession, chatId, chatResource, options);
 		}
 		return this._sendCommittedChatRequest(chatId, chatResource, options);
+	}
+
+	private _assertSendConnectionAvailable(options: ISendRequestOptions): void {
+		if (options.requireConnected && (!this.connection || this.connection.connectionAvailable?.get() === false)) {
+			throw new Error(localize('agentHost.sendUnavailable', "The agent host is unavailable. Reconnect and try again."));
+		}
 	}
 
 	/** Send the first request for an already-committed peer chat, then clear its `new` flag. */
@@ -8974,6 +8994,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		try {
+			this._assertSendConnectionAvailable(options);
 			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);

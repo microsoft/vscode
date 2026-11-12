@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
-import tseslint from 'typescript-eslint';
 import rule, { resolveImport } from '../code-no-restricted-path-imports.ts';
 
 RuleTester.describe = suite;
@@ -50,7 +49,7 @@ const allowedSources = [
 	'sessions',
 ];
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-restricted-path-imports', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-no-restricted-path-imports', rule, {
 	valid: [
 		...allowedSources.flatMap(source => importForms.map(form => ({
 			name: `${form.name} of ${source}`,

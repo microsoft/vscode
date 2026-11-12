@@ -41,6 +41,9 @@ parameters:
   - name: VSCODE_COMPILE_TEST_SUITES
     type: boolean
     default: true
+  - name: VSCODE_WORKSPACE_IMAGE
+    type: string
+    default: none
 
 steps:
   - template: product-build-darwin-setup.yml@self
@@ -48,6 +51,7 @@ steps:
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+      VSCODE_WORKSPACE_IMAGE: ${{ parameters.VSCODE_WORKSPACE_IMAGE }}
 
   # The CLI is built by the parallel CLI job and mixed into the client below.
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:

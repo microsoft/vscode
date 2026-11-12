@@ -5,6 +5,7 @@
 
 import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { isBranchCreationSourcesRequest } from '../common/meta/branchCreationSources.js';
+import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
@@ -6862,7 +6863,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listPluginInstallations(session, chat);
 	}
 
-	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.setPluginEnabled) {
 			throw new Error(`Plugin enablement is unavailable for provider '${providerId}'.`);
@@ -13912,6 +13913,14 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			resumedTurn = turn;
+		}
+		if (action.type === ActionType.SessionCustomizationToggled) {
+			const customizationId = action.id;
+			const customization = this._stateManager.getSessionState(sessionChannel)?.customizations?.find(item => item.id === customizationId);
+			if (customization && readRuntimePluginEnablement(customization)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Plugin enablement must be changed through its owning runtime.');
+				return;
+			}
 		}
 		// Client replacements must neither overwrite nor drop host-owned authorization state or runtime reports.
 		if (action.type === ActionType.SessionConfigChanged) {

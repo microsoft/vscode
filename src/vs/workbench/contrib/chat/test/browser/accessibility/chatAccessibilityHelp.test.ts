@@ -43,6 +43,18 @@ suite('Chat Accessibility Help', () => {
 			&& help.includes('leaves Refresh available to try again')), [true, true, false, true]);
 	});
 
+	test('explains sandbox scope storage and keyboard approval in both windows', () => {
+		assert.deepStrictEqual([false, true].map(sessionsWindow => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, sessionsWindow);
+			return {
+				sessionDefault: help.includes('Allow for This Session is the default'),
+				workspace: help.includes('Allow for This Workspace') && help.includes('privately on the agent host'),
+				noWorkspaceSettings: help.includes('without changing workspace settings'),
+				keyboard: help.includes('Enter or Space to open the approval dropdown') && help.includes('Escape closes the dropdown without approving'),
+			};
+		}), Array.from({ length: 2 }, () => ({ sessionDefault: true, workspace: true, noWorkspaceSettings: true, keyboard: true })));
+	});
+
 	test('documents the file chooser on chat surfaces with Add Context', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
