@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Action, IAction, Separator, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { Action, IAction, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -24,7 +24,6 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -64,8 +63,8 @@ interface IEmptyEditorHintActionEntry {
 	/** The command whose keybinding is shown next to the label. */
 	readonly keybindingCommandId?: string;
 	readonly run: () => Promise<unknown>;
-	/** Makes the row a split button whose dropdown shows these actions. */
-	readonly getMenuActions?: () => IAction[];
+	/** Makes the row a split button whose dropdown shows the Reopen Editor With picker. */
+	readonly hasEditorPicker?: boolean;
 }
 
 export interface IEmptyEditorHintActionsWidgetOptions {
@@ -104,7 +103,6 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -193,7 +191,7 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 			action: 'openWith',
 			label: localize('emptyEditorHintActions.openWith', "Open With Another Editor..."),
 			icon: Codicon.files,
-			run: () => this._reopenAndRemember(() => this._commandService.executeCommand(reopenWithEditorCommandId)),
+			run: () => this._showEditorPicker(),
 		};
 
 		const groups: (IEmptyEditorHintActionEntry | undefined)[][] = [[
@@ -226,7 +224,7 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 				label: localize('emptyEditorHintActions.openInEditor', "Open in {0}", primaryEditor.label),
 				icon: primaryEditor.id === markdownEditorId ? Codicon.markdown : Codicon.files,
 				run: () => this._reopenWith(primaryEditor.id),
-				getMenuActions: () => this._getOpenWithMenuActions(resource ? this._getOtherEditors(resource) : []),
+				hasEditorPicker: true,
 			} : openWithAnotherEditor,
 		]];
 		return groups.map(group => coalesce(group)).filter(group => group.length > 0);
@@ -239,38 +237,11 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		return this._editorResolverService.getEditors(resource).filter(editor => editor.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 	}
 
-	private _getOpenWithMenuActions(editors: readonly RegisteredEditorInfo[]): IAction[] {
-		const runFromMenu = (run: () => Promise<unknown>) => async () => {
-			this._logEvent('action', 'openWith');
-			this._editor.focus();
-			await run();
-		};
-		return [
-			...editors.map(editor => toAction({
-				id: editor.id,
-				label: editor.label,
-				run: runFromMenu(() => this._reopenWith(editor.id)),
-			})),
-			new Separator(),
-			toAction({
-				id: reopenWithEditorCommandId,
-				label: localize('emptyEditorHintActions.otherEditors', "Other Editors..."),
-				run: runFromMenu(() => this._reopenAndRemember(() => this._commandService.executeCommand(reopenWithEditorCommandId))),
-			}),
-		];
-	}
-
-	private _showMenu(anchor: HTMLElement, getActions: () => IAction[]): void {
-		this._logEvent('action', 'openWithMenu');
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions,
-			onHide: didCancel => {
-				if (didCancel) {
-					this._editor.focus();
-				}
-			},
-		});
+	/**
+	 * Shows the Reopen Editor With picker, which lists all editors for an untitled file.
+	 */
+	private _showEditorPicker(): Promise<void> {
+		return this._reopenAndRemember(() => this._commandService.executeCommand(reopenWithEditorCommandId));
 	}
 
 	private _reopenWith(editorId: string): Promise<void> {
@@ -304,9 +275,12 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 				if (!entry) {
 					return undefined;
 				}
-				if (entry.getMenuActions) {
-					const getMenuActions = entry.getMenuActions;
-					return this._instantiationService.createInstance(EmptyEditorHintSplitActionViewItem, action, entry.icon, (anchor: HTMLElement) => this._showMenu(anchor, getMenuActions));
+				if (entry.hasEditorPicker) {
+					return this._instantiationService.createInstance(EmptyEditorHintSplitActionViewItem, action, entry.icon, () => {
+						this._logEvent('action', 'openWith');
+						this._editor.focus();
+						void this._showEditorPicker();
+					});
 				}
 				const keybinding = entry.keybindingCommandId ? this._keybindingService.lookupKeybinding(entry.keybindingCommandId) : undefined;
 				return this._instantiationService.createInstance(WatermarkActionViewItem, action, entry.icon, keybinding);
@@ -404,7 +378,7 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 }
 
 /**
- * A watermark row with a dropdown button at its end, e.g. "Open in Markdown Editor" with a list of other editors.
+ * A watermark row with a dropdown button at its end, e.g. "Open in Markdown Editor" with a picker of all editors.
  * Right Arrow or Alt+Down opens the dropdown from the keyboard.
  */
 class EmptyEditorHintSplitActionViewItem extends WatermarkActionViewItem {
@@ -412,7 +386,7 @@ class EmptyEditorHintSplitActionViewItem extends WatermarkActionViewItem {
 	constructor(
 		action: IAction,
 		icon: ThemeIcon,
-		private readonly _showMenu: (anchor: HTMLElement) => void,
+		private readonly _showPicker: () => void,
 		@IHoverService private readonly _dropdownHoverService: IHoverService,
 	) {
 		super(action, icon, undefined, _dropdownHoverService);
@@ -424,8 +398,8 @@ class EmptyEditorHintSplitActionViewItem extends WatermarkActionViewItem {
 
 		const dropdown = append(container, $('a.empty-editor-hint-actions-dropdown'));
 		dropdown.setAttribute('role', 'button');
-		dropdown.setAttribute('aria-haspopup', 'menu');
-		const label = localize('emptyEditorHintActions.moreEditors', "More Editors...");
+		dropdown.setAttribute('aria-haspopup', 'dialog');
+		const label = localize('emptyEditorHintActions.otherEditors', "Open With Another Editor...");
 		dropdown.setAttribute('aria-label', label);
 		append(dropdown, renderIcon(Codicon.chevronDown)).setAttribute('aria-hidden', 'true');
 		this._register(this._dropdownHoverService.setupDelayedHover(dropdown, { content: label }));
@@ -433,7 +407,7 @@ class EmptyEditorHintSplitActionViewItem extends WatermarkActionViewItem {
 		this._register(addDisposableListener(dropdown, EventType.MOUSE_DOWN, e => EventHelper.stop(e, true)));
 		this._register(addDisposableListener(dropdown, EventType.CLICK, e => {
 			EventHelper.stop(e, true);
-			this._showMenu(dropdown);
+			this._showPicker();
 		}));
 		if (this.element) {
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
@@ -441,7 +415,7 @@ class EmptyEditorHintSplitActionViewItem extends WatermarkActionViewItem {
 				if (event.equals(KeyCode.RightArrow) || event.equals(KeyMod.Alt | KeyCode.DownArrow)) {
 					event.preventDefault();
 					event.stopPropagation();
-					this._showMenu(dropdown);
+					this._showPicker();
 				}
 			}));
 		}
