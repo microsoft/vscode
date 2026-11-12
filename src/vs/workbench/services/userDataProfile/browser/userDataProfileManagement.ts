@@ -17,7 +17,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { isEmptyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { isEmptyWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -71,9 +71,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	private getWorkspaceUri(): URI | undefined {
-		const workspace = this.workspaceContextService.getWorkspace();
-		const identifier = toWorkspaceIdentifier(workspace);
-		return isWorkspaceIdentifier(identifier) ? identifier.configPath : isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
+		return this.workspaceContextService.getWorkspace().uri;
 	}
 
 	private getProfileToUseForCurrentWorkspace(): IUserDataProfile {

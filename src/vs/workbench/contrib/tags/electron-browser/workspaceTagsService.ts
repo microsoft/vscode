@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, IFileStatResult, IFileStat } from '../../../../platform/files/common/files.js';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -552,8 +552,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				break;
 			case WorkbenchState.FOLDER:
 				{
-					const identifier = toWorkspaceIdentifier(workspace);
-					workspaceId = await createHash(isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : workspace.folders[0].uri);
+					workspaceId = await createHash(workspace.uri ?? workspace.folders[0].uri);
 				}
 				break;
 			case WorkbenchState.WORKSPACE:
