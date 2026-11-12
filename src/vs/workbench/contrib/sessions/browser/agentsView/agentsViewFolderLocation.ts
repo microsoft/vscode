@@ -193,6 +193,9 @@ export interface IAgentsViewFolderLocationService {
 
 	/** The session the user last picked while the folder was at `location`, its primary location or an alternate one. */
 	getLastSession(location: URI): URI | undefined;
+
+	/** Marks `location` as just used, so its last session is the last to be forgotten among too many locations. */
+	touchLocation(location: URI): void;
 }
 
 const FOLDER_LOCATION_TERMINAL_STATUS_ID = 'agentsView.folderLocation';
@@ -462,6 +465,13 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 
 	getLastSession(location: URI): URI | undefined {
 		return this._lastSessions.get(location);
+	}
+
+	touchLocation(location: URI): void {
+		const session = this._lastSessions.get(location);
+		if (session) {
+			this._rememberSession(location, session);
+		}
 	}
 
 	private _rememberSession(location: URI, session: URI): void {
