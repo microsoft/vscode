@@ -32,6 +32,8 @@ interface EntityInfo {
 
 interface Entity {
 	readonly value: vscode.StructuralDiffEntity;
+	/** A language-specific category, such as `getter` or `imports`, that tells apart entities of the same kind and name. */
+	readonly languageKind?: string;
 	readonly node: ts.Node;
 	readonly span: Span;
 	readonly groupedSpans?: readonly Span[];
@@ -193,10 +195,10 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 					value: {
 						name: info.name,
 						kind: info.kind,
-						languageKind: info.languageKind,
 						range: toRange(file, span),
 						selectionRange: info.nameNode === undefined ? undefined : toRange(file, nodeSpan(info.nameNode, file)),
 					},
+					languageKind: info.languageKind,
 					node: info.node,
 					span,
 					headerEnd,
@@ -224,10 +226,10 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 				value: {
 					name: kind === 'imports' ? vscode.l10n.t('Imports') : vscode.l10n.t('Exports'),
 					kind: vscode.SymbolKind.Module,
-					languageKind: kind,
 					range: toRange(file, span),
 					selectionRange: toRange(file, spans[0]),
 				},
+				languageKind: kind,
 				node: parent.node,
 				span,
 				groupedSpans: spans,
@@ -321,7 +323,7 @@ function bodySpans(body: ts.Node | undefined, file: ts.SourceFile): readonly Spa
 }
 
 function entityKey(entity: Entity): string {
-	return JSON.stringify([entity.value.kind, entity.value.languageKind, entity.value.name]);
+	return JSON.stringify([entity.value.kind, entity.languageKind, entity.value.name]);
 }
 
 function groupEntities(entities: readonly Entity[], keyOf: (entity: Entity) => string | undefined = entityKey): Map<string, Entity[]> {
@@ -409,7 +411,7 @@ function renameFingerprint(entity: Entity, file: ts.SourceFile, checkCancellatio
 	};
 	visit(declaration);
 	return nameTokens === 1 && !missingToken
-		? JSON.stringify([entity.value.kind, entity.value.languageKind, parts])
+		? JSON.stringify([entity.value.kind, entity.languageKind, parts])
 		: undefined;
 }
 

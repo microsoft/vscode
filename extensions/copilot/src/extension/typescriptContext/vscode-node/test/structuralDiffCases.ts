@@ -45,9 +45,9 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			modifiedRange: rangeOf(modified, 'value * 2'),
 		}]);
 		assert.deepStrictEqual(summarize(result, original, modified), [{
-			path: ['Calculator'], original: 'Calculator', modified: 'Calculator', kind: 'class', originalChanges: [], modifiedChanges: [],
+			path: ['Calculator'], original: 'Calculator', modified: 'Calculator', kind: vscode.SymbolKind.Class, originalChanges: [], modifiedChanges: [],
 		}, {
-			path: ['Calculator', 'calculate'], original: 'calculate', modified: 'calculate', kind: 'method',
+			path: ['Calculator', 'calculate'], original: 'calculate', modified: 'calculate', kind: vscode.SymbolKind.Method,
 			originalChanges: [[0, vscode.StructuralDiffClassification.Implementation, 'value + 1', []]],
 			modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, 'value * 2', []]],
 		}]);
@@ -73,7 +73,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const modified = 'export class Added {\n\tvalue = 1;\n\tmethod() { return this.value; }\n}';
 		const result = await compute('', modified);
 		assert.deepStrictEqual(summarize(result, '', modified), [{
-			path: ['Added'], original: undefined, modified: 'Added', kind: 'class', originalChanges: [],
+			path: ['Added'], original: undefined, modified: 'Added', kind: vscode.SymbolKind.Class, originalChanges: [],
 			modifiedChanges: [[0, vscode.StructuralDiffClassification.Declaration, modified, []]],
 		}]);
 	});
@@ -82,7 +82,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const original = 'function removed() {\n\treturn 1;\n}';
 		const result = await compute(original, '');
 		assert.deepStrictEqual(summarize(result, original, ''), [{
-			path: ['removed'], original: 'removed', modified: undefined, kind: 'function',
+			path: ['removed'], original: 'removed', modified: undefined, kind: vscode.SymbolKind.Function,
 			originalChanges: [[0, vscode.StructuralDiffClassification.Declaration, original, []]], modifiedChanges: [],
 		}]);
 	});
@@ -159,8 +159,10 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, 'before'), modifiedRange: rangeOf(modified, 'after') },
 			{ originalRange: rangeOf(original, 'before', original.indexOf('set')), modifiedRange: rangeOf(modified, 'after', modified.indexOf('set')) },
 		]);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name, node.modified?.languageKind]), [
-			['before', 'after', 'getter'], ['before', 'after', 'setter'],
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [
+			node.original?.name, node.modified?.name, declarationKeyword(node.original, original), declarationKeyword(node.modified, modified),
+		]), [
+			['before', 'after', 'get', 'get'], ['before', 'after', 'set', 'set'],
 		]);
 	});
 
@@ -270,8 +272,8 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, 'return 1'), modifiedRange: rangeOf(modified, 'return 2') },
 			{ originalRange: rangeOf(original, 'consume(value)'), modifiedRange: rangeOf(modified, 'consume(value + 1)') },
 		]);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.languageKind, node.modified?.languageKind]), [
-			['getter', 'getter'], ['setter', 'setter'],
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [declarationKeyword(node.original, original), declarationKeyword(node.modified, modified)]), [
+			['get', 'get'], ['set', 'set'],
 		]);
 	});
 
@@ -293,9 +295,9 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			originalRange: rangeOf(original, 'return 1'), modifiedRange: rangeOf(modified, 'return 2'),
 		}]);
 		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
-			[['Example'], 'module'],
-			[['Example', 'options'], 'object'],
-			[['Example', 'options', 'calculate'], 'arrow-function'],
+			[['Example'], vscode.SymbolKind.Module],
+			[['Example', 'options'], vscode.SymbolKind.Object],
+			[['Example', 'options', 'calculate'], vscode.SymbolKind.Function],
 		]);
 	});
 
@@ -312,11 +314,11 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			modified: result.root.modifiedChanges,
 		}, {
 			nodes: [{
-				path: ['Imports'], original: 'Imports', modified: 'Imports', kind: 'imports',
+				path: ['Imports'], original: 'Imports', modified: 'Imports', kind: vscode.SymbolKind.Module,
 				originalChanges: [[0, vscode.StructuralDiffClassification.Dependency, 'oldName', []]],
 				modifiedChanges: [[0, vscode.StructuralDiffClassification.Dependency, 'newName', []]],
 			}, {
-				path: ['Exports'], original: 'Exports', modified: 'Exports', kind: 'exports',
+				path: ['Exports'], original: 'Exports', modified: 'Exports', kind: vscode.SymbolKind.Module,
 				originalChanges: [[1, vscode.StructuralDiffClassification.Dependency, 'oldName', []]],
 				modifiedChanges: [[1, vscode.StructuralDiffClassification.Dependency, 'newName', []]],
 			}],
@@ -334,11 +336,11 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			deleted: summarize(deleted, exports, ''),
 		}, {
 			added: [{
-				path: ['Imports'], original: undefined, modified: 'Imports', kind: 'imports', originalChanges: [],
+				path: ['Imports'], original: undefined, modified: 'Imports', kind: vscode.SymbolKind.Module, originalChanges: [],
 				modifiedChanges: [[0, vscode.StructuralDiffClassification.Dependency, imports, []]],
 			}],
 			deleted: [{
-				path: ['Exports'], original: 'Exports', modified: undefined, kind: 'exports', modifiedChanges: [],
+				path: ['Exports'], original: 'Exports', modified: undefined, kind: vscode.SymbolKind.Module, modifiedChanges: [],
 				originalChanges: [[0, vscode.StructuralDiffClassification.Dependency, exports, []]],
 			}],
 		});
@@ -407,12 +409,12 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const result = await compute(original, modified, changes);
 		assert.deepStrictEqual(result.root.children.map(node => ({
 			name: node.modified?.name,
-			kind: node.modified?.languageKind,
+			kind: node.modified?.kind,
 			classifications: node.modifiedChanges.map(change => [change.classification, modifiedText(change.range, modified)]),
 		})), [
-			{ name: 'Calculator', kind: 'class', classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
-			{ name: 'calculate', kind: 'function', classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
-			{ name: 'value', kind: 'variable', classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
+			{ name: 'Calculator', kind: vscode.SymbolKind.Class, classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
+			{ name: 'calculate', kind: vscode.SymbolKind.Function, classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
+			{ name: 'value', kind: vscode.SymbolKind.Variable, classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
 		]);
 	});
 
@@ -473,9 +475,9 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, 'export { Alias }'), modifiedRange: rangeOf(modified, 'export { Alias as Public }') },
 		]);
 		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
-			[['Container'], 'module'],
-			[['Container', 'Imports'], 'imports'],
-			[['Container', 'Exports'], 'exports'],
+			[['Container'], vscode.SymbolKind.Module],
+			[['Container', 'Imports'], vscode.SymbolKind.Module],
+			[['Container', 'Exports'], vscode.SymbolKind.Module],
 		]);
 	});
 
@@ -483,11 +485,13 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const original = 'namespace Imports { export const value = 1; }\nimport { oldName } from "dependency";\nnamespace Exports { export const value = 1; }\nexport { oldName };';
 		const modified = original.replaceAll('1', '2').replaceAll('oldName', 'newName');
 		const result = await compute(original, modified);
-		assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name, node.modified?.languageKind]), [
-			['Imports', 'Imports', 'module'],
-			['Imports', 'Imports', 'imports'],
-			['Exports', 'Exports', 'module'],
-			['Exports', 'Exports', 'exports'],
+		assert.deepStrictEqual(result.root.children.map(node => [
+			node.original?.name, node.modified?.name, declarationKeyword(node.original, original), declarationKeyword(node.modified, modified),
+		]), [
+			['Imports', 'Imports', 'namespace', 'namespace'],
+			['Imports', 'Imports', 'import', 'import'],
+			['Exports', 'Exports', 'namespace', 'namespace'],
+			['Exports', 'Exports', 'export', 'export'],
 		]);
 	});
 
@@ -525,7 +529,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			originalRange: rangeOf(original, 'old text'), modifiedRange: rangeOf(modified, 'new text'),
 		}], tsxUri, 'typescriptreact');
 		assert.deepStrictEqual(summarize(result, original, modified), [{
-			path: ['Component'], original: 'Component', modified: 'Component', kind: 'arrow-function',
+			path: ['Component'], original: 'Component', modified: 'Component', kind: vscode.SymbolKind.Function,
 			originalChanges: [[0, vscode.StructuralDiffClassification.Implementation, 'old text', []]],
 			modifiedChanges: [[0, vscode.StructuralDiffClassification.Implementation, 'new text', []]],
 		}]);
@@ -541,17 +545,17 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const modified = original.replaceAll('number', 'string').replaceAll('1', '2');
 		const result = await compute(original, modified);
 		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
-			[['Callable'], 'interface'],
-			[['Callable', '(call)'], 'call-signature'],
-			[['Callable', '(new)'], 'construct-signature'],
-			[['Callable', '[index]'], 'index-signature'],
-			[['Alias'], 'type-alias'],
-			[['Choice'], 'enum'],
-			[['Choice', 'Value'], 'enum-member'],
-			[['Fields'], 'class'],
-			[['Fields', 'field'], 'arrow-function'],
-			[['Fields', 'static'], 'static-block'],
-			[['Fields', 'static', 'initial'], 'variable'],
+			[['Callable'], vscode.SymbolKind.Interface],
+			[['Callable', '(call)'], vscode.SymbolKind.Method],
+			[['Callable', '(new)'], vscode.SymbolKind.Constructor],
+			[['Callable', '[index]'], vscode.SymbolKind.Method],
+			[['Alias'], vscode.SymbolKind.Variable],
+			[['Choice'], vscode.SymbolKind.Enum],
+			[['Choice', 'Value'], vscode.SymbolKind.EnumMember],
+			[['Fields'], vscode.SymbolKind.Class],
+			[['Fields', 'field'], vscode.SymbolKind.Function],
+			[['Fields', 'static'], vscode.SymbolKind.Method],
+			[['Fields', 'static', 'initial'], vscode.SymbolKind.Variable],
 		]);
 	});
 
@@ -598,12 +602,19 @@ function modifiedText(range: vscode.Range, text: string): string {
 	return createTextDocumentData(vscode.Uri.parse('test:/file.ts'), text, 'typescript').document.getText(range);
 }
 
+/**
+ * The first word of the text of an entity, such as `get` or `namespace`, which tells what declares the entity.
+ */
+function declarationKeyword(entity: vscode.StructuralDiffEntity | undefined, text: string): string | undefined {
+	return entity && modifiedText(entity.range, text).split(' ')[0];
+}
+
 export function summarize(diff: vscode.StructuralDiff, original: string, modified: string) {
 	const result: {
 		path: string[];
 		original: string | undefined;
 		modified: string | undefined;
-		kind: string | undefined;
+		kind: vscode.SymbolKind | undefined;
 		originalChanges: [number, vscode.StructuralDiffClassification, string, readonly vscode.StructuralDiffTag[] | undefined][];
 		modifiedChanges: [number, vscode.StructuralDiffClassification, string, readonly vscode.StructuralDiffTag[] | undefined][];
 	}[] = [];
@@ -613,7 +624,7 @@ export function summarize(diff: vscode.StructuralDiff, original: string, modifie
 			path,
 			original: node.original?.name,
 			modified: node.modified?.name,
-			kind: (node.modified ?? node.original)?.languageKind,
+			kind: (node.modified ?? node.original)?.kind,
 			originalChanges: node.originalChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, original), change.tags]),
 			modifiedChanges: node.modifiedChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, modified), change.tags]),
 		});

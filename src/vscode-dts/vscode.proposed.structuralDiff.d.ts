@@ -77,13 +77,6 @@ declare module 'vscode' {
 		readonly kind: SymbolKind;
 
 		/**
-		 * An optional language-specific category, such as `trait`, `impl`,
-		 * `record`, or `template`. This is a non-localized identifier and does
-		 * not replace {@link StructuralDiffEntity.kind kind}.
-		 */
-		readonly languageKind?: string;
-
-		/**
 		 * The complete entity range in the corresponding document.
 		 */
 		readonly range: Range;

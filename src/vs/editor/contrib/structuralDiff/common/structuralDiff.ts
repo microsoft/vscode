@@ -172,8 +172,8 @@ function validateEntity(node: StructuralDiffNode, side: Side, entity: Structural
 	if (typeof entity !== 'object' || entity === null) {
 		throw invalid(node, `has an invalid ${side} entity`);
 	}
-	if (typeof entity.name !== 'string' || !isOptionalString(entity.detail) || !isEnumValue(symbolKindNames, entity.kind) || !isOptionalString(entity.languageKind)) {
-		throw invalid(node, `has an invalid ${side} entity name, detail, kind or language kind`);
+	if (typeof entity.name !== 'string' || !isOptionalString(entity.detail) || !isEnumValue(symbolKindNames, entity.kind)) {
+		throw invalid(node, `has an invalid ${side} entity name, detail or kind`);
 	}
 	const range = toValidRange(model, entity.range);
 	if (!range) {
