@@ -71,7 +71,7 @@ export function renderCommandCenterLabel(labelElement: HTMLElement, text: string
 	const description = location.description;
 	const nameGroup = document.createElement('span');
 	nameGroup.classList.add('folder-location-name-group');
-	const icon = renderIcon(!location.icon || location.icon.id === Codicon.worktree.id ? Codicon.worktreeCompact : location.icon);
+	const icon = renderIcon(location.icon ?? Codicon.gitBranchCheckout);
 	icon.classList.add('folder-location-icon');
 	icon.ariaHidden = 'true';
 	const name = document.createElement('span');
