@@ -281,6 +281,24 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 		]);
 	});
 
+	test('omits a billable owner without a non-empty key and account type', () => {
+		const account = new TestDefaultAccountService();
+		const provider = createProvider(account);
+		const billableOwners = [
+			{ universal_key: 'ea:dotcom:42', account_type: '' },
+			{ universal_key: 'ea:dotcom:42' },
+			{ universal_key: '', account_type: 'User' },
+			{ universal_key: 42, account_type: 'User' },
+			'ea:dotcom:42',
+		];
+
+		assert.deepStrictEqual(billableOwners.map(billableOwner => {
+			// Malformed values are what an unvalidated server response can contain.
+			account.setEntitlements({ billable_owner: billableOwner as IEntitlementsData['billable_owner'] });
+			return provider.getFilterValue(GitHubAssignmentsFilter.CopilotBillableEntityId);
+		}), [null, null, null, null, null]);
+	});
+
 	test('fires onDidChangeFilters only when relevant inputs change', () => {
 		const account = new TestDefaultAccountService();
 		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'] });

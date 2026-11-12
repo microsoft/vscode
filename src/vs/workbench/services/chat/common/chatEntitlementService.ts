@@ -28,7 +28,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
-import { isString, Mutable } from '../../../../base/common/types.js';
+import { Mutable } from '../../../../base/common/types.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -63,7 +63,6 @@ export namespace ChatEntitlementContextKeys {
 		organisations: new RawContextKey<string[]>('chatEntitlementOrganisations', undefined, true), 	// The organizations the user belongs to.
 		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 					// True when the user is GitHub/Microsoft staff or belongs to an internal organisation.
 		sku: new RawContextKey<string>('chatEntitlementSku', undefined, true), 							// The SKU of the user.
-		billableOwnerKey: new RawContextKey<string>('chatEntitlementBillableOwnerKey', undefined, true), 		// The universal key of who pays for the user's Copilot.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
@@ -215,9 +214,6 @@ export interface IChatEntitlementService {
 	readonly isInternal: boolean;
 	readonly sku: string | undefined;
 	readonly copilotTrackingId: string | undefined;
-
-	/** The universal key of who pays for the user's Copilot, such as `ea:dotcom:42`, when the server sends one. */
-	readonly billableOwnerKey: string | undefined;
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
@@ -433,8 +429,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatEntitlementContextKeys.Entitlement.signedOut.key,
 					ChatEntitlementContextKeys.Entitlement.organisations.key,
 					ChatEntitlementContextKeys.Entitlement.internal.key,
-					ChatEntitlementContextKeys.Entitlement.sku.key,
-					ChatEntitlementContextKeys.Entitlement.billableOwnerKey.key
+					ChatEntitlementContextKeys.Entitlement.sku.key
 				])), this._store
 			), () => { }, this._store
 		);
@@ -516,10 +511,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get copilotTrackingId(): string | undefined {
 		return this.context?.value.state.copilotTrackingId;
-	}
-
-	get billableOwnerKey(): string | undefined {
-		return this.context?.value.state.billableOwnerKey;
 	}
 
 	get clientByokEnabled(): boolean {
@@ -804,7 +795,6 @@ interface IEntitlements {
 	readonly isStaff?: boolean;
 	readonly sku?: string;
 	readonly copilotTrackingId?: string;
-	readonly billableOwnerKey?: string;
 	readonly quotas?: IQuotas;
 }
 
@@ -964,17 +954,6 @@ function mergeDefinedSnapshot<T extends object>(previous: T | undefined, current
 		}
 	}
 	return result;
-}
-
-/**
- * Returns the universal key of who pays for the user's Copilot, or `undefined` unless the
- * response carries both the key and the account type as non-empty strings.
- */
-export function parseBillableOwner(entitlementsData: IEntitlementsData): string | undefined {
-	// The response is not validated, so check the shape here.
-	const universalKey: unknown = entitlementsData.billable_owner?.universal_key;
-	const accountType: unknown = entitlementsData.billable_owner?.account_type;
-	return isString(universalKey) && universalKey && isString(accountType) && accountType ? universalKey : undefined;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -1169,8 +1148,7 @@ export class ChatEntitlementRequests extends Disposable {
 			isStaff: entitlementsData.is_staff,
 			quotas: this.toQuotas(entitlementsData),
 			sku: entitlementsData.access_type_sku,
-			copilotTrackingId: entitlementsData.analytics_tracking_id,
-			billableOwnerKey: parseBillableOwner(entitlementsData)
+			copilotTrackingId: entitlementsData.analytics_tracking_id
 		};
 
 		this.logService.trace(`[chat entitlement]: resolved to ${entitlements.entitlement}, quotas: ${JSON.stringify(entitlements.quotas)}`);
@@ -1245,7 +1223,7 @@ export class ChatEntitlementRequests extends Disposable {
 	private update(state: IEntitlements): void {
 		this.state = state;
 
-		this.context.update({ entitlement: this.state.entitlement, organisations: this.state.organisations, isStaff: this.state.isStaff, sku: this.state.sku, copilotTrackingId: this.state.copilotTrackingId, billableOwnerKey: this.state.billableOwnerKey });
+		this.context.update({ entitlement: this.state.entitlement, organisations: this.state.organisations, isStaff: this.state.isStaff, sku: this.state.sku, copilotTrackingId: this.state.copilotTrackingId });
 
 		if (state.quotas) {
 			this.chatQuotasAccessor.acceptQuotas(state.quotas);
@@ -1430,11 +1408,6 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 	 * User's Copilot tracking ID from the entitlement API.
 	 */
 	copilotTrackingId: string | undefined;
-
-	/**
-	 * User's last known or resolved universal key of who pays for their Copilot.
-	 */
-	billableOwnerKey?: string;
 }
 
 export class ChatEntitlementContext extends Disposable {
@@ -1456,7 +1429,6 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly organisationsContextKey: IContextKey<string[] | undefined>;
 	private readonly isInternalContextKey: IContextKey<boolean>;
 	private readonly skuContextKey: IContextKey<string | undefined>;
-	private readonly billableOwnerKeyContextKey: IContextKey<string | undefined>;
 
 	private readonly completedContext: IContextKey<boolean>;
 	private readonly hiddenContext: IContextKey<boolean>;
@@ -1499,7 +1471,6 @@ export class ChatEntitlementContext extends Disposable {
 		this.organisationsContextKey = ChatEntitlementContextKeys.Entitlement.organisations.bindTo(contextKeyService);
 		this.isInternalContextKey = ChatEntitlementContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.skuContextKey = ChatEntitlementContextKeys.Entitlement.sku.bindTo(contextKeyService);
-		this.billableOwnerKeyContextKey = ChatEntitlementContextKeys.Entitlement.billableOwnerKey.bindTo(contextKeyService);
 
 		this.completedContext = ChatEntitlementContextKeys.Setup.completed.bindTo(contextKeyService);
 		this.hiddenContext = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
@@ -1564,8 +1535,8 @@ export class ChatEntitlementContext extends Disposable {
 	update(context: { completed: true }): Promise<void>;
 	update(context: { hidden: false }): Promise<void>; // legacy UI state from before we had a setting to hide, keep around to still support users who used this
 	update(context: { later: boolean }): Promise<void>;
-	update(context: { entitlement: ChatEntitlement; organisations: string[] | undefined; isStaff: boolean | undefined; sku: string | undefined; copilotTrackingId: string | undefined; billableOwnerKey: string | undefined }): Promise<void>;
-	async update(context: { completed?: boolean; installed?: boolean; disabled?: boolean; untrusted?: boolean; disabledInWorkspace?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; isStaff?: boolean; sku?: string; copilotTrackingId?: string; billableOwnerKey?: string }): Promise<void> {
+	update(context: { entitlement: ChatEntitlement; organisations: string[] | undefined; isStaff: boolean | undefined; sku: string | undefined; copilotTrackingId: string | undefined }): Promise<void>;
+	async update(context: { completed?: boolean; installed?: boolean; disabled?: boolean; untrusted?: boolean; disabledInWorkspace?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; isStaff?: boolean; sku?: string; copilotTrackingId?: string }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		const oldState = JSON.stringify(this._state);
@@ -1599,7 +1570,6 @@ export class ChatEntitlementContext extends Disposable {
 			this._state.isStaff = context.isStaff;
 			this._state.sku = context.sku;
 			this._state.copilotTrackingId = context.copilotTrackingId;
-			this._state.billableOwnerKey = context.billableOwnerKey;
 
 			if (this._state.entitlement === ChatEntitlement.Free || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
@@ -1647,7 +1617,6 @@ export class ChatEntitlementContext extends Disposable {
 		this.organisationsContextKey.set(state.organisations);
 		this.isInternalContextKey.set(isInternalAccount(state.isStaff, state.organisations));
 		this.skuContextKey.set(state.sku);
-		this.billableOwnerKeyContextKey.set(state.billableOwnerKey);
 
 		this.completedContext.set(!!state.completed);
 		this.hiddenContext.set(!!state.hidden);
