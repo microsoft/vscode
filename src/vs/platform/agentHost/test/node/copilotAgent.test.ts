@@ -14784,7 +14784,7 @@ suite('CopilotAgent', () => {
 				copilotClient: new TestCopilotClient([]),
 				proxyResolver: new TestProxyResolver(),
 				rootConfig: {
-					[AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080',
+					[AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@configured-proxy.example:8080',
 					[AgentHostProxyConfigKey.NoProxy]: ['localhost'],
 				},
 			});
@@ -14811,37 +14811,6 @@ suite('CopilotAgent', () => {
 					NO_PROXY: 'intranet.example',
 					no_proxy: undefined,
 				},
-			});
-		});
-		test('restarts the Copilot runtime with an http.proxy setting with credentials, which its callbacks cannot carry, in its environment', async () => {
-			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
-			process.env['NO_PROXY'] = 'intranet.example';
-			const client = new TestCopilotClient([]);
-			const proxyResolver = new TestProxyResolver();
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				proxyResolver,
-				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080' },
-			});
-			afterTest(() => disposeAgent(agent));
-			await agent.listChatsToMigrate();
-			const credentialedProxy = 'http://alice:s%40cret@configured-proxy.example:8080';
-			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: credentialedProxy, [AgentHostProxyConfigKey.NoProxy]: ['localhost', '.corp.example'] });
-			proxyResolver.fireConfigurationChange();
-			await proxyRefresh(agent);
-			await agent.listChatsToMigrate();
-
-			assert.deepStrictEqual({
-				startCallCount: client.startCallCount,
-				stopCallCount: client.stopCallCount,
-				proxyEnvironments: getCreatedClientOptions(agent).map(options => Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options.env?.[key]]))),
-			}, {
-				startCallCount: 2,
-				stopCallCount: 1,
-				proxyEnvironments: [
-					{ HTTPS_PROXY: 'http://ambient-proxy.example:8080', https_proxy: undefined, HTTP_PROXY: undefined, http_proxy: undefined, NO_PROXY: 'intranet.example', no_proxy: undefined },
-					{ HTTPS_PROXY: credentialedProxy, https_proxy: undefined, HTTP_PROXY: credentialedProxy, http_proxy: undefined, NO_PROXY: 'localhost,.corp.example', no_proxy: undefined },
-				],
 			});
 		});
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
@@ -15138,7 +15107,7 @@ suite('CopilotAgent', () => {
 					clientNone: undefined,
 					noClient: undefined,
 					setting: 'HTTPS secure-proxy.example:443',
-					settingWithCredentials: undefined,
+					settingWithCredentials: 'HTTPS secure-proxy.example:443',
 					noProxySetting: 'DIRECT',
 				},
 				systemProxyDisabled: {
@@ -15180,9 +15149,13 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('answers the Copilot runtime\'s Basic proxy challenges with the credentials of a client', async () => {
+		test('answers the Copilot runtime\'s Basic proxy challenges with the credentials of the http.proxy setting or a client', async () => {
 			const proxyResolver = new TestProxyResolver();
-			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:3128' },
+			});
 			afterTest(() => disposeAgent(agent));
 			await agent.listChatsToMigrate();
 			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
@@ -15191,19 +15164,21 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				credentials: [
 					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: false }, signal),
-					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', previousRejected: false }, signal),
 				],
 				basicLookups: proxyResolver.basicLookups,
 			}, {
-				credentials: [{ username: 'user', password: 'secret' }, undefined],
+				credentials: [{ username: 'alice', password: 's@cret' }, undefined, { username: 'user', password: 'secret' }],
 				basicLookups: [
-					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
-					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 2 },
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 2 },
+					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 1 },
 				],
 			});
 		});
 
 		test('does not restart the Copilot runtime when clients come and go or proxy settings change', async () => {
+			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
@@ -15220,14 +15195,22 @@ suite('CopilotAgent', () => {
 				lookupAuthorization: async () => undefined,
 			});
 			await settle();
-			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });
 			proxyResolver.fireConfigurationChange();
 			await settle();
 			sharedNetworkClient.dispose();
 			renderer.dispose();
 			await settle();
 
-			assert.deepStrictEqual({ startCallCount: client.startCallCount, stopCallCount: client.stopCallCount }, { startCallCount: 1, stopCallCount: 0 });
+			assert.deepStrictEqual({
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				proxyEnvironment: Object.fromEntries(['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY'].map(key => [key, getCreatedClientOptions(agent).at(-1)?.env?.[key]])),
+			}, {
+				startCallCount: 1,
+				stopCallCount: 0,
+				proxyEnvironment: { HTTPS_PROXY: 'http://ambient-proxy.example:8080', HTTP_PROXY: undefined, NO_PROXY: undefined },
+			});
 		});
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
 			const client = new TestCopilotClient([]);
