@@ -161,6 +161,7 @@ const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
 const CHAT_PET_MIN_SCALE = 0.4;
 const CHAT_PET_MIN_SUBAGENT_SCALE = CHAT_PET_MIN_SCALE * 0.5;
 const CHAT_PET_SCALE_STEP = 0.2;
+const CHAT_PET_MAX_SUBAGENT_SCALE = (1 + 3 * CHAT_PET_SCALE_STEP) * 0.5;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
 const CHAT_PET_SLEEP_RIGHT_OVERHANG = (CHAT_PET_SLEEP_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_TYPING_RIGHT_OVERHANG = (CHAT_PET_TYPING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
@@ -3025,7 +3026,7 @@ export class ChatPetWidget extends Disposable {
 				continue;
 			}
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
-			let miniScale = Math.max(CHAT_PET_MIN_SUBAGENT_SCALE, 0.5 * (this._scale || 1));
+			let miniScale = Math.max(CHAT_PET_MIN_SUBAGENT_SCALE, Math.min(CHAT_PET_MAX_SUBAGENT_SCALE, 0.5 * (this._scale || 1)));
 			let miniWidth = CHAT_PET_DISPLAY_SIZE * miniScale;
 			const overlayBounds = this._overlay.getBoundingClientRect();
 			let landing = this._getSubagentLanding(miniWidth);
