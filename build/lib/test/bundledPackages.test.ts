@@ -15,7 +15,8 @@ const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 /**
  * Creates a project with pnpm's isolated layout: `a` (a dependency, which links its dependency `b`
  * next to it and requires the undeclared `h` from the store's hoisting folder), `d` (a
- * devDependency), `t` (a devDependency for types only) and `p` (a polyfill that isn't declared).
+ * devDependency), `t` (a devDependency for types only), `p` (a polyfill that isn't declared) and
+ * `s` (a dependency under the npm alias `alias-of-s`).
  */
 function createProject(t: { after: (fn: () => void) => void }): string {
 	const root = fs.mkdtempSync(path.join(import.meta.dirname, '.bundled-packages-test-'));
@@ -33,13 +34,15 @@ function createProject(t: { after: (fn: () => void) => void }): string {
 		write(`node_modules/.pnpm/${name}@1.0.0/node_modules/${name}/index.js`, code);
 	};
 
-	write('package.json', { name: 'project', dependencies: { a: '1.0.0' }, devDependencies: { d: '1.0.0', t: '1.0.0' } });
+	write('package.json', { name: 'project', dependencies: { a: '1.0.0', 'alias-of-s': 'npm:s@1.0.0' }, devDependencies: { d: '1.0.0', t: '1.0.0' } });
 	addPackage('a', `import b from 'b'; import h from 'h'; export default () => b + h;`);
 	addPackage('b', `export default 'b';`);
 	addPackage('h', `export default 'h';`);
 	addPackage('d', `export default 'd';`);
 	addPackage('t', `export default 't';`);
 	addPackage('p', `export default 'p';`);
+	addPackage('s', `export default 's';`);
+	link('node_modules/.pnpm/s@1.0.0/node_modules/s', 'node_modules/alias-of-s');
 	link('node_modules/.pnpm/b@1.0.0/node_modules/b', 'node_modules/.pnpm/a@1.0.0/node_modules/b');
 	link('node_modules/.pnpm/h@1.0.0/node_modules/h', 'node_modules/.pnpm/node_modules/h');
 	for (const name of ['a', 'd', 't']) {
@@ -50,7 +53,7 @@ function createProject(t: { after: (fn: () => void) => void }): string {
 	return root;
 }
 
-async function check(root: string, entryPoints: string[], isShipped?: (output: string) => boolean): Promise<string[]> {
+async function check(root: string, entryPoints: string[] | Record<string, string>, isShipped?: (output: string) => boolean): Promise<string[]> {
 	const alias = { util: path.join(root, 'node_modules/.pnpm/p@1.0.0/node_modules/p') };
 	const result = await esbuild.build({ absWorkingDir: root, entryPoints, bundle: true, platform: 'browser', format: 'esm', outdir: 'out', write: false, metafile: true, alias });
 	const label = path.relative(repositoryRoot, root).split(path.sep).join('/');
@@ -70,4 +73,20 @@ test('reports bundled devDependencies, undeclared aliases and hoisted imports, b
 test('ignores outputs that do not ship', async t => {
 	const root = createProject(t);
 	assert.deepStrictEqual(await check(root, ['src/test.ts'], output => !output.endsWith('test.js')), []);
+});
+
+test('reports entry points in packages that are not production dependencies, under any name', async t => {
+	const root = createProject(t);
+	assert.deepStrictEqual(await check(root, { dev: 'node_modules/d/index.js', aliased: 'node_modules/alias-of-s/index.js' }), [
+		`<project>: the build has an entry point in d@1.0.0 (<project>/node_modules/.pnpm/d@1.0.0/node_modules/d/index.js), which isn't a production dependency of <project>.`,
+	]);
+});
+
+test('reads manifests again for each check', async t => {
+	const root = createProject(t);
+	assert.strictEqual((await check(root, ['src/test.ts'])).length, 1);
+	const manifestPath = path.join(root, 'package.json');
+	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, dependencies: { ...manifest.dependencies, d: '1.0.0' }, devDependencies: { t: '1.0.0' } }));
+	assert.deepStrictEqual(await check(root, ['src/test.ts']), []);
 });

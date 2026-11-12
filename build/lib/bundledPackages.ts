@@ -14,7 +14,7 @@ import path from 'node:path';
  */
 export interface IBundleMetafile {
 	readonly inputs: Record<string, { readonly imports?: readonly { readonly path: string; readonly external?: boolean; readonly original?: string }[] }>;
-	readonly outputs: Record<string, { readonly inputs: Record<string, { readonly bytesInOutput: number }> }>;
+	readonly outputs: Record<string, { readonly entryPoint?: string; readonly inputs: Record<string, { readonly bytesInOutput: number }> }>;
 }
 
 export interface IBundledPackagesOptions {
@@ -22,7 +22,7 @@ export interface IBundledPackagesOptions {
 	readonly workingDirectory: string;
 	/**
 	 * The folder of the project that ships the bundles. It must declare the packages that
-	 * {@link aliases} resolve to as production dependencies.
+	 * {@link aliases} resolve to, and the packages of entry points, as production dependencies.
 	 */
 	readonly project: string;
 	/**
@@ -57,20 +57,29 @@ interface IManifest {
  * - An import from a package must resolve to a dependency that the package declares, not to a
  *   package that pnpm hoisted for the whole workspace (`node_modules/.pnpm/node_modules`) or that
  *   a project above it declares.
- * - The packages of {@link IBundledPackagesOptions.aliases} must be production dependencies of
- *   {@link IBundledPackagesOptions.project}.
+ * - The packages of {@link IBundledPackagesOptions.aliases}, and the packages of entry points
+ *   (such as a stylesheet of a package), must be production dependencies of
+ *   {@link IBundledPackagesOptions.project}, under any name (npm aliases included).
  *
  * Type-only imports and code that tree shaking removes don't count: only packages with bytes in
- * a shipped output do.
+ * a shipped output do. A build that embeds the output of another build (for example in a plugin)
+ * must check the metafile of that build too.
  */
 export function findUndeclaredBundledPackages(metafile: IBundleMetafile, options: IBundledPackagesOptions): string[] {
 	const isShipped = options.isShipped ?? (output => !output.endsWith('.map'));
 	const toAbsolute = (file: string) => toSlashes(path.resolve(options.workingDirectory, file));
+	// Read the manifests again for each check: watch builds check every rebuild in one process.
+	const manifests = new ManifestReader();
 	const shippedInputs = new Set<string>();
 	const shippedPackages = new Set<string>();
-	for (const [output, { inputs }] of Object.entries(metafile.outputs)) {
+	const entryPointPackages = new Map<string, string[]>();
+	for (const [output, { entryPoint, inputs }] of Object.entries(metafile.outputs)) {
 		if (!isShipped(output)) {
 			continue;
+		}
+		const entryPointPackage = entryPoint && !hasNamespace(entryPoint) ? getPackageRoot(toAbsolute(entryPoint)) : undefined;
+		if (entryPointPackage) {
+			entryPointPackages.set(entryPointPackage, [...entryPointPackages.get(entryPointPackage) ?? [], entryPoint!]);
 		}
 		for (const [input, { bytesInOutput }] of Object.entries(inputs)) {
 			shippedInputs.add(input);
@@ -90,6 +99,14 @@ export function findUndeclaredBundledPackages(metafile: IBundleMetafile, options
 			problems.set(key, problem);
 		}
 	};
+	// Chunks of dynamic imports (with `splitting`) are entry points too; the imports are checked below.
+	const imported = new Set(Object.values(metafile.inputs).flatMap(({ imports = [] }) => imports.map(({ path: importedPath }) => toAbsolute(importedPath))));
+	for (const [packageRoot, entryPoints] of entryPointPackages) {
+		const entryPoint = entryPoints.find(file => !imported.has(toAbsolute(file)));
+		if (entryPoint && !manifests.isProductionDependency(project, packageRoot)) {
+			report(`${project}\0${packageRoot}`, `${relative(project)}: the build has an entry point in ${manifests.describe(packageRoot)} (${relative(toAbsolute(entryPoint))}), which isn't a production dependency of ${relative(project)}.`);
+		}
+	}
 	for (const [input, { imports = [] }] of Object.entries(metafile.inputs).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
 		if (!shippedInputs.has(input) || hasNamespace(input)) {
 			continue;
@@ -105,13 +122,12 @@ export function findUndeclaredBundledPackages(metafile: IBundleMetafile, options
 			if (!specifier || !target || target === importerPackage || !shippedPackages.has(target)) {
 				continue;
 			}
-			const targetManifest = readManifest(target);
-			const bundled = `${targetManifest.name}@${targetManifest.version}`;
-			const importerLabel = importerPackage ? describePackage(importerPackage) : relative(importer);
+			const bundled = manifests.describe(target);
+			const importerLabel = importerPackage ? manifests.describe(importerPackage) : relative(importer);
 
 			if (aliases.some(alias => original === alias || original.startsWith(`${alias}/`))) {
-				if (!declaresForProduction(project, targetManifest.name!)) {
-					report(`${project}\0${targetManifest.name}`, `${relative(project)}: the build resolves '${original}' to ${bundled}, which isn't a production dependency of ${relative(project)}.`);
+				if (!manifests.isProductionDependency(project, target)) {
+					report(`${project}\0${target}`, `${relative(project)}: the build resolves '${original}' to ${bundled}, which isn't a production dependency of ${relative(project)}.`);
 				}
 				continue;
 			}
@@ -134,8 +150,8 @@ export function findUndeclaredBundledPackages(metafile: IBundleMetafile, options
 			const owner = resolvingFolder.slice(0, resolvingFolder.length - `/node_modules/${specifier}`.length);
 			if (!fs.existsSync(path.join(owner, 'package.json'))) {
 				report(`${resolvingFolder}`, `${importerLabel} imports '${specifier}', which no project declares, and gets ${bundled} from ${relative(resolvingFolder)}.`);
-			} else if (!declaresForProduction(owner, specifier)) {
-				const declaration = readManifest(owner).devDependencies?.[specifier] ? 'a devDependency' : 'not a dependency';
+			} else if (!manifests.declaresForProduction(owner, specifier)) {
+				const declaration = manifests.read(owner).devDependencies?.[specifier] ? 'a devDependency' : 'not a dependency';
 				report(`${owner}\0${specifier}`, `${relative(owner)}: '${specifier}' is bundled (${bundled}, imported by ${importerLabel}) but is ${declaration} of ${relative(owner)}. Declare it in dependencies.`);
 			}
 		}
@@ -167,25 +183,42 @@ export function findProjectFolder(file: string): string {
 	}
 }
 
-const manifests = new Map<string, IManifest>();
+/**
+ * Reads the `package.json` files of projects and packages, each once.
+ */
+class ManifestReader {
+	private readonly manifests = new Map<string, IManifest>();
 
-function readManifest(folder: string): IManifest {
-	let manifest = manifests.get(folder);
-	if (!manifest) {
-		manifest = JSON.parse(fs.readFileSync(path.join(folder, 'package.json'), 'utf8')) as IManifest;
-		manifests.set(folder, manifest);
+	read(folder: string): IManifest {
+		let manifest = this.manifests.get(folder);
+		if (!manifest) {
+			manifest = JSON.parse(fs.readFileSync(path.join(folder, 'package.json'), 'utf8')) as IManifest;
+			this.manifests.set(folder, manifest);
+		}
+		return manifest;
 	}
-	return manifest;
-}
 
-function declaresForProduction(folder: string, name: string): boolean {
-	const manifest = readManifest(folder);
-	return productionFields.some(field => manifest[field]?.[name] !== undefined);
-}
+	describe(packageRoot: string): string {
+		const { name, version } = this.read(packageRoot);
+		return `${name}@${version}`;
+	}
 
-function describePackage(packageRoot: string): string {
-	const { name, version } = readManifest(packageRoot);
-	return `${name}@${version}`;
+	declaresForProduction(folder: string, name: string): boolean {
+		const manifest = this.read(folder);
+		return productionFields.some(field => manifest[field]?.[name] !== undefined);
+	}
+
+	/**
+	 * Whether a production dependency of `project`, under the name that it declares (which can be
+	 * an npm alias), resolves to `packageRoot`.
+	 */
+	isProductionDependency(project: string, packageRoot: string): boolean {
+		const manifest = this.read(project);
+		return productionFields.some(field => Object.keys(manifest[field] ?? {}).some(name => {
+			const folder = findResolvingFolder(path.posix.join(project, 'package.json'), name);
+			return folder !== undefined && isSameFolder(folder, packageRoot);
+		}));
+	}
 }
 
 /** Returns the folder that Node.js finds for `node_modules/<name>` from the folder of `importer`. */

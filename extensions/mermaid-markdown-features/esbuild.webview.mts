@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import path from 'path';
 import esbuild, { type Plugin } from 'esbuild';
+import { assertBundledPackagesDeclared } from '../../build/lib/bundledPackages.ts';
 import { resolvePackageDirectory } from '../esbuild-common.mts';
 import { run } from '../esbuild-webview-common.mts';
 
@@ -20,12 +21,15 @@ const cssTextPlugin: Plugin = {
 				bundle: true,
 				minify: true,
 				write: false,
+				metafile: true,
 				loader: {
 					'.ttf': 'dataurl',
 					'.woff': 'dataurl',
 					'.woff2': 'dataurl',
 				},
 			});
+			// The webview bundles embed this stylesheet, so the outer build's check doesn't see its packages.
+			assertBundledPackagesDeclared(result.metafile, { workingDirectory: process.cwd(), project: rootDir });
 			const css = result.outputFiles[0].text;
 			return {
 				contents: `export default ${JSON.stringify(css)};`,
