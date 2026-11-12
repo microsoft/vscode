@@ -18,6 +18,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { extractChatReferenceDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -13731,6 +13732,49 @@ suite('Sessions - SessionsList', () => {
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
 				externalTypes: ['text/plain'],
 				text: peer.resource.toString(),
+			});
+		});
+
+		test('drags a session, and a nested chat, with a reference to the chat it stands for, which a chat input can attach', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const toBackend = (resource: URI) => resource.with({ scheme: 'backend-chat' });
+			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				environment: { id: 'local', label: 'This Computer' },
+				getBackendChatResource: toBackend,
+			});
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override readonly onDidChangeProviders = Event.None;
+					override getProviders() { return [provider]; }
+					override getProvider<T extends ISessionsProvider>(): T | undefined { return provider as T; }
+				});
+			});
+			const rowOf = (selector: string, title: string) => [...container.querySelectorAll<HTMLElement>(selector)]
+				.find(element => element.textContent === title)?.closest<HTMLElement>('.monaco-list-row');
+			const dragReference = (row: HTMLElement | null | undefined) => {
+				assert.ok(row);
+				const dataTransfer = new DataTransfer();
+				row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+				const reference = extractChatReferenceDropData(new DragEvent('dragover', { dataTransfer }));
+				row.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+				return reference;
+			};
+
+			assert.deepStrictEqual({
+				session: dragReference(rowOf('.session-title', 'Session')),
+				chat: dragReference(rowOf('.session-chat-title', 'Peer chat')),
+			}, {
+				session: { chatResource: toBackend(main.resource).toString(), clientResource: main.resource.toString(), title: 'Main chat' },
+				chat: { chatResource: toBackend(peer.resource).toString(), clientResource: peer.resource.toString(), title: 'Peer chat' },
 			});
 		});
 
