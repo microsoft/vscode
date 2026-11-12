@@ -1593,10 +1593,11 @@ suite('ChatWidget', () => {
 		let rerenders = 0;
 		const layoutHeights: number[] = [];
 		const discardingSlot = { set value(disposable: IDisposable | undefined) { disposable?.dispose(); } };
+		const visible = observableValue('visible', true);
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
 			_draftOnly: observableValue('draftOnly', false),
-			_visible: observableValue('visible', true),
+			_visible: visible,
 			visibleChangeCount: 0,
 			viewOptions: { renderStyle: 'minimal' },
 			_readOnlyContextKey: { set: () => { } },
@@ -1625,7 +1626,7 @@ suite('ChatWidget', () => {
 				rerender: () => rerenders++,
 			},
 		});
-		return { widget, domNode, layoutHeights, rerenders: () => rerenders };
+		return { widget, domNode, layoutHeights, visible, rerenders: () => rerenders };
 	}
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
@@ -1654,9 +1655,45 @@ suite('ChatWidget', () => {
 
 		assert.deepStrictEqual({ rendererOptions, rerenders, inputVisibility }, {
 			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
-			rerenders: 3,
+			rerenders: 2,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('only rerenders the list when the read-only state changes what rows render', () => {
+		const { widget, domNode, rerenders } = createRerenderWidget();
+		mainWindow.document.body.appendChild(domNode);
+		domNode.style.height = '100px';
+		store.add(toDisposable(() => domNode.remove()));
+		const counts: number[] = [];
+
+		for (const readOnly of [false, false, false, true, true, false]) {
+			widget.setReadOnly(readOnly);
+			counts.push(rerenders());
+		}
+
+		assert.deepStrictEqual(counts, [1, 1, 1, 2, 2, 3]);
+	});
+
+	test('rerenders rows left stale by a read-only change while hidden', () => {
+		const { widget, domNode, visible, rerenders } = createRerenderWidget();
+		mainWindow.document.body.appendChild(domNode);
+		domNode.style.height = '100px';
+		store.add(toDisposable(() => domNode.remove()));
+		const counts: number[] = [];
+
+		widget.setReadOnly(false);
+		counts.push(rerenders());
+		visible.set(false, undefined);
+		widget.setReadOnly(true);
+		counts.push(rerenders());
+		visible.set(true, undefined);
+		widget.setReadOnly(true);
+		counts.push(rerenders());
+		widget.setReadOnly(true);
+		counts.push(rerenders());
+
+		assert.deepStrictEqual(counts, [1, 1, 2, 2]);
 	});
 
 	test('keeps the sandbox composer visible while live content is unavailable', () => {

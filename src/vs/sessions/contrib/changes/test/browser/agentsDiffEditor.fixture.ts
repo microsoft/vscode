@@ -182,6 +182,8 @@ class FixtureOverlayEditorGroup extends mock<IEditorGroup>() implements IAgentFe
 		this.activeEditor = input;
 		this.activeEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override readonly input = input;
+			override readonly onDidChangeControl = Event.None;
+			override getControl() { return undefined; }
 		}();
 	}
 

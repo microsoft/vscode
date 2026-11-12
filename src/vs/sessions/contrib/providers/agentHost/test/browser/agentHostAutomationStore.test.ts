@@ -348,8 +348,8 @@ class TestActiveClientService extends mock<IAgentHostActiveClientService>() {
 		return undefined;
 	}
 
-	override acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
-		const scope = { sessionType, roots: roots.map(root => root.toString()), disposed: false };
+	override acquireScope(sessionType: string, roots: readonly URI[] | undefined): IAgentCustomizationScope {
+		const scope = { sessionType, roots: (roots ?? []).map(root => root.toString()), disposed: false };
 		this.scopes.push(scope);
 		return {
 			customizations: this.customizations,
