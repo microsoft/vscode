@@ -21,12 +21,15 @@ function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) 
 suite('Filters', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('empty queries share matches', () => {
+	test('empty queries share immutable matches', () => {
 		for (const filter of [matchesFuzzy, matchesContiguousSubString, matchesBaseContiguousSubString]) {
 			const first = filter('', 'first')!;
 			const second = filter('', '')!;
 			assert.strictEqual(first, emptyMatches);
 			assert.strictEqual(second, emptyMatches);
+			assert.throws(() => { first[0].start = 1; }, TypeError);
+			assert.throws(() => { first[0] = { start: 1, end: 2 }; }, TypeError);
+			assert.throws(() => { first.push({ start: 1, end: 2 }); }, TypeError);
 			assert.deepStrictEqual(second, [{ start: 0, end: 0 }]);
 		}
 	});
