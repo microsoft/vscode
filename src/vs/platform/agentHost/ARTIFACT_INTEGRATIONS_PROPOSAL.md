@@ -9,7 +9,7 @@ Licensed under the MIT License. See License.txt in the project root for license 
 
 ### Enablement
 
-`chat.artifactIntegrations.enabled` is an application-scoped, opt-in setting, off by default. It gates live integration presentation, provider observation, native and prompt actions, agent-facing integration tools, and Autopilot. Ordinary artifact recording and links remain controlled separately by `chat.artifactTools.enabled`; existing transcript snapshots and history are preserved.
+`chat.artifactIntegrations.enabled` is an application-scoped setting, on by default in Insiders and off by default in Stable. Automation rules remain opt-in. It gates live integration presentation, provider observation, native and prompt actions, agent-facing integration tools, and Autopilot. Ordinary artifact recording and links remain controlled separately by `chat.artifactTools.enabled`; existing transcript snapshots and history are preserved.
 
 While integrations are enabled, Agent Merge is effectively disabled in both the client and host without rewriting its user setting or per-session choices. Configuration forwarding sends the effective Agent Merge value to older hosts too. Switching stops queued automation and cancels only automation-owned active work; already-committed external effects must still be reconciled. Artifact consent, enablement timestamps, attempt budgets, checkpoints, and activity are not reset. Switching back restores the selected system's saved opt-ins, subject to its normal validation and permissions. A connection loss only pauses delivery and is not treated as an explicit feature opt-out.
 
@@ -776,6 +776,7 @@ For the initial chat UI:
 - Render boolean and enum controls from descriptors. Show the automatic prompt destination next to automation configuration.
 - Keep state-dependent and general actions separate; retain provider-qualified IDs and grouping even when labels coincide. Both bars remain outside scrolling content. Enabled state actions precede disabled ones, preserving provider order within each group; the first state action uses the primary button style. Each automation rule appears once: beside its single owning list or in the row above state actions. Placement does not create another execution implementation.
 - Render freshness, unavailable states, blocked runs, and errors explicitly.
+- The Activities card omits skipped runs and the user's own clicks on general (footer) actions; it still lists automatic and agent-requested runs of those actions, and any whose outcome must be reconciled. A manual run records whether it was requested through a general action, so this survives the integration becoming unavailable.
 - Make state, controls, detail items, and activity available through the keyboard and accessible text, not just icon/color/hover. Preserve focus during live updates; if the focused item disappears, move focus to a neighboring item or the details container. Avoid announcing every poll.
 
 Use existing pill/action/menu/managed-hover primitives and theme tokens, extending the shared segment model where needed. Update the feature's accessibility help and accessible view for these interactions; respect verbosity preferences. Gate AI-owned surfaces with the existing AI enablement mechanisms.

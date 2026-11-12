@@ -138,12 +138,14 @@ export function shellEscape(s: string): string {
  * `cli/src/commands/agent_host.rs`), so the entire AH process tree
  * agrees on one launcher root.
  *
- * Inputs must already be safe for unquoted shell interpolation; callers
- * build them via {@link getRemoteCLIBin} / {@link getRemoteCLIDataDir}
- * which validate their components.
+ * `--server-data-dir` keeps the agent host's data (including its sessions)
+ * under this product's server data folder, where a VS Code server that
+ * Remote-SSH, WSL or Dev Containers launch for this product keeps it.
+ * Otherwise the downloaded server would use its own product's folder, so
+ * sessions would depend on which process started the shared agent host.
  */
-export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string, telemetryLevel: TelemetryConfiguration): string {
-	return `${cliBin} --cli-data-dir ${cliDataDir} --telemetry-level ${validateAgentHostTelemetryLevel(telemetryLevel)} agent host --port 0`;
+export function buildAgentHostBaseCommand(cliBin: string, serverDataFolderName: string, telemetryLevel: TelemetryConfiguration): string {
+	return `${cliBin} --cli-data-dir ${getRemoteCLIDataDir(serverDataFolderName)} --telemetry-level ${validateAgentHostTelemetryLevel(telemetryLevel)} agent host --port 0 --server-data-dir ${getRemoteCLIInstallRoot(serverDataFolderName)}`;
 }
 
 export function resolveRemotePlatform(unameS: string, unameM: string, libc = ''): { os: string; arch: string } | undefined {
@@ -332,6 +334,12 @@ export function dialAgentHostHost(bound: string | undefined): string {
 	return bound;
 }
 
+/** The host to put in a `ws://` URL for an agent host bound to `bound`, with IPv6 literals bracketed. */
+export function formatAgentHostUrlHost(bound: string | undefined): string {
+	const host = dialAgentHostHost(bound);
+	return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+}
+
 /**
  * Build the `code agent endpoints` command that lists every live agent
  * host endpoint (editor + standalone) known to the shared registry on the
@@ -362,11 +370,11 @@ export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, u
  * genuinely new process/registry entry every time this command runs,
  * leaving all existing standalone/editor entries untouched.
  */
-export function buildAgentHostSpawnCommand(cliBin: string, cliDataDir: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, idleTimeoutSec = 300): string {
+export function buildAgentHostSpawnCommand(cliBin: string, serverDataFolderName: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, idleTimeoutSec = 300): string {
 	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
 		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
 	}
-	return `${buildAgentHostBaseCommand(cliBin, cliDataDir, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
+	return `${buildAgentHostBaseCommand(cliBin, serverDataFolderName, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
 }
 
 /**

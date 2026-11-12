@@ -76,7 +76,7 @@ suite('Session Artifacts', () => {
 	});
 
 	test('records how the chat shows an entry, and changes it when the entry is recorded again with another mode', () => {
-		const first = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'embedded' }, TOOL), createId);
+		const first = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'aboveInput' }, TOOL), createId);
 		const again = new SessionArtifactCollection(first.artifacts).add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'pinned' }, TOOL), createId);
 		const unchanged = new SessionArtifactCollection(again.artifacts).add(parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false }, TOOL), createId);
 
@@ -86,7 +86,7 @@ suite('Session Artifacts', () => {
 			unchanged: unchanged.artifacts,
 			roundTrip: parseSessionArtifacts(stringifySessionArtifacts(again.artifacts)).artifacts,
 		}, {
-			first: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'embedded' }],
+			first: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'aboveInput' }],
 			again: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
 			unchanged: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
 			roundTrip: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],

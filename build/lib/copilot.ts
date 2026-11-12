@@ -254,9 +254,11 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
  * Materializes target-platform Copilot CLI SDK files directly inside the built-in copilot extension.
  *
  * This is used when copilot is shipped as a built-in extension so startup does
- * not need to create the shim at runtime. The Copilot VSIX is built once on the
- * Linux x64 host, so product packaging also restores target-platform SDK
- * natives from the selected @github/copilot-{platform} package.
+ * not need to create the shim at runtime. The built-in extension is packaged
+ * with the SDK natives of the build machine, which can differ from the target
+ * (for example darwin-x64 on arm64 Macs, or Alpine on glibc Linux), so product
+ * packaging also restores target-platform SDK natives from the selected
+ * @github/copilot-{platform} package.
  *
  * Note: `node-pty` is no longer shimmed. The copilot CLI SDK resolves
  * `node-pty` from the embedder (VS Code) via `hostRequire` and falls back to

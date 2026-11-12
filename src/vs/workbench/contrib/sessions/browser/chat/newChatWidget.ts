@@ -77,7 +77,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { AgentsWindowUsage } from '../../../chat/common/agentsWindowUsage.js';
-import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
+import { INewSessionComposerService, INewSessionTargetLabels, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import { Menus } from '../menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
@@ -101,7 +101,9 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { filterConfigurationToSchema } from '../../../chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { createSessionComparisonHarness } from '../sessionComparisonConfiguration.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { SessionsGrouping } from '../views/sessionsList.js';
 
 // #region --- New Chat Widget ---
 
@@ -242,6 +244,7 @@ export class NewChatWidget extends Disposable {
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -370,7 +373,8 @@ export class NewChatWidget extends Disposable {
 			const selectedProvider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
 			const selected = picked
 				? environments.find(environment => environment.id === picked.id) ?? picked
-				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider);
+				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider,
+					this._workspacePicker?.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;
@@ -465,8 +469,8 @@ export class NewChatWidget extends Disposable {
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 			derived(this, reader => {
-				const session = this._session.read(reader);
-				return !session || session.loading.read(reader) || comparisonConfigResolving.read(reader);
+				comparisonWorkspaceChanged.read(reader);
+				return this._isComparisonPending(reader, comparisonConfigResolving);
 			})));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
@@ -527,7 +531,7 @@ export class NewChatWidget extends Disposable {
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			inputSnapshot: this._draftHost?.input,
-			get preserveInputFocusOnSend() { return backgroundSend || configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) === true; },
+			get preserveInputFocusOnSend() { return backgroundSend || viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox; },
 			confirmSend: async query => this._comparisonSelection.enabled.get() || !this._worktreeSuggestion || this._worktreeSuggestion.confirmBeforeSend(query),
 			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
@@ -578,15 +582,21 @@ export class NewChatWidget extends Disposable {
 			? noSessionPickerVisibility
 			: newChatInput.pickerVisibility.visibility.read(reader));
 		const workspacePickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
+		const selectedSessionTypeChanged = observableSignalFromEvent(this, this._newChatInput.sessionTypePicker.onDidChangeSelectedPick);
 		this._newChatInput.sessionTypePicker.setSessionWorkspaceFolderSource(derived(this, reader => {
 			workspacePickerSelectionChanged.read(reader);
 			return this._isQuickChatComposer.read(reader) ? undefined : this._workspacePicker.selectedFolderUri;
+		}));
+		this._newChatInput.setTargetLabels(derived(this, reader => {
+			workspacePickerSelectionChanged.read(reader);
+			selectedSessionTypeChanged.read(reader);
+			return this._getCustomizationTargetLabels(reader);
 		}));
 		if (this.options.initialAttachments?.length) {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
 		}
 
-		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader))));
+		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader)), this._newChatInput.host));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
 		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based
@@ -1691,6 +1701,19 @@ export class NewChatWidget extends Disposable {
 		return this._isMainWindowComposer() && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
 	}
 
+	private _getCustomizationTargetLabels(reader: IReader | undefined): INewSessionTargetLabels {
+		const environment = this._environment.read(reader);
+		const workspace = this._workspacePicker.selectedResolved?.workspace;
+		const selectedType = this._newChatInput.sessionTypePicker.selectedSessionType;
+		return {
+			harness: environment?.kind === 'cloud' ? localize('environmentPicker.copilot', "Copilot") : selectedType?.sessionType.label,
+			workspace: workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name,
+			environment: environment?.label,
+			projectRoot: workspace?.folders[0]?.workingDirectory,
+			repositoryRoot: workspace?.folders[0]?.root,
+		};
+	}
+
 	/** Whether it is not a composer of a host of its own, such as a chat window's: those take neither the global composer actions nor Voice Mode. */
 	private _isMainWindowComposer(): boolean {
 		return !this._draftHost;
@@ -1888,7 +1911,7 @@ export class NewChatWidget extends Disposable {
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const action = toAction({
-					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
+					id: 'newSessionWorkspacePicker.quickChat',
 					label: getQuickChatProviderLabel(provider),
 					checked: provider.id === activeProviderId,
 					run: () => {
@@ -2110,6 +2133,27 @@ export class NewChatWidget extends Disposable {
 			return workspaceBranch;
 		}
 		return undefined;
+	}
+
+	private _isComparisonPending(reader: IReader, configurationResolving: IObservable<boolean>): boolean {
+		const session = this._session.read(reader);
+		if (!session || session.loading.read(reader) || configurationResolving.read(reader)) {
+			return true;
+		}
+		const selectedFolder = this._workspacePicker.selectedFolderUri;
+		const workspace = session.workspace.read(reader);
+		if (!selectedFolder) {
+			return workspace !== undefined;
+		}
+		const folder = workspace?.folders.find(folder => isEqual(folder.root, selectedFolder));
+		if (!folder) {
+			return true;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		const config = provider && isAgentHostProvider(provider) ? provider.getSessionConfig(session.sessionId, session.mainChat.read(reader).resource) : undefined;
+		// The host resolves worktree support before publishing the draft's Git metadata.
+		return !!config && getSessionWorkspaceProperties(config.schema).isolation?.schema.enum?.includes('worktree') === true
+			&& folder.gitRepository?.isRepository?.read(reader) !== true;
 	}
 
 	private _getComparisonModelIds(): Set<string> {
@@ -2415,7 +2459,7 @@ export class NewChatWidget extends Disposable {
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
-		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) === true);
+		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox);
 		if (showBackgroundSendStatus) {
 			this._lastBackgroundSentSessionResource = undefined;
 			this._lastBackgroundSentSession = undefined;

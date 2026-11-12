@@ -134,6 +134,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _connectedTabOverflowEdge: HTMLElement;
 	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
+	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _sessionMenuArgs: unknown[] = [];
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
@@ -212,7 +213,7 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsRow.appendChild(this._sessionActionsContainer);
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
-		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._sessionMenuArgs },
@@ -286,6 +287,7 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._delegate = delegate;
+		this._sessionToolbar.context = delegate?.session;
 		this._sessionMenuArgs.splice(0, this._sessionMenuArgs.length, ...(delegate?.session ? sessionMenuArgs(delegate.session, undefined, this._sessionHost) : []));
 
 		const store = new DisposableStore();
@@ -820,7 +822,8 @@ export class ChatCompositeBar extends Disposable {
 			// own key handlers only react to keys targeting the tab itself.
 		}));
 
-		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
+		// Clicking away keeps the new name, like the rename in the sessions list.
+		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(true)));
 
 		store.add(addDisposableListener(inputBox.element, EventType.CLICK, e => e.stopPropagation()));
 		store.add(addDisposableListener(inputBox.element, EventType.DBLCLICK, e => e.stopPropagation()));

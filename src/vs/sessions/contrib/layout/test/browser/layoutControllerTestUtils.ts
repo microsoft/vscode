@@ -219,6 +219,7 @@ export interface ICreateOptions {
 	readonly activateAux?: boolean;
 	/** When true, the layout service reports desktop layout (drives base desktop branches). */
 	readonly desktopLayout?: boolean;
+	readonly floatingDetails?: boolean;
 	readonly chatLayoutMode?: ChatLayoutMode;
 }
 
@@ -557,7 +558,17 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override when(): Promise<void> { return harness.activateAux ? Promise.resolve() : new Promise<void>(() => { }); }
 	});
 
+	let floatingDetails = options.floatingDetails ?? false;
+	const floatingDetailsChanges = store.add(new Emitter<boolean>());
 	const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+		readonly onDidChangeAuxiliaryBarFloating = floatingDetailsChanges.event;
+		isAuxiliaryBarFloating(): boolean { return floatingDetails; }
+		setAuxiliaryBarFloating(enabled: boolean): void {
+			if (floatingDetails !== enabled) {
+				floatingDetails = enabled;
+				floatingDetailsChanges.fire(enabled);
+			}
+		}
 		override isVisible(part: Parts): boolean {
 			return harness.partVisibility.get(part) ?? true;
 		}
@@ -845,6 +856,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			const resources = harness.activeGroupEditors.map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
 			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
 			return { id: name, name };
+		}
+		override resolveWorkingSet(workingSet: IEditorWorkingSet) {
+			const contents = workingSetContents.get(workingSet.id);
+			if (!contents) {
+				return undefined;
+			}
+			const editors = contents.resources.map(resource => store.add(new TestStubEditorInput(resource)));
+			return { editors, activeEditor: editors.find(editor => isEqual(editor.resource, contents.activeResource)), dispose: () => editors.forEach(editor => editor.dispose()) };
 		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);

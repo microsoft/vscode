@@ -42,8 +42,8 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 /** Offered only while chat resources are enabled (`chat.resources.enabled`): how the chat shows a recorded file. */
 const artifactModeProperty = {
 	type: 'string',
-	enum: ['pinned', 'embedded'],
-	description: 'Optional. How the chat shows the entry; omit it to list the entry with the others. `pinned` gives it a pill of its own. `embedded` shows it above the chat input, for example a Markdown file or a diff. Recording an existing entry again with a mode changes how it is shown.',
+	enum: ['pinned', 'aboveInput'],
+	description: 'Optional, for files. How the chat shows the file; omit it to list the file with the others. `pinned` gives it a pill of its own. `aboveInput` also shows it above the chat input, for example a status or plan Markdown file you keep updating. The user can change it afterwards. Recording the file again with another mode asks again.',
 };
 
 const artifactInputSchemaWithMode: NonNullable<ToolDefinition['inputSchema']> = {

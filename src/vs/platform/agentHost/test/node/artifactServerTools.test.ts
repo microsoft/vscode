@@ -452,7 +452,7 @@ suite('Artifact Server Tools', () => {
 			const items = add?.inputSchema?.properties?.items as { readonly items?: { readonly properties?: Record<string, unknown> } } | undefined;
 			return Object.keys(items?.items?.properties ?? {});
 		};
-		const website = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com', mode: 'embedded' };
+		const website = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com', mode: 'aboveInput' };
 
 		const disabled = { properties: advertisedProperties(), definitions: host.getDefinitionsForSession(sessionUri) };
 		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
@@ -466,7 +466,7 @@ suite('Artifact Server Tools', () => {
 			disabledDefinitions: artifactServerToolDefinitions,
 			disabledMode: undefined,
 			enabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash', 'mode'],
-			enabledMode: 'embedded',
+			enabledMode: 'aboveInput',
 		});
 	});
 

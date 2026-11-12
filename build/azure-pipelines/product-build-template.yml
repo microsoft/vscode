@@ -70,6 +70,10 @@ parameters:
     displayName: "🎯 Web"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_WEB_MOBILE
+    displayName: "🎯 Mobile"
+    type: boolean
+    default: true
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -99,17 +103,6 @@ stages:
           os: linux
         jobs:
           - template: product-quality-checks.yml@self
-
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -695,6 +688,14 @@ stages:
           jobs:
             - template: web/product-build-web.yml@self
 
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WEB_MOBILE, true)) }}:
+        - stage: Mobile
+          dependsOn: []
+          jobs:
+            - template: web/product-build-web.yml@self
+              parameters:
+                mobile: true
+
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
           dependsOn: []
@@ -703,8 +704,10 @@ stages:
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
+                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
+      # Azure rejects empty stages; Web and Mobile have no jobs in this native test matrix.
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_LINUX_ARMHF)) }}:
         - stage: SanityTests
           displayName: Sanity Tests
           dependsOn:

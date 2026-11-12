@@ -30,12 +30,12 @@ export const SESSION_ARTIFACT_TYPES: readonly SessionArtifactType[] = [
 ];
 
 /**
- * How the chat shows an entry, as the agent that recorded it asked: with a pill of its own (`pinned`), above the chat
- * input (`embedded`). Without it, the entry is listed with the others. Users can change it.
+ * How the agent that recorded a file asks the chat to show it: with a pill of its own (`pinned`), or pinned and shown
+ * above the chat input (`aboveInput`). Without it, the file is listed with the others. Users can change it afterwards.
  */
-export type SessionArtifactMode = 'pinned' | 'embedded';
+export type SessionArtifactMode = 'pinned' | 'aboveInput';
 
-export const SESSION_ARTIFACT_MODES: readonly SessionArtifactMode[] = ['pinned', 'embedded'];
+export const SESSION_ARTIFACT_MODES: readonly SessionArtifactMode[] = ['pinned', 'aboveInput'];
 
 export function isSessionArtifactMode(value: unknown): value is SessionArtifactMode {
 	return typeof value === 'string' && (SESSION_ARTIFACT_MODES as readonly string[]).includes(value);

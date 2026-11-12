@@ -11,6 +11,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../base/com
 import { isSessionGridLeafData, projectSessionGrid, ISessionGridPlacement } from './sessionGridState.js';
 import { Color } from '../../../../base/common/color.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../partGrid/partGridGap.js';
+import { updateSashEndpoints } from '../../part.js';
 
 export interface ISessionGridView extends IView {
 	/** Applies the allocated geometry without laying out descendants. */
@@ -451,7 +452,7 @@ export class SessionGridLayout extends Disposable {
 		const hasGaps = this.gap > 0 && this.leaves.size > 1 && projectedId === undefined;
 		this.element.classList.toggle('session-grid-has-gaps', hasGaps);
 		if (this.grid.value) {
-			updateGridGapSashes(this.grid.value, hasGaps);
+			updateGridGapSashes(this.grid.value, hasGaps, this.gap);
 		}
 		let bottomLeftId = projectedId;
 		let bottomRightId = projectedId;
@@ -486,6 +487,9 @@ export class SessionGridLayout extends Disposable {
 			const { width, height, top, left } = this.dimensions;
 			this.grid.value?.layout(width, height, top, left);
 			this.gridLaidOut = true;
+		}
+		if (this.grid.value) {
+			updateSashEndpoints(this.grid.value.element, hasGaps);
 		}
 		const projected = projectedId && this.leaves.get(projectedId);
 		const dimensions = this.phone ? this.phoneDimensions : this.dimensions;

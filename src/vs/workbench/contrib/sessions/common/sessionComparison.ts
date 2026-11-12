@@ -136,6 +136,8 @@ export interface ISessionComparisonSynthesisPlan {
 export interface ISessionComparison {
 	readonly id: string;
 	readonly groupId: string;
+	/** Exact initiating chat for agent-created comparisons; absent for manual and older comparisons. */
+	readonly originatingChatResource?: URI;
 	/** Legacy owning session for comparisons persisted with nested participants. */
 	readonly sessionResource?: URI;
 	readonly title: string;
@@ -159,6 +161,7 @@ export interface ISessionComparison {
 }
 
 export interface IStartSessionComparisonOptions {
+	readonly originatingChatResource?: URI;
 	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
