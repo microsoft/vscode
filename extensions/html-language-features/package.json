@@ -263,6 +263,7 @@
   },
   "devDependencies": {
     "@types/node": "24.x",
+    "esbuild": "0.28.1",
     "tslib": "^2.6.3"
   },
   "repository": {

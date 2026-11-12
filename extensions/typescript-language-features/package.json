@@ -50,7 +50,8 @@
     "@types/sinon": "^10.0.2",
     "mocha": "^10.8.2",
     "sinon": "^12.0.1",
-    "tslib": "^2.6.3"
+    "tslib": "^2.6.3",
+    "typescript": "catalog:"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:typescript-language-features",

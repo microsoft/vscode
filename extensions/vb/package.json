@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/asp.vb.net.tmbundle Syntaxes/ASP%20VB.net.plist ./syntaxes/asp-vb-net.tmLanguage.json"
+    "update-grammar": "node ../../node_modules/vscode-grammar-updater/bin textmate/asp.vb.net.tmbundle Syntaxes/ASP%20VB.net.plist ./syntaxes/asp-vb-net.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
   "contributes": {

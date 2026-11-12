@@ -274,6 +274,7 @@
     "typescript-eslint": "8.66.0",
     "util": "^0.12.4",
     "vinyl-fs": "^3.0.3",
+    "vscode-grammar-updater": "^1.1.0",
     "xml2js": "^0.5.0"
   },
   "repository": {

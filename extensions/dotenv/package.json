@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dotenv-org/dotenv-vscode syntaxes/dotenv.tmLanguage.json ./syntaxes/dotenv.tmLanguage.json"
+    "update-grammar": "node ../../node_modules/vscode-grammar-updater/bin dotenv-org/dotenv-vscode syntaxes/dotenv.tmLanguage.json ./syntaxes/dotenv.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
   "contributes": {
