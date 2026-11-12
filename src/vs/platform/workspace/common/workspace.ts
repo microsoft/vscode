@@ -192,7 +192,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 	if (workspace.folders.length === 1) {
 		return {
 			id: workspace.id,
-			uri: workspace.folders[0].identity
+			uri: workspace.folders[0].identity ?? workspace.folders[0].uri
 		};
 	}
 
@@ -330,10 +330,6 @@ export interface IWorkspaceFolderData {
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
-	/**
-	 * The folder's identity, which is `uri` unless the folder is at an alternate location.
-	 */
-	readonly identity: URI;
 
 	/**
 	 * Given workspace folder relative path, returns the resource with the absolute path.
@@ -507,8 +503,15 @@ export function hasWorkspaceFileExtension(path: string | URI) {
 }
 
 /**
+ * The identity of a folder: its own location, which is `uri` unless the folder is at an alternate location.
+ */
+export function getWorkspaceFolderIdentity(folder: IWorkspaceFolder): URI {
+	return folder.identity ?? folder.uri;
+}
+
+/**
  * Whether the folder is opened at an alternate location, that is, `uri` differs from its identity.
  */
 export function isWorkspaceFolderAtAlternateLocation(folder: IWorkspaceFolder, extUri: IExtUri = extUriBiasedIgnorePathCase): boolean {
-	return !extUri.isEqual(folder.uri, folder.identity);
+	return !extUri.isEqual(folder.uri, getWorkspaceFolderIdentity(folder));
 }

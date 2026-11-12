@@ -24,7 +24,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getFolderLocationText, IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, isWorkspaceFolderAtAlternateLocation } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, getWorkspaceFolderIdentity, isWorkspaceFolderAtAlternateLocation } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
@@ -154,7 +154,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			return;
 		}
 
-		const primaryName = basename(folder.identity);
+		const primaryName = basename(getWorkspaceFolderIdentity(folder));
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
@@ -233,7 +233,7 @@ registerAction2(class ReturnToPrimaryFolderLocationAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
 		if (folder && isWorkspaceFolderAtAlternateLocation(folder, accessor.get(IUriIdentityService).extUri)) {
-			await accessor.get(IWorkspaceEditingService).setFolderLocation(folder.identity, undefined, { reason: 'user' });
+			await accessor.get(IWorkspaceEditingService).setFolderLocation(getWorkspaceFolderIdentity(folder), undefined, { reason: 'user' });
 		}
 	}
 });
@@ -254,7 +254,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		if (!folder) {
 			return;
 		}
-		const primary = folder.identity;
+		const primary = getWorkspaceFolderIdentity(folder);
 
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
@@ -388,7 +388,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 
 		// Re-submitting the current location is deliberate: it supersedes a different switch that is still pending
 		const current = contextService.getWorkspace().folders[0];
-		if (!current || !uriIdentityService.extUri.isEqual(current.identity, primary)) {
+		if (!current || !uriIdentityService.extUri.isEqual(getWorkspaceFolderIdentity(current), primary)) {
 			return;
 		}
 

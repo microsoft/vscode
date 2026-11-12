@@ -55,7 +55,6 @@ suite('Files - ExplorerView', () => {
 	}
 
 	test('explorer root label shows the alternate location only while switched', () => {
-		const primary = URI.file('/work/project');
 		assert.deepStrictEqual(
 			[getExplorerRootLabel('project', true, 'Alternate'), getExplorerRootLabel('project', false, undefined), getExplorerRootLabel('project', true, undefined)],
 			['project (Alternate)', 'project', 'project']);
