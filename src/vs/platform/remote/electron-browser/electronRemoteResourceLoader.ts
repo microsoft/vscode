@@ -84,7 +84,7 @@ export class ElectronRemoteResourceLoader extends Disposable {
 			}
 		}
 
-		const mimeType = uri.path && (/\.mht(ml)?$/i.test(uri.path) ? 'multipart/related' : getMediaOrTextMime(uri.path));
+		const mimeType = uri.path && getMediaOrTextMime(uri.path);
 		return { statusCode: 200, body: encodeBase64(content.value), mimeType };
 	}
 

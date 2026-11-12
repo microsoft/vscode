@@ -109,18 +109,6 @@ suite('ElectronRemoteResourceLoader', () => {
 		});
 	});
 
-	test('serves remote MHTML files as multipart/related', async () => {
-		const { channel } = createLoader();
-		const response = await request(channel, URI.from({
-			scheme: Schemas.vscodeManagedRemoteResource,
-			authority: 'window:7',
-			path: '/a/page.mhtml',
-			query: new URLSearchParams({ authority: 'host-a', scheme: AGENT_HOST_SCHEME }).toString(),
-		}));
-
-		assert.strictEqual(response.mimeType, 'multipart/related');
-	});
-
 	test('reads agent host paths without applying the client OS path rules', async () => {
 		const { channel, reads } = createLoader();
 
