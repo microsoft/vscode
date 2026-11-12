@@ -63,7 +63,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { McpCollisionBehavior, allDiscoverySources, defaultDiscoverySourceEnablement, discoverySourceSettingsLabel, mcpAuthenticationLoginHintsSection, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
+import { McpCollisionBehavior, allDiscoverySources, defaultDiscoverySourceEnablement, discoverySourceSettingsLabel, agentHostMcpLoginHintsSection, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
 import { autoApprovePolicyValue, getDefaultConfigurationPolicyDescription } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
@@ -1323,7 +1323,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
-		[mcpAuthenticationLoginHintsSection]: {
+		[agentHostMcpLoginHintsSection]: {
 			type: 'object',
 			default: { defaults: {}, servers: {} },
 			scope: ConfigurationScope.APPLICATION,
@@ -1332,15 +1332,15 @@ configurationRegistry.registerConfiguration({
 				defaults: {
 					type: 'object',
 					additionalProperties: { type: 'string' },
-					description: nls.localize('mcp.authentication.loginHints.defaults', "Default account hints, keyed by authentication provider ID (for example, 'microsoft')."),
+					description: nls.localize('chat.agentHost.mcp.loginHints.defaults', "Default login hints for Agent Host MCP servers, keyed by authentication provider ID (for example, 'microsoft')."),
 				},
 				servers: {
 					type: 'object',
 					additionalProperties: { type: 'string' },
-					description: nls.localize('mcp.authentication.loginHints.servers', "Account hints keyed by the MCP server name in its configuration. These override provider defaults."),
+					description: nls.localize('chat.agentHost.mcp.loginHints.servers', "Account hints keyed by the configured Agent Host MCP server name. These override provider defaults."),
 				},
 			},
-			markdownDescription: nls.localize('mcp.authentication.loginHints', "Preferred signed-in accounts for MCP servers. Existing sessions are matched by their account labels. This does not start sign-in with a hint or grant server access; the usual authorization prompt still applies. Per-server hints take precedence over remembered choices, which take precedence over provider defaults."),
+			markdownDescription: nls.localize('chat.agentHost.mcp.loginHints', "Preferred signed-in accounts for MCP servers in the Copilot Agent Host. Does not apply to the standard VS Code MCP runtime. Hints select existing sessions only; they are not forwarded to new sign-ins and do not grant account access. Per-server hints take precedence over remembered preferences, then provider defaults."),
 		},
 		[mcpEnterpriseManagedAuthIdpSection]: {
 			type: 'object',
