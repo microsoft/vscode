@@ -1918,10 +1918,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const scheduledSessionResources = this.options.scheduledSessionResources;
 		if (scheduledSessionResources) {
 			const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
-			template.externalApplicationBadge.before(indicator);
+			template.compactHoverDescription.after(indicator);
 			template.elementDisposables.add(toDisposable(() => indicator.remove()));
 			template.elementDisposables.add(autorun(reader => {
-				indicator.style.display = scheduledSessionResources.read(reader).has(element.resource.toString()) ? '' : 'none';
+				indicator.classList.toggle('visible', scheduledSessionResources.read(reader).has(element.resource.toString()));
 			}));
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(indicator, {
 				content: localize('scheduledSessionIndicator', "Has scheduled messages"),

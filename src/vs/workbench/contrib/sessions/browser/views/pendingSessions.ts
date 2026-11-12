@@ -135,8 +135,8 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const main = DOM.append(container, DOM.$('.session-main'));
 		const titleRow = DOM.append(main, DOM.$('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, DOM.$('.session-title'))));
-		const scheduledIndicator = DOM.append(titleRow, DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' }));
 		const compactDescription = DOM.append(titleRow, DOM.$('.session-compact-hover-description'));
+		const scheduledIndicator = DOM.append(titleRow, DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' }));
 		const toolbarContainer = DOM.append(titleRow, DOM.$('.session-title-toolbar'));
 		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {}));
 		for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
@@ -155,7 +155,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const icon = DOM.$(`span${ThemeIcon.asCSSSelector(Codicon.circleSmallFilled)}`);
 		icon.style.color = asCssVariable('agentSessionReadIndicator.foreground');
 		DOM.reset(template.icon, icon);
-		template.scheduledIndicator.style.display = item.kind === 'scheduled' ? '' : 'none';
+		template.scheduledIndicator.classList.toggle('visible', item.kind === 'scheduled');
 		template.title.set(item.title, createMatches(node.filterData));
 		const description = getPendingSessionDescription(item);
 		template.description.textContent = description;

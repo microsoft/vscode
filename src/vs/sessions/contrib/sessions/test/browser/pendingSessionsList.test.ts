@@ -104,7 +104,7 @@ suite('Sessions - pending list items', () => {
 		const filtered = {
 			draftHidden: !list.getItemRow({ pendingSession: 'ordinary-draft' }),
 			description: row.querySelector('.session-details-row')?.textContent,
-			clock: row.querySelector<HTMLElement>('.session-scheduled-indicator')?.style.display,
+			clock: mainWindow.getComputedStyle(row.querySelector('.session-scheduled-indicator')!).display,
 			ariaLabel: row.getAttribute('aria-label'),
 		};
 		pendingSections.set([], undefined);
@@ -116,7 +116,7 @@ suite('Sessions - pending list items', () => {
 			emptySections: list.element.querySelectorAll('.session-section-label').length,
 		}, {
 			filtered: {
-				draftHidden: true, description: 'vscode - Scheduled for tomorrow at 10:00 AM', clock: '',
+				draftHidden: true, description: 'vscode - Scheduled for tomorrow at 10:00 AM', clock: 'flex',
 				ariaLabel: 'Follow up, scheduled, vscode - Scheduled for tomorrow at 10:00 AM',
 			},
 			schedulesWithoutSavedDrafts: ['Drafts'], emptySections: 0,
@@ -258,7 +258,7 @@ suite('Sessions - pending list items', () => {
 		list.layout(800, 400);
 		const row = list.getItemRow({ session: scheduled.resource })!;
 		const indicator = row.querySelector<HTMLElement>('.session-scheduled-indicator')!;
-		const before = { indicator: indicator.style.display, aria: row.getAttribute('aria-label')?.includes('has scheduled messages') };
+		const before = { indicator: mainWindow.getComputedStyle(indicator).display, aria: row.getAttribute('aria-label')?.includes('has scheduled messages') };
 		list.filters.setScheduledOnly(true);
 		const filtered = list.getVisibleSessions().map(session => session.sessionId);
 		const draftHidden = !list.getItemRow({ pendingSession: 'draft' });
@@ -270,9 +270,9 @@ suite('Sessions - pending list items', () => {
 		assert.deepStrictEqual({
 			before, filtered, draftHidden, afterDispatch,
 			disabled: list.getVisibleSessions().map(session => session.sessionId).sort(),
-			indicatorHidden: list.getItemRow({ session: scheduled.resource })?.querySelector<HTMLElement>('.session-scheduled-indicator')?.style.display,
+			indicatorHidden: mainWindow.getComputedStyle(list.getItemRow({ session: scheduled.resource })!.querySelector('.session-scheduled-indicator')!).display,
 		}, {
-			before: { indicator: '', aria: true }, filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
+			before: { indicator: 'flex', aria: true }, filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
 			disabled: ['normal', 'scheduled'], indicatorHidden: 'none',
 		});
 	});
