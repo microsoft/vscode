@@ -575,6 +575,44 @@ suite('AgentHostProxyResolver', () => {
 		});
 	});
 
+	test('takes one attempt more to reach a client only in requests that answered the configured credentials', async () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://stale:pa%40ss@proxy.example:8080' });
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(configurationService, new NullLogService()));
+		const attempts: number[] = [];
+		disposables.add(resolver.register('window', {
+			resolveProxy: async () => undefined,
+			// The renderer answers stale stored credentials first, then shows its dialog.
+			lookupAuthorization: async ({ attempt }) => {
+				attempts.push(attempt);
+				return attempt === 1 ? { username: 'stored', password: 'old' } : { username: 'user', password: 'secret' };
+			},
+		}));
+		const { lookupProxyAuthorization } = (resolver as unknown as {
+			_getProxyResolver(): { readonly params: ProxyAgentParams };
+		})._getProxyResolver().params;
+		// Each request passes its own state through its 407 retries.
+		const exchange = async (state: Record<string, unknown>) => {
+			const authorizations: (string | undefined)[] = [];
+			for (let i = 0; i < 3; i++) {
+				authorizations.push(await lookupProxyAuthorization!('http://proxy.example:8080', 'Basic realm="Corp"', state));
+			}
+			return authorizations;
+		};
+
+		assert.deepStrictEqual({
+			configured: await exchange({}),
+			later: await exchange({}),
+			attempts,
+		}, {
+			// The configured credentials, cached once, then the client's.
+			configured: ['Basic c3RhbGU6cGFAc3M=', 'Basic c3RhbGU6cGFAc3M=', 'Basic c3RvcmVkOm9sZA=='],
+			// The client's cached credentials, then its first and second attempts.
+			later: ['Basic c3RvcmVkOm9sZA==', 'Basic c3RvcmVkOm9sZA==', 'Basic dXNlcjpzZWNyZXQ='],
+			attempts: [1, 1, 2],
+		});
+	});
+
 	test('answers the credentials of a proxy environment variable only for the proxy it names, else a client\'s', async () => {
 		const resolver = disposables.add(new class extends AgentHostProxyResolver {
 			protected override _getProxyEnvironment(): NodeJS.ProcessEnv {

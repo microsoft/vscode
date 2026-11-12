@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type LookupProxyAuthorization, type ResolvedProxyInfo } from '@vscode/proxy-agent';
+import { AsyncLocalStorage } from 'async_hooks';
 import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -196,6 +197,10 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private readonly _sharedNetworkClients = new Map<string, IAgentHostSharedNetworkClient>();
 	/** Per proxy origin, the configured credentials answered for this agent host's own requests and whether the proxy rejected them. */
 	private readonly _configuredCredentialsStates = new Map<string, { readonly key: string; rejected: boolean }>();
+	/** The `@vscode/proxy-agent` state of the request whose proxy authorization is looked up, which its `lookupAuthorization` callback does not receive. */
+	private readonly _proxyAuthorizationExchange = new AsyncLocalStorage<object>();
+	/** The requests that answered the configured credentials. */
+	private readonly _configuredCredentialsExchanges = new WeakSet<object>();
 	private readonly _certificatesByClient = new Map<string, readonly string[]>();
 	private readonly _certificateProviders = this._register(new DisposableMap<string, IClientCertificateProvider>());
 	private _certificateProviderGeneration = 0;
@@ -497,7 +502,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				});
 				lookups.set(proxyURL, lookup);
 			}
-			return lookup(proxyURL, proxyAuthenticate, state);
+			return this._proxyAuthorizationExchange.run(state, () => lookup(proxyURL, proxyAuthenticate, state));
 		};
 	}
 
@@ -514,19 +519,26 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		const origin = new URL(proxyURL).origin;
 		const key = JSON.stringify([configured.username, configured.password]);
 		const state = this._configuredCredentialsStates.get(origin);
+		const exchange = this._proxyAuthorizationExchange.getStore();
+		const answerConfigured = () => {
+			if (exchange) {
+				this._configuredCredentialsExchanges.add(exchange);
+			}
+			return configured;
+		};
 		if (state?.key !== key) {
 			this._configuredCredentialsStates.set(origin, { key, rejected: false });
-			return configured;
+			return answerConfigured();
 		}
 		if (!state.rejected) {
 			if (authInfo.attempt === 1) {
-				return configured;
+				return answerConfigured();
 			}
 			state.rejected = true;
 			this._logService.info(`[AgentHostProxyResolver] The proxy ${originsOnlyForLog(origin)} rejected the configured proxy credentials, asking a client for credentials`);
 		}
-		// Requests that answered the configured credentials first take one attempt more to reach a client's.
-		const attempt = Math.max(1, authInfo.attempt - 1);
+		// A request that answered the configured credentials takes one attempt more to reach a client's.
+		const attempt = exchange && this._configuredCredentialsExchanges.has(exchange) ? Math.max(1, authInfo.attempt - 1) : authInfo.attempt;
 		const credentials = await this._hostLookupAuthorization({ ...authInfo, attempt }, proxyURL);
 		if (attempt === 1 && credentials?.username === configured.username && credentials.password === configured.password) {
 			// The client answered the rejected credentials of its own `http.proxy` setting, a second attempt tells it they were rejected.
