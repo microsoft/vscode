@@ -57,8 +57,8 @@ import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
 
 /**
- * The thinking presentation when persistent progress is off: read-only chats and phone layouts
- * preview while streaming and collapse when finished, other chats use the fixed-height streaming panel.
+ * The thinking presentation without persistent progress, which is when it is off and always in inline chat: read-only chats
+ * and phone layouts preview while streaming and collapse when finished, other chats use the fixed-height streaming panel.
  */
 export function getEffectiveThinkingDisplayMode(contextKeyService: IContextKeyService, readOnly = false): ThinkingDisplayMode {
 	if (readOnly || contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
