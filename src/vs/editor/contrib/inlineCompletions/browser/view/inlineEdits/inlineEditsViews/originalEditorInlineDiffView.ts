@@ -257,7 +257,7 @@ function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boole
 		return false;
 	}
 	return mapping.innerChanges.every(c =>
-		(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange)));
+	(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange)));
 }
 
 let i = 0;

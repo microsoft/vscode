@@ -10,7 +10,7 @@ import { localize } from '../../../nls.js';
 import { ArtifactAutomationOption } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { FragmentState, PullRequestCheck, PullRequestReviewThread, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
-import { classifyRequiredPullRequestChecks, getPullRequestCheckState, PullRequestCheckState, toUnreportedCheckSuiteCheck } from '../../github/common/pullRequestRequiredChecks.js';
+import { classifyRequiredPullRequestChecks, getPullRequestCheckState, PullRequestCheckState, toMissingRequiredCheck, toUnreportedCheckSuiteCheck } from '../../github/common/pullRequestRequiredChecks.js';
 import { deriveGitHubEndpoints } from '../../github/common/githubEndpoints.js';
 
 export const gitHubPullRequestArtifactIntegrationId = 'github.pullRequest';
@@ -41,7 +41,7 @@ export const gitHubPullRequestArtifactOptions: readonly ArtifactAutomationOption
 	{
 		id: 'merge', kind: 'enum', defaultValue: 'never', disabledValue: 'never', actionIds: ['merge'], maxAttempts: 1,
 		label: localize('prArtifact.autoMerge', "Merge Automatically When Ready"),
-		description: localize('prArtifact.autoMerge.description', "Merge when every required check passes, qualifying review threads are resolved, and GitHub permits it."),
+		description: localize('prArtifact.autoMerge.description', "Merge when every required check passes, qualifying review threads are resolved, and GitHub permits it. This is the integration's own merge automation, separate from GitHub's native auto-merge."),
 		choices: [
 			{ value: 'never', label: localize('prArtifact.mergeOff', "Off") },
 			{ value: 'always', label: localize('prArtifact.mergeAlways', "Always") },
@@ -92,7 +92,13 @@ export function getPullRequestArtifactChecks(snapshot: PullRequestSnapshot): rea
 	return checks ? [
 		...checks.checks,
 		...checks.expectedSuites.filter(suite => !suite.checkRunsReported).map(toUnreportedCheckSuiteCheck),
+		...getPullRequestArtifactMissingRequiredChecks(snapshot).map(toMissingRequiredCheck),
 	] : [];
+}
+
+/** The required checks that have not reported on the pull request's head at all, which GitHub waits for before it permits merging. */
+export function getPullRequestArtifactMissingRequiredChecks(snapshot: PullRequestSnapshot): readonly string[] {
+	return snapshot.checks.value ? classifyRequiredPullRequestChecks(snapshot.checks.value).missing : [];
 }
 
 export function getPullRequestArtifactCheckState(check: PullRequestCheck): PullRequestCheckState {

@@ -185,6 +185,8 @@ export interface IToolInvocation {
 	toolId: string;
 	/** Explicitly authorizes scoped tools for this logical session, independently of the presentation context. */
 	toolSessionResource?: URI;
+	/** Authoritative originating chat, independent of an optional rendering context. Does not authorize tool approval. */
+	originatingChatResource?: URI;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: Record<string, any>;
 	tokenBudget?: number;
@@ -254,6 +256,8 @@ export interface IToolInvocationPreparationContext {
 	toolCallId: string;
 	chatRequestId?: string;
 	chatSessionResource: URI | undefined;
+	/** Authoritative originating chat, when supplied by the tool dispatcher. */
+	originatingChatResource?: URI;
 	chatInteractionId?: string;
 	/** The {@link IToolInvocationContext.requestId} of the invocation. */
 	invocationRequestId?: string;

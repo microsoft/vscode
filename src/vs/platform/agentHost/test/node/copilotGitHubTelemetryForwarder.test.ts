@@ -29,7 +29,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards a standard event to VS Code telemetry', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 
 		forwarder.forward({
 			sessionId: 'notification-session',
@@ -80,7 +80,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('enriches SDK events with discovery identity without replacing the optional runtime identity', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		for (const kind of ['response.success', 'response.error', 'tool_call_executed']) {
 			for (const runtimeId of [undefined, 'runtime-id']) {
 				forwarder.forward({
@@ -98,7 +98,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('reuses standard runtime canvas tool and authoring events without requiring restricted telemetry', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		for (const toolName of ['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload']) {
 			forwarder.forward({
 				sessionId: 'sdk-session', restricted: false,
@@ -131,7 +131,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards standard extension startup measurements without response attribution', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		forwarder.forward({
 			sessionId: 'sdk-session',
 			restricted: false,
@@ -165,7 +165,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('omits unavailable extension startup counts and preserves observed empty discovery', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const cases: { outcome: string; metrics: Record<string, number> }[] = [
 			...['failed', 'cancelled', 'superseded'].map(outcome => ({ outcome, metrics: { duration_ms: 42.5 } })),
 			{ outcome: 'success', metrics: { duration_ms: 0, discovered_count: 0, running_count: 0, failed_count: 0, disabled_count: 0 } },
@@ -197,7 +197,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards HydraFusion route, failure, phase, and turn events', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const notification = (kind: string, properties: Record<string, string>, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
 			sessionId: 'fusion-session',
 			restricted: false,
@@ -285,7 +285,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('stamps the owning host turn on HydraFusion workflow events, and drops it when unattributed', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const forward = (kind: string, turnId: string | undefined) => forwarder.forward({
 			sessionId: 'fusion-session',
 			restricted: false,
@@ -300,42 +300,50 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		]);
 	});
 
-	test('gates restricted events on the restricted telemetry option', () => {
+	test('drops restricted usage copies from generic telemetry instead of double counting standard metrics', () => {
 		const telemetryService = new TestTelemetryService();
-		let restrictedTelemetryEnabled = false;
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const notification: GitHubTelemetryNotification = {
 			sessionId: 'session',
-			restricted: true,
+			restricted: false,
 			event: {
-				kind: 'restricted_event',
-				properties: {},
-				metrics: {},
+				kind: 'assistant_usage',
+				properties: { unique_id: 'usage-event' },
+				metrics: { total_nano_aiu: 42, input_tokens: 100 },
 			},
 		};
 
 		forwarder.forward(notification);
-		restrictedTelemetryEnabled = true;
-		forwarder.forward(notification);
+		forwarder.forward({
+			...notification,
+			restricted: true,
+			event: {
+				...notification.event,
+				properties: { ...notification.event.properties, prompt: 'restricted content' },
+			},
+		});
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotSdk/restricted_event',
+			eventName: 'copilotSdk/assistant_usage',
 			data: {
+				unique_id: 'usage-event',
+				total_nano_aiu: 42,
+				input_tokens: 100,
 				created_at: undefined,
 				model_call_id: undefined,
 				exp_assignment_context: undefined,
 				session_id: 'session',
 				sdk_session_id: 'session',
 				copilot_tracking_id: undefined,
-				kind: 'restricted_event',
-				restricted: true,
+				kind: 'assistant_usage',
+				restricted: false,
 			},
 		}]);
 	});
 
 	test('adds Agent Host turn correlation only to response events', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const notification = (kind: string, properties: Record<string, string> = {}, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
 			sessionId: 'session',
 			restricted: false,
@@ -364,7 +372,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards tool_call_executed outcome and token-count columns', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 
 		forwarder.forward({
 			sessionId: 'session',
@@ -396,10 +404,9 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		assert.strictEqual(event.data?.search_engine, 'tgrep');
 	});
 
-	test('forwards indexed search telemetry and gates restricted errors', () => {
+	test('drops restricted-only search errors from generic telemetry while forwarding standard search events', () => {
 		const telemetryService = new TestTelemetryService();
-		let restrictedTelemetryEnabled = false;
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 
 		forwarder.forward({
 			sessionId: 'session',
@@ -428,8 +435,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				metrics: { exit_code: 1 },
 			},
 		};
-		forwarder.forward(serverError);
-		restrictedTelemetryEnabled = true;
 		forwarder.forward(serverError);
 
 		assert.deepStrictEqual(telemetryService.events.map(event => ({
@@ -472,29 +477,12 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 					restricted: false,
 				},
 			},
-			{
-				eventName: 'copilotSdk/tgrep_server_error',
-				data: {
-					error_type: 'unexpected_exit',
-					error_message: '/private/repository failed',
-					exit_code: 1,
-					created_at: undefined,
-					model_call_id: undefined,
-					exp_assignment_context: undefined,
-					session_id: 'session',
-					sdk_session_id: 'session',
-					copilot_tracking_id: undefined,
-					kind: 'tgrep_server_error',
-					restricted: true,
-				},
-			},
 		]);
 	});
 
 	test('only accepts host correlation diagnostics on response events', () => {
 		const telemetryService = new TestTelemetryService();
-		let restrictedTelemetryEnabled = false;
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const client = {
 			cli_version: '1.0.69', os_platform: 'win32', os_version: '11', os_arch: 'x64', node_version: '24.0.0',
 			ahActiveRootTurnIdAtResponse: 'sdk-root', ahSessionDisposedDuringWait: true,
@@ -522,8 +510,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		forwarder.forward(notification('response.error'));
 		forwarder.forward(notification('response.success', true), undefined, correlation);
 		forwarder.forward(notification('response.error', true), undefined, correlation);
-		restrictedTelemetryEnabled = true;
-		forwarder.forward(notification('response.error', true), undefined, correlation);
 
 		assert.deepStrictEqual(telemetryService.events.map(event => ({
 			eventName: event.eventName,
@@ -535,13 +521,12 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			{ eventName: 'copilotSdk/tool_call_executed', diagnostics: {}, turn: 'sdk-turn' },
 			{ eventName: 'copilotSdk/response.success', diagnostics: {}, turn: undefined },
 			{ eventName: 'copilotSdk/response.error', diagnostics: {}, turn: undefined },
-			{ eventName: 'copilotSdk/response.error', diagnostics: correlation, turn: undefined },
 		]);
 	});
 
 	test('omits contextual diagnostics for correlated responses and disposal when no wait occurred', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		for (const kind of ['response.success', 'response.error']) {
 			const notification: GitHubTelemetryNotification = {
 				sessionId: 'session', restricted: false,
@@ -565,7 +550,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('records host ownership independently of SDK response forwarding', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		forwarder.recordModelCallTurnCorrelation('sdk-session', 'call', 'host-turn', 'late');
 		assert.deepStrictEqual(telemetryService.events, [{
 			eventName: 'agentHost.modelCallTurnCorrelated',
@@ -573,9 +558,9 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
-	test('forwards the runtime Auto tier and HydraFusion phase on successes unchanged', () => {
+	test('keeps restricted Auto tier metadata out of generic telemetry while forwarding the standard copy', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => true, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 		const routing = { fusionId: 'fusion-1', fusionPattern: 'cascade', fusionPhaseKind: 'judge' };
 		// The runtime hashes a custom tier on standard rows and sends it raw only on restricted rows.
 		forwarder.forward({ sessionId: 'sdk-session', restricted: false, event: { kind: 'response.success', properties: { autoTier: 'sha256-of-custom', ...routing }, metrics: { isAuto: 1 } } });
@@ -589,7 +574,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			fusionPhaseKind: event.data?.fusionPhaseKind,
 		})), [
 			{ restricted: false, autoTier: 'sha256-of-custom', ...routing },
-			{ restricted: true, autoTier: 'custom-tier', ...routing },
 		]);
 	});
 
@@ -605,7 +589,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		for (const kind of ['response.success', 'response.error']) {
 			for (const { metrics, status } of cases) {
 				const telemetryService = new TestTelemetryService();
-				const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+				const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
 				forwarder.forward({
 					sessionId: 'sdk-session',
 					restricted: false,
@@ -631,23 +615,42 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}
 	});
 
-	test('does not emit restricted response metadata when restricted telemetry is disabled', () => {
-		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
-		forwarder.forward({
-			sessionId: 'sdk-session',
-			restricted: true,
-			event: { kind: 'response.error', properties: {}, metrics: {} },
-		}, 'host-turn', { ahCorrelationOutcome: 'mappingAvailable' });
-		assert.deepStrictEqual(telemetryService.events, []);
-	});
+	for (const kind of ['unknown_event', 'response.error', 'assistant_usage']) {
+		test(`drops restricted ${kind} at the generic telemetry sink even without a standard copy`, () => {
+			const telemetryService = new TestTelemetryService();
+			const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+			forwarder.forward({
+				sessionId: 'sdk-session',
+				restricted: true,
+				event: { kind, properties: { prompt: 'restricted sentinel' }, metrics: { input_tokens: 100 } },
+			}, 'host-turn', { ahCorrelationOutcome: 'mappingAvailable' });
+			assert.deepStrictEqual(telemetryService.events, []);
+		});
+	}
 
-	test('forwards compaction telemetry with the owning Agent Host turn in place of the runtime turn', () => {
+	for (const kind of ['session_compaction_start', 'session_compaction_complete']) {
+		test(`drops restricted ${kind} at the generic compaction telemetry sink`, () => {
+			const telemetryService = new TestTelemetryService();
+			const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+			forwarder.forwardCompaction({
+				sessionId: 'sdk-session',
+				restricted: true,
+				event: {
+					kind,
+					properties: { compaction_attempt_id: 'attempt-1', error: 'restricted sentinel' },
+					metrics: { pre_compaction_tokens: 100_000 },
+				},
+			}, { turnId: 'host-turn', outcome: 'mappingAvailable' });
+			assert.deepStrictEqual(telemetryService.events, []);
+		});
+	}
+
+	test('forwards standard compaction telemetry with the owning Agent Host turn', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
-		const compaction = (kind: string, restricted = false): GitHubTelemetryNotification => ({
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+		const compaction = (kind: string): GitHubTelemetryNotification => ({
 			sessionId: 'sdk-session',
-			restricted,
+			restricted: false,
 			event: {
 				kind,
 				properties: { compaction_attempt_id: 'attempt-1', trigger: 'threshold', turnId: 'runtime-turn', ahCompactionCorrelationOutcome: 'sdk-value' },
@@ -658,7 +661,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		forwarder.forwardCompaction(compaction('session_compaction_start'), { turnId: 'host-turn', outcome: 'mappingWaited', waitMs: 3 });
 		forwarder.forwardCompaction(compaction('session_compaction_complete'), { turnId: 'host-turn', outcome: 'mappingAvailable' });
 		forwarder.forwardCompaction(compaction('session_compaction_complete'), { turnId: undefined, outcome: 'noOwningTurn' });
-		forwarder.forwardCompaction(compaction('session_compaction_complete', true), { turnId: 'host-turn', outcome: 'mappingAvailable' });
 
 		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
 			eventName,

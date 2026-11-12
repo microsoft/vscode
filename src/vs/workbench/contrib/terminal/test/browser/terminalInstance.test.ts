@@ -348,6 +348,23 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(second.fixedCols, undefined);
 		});
 
+		test('keeps the prompt when shown before its view has a valid layout', async () => {
+			const instance = await createTerminalInstance();
+			// While a view is first laid out its container can have a temporary width but a valid height
+			const container = document.createElement('div');
+			container.style.width = '120px';
+			container.style.height = '300px';
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			instance.attachToElement(container);
+			const prompt = 'PS /Users/user/Desktop/vscode> ';
+			await writeP(instance.xterm!.raw, prompt);
+			instance.layout(new Dimension(120, -22));
+			instance.setVisible(true);
+			instance.layout(new Dimension(800, 300));
+			strictEqual(instance.xterm!.raw.buffer.active.getLine(0)?.translateToString(true), prompt);
+		});
+
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
 			// Wait for the terminal instance to resolve shell launch config env.
@@ -511,6 +528,34 @@ suite('Workbench - TerminalInstance', () => {
 				title: 'next-title',
 				titleSource: TitleEventSource.Sequence
 			});
+		});
+
+		test('shows a custom pty\'s process titles like local process names', async () => {
+			// Agent host terminals report their host's titles this way, see getProcessTitle in agentHostPty.ts.
+			const instance = await createTerminalInstance(undefined, undefined, { customPtyImplementation: () => store.add(new TestTerminalChildProcess(false)) });
+			const titles: string[] = [];
+			for (const title of ['npm run watch', '/usr/bin/zsh']) {
+				await instance.rename(title, TitleEventSource.Process);
+				titles.push(instance.title);
+			}
+			deepStrictEqual(titles, ['npm', 'zsh']);
+		});
+
+		test('the screen reader label of a terminal names the remote host it runs on', async () => {
+			const labels: string[] = [];
+			const expected: string[] = [];
+			for (const hostLabel of [undefined, 'devbox']) {
+				const instance = await createTerminalInstance(undefined, undefined, { hostLabel });
+				const container = document.createElement('div');
+				document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
+				instance.attachToElement(container);
+				instance.setVisible(true);
+				await instance.rename('zsh', TitleEventSource.Process);
+				labels.push(instance.xterm!.raw.textarea!.getAttribute('aria-label')!.split('\n')[0]);
+				expected.push(`Terminal ${instance.instanceId}, zsh${hostLabel ? ` on ${hostLabel}` : ''}`);
+			}
+			deepStrictEqual(labels, expected);
 		});
 
 		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
@@ -948,6 +993,12 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Local' } }));
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
+		});
+		test('should resolve host', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${host}', description: '${host}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { hostLabel: 'devbox' } }));
+			strictEqual(terminalLabelComputer.title, 'devbox');
+			strictEqual(terminalLabelComputer.description, 'devbox');
 		});
 		test('should resolve process', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${process}' } } } });

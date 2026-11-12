@@ -7,23 +7,28 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import './chatWindowActions.js';
 import './chatWindowDragOut.js';
 import './openChatInWindow.js';
-import './sessionChatViewEditor.js';
+import { registerSessionChatViewEditor } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { SessionsChatWindowProvider } from './sessionsChatWindowProvider.js';
+
+// The chat of a session shows as an editor: in the chat part of a chat window, and moved into the main window's editors
+registerSessionChatViewEditor();
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
 		[CHAT_WINDOWS_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['preview'],
+			experiment: { mode: 'startup' },
 			description: localize('sessions.chatWindows.enabled', "Controls whether chats of the Agents window can be opened in windows of their own, and whether the chat windows that were open are restored at startup. Turning it off hides the actions that open chat windows; the chat windows that are open stay until closed."),
 		},
 	}

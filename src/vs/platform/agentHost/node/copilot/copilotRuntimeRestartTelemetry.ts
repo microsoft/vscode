@@ -6,7 +6,7 @@
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentHostEventClassification, IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 
-export type CopilotSessionRefreshReason = 'workingDirectoryChanged' | 'primaryDirectoryChanged' | 'hydraFusionModelChanged' | 'telemetryRevoked' | 'additionalDirectoriesChanged' | 'clientPluginsChanged' | 'rootMcpServersChanged' | 'clientToolsChanged' | 'disabledRootMcpServersChanged' | 'mcpLaunchConfigurationRefresh' | 'controlPlaneResync' | 'ownerChanged';
+export type CopilotSessionRefreshReason = 'workingDirectoryChanged' | 'primaryDirectoryChanged' | 'hydraFusionModelChanged' | 'telemetryRevoked' | 'additionalDirectoriesChanged' | 'clientPluginsChanged' | 'rootMcpServersChanged' | 'clientToolsChanged' | 'disabledRootMcpServersChanged' | 'mcpLaunchConfigurationRefresh' | 'controlPlaneResync' | 'ownerChanged' | 'modelRouterGuidanceChanged';
 export type CopilotRuntimeMutation = 'sandboxUpdate' | 'mcpEnable' | 'mcpDisable' | 'agentSelect' | 'userRequested' | 'extensionsReload' | 'customizationsChanged';
 type CopilotRuntimeRestartPhase = 'turnPrepare' | 'inTurn' | 'idle';
 

@@ -528,7 +528,7 @@ suite('Release notes Try This', () => {
 		attach();
 		request('run', { index: 1 });
 		await timeout(0);
-		assert.deepStrictEqual({ runs, options, commands: executeCommand.callCount }, {
+		assert.deepStrictEqual({ runs, options: options.map(option => ({ source: option?.source })), commands: executeCommand.callCount }, {
 			runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0,
 		});
 	});
@@ -554,7 +554,7 @@ suite('Release notes Try This', () => {
 		attach();
 		request();
 		await timeout(0);
-		assert.deepStrictEqual({ runs, options, commands: executeCommand.callCount, focusCount }, { runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0, focusCount: 0 });
+		assert.deepStrictEqual({ runs, options: options.map(option => ({ source: option?.source })), commands: executeCommand.callCount, focusCount }, { runs: ['sample'], options: [{ source: 'releaseNotes' }], commands: 0, focusCount: 0 });
 	});
 
 	test('coalesces repeated activation without cancelling the pending example', async () => {

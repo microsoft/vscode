@@ -220,7 +220,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 
 		if (previewChanges) {
 			const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent =>
-				({ syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter, indent, baseIndent: rangesAndContent.baseIndent })
+			({ syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter, indent, baseIndent: rangesAndContent.baseIndent })
 			);
 
 			inPreviewMode = true;
@@ -228,7 +228,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		}
 
 		const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent =>
-			({ syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter, indent })
+		({ syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter, indent })
 		);
 
 		if (inPreviewMode) {

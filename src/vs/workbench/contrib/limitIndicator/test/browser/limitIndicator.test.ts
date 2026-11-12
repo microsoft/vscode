@@ -91,7 +91,7 @@ suite('LimitIndicatorContribution', () => {
 	}
 
 	test('distinguishes diagnostic truncation from editor highlight limits', async () => {
-		const details: (string | undefined)[][] = [];
+		const details: ILanguageStatus['detail'][][] = [];
 		await changeMarkers(editor.getModel(), 5000);
 		details.push([...statuses].map(status => status.detail));
 		await changeMarkers(editor.getModel(), 5001);

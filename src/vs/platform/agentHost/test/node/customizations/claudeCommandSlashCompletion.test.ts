@@ -46,7 +46,7 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 	/** An SDK snapshot whose `supportedCommands()` reports the given command names. */
 	const sdkWith = (...names: string[]): ISdkResolvedCustomizations =>
-		({ agents: [], commands: names.map(name => ({ name, description: '', argumentHint: '' })), mcpServers: [], plugins: [] });
+	({ agents: [], commands: names.map(name => ({ name, description: '', argumentHint: '' })), mcpServers: [], plugins: [] });
 
 	/**
 	 * Runs the real pipeline: scan `.claude`, project it through

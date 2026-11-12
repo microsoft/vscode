@@ -26,22 +26,23 @@ import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/b
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
-import { getChangedFileLabel, getInlineHintMessage } from '../../browser/worktreeSuggestionPresentation.js';
-import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../browser/worktreeSuggestionService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/services/sessions/common/sessionChangesService.js';
+import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
+import { getChangedFileLabel, getInlineHintMessage } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
+import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
 
 class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
 	readonly events: unknown[] = [];
@@ -64,7 +65,7 @@ interface ISessionOptions {
 	readonly changes?: readonly ISessionFileChange[];
 }
 
-function createSession({ id = 'draft', isCreated = false, worktree = false, uncommittedChanges = 3, providerId = LOCAL_AGENT_HOST_PROVIDER_ID, changes }: ISessionOptions = {}): IActiveSession {
+function createSession({ id = 'draft', isCreated = false, worktree = false, uncommittedChanges = 3, providerId = LOCAL_AGENT_HOST_PROVIDER_ID, changes }: ISessionOptions = {}): ITestSessionWithChat {
 	const workspace: ISessionWorkspace = {
 		label: 'repo',
 		icon: { id: 'folder' },
@@ -88,12 +89,14 @@ function createSession({ id = 'draft', isCreated = false, worktree = false, unco
 	const chat = new class extends mock<IChat>() {
 		override readonly changesets = constObservable([changeset]);
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = id;
 		override readonly resource = URI.parse(`test-session:/${id}`);
 		override readonly activeChat = constObservable(chat);
+		override readonly mainChat = constObservable(chat);
 		override readonly providerId = providerId;
 		override readonly isCreated = constObservable(isCreated);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly loading = constObservable(false);
 		override readonly worktreePending = constObservable(worktree);
 		override readonly workspace = constObservable(workspace);

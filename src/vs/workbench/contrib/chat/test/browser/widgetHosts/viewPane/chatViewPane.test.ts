@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -29,9 +30,44 @@ import { IChatModel } from '../../../../common/model/chatModel.js';
 import { AgentSessionsControl } from '../../../../browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSessionsFilter.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
+import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sessions visibility combines pane body, settings, sidebar width and stacked chat state', async () => {
+		const visibility: boolean[] = [];
+		const configuration = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true });
+		let bodyVisible = false;
+		const host = {
+			sessionsContainer: document.createElement('div'),
+			viewPaneContainer: document.createElement('div'),
+			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			configurationService: configuration,
+			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
+			lastDimensions: { width: 1000, height: 600 },
+			sessionsViewerVisibilityContext: { set: () => { } },
+			isBodyVisible: () => bodyVisible,
+			chatEntitlementService: { sentiment: { completed: true } },
+			_widget: { isEmpty: () => false },
+			_sessionsListSuppressionCount: 0,
+		};
+		const update = Reflect.get(ChatViewPane.prototype, 'updateSessionsControlVisibility') as (this: typeof host) => void;
+		update.call(host);
+		bodyVisible = true;
+		update.call(host);
+		host.lastDimensions.width = 100;
+		update.call(host);
+		host.lastDimensions.width = 1000;
+		update.call(host);
+		await configuration.setUserConfiguration(ChatConfiguration.ChatViewSessionsEnabled, false);
+		update.call(host);
+		await configuration.setUserConfiguration(ChatConfiguration.ChatViewSessionsEnabled, true);
+		host.sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
+		update.call(host);
+		assert.deepStrictEqual(visibility, [false, true, false, true, false, false]);
+	});
 
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
 		const focusChanged = store.add(new Emitter<boolean>());
@@ -261,6 +297,27 @@ suite('ChatViewPane session transitions', () => {
 			});
 		}));
 	}
+});
+
+suite('ChatViewPane persisted session restore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createPane(error: Error): { acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<{ modelRef?: IChatModelReference }> } {
+		return Object.assign(Object.create(ChatViewPane.prototype), {
+			viewState: { sessionResource: URI.parse('agent-host-copilotcli:/missing') },
+			logService: new NullLogService(),
+			chatService: { acquireOrLoadSession: async () => { throw error; } },
+		});
+	}
+
+	test('starts a new session when the persisted session fails to load', async () => {
+		const restored = await createPane(new Error('Session identity was not advertised by its agent host')).acquireTransferredOrPersistedSession(CancellationToken.None, 'test');
+		assert.strictEqual(restored.modelRef, undefined);
+	});
+
+	test('still propagates cancellation', async () => {
+		await assert.rejects(createPane(new CancellationError()).acquireTransferredOrPersistedSession(CancellationToken.None, 'test'), CancellationError);
+	});
 });
 
 suite('ChatViewPane managed permission rules', () => {
