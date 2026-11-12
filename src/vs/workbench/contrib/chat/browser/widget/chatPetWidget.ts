@@ -144,7 +144,6 @@ const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
 const MOUSE_BOUNCE_EDGE_KICK = 320;
 const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
-const CHAT_PET_SUBAGENT_MAX_WIDTH = 288;
 const CHAT_PET_SUBAGENT_MAX_HEIGHT = 96;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
@@ -2897,29 +2896,37 @@ export class ChatPetWidget extends Disposable {
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
 			const miniScale = 0.5 * (this._scale || 1);
 			const petLeft = this._button.element.offsetLeft;
-			const bounds = this._getHorizontalBounds();
-			const midpoint = bounds ? (bounds.minimumLeft + bounds.maximumLeft) / 2 : (this._overlay.clientWidth - this._getDisplaySize()) / 2;
 			const miniWidth = 48 * miniScale;
-			const side = petLeft < midpoint ? 'right' : 'left';
-			let slot = 0;
-			const getLeft = () => side === 'right'
-				? petLeft + this._getDisplaySize() + miniWidth * slot
-				: petLeft - miniWidth * (slot + 1);
-			while ([...this._subagentPets.values()].some(pet => {
-				const otherLeft = Number.parseFloat(pet.element.style.left);
-				const otherWidth = 48 * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
-				return getLeft() < otherLeft + otherWidth && getLeft() + miniWidth > otherLeft;
-			})) {
-				slot++;
-			}
-			const left = getLeft();
 			const overlayBounds = this._overlay.getBoundingClientRect();
-			const floor = Math.min(this.dragBounds.getBoundingClientRect().top, this.movementBounds.getBoundingClientRect().bottom);
-			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, this._getPlatforms(), floor);
+			const input = this.dragBounds.getBoundingClientRect();
+			const movement = this.movementBounds.getBoundingClientRect();
+			const platforms = this._getPlatforms();
+			const platform = getChatPetFallTarget(input.left + input.width / 2, movement.top - 1, 0, 0, platforms, input.top).platform;
+			const minimumLeft = Math.max(input.left, movement.left, platform?.left ?? input.left) - overlayBounds.left;
+			const maximumLeft = Math.max(minimumLeft, Math.min(input.right, movement.right, platform?.right ?? input.right) - overlayBounds.left - miniWidth);
+			const beforePet = Math.max(0, Math.min(maximumLeft, petLeft - miniWidth) - minimumLeft);
+			const afterPetStart = Math.max(minimumLeft, petLeft + this._getDisplaySize());
+			const afterPet = Math.max(0, maximumLeft - afterPetStart);
+			const available = beforePet + afterPet;
+			const offset = Math.random() * available;
+			const left = available > 0 ? (offset < beforePet ? minimumLeft + offset : afterPetStart + offset - beforePet) : minimumLeft;
+			const floor = Math.min(input.top, movement.bottom);
+			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, platforms, floor);
+			let top = landing.top - overlayBounds.top;
+			for (const other of this._subagentPets.values()) {
+				if (other.isRespawning()) {
+					continue;
+				}
+				const otherLeft = Number.parseFloat(other.element.style.left);
+				const otherWidth = 48 * Number.parseFloat(other.element.style.getPropertyValue('--chat-pet-subagent-scale'));
+				if (left < otherLeft + otherWidth - POSITION_EPSILON && left + miniWidth > otherLeft + POSITION_EPSILON) {
+					top = Math.min(top, Number.parseFloat(other.element.style.top) - miniWidth);
+				}
+			}
 			element.style.left = `${left}px`;
-			element.style.top = `${landing.top - overlayBounds.top}px`;
+			element.style.top = `${top}px`;
 			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
-			const distance = Math.max(0, landing.top + miniWidth);
+			const distance = Math.max(0, overlayBounds.top + top + miniWidth);
 			element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
 			element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
 			if (!this._motionReduced) {
@@ -3132,7 +3139,7 @@ export class ChatPetWidget extends Disposable {
 		const minimumTop = movement.top - overlay.top;
 		// The input's top edge is the floor; the movement bounds also include the input itself.
 		const maximumBottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
-		const width = Math.min(CHAT_PET_SUBAGENT_MAX_WIDTH, maximumRight - minimumLeft);
+		const width = maximumRight - minimumLeft;
 		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, maximumBottom - minimumTop);
 		if (width <= 0 || height <= 0) {
 			return;

@@ -2322,7 +2322,7 @@ suite('ChatPetWidget', () => {
 		button.style.top = '-140px';
 		createSubagent('second');
 		const minis = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
-		assert.ok(minis[1].offsetLeft < button.offsetLeft);
+		assert.ok(minis[1].offsetLeft + miniSize <= button.offsetLeft || minis[1].offsetLeft >= button.offsetLeft + button.offsetWidth);
 		assert.strictEqual(Number.parseFloat(minis[1].style.top) + miniSize, -60);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent.arriving').length, 2);
@@ -2365,7 +2365,7 @@ suite('ChatPetWidget', () => {
 		}, model);
 		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
 		assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), 1);
-		assert.ok(pet.offsetLeft < button.offsetLeft);
+		assert.ok(pet.offsetLeft + 48 <= button.offsetLeft || pet.offsetLeft >= button.offsetLeft + button.offsetWidth);
 	});
 
 	test('mini pets stop when disabled and return for active subagents when re-enabled', async () => {
@@ -2406,7 +2406,38 @@ suite('ChatPetWidget', () => {
 		button.style.left = '324px';
 		add('second');
 		const [first, second] = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
-		assert.ok(second.offsetLeft + 24 <= first.offsetLeft || first.offsetLeft + 24 <= second.offsetLeft);
+		assert.ok(second.offsetLeft + 24 <= first.offsetLeft || first.offsetLeft + 24 <= second.offsetLeft
+			|| Number.parseFloat(second.style.top) + 24 <= Number.parseFloat(first.style.top) || Number.parseFloat(first.style.top) + 24 <= Number.parseFloat(second.style.top));
+	});
+
+	test('mini pets spawn across the platform and stack where their paths overlap', () => {
+		const { widget, firstHost, button, overlay, firstParent, layout } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
+		button.style.left = '300px';
+		const random = sinon.stub(Math, 'random');
+		const add = (id: string, position: number) => {
+			random.returns(position);
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			parts.push(tool);
+			changed.fire({ reason: 'other' });
+		};
+		add('left', 0.1);
+		add('right', 0.9);
+		add('above', 0.1);
+		const [left, right, above] = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+		assert.ok(right.offsetLeft - left.offsetLeft > 200);
+		assert.strictEqual(above.style.left, left.style.left);
+		assert.strictEqual(Number.parseFloat(above.style.top) + 24, Number.parseFloat(left.style.top));
+		firstParent.style.width = '120px';
+		layout();
+		const bounds = firstParent.getBoundingClientRect();
+		const rects = [left, right, above].map(pet => pet.getBoundingClientRect());
+		assert.ok(rects.every(rect => rect.left >= bounds.left - 0.1 && rect.right <= bounds.right + 0.1 && rect.bottom <= bounds.top + 0.1));
+		assert.ok(rects.every((rect, index) => rects.slice(index + 1).every(other =>
+			rect.right <= other.left + 0.1 || other.right <= rect.left + 0.1 || rect.bottom <= other.top + 0.1 || other.bottom <= rect.top + 0.1)));
 	});
 
 	for (const petLeft of [0, 192]) {
@@ -2472,7 +2503,7 @@ suite('ChatPetWidget', () => {
 				assert.deepStrictEqual({
 					count: rects.length,
 					withinChat: left >= input.left - 0.1 && right <= input.right + 0.1 && top >= movement.top - 0.1 && bottom <= Math.min(input.top, movement.bottom) + 0.1,
-					bounded: right - left <= 288.1 && bottom - top <= 96.1,
+					bounded: right - left <= input.width + 0.1 && bottom - top <= 96.1,
 					visible: rects.every(rect => rect.width > 0 && rect.height > 0),
 					overlaps,
 				}, { count, withinChat: true, bounded: true, visible: true, overlaps: false });
@@ -2589,12 +2620,12 @@ suite('ChatPetWidget', () => {
 			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving') && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
 			assert.deepStrictEqual({
 				identity: [...overlay.querySelectorAll('.chat-pet-subagent')],
-				onPrompt: pets.every(pet => Math.abs(pet.getBoundingClientRect().bottom - firstParent.getBoundingClientRect().top + 60) < 0.1),
+				onPrompt: pets.every(pet => pet.getBoundingClientRect().bottom <= firstParent.getBoundingClientRect().top - 60 + 0.1),
 			}, { identity: pets, onPrompt: true });
 			promptVisible = false;
 			platformChanged.fire();
 			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving')));
-			assert.ok(pets.every(pet => Math.abs(pet.getBoundingClientRect().bottom - firstParent.getBoundingClientRect().top) < 0.1));
+			assert.ok(pets.every(pet => pet.getBoundingClientRect().bottom <= firstParent.getBoundingClientRect().top + 0.1));
 		});
 	}
 
