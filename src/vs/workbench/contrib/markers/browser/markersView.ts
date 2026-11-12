@@ -493,7 +493,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewModel);
 		const renderers = [
-			this.instantiationService.createInstance(ResourceMarkersRenderer, treeLabels, onDidChangeRenderNodeCount.event),
+			this.widgetDisposables.add(this.instantiationService.createInstance(ResourceMarkersRenderer, treeLabels, onDidChangeRenderNodeCount.event)),
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
