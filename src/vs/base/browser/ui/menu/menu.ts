@@ -5,7 +5,7 @@
 
 import { getVisibleWCOTitlebarAreaRect, isFirefox } from '../../browser.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
-import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter, snapToDevicePixels } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
@@ -1028,8 +1028,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			{ width: viewBox.width, height: viewBox.height },
 			layoutResult
 		);
-		this.submenuContainer.style.left = `${left - viewBox.left}px`;
-		this.submenuContainer.style.top = `${top - viewBox.top}px`;
+		this.submenuContainer.style.left = `${snapToDevicePixels(window, left - viewBox.left)}px`;
+		this.submenuContainer.style.top = `${snapToDevicePixels(window, top - viewBox.top)}px`;
 	}
 
 	private updateAriaExpanded(value: string): void {

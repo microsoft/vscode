@@ -1071,20 +1071,21 @@ export class QuickInputController extends Disposable {
 				const anchorGap = this.controller.anchorPosition === 'overlay' ? 0 : 4;
 				const containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
 				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
+				const snap = (v: number) => dom.snapToDevicePixels(anchorWindow, v);
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
-					style.right = `${right}px`;
+					style.right = `${snap(right)}px`;
 					style.left = 'initial';
 				} else {
-					style.left = `${left}px`;
+					style.left = `${snap(left)}px`;
 					style.right = 'initial';
 				}
 
 				if (anchorPosition === AnchorPosition.ABOVE) {
-					style.bottom = `${bottom + anchorGap}px`;
+					style.bottom = `${snap(bottom + anchorGap)}px`;
 					style.top = 'initial';
 				} else {
-					style.top = `${top + anchorGap}px`;
+					style.top = `${snap(top + anchorGap)}px`;
 					style.bottom = 'initial';
 				}
 

@@ -1024,24 +1024,26 @@ export class MenuBar extends Disposable {
 
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
 		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
+		const targetWindow = DOM.getWindow(this.container);
+		const snap = (v: number) => DOM.snapToDevicePixels(targetWindow, v);
 
 		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
-			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
+			menuHolder.style.left = `${snap(titleBoundingRect.left + this.container.clientWidth)}px`;
 		} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
-			const windowWidth = DOM.getWindow(this.container).innerWidth;
-			menuHolder.style.right = `${windowWidth - titleBoundingRect.left}px`;
+			const windowWidth = targetWindow.innerWidth;
+			menuHolder.style.right = `${snap(windowWidth - titleBoundingRect.left)}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
+			menuHolder.style.left = `${snap(titleBoundingRect.left * titleBoundingRectZoom)}px`;
 		}
 
 		if (this.options.compactMode?.vertical === VerticalDirection.Above) {
 			// TODO@benibenj Do not hardcode the height of the menu holder
-			menuHolder.style.top = `${titleBoundingRect.top - this.menus.length * 30 + this.container.clientHeight}px`;
+			menuHolder.style.top = `${snap(titleBoundingRect.top - this.menus.length * 30 + this.container.clientHeight)}px`;
 		} else if (this.options.compactMode?.vertical === VerticalDirection.Below) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
+			menuHolder.style.top = `${snap(titleBoundingRect.top)}px`;
 		} else {
-			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
+			menuHolder.style.top = `${snap(titleBoundingRect.bottom * titleBoundingRectZoom)}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);

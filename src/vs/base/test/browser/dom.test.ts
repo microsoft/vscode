@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, snapToDevicePixels } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -750,6 +750,32 @@ suite('dom', () => {
 			}
 
 			assert.deepStrictEqual({ received, retained: emitter.keyStatus.event }, { received: ['keydown', 'keyup'], retained: undefined });
+		});
+	});
+
+	test('snapToDevicePixels rounds positions to the device pixel grid', () => {
+		const fakeWindow = (dpr: number) => ({ devicePixelRatio: dpr }) as unknown as Window;
+
+		assert.deepStrictEqual({
+			dpr1_exact: snapToDevicePixels(fakeWindow(1), 10),
+			dpr1_roundDown: snapToDevicePixels(fakeWindow(1), 10.4),
+			dpr1_roundUp: snapToDevicePixels(fakeWindow(1), 10.6),
+			dpr1_half: snapToDevicePixels(fakeWindow(1), 10.5),
+			dpr1_25_exact: snapToDevicePixels(fakeWindow(1.25), 10),
+			dpr1_25_fraction: snapToDevicePixels(fakeWindow(1.25), 10.3),
+			dpr1_5_exact: snapToDevicePixels(fakeWindow(1.5), 10),
+			dpr1_5_fraction: snapToDevicePixels(fakeWindow(1.5), 10.3),
+			dpr2_fraction: snapToDevicePixels(fakeWindow(2), 10.25),
+		}, {
+			dpr1_exact: 10,
+			dpr1_roundDown: 10,
+			dpr1_roundUp: 11,
+			dpr1_half: 11,
+			dpr1_25_exact: 10,
+			dpr1_25_fraction: 10.4,
+			dpr1_5_exact: 10,
+			dpr1_5_fraction: 10.333333333333334,
+			dpr2_fraction: 10.5,
 		});
 	});
 

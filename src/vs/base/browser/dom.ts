@@ -1612,6 +1612,22 @@ export function computeScreenAwareSize(window: Window, cssPx: number): number {
 }
 
 /**
+ * Rounds a CSS pixel position to the nearest whole device pixel.
+ *
+ * This prevents a visible snap when a CSS `transform: scale()` animation ends:
+ * during the animation, the browser composites the element as a GPU layer at its
+ * exact fractional position (scales are not pixel-snapped). When the animation
+ * finishes and the transform is removed, the browser paints normally and snaps
+ * to whole device pixels — causing a one-device-pixel jump if the position was
+ * fractional. Rounding positions up-front keeps the resting position identical
+ * to the snapped position, so nothing moves.
+ */
+export function snapToDevicePixels(window: Window, cssPx: number): number {
+	const dpr = window.devicePixelRatio;
+	return Math.round(cssPx * dpr) / dpr;
+}
+
+/**
  * Open safely a new window. This is the best way to do so, but you cannot tell
  * if the window was opened or if it was blocked by the browser's popup blocker.
  * If you want to tell if the browser blocked the new window, use {@link windowOpenWithSuccess}.

@@ -347,6 +347,32 @@ suite('ContextView', () => {
 		container.remove();
 	});
 
+	test('snaps view position to device pixels', () => {
+		const container = $('.container');
+		document.body.appendChild(container);
+
+		const contextView = new ContextView(container, ContextViewDOMPosition.FIXED);
+		contextView.show({
+			getAnchor: () => ({ x: 100.4, y: 50.6, width: 1, height: 1 }),
+			render: view => {
+				view.style.width = '10px';
+				view.style.height = '10px';
+				return null;
+			}
+		});
+
+		const view = contextView.getViewElement();
+		const top = parseFloat(view.style.top);
+		const left = parseFloat(view.style.left);
+		const dpr = getWindow(container).devicePixelRatio;
+
+		assert.strictEqual(top, Math.round(top * dpr) / dpr, 'top must be snapped to device pixels');
+		assert.strictEqual(left, Math.round(left * dpr) / dpr, 'left must be snapped to device pixels');
+
+		contextView.dispose();
+		container.remove();
+	});
+
 	suite('popover hosting', () => {
 
 		let disposables: (() => void)[] = [];

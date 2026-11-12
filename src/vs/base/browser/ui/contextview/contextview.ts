@@ -630,8 +630,11 @@ export class ContextView extends Disposable {
 			this.view.classList.add(left >= anchor.left ? 'left' : 'right');
 		}
 
-		this.view.style.top = `${top - positioningOrigin.top}px`;
-		this.view.style.left = `${left - positioningOrigin.left}px`;
+		// Snap to device pixels so that the resting position after a
+		// scale() entrance animation matches the pixel-snapped paint
+		// position, avoiding a 1px jump when the transform is removed.
+		this.view.style.top = `${DOM.snapToDevicePixels(containerWindow, top - positioningOrigin.top)}px`;
+		this.view.style.left = `${DOM.snapToDevicePixels(containerWindow, left - positioningOrigin.left)}px`;
 		this.view.style.width = 'initial';
 	}
 
