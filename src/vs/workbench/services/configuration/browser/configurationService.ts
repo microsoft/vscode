@@ -10,7 +10,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier, isWorkspaceFolderAtAlternateLocation } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
@@ -233,20 +233,20 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 
 		const folder = this.workspace.folders[0];
-		const currentPrimary = folder.primaryUri ?? folder.uri;
+		const currentPrimary = folder.identity;
 		if (!this.uriIdentityService.extUri.isEqual(currentPrimary, primary)) {
 			throw new Error('The folder is not the primary location of the workspace folder');
 		}
 
 		const target = location && !this.uriIdentityService.extUri.isEqual(location, primary) ? location : undefined;
-		const currentLocation = folder.primaryUri ? folder.uri : undefined;
+		const currentLocation = isWorkspaceFolderAtAlternateLocation(folder, this.uriIdentityService.extUri) ? folder.uri : undefined;
 		if (target === currentLocation || (target && currentLocation && this.uriIdentityService.extUri.isEqual(target, currentLocation))) {
 			return; // already there
 		}
 
 		const workspace = new Workspace(
 			this.workspace.id,
-			[new WorkspaceFolder({ uri: target ?? primary, name: folder.name, index: 0, primaryUri: target ? primary : undefined }, { uri: (target ?? primary).toString() })],
+			[new WorkspaceFolder({ uri: target ?? primary, name: folder.name, index: 0, identity: target ? primary : undefined }, { uri: (target ?? primary).toString() })],
 			false,
 			null,
 			uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
@@ -268,7 +268,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					folderUri = workspaceIdOrFolder.uri;
 				}
 
-				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].primaryUri ?? this.workspace.folders[0].uri);
+				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].identity);
 			}
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdOrFolder) && this.workspace.id === workspaceIdOrFolder.id;

@@ -22,7 +22,7 @@ suite('BrowserWorkspacesService', () => {
 	test('recents track the primary location while at an alternate location', async () => {
 		const primary = URI.parse('vscode-vfs://host/primary');
 		const alternate = URI.parse('vscode-vfs://host/alternate');
-		const folder = new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'primary', index: 0 });
+		const folder = new WorkspaceFolder({ uri: alternate, identity: primary, name: 'primary', index: 0 });
 
 		const fileService = ds.add(new TestFileService());
 		const service = ds.add(new BrowserWorkspacesService(

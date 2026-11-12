@@ -57,7 +57,7 @@ suite('Files - ExplorerView', () => {
 	test('explorer root label shows the alternate location only while switched', () => {
 		const primary = URI.file('/work/project');
 		assert.deepStrictEqual(
-			[getExplorerRootLabel('project', primary, 'Alternate'), getExplorerRootLabel('project', undefined, undefined), getExplorerRootLabel('project', primary, undefined)],
+			[getExplorerRootLabel('project', true, 'Alternate'), getExplorerRootLabel('project', false, undefined), getExplorerRootLabel('project', true, undefined)],
 			['project (Alternate)', 'project', 'project']);
 	});
 
@@ -68,7 +68,7 @@ suite('Files - ExplorerView', () => {
 		const renderer = ds.add(new FilesRenderer(
 			dom.$('div'), undefined!, undefined!, () => { },
 			undefined!, configService, undefined!, undefined!,
-			{ getWorkspace: () => ({ folders: [switched ? { uri: alternate, primaryUri: primary } : { uri: alternate }] }) } as unknown as IWorkspaceContextService,
+			{ getWorkspace: () => ({ folders: [switched ? { uri: alternate, identity: primary } : { uri: alternate, identity: alternate }] }) } as unknown as IWorkspaceContextService,
 			{ get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
 			undefined!));
 		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);

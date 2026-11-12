@@ -7,7 +7,7 @@ import { localize } from '../../../nls.js';
 import { Event } from '../../../base/common/event.js';
 import { basename, extname } from '../../../base/common/path.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
-import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase, IExtUri } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -192,7 +192,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 	if (workspace.folders.length === 1) {
 		return {
 			id: workspace.id,
-			uri: workspace.folders[0].primaryUri ?? workspace.folders[0].uri
+			uri: workspace.folders[0].identity
 		};
 	}
 
@@ -321,14 +321,19 @@ export interface IWorkspaceFolderData {
 	readonly index: number;
 
 	/**
-	 * The primary location of this workspace folder, which is its identity.
-	 * Only set while the folder is at an alternate location, in which case
-	 * `uri` is that alternate location. Otherwise `undefined`.
+	 * The folder's identity: its own location. `uri` is where it is currently
+	 * opened, which differs from the identity while the folder is at an
+	 * alternate location. Defaults to `uri` when omitted.
 	 */
-	readonly primaryUri?: URI;
+	readonly identity?: URI;
 }
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
+
+	/**
+	 * The folder's identity, which is `uri` unless the folder is at an alternate location.
+	 */
+	readonly identity: URI;
 
 	/**
 	 * Given workspace folder relative path, returns the resource with the absolute path.
@@ -432,7 +437,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	readonly uri: URI;
 	readonly name: string;
 	readonly index: number;
-	readonly primaryUri?: URI;
+	readonly identity: URI;
 
 	constructor(
 		data: IWorkspaceFolderData,
@@ -448,7 +453,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 		this.uri = data.uri;
 		this.index = data.index;
 		this.name = data.name;
-		this.primaryUri = data.primaryUri;
+		this.identity = data.identity ?? data.uri;
 	}
 
 	toResource(relativePath: string): URI {
@@ -456,7 +461,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toJSON(): IWorkspaceFolderData {
-		return { uri: this.uri, name: this.name, index: this.index, ...(this.primaryUri ? { primaryUri: this.primaryUri } : undefined) };
+		return { uri: this.uri, name: this.name, index: this.index, ...(this.identity.toString() !== this.uri.toString() ? { identity: this.identity } : undefined) };
 	}
 }
 
@@ -499,4 +504,11 @@ export function hasWorkspaceFileExtension(path: string | URI) {
 	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
 
 	return ext === WORKSPACE_SUFFIX;
+}
+
+/**
+ * Whether the folder is opened at an alternate location, that is, `uri` differs from its identity.
+ */
+export function isWorkspaceFolderAtAlternateLocation(folder: IWorkspaceFolder, extUri: IExtUri = extUriBiasedIgnorePathCase): boolean {
+	return !extUri.isEqual(folder.uri, folder.identity);
 }

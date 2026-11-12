@@ -75,7 +75,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			isVisible: () => visible,
 			switchTo() {
 				currentLocation = location;
-				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
+				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 				onDidChangeCurrentLocation.fire();
 			},
 			returnToPrimary() {
@@ -239,7 +239,7 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	test('return command switches back to the primary location', async () => {
 		const calls: [URI, URI | undefined, string | undefined][] = [];
-		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
+		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 		const accessor = {
 			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p, l, o?.reason]); } } : undefined
 		} as unknown as ServicesAccessor;
@@ -257,7 +257,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			let activeItem: IQuickPickItem | undefined;
 			let shownAtAccept: string[] = [];
 			let firstShown: { items: readonly { label: string }[]; busy: boolean } | undefined;
-			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
+			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 					: id === IWorkspaceFolderLocationService ? { currentLocation: atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, getLocations: async () => { await lookup; return [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }]; } }
@@ -276,7 +276,7 @@ suite('FolderLocationStatusBarContribution', () => {
 												await new Promise(r => setTimeout(r, 0));
 												shownAtAccept = pick.items.map(item => item.label); shown = pick.items; activeItem = pick.activeItems[0];
 												const index = choose(pick.items);
-												if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); }
+												if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, identity: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); }
 												if (index === undefined) { hide.fire(); } else { pick.selectedItems = [pick.items[index]]; accept.fire(); }
 											};
 											void settle();
@@ -362,7 +362,7 @@ suite('FolderLocationStatusBarContribution', () => {
 					hide: () => delegate.onHide()
 				};
 				const accessor = {
-					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false) }
+					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false) }
 						: id === IWorkspaceFolderLocationService ? { currentLocation: { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranchCheckout }, getLocations: async () => { await lookup; return []; } }
 							: id === IUriIdentityService ? { extUri }
 								: id === IActionWidgetService ? widget

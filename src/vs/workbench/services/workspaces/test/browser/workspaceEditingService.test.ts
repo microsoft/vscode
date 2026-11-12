@@ -93,7 +93,7 @@ suite('WorkspaceEditingService', () => {
 			const resolved: URI[] = [];
 			const switched: (URI | undefined)[] = [];
 			const reasons: (string | undefined)[] = [];
-			const folder = { uri: options.current, primaryUri: URI.file('/work/project') };
+			const folder = { uri: options.current, identity: URI.file('/work/project') };
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
 				{

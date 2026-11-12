@@ -24,7 +24,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getFolderLocationText, IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isWorkspaceFolderAtAlternateLocation } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
@@ -146,7 +146,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	private update(): void {
 		const location = this.folderLocationService.currentLocation;
 		const folder = this.contextService.getWorkspace().folders[0];
-		if (!location || !folder?.primaryUri) {
+		if (!location || !folder || !isWorkspaceFolderAtAlternateLocation(folder)) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
 			this.introductionObservation.clear();
@@ -154,7 +154,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			return;
 		}
 
-		const primaryName = basename(folder.primaryUri);
+		const primaryName = basename(folder.identity);
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
@@ -232,8 +232,8 @@ registerAction2(class ReturnToPrimaryFolderLocationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const folder = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
-		if (folder?.primaryUri) {
-			await accessor.get(IWorkspaceEditingService).setFolderLocation(folder.primaryUri, undefined, { reason: 'user' });
+		if (folder && isWorkspaceFolderAtAlternateLocation(folder, accessor.get(IUriIdentityService).extUri)) {
+			await accessor.get(IWorkspaceEditingService).setFolderLocation(folder.identity, undefined, { reason: 'user' });
 		}
 	}
 });
@@ -254,7 +254,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		if (!folder) {
 			return;
 		}
-		const primary = folder.primaryUri ?? folder.uri;
+		const primary = folder.identity;
 
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
@@ -268,7 +268,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const currentLocation = folderLocationService.currentLocation;
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), description: localize('primaryLocation', "Primary Location"), icon: Codicon.folder };
 		// Seed the current location so that accepting before the lookup resolves keeps it
-		const currentSeed: ILocationEntry | undefined = folder.primaryUri && currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
+		const currentSeed: ILocationEntry | undefined = isWorkspaceFolderAtAlternateLocation(folder, uriIdentityService.extUri) && currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
 		const seedEntries = currentSeed ? [primaryEntry, currentSeed] : [primaryEntry];
 		const toEntries = (locations: readonly IFolderLocation[]) => [primaryEntry, ...locations.map((location): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout }))];
 
@@ -388,7 +388,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 
 		// Re-submitting the current location is deliberate: it supersedes a different switch that is still pending
 		const current = contextService.getWorkspace().folders[0];
-		if (!current || !uriIdentityService.extUri.isEqual(current.primaryUri ?? current.uri, primary)) {
+		if (!current || !uriIdentityService.extUri.isEqual(current.identity, primary)) {
 			return;
 		}
 

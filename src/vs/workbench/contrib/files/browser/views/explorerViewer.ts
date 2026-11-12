@@ -12,7 +12,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { isTemporaryWorkspace, IWorkspaceContextService, isWorkspaceFolderAtAlternateLocation, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
@@ -823,8 +823,8 @@ export interface IFileTemplateData {
 /**
  * The label of an Explorer root: while its folder is at an alternate location, the location is appended to the name.
  */
-export function getExplorerRootLabel(name: string, primaryUri: URI | undefined, locationLabel: string | undefined): string {
-	return primaryUri && locationLabel ? localize('explorerRootAtLocation', "{0} ({1})", name, locationLabel) : name;
+export function getExplorerRootLabel(name: string, atAlternateLocation: boolean, locationLabel: string | undefined): string {
+	return atAlternateLocation && locationLabel ? localize('explorerRootAtLocation', "{0} ({1})", name, locationLabel) : name;
 }
 
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
@@ -1130,7 +1130,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private getRootLabel(stat: ExplorerItem): string {
 		const location = this.folderLocationService.currentLocation;
-		return getExplorerRootLabel(stat.name, this.contextService.getWorkspace().folders.find(folder => folder.primaryUri && (isEqual(folder.uri, stat.resource) || isEqual(folder.primaryUri, stat.resource)))?.primaryUri, location && getFolderLocationText(location));
+		return getExplorerRootLabel(stat.name, this.contextService.getWorkspace().folders.some(folder => isWorkspaceFolderAtAlternateLocation(folder) && (isEqual(folder.uri, stat.resource) || isEqual(folder.identity, stat.resource))), location && getFolderLocationText(location));
 	}
 
 	getAriaLevel(element: ExplorerItem): number {

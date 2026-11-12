@@ -142,7 +142,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 			}
 			const currentFolder = this.contextService.getWorkspace().folders[0];
-			if (!currentFolder || !this.uriIdentityService.extUri.isEqual(currentFolder.primaryUri ?? currentFolder.uri, primary)) {
+			if (!currentFolder || !this.uriIdentityService.extUri.isEqual(currentFolder.identity, primary)) {
 				throw new Error(localize('folderLocationWrongPrimary', "'{0}' is not the primary location of the workspace folder.", primary.toString()));
 			}
 		};

@@ -1227,15 +1227,15 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const actual = testObject.getWorkspace();
 		assert.deepStrictEqual(
-			{ id: actual.id, uri: actual.folders[0].uri.toString(), primaryUri: actual.folders[0].primaryUri?.toString(), name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
-			{ id: workspaceId, uri: alternate.toString(), primaryUri: folder.toString(), name: folderName, events: 1, isCurrent: true });
+			{ id: actual.id, uri: actual.folders[0].uri.toString(), identity: actual.folders[0].identity?.toString(), name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ id: workspaceId, uri: alternate.toString(), identity: folder.toString(), name: folderName, events: 1, isCurrent: true });
 
 		await testObject.setFolderLocation(folder, undefined);
 
 		const restored = testObject.getWorkspace().folders[0];
 		assert.deepStrictEqual(
-			{ uri: restored.uri.toString(), primaryUri: restored.primaryUri, events: target.callCount },
-			{ uri: folder.toString(), primaryUri: undefined, events: 2 });
+			{ uri: restored.uri.toString(), identity: restored.identity, events: target.callCount },
+			{ uri: folder.toString(), identity: undefined, events: 2 });
 	});
 
 	test('setFolderLocation() rejects an unknown primary', async () => {

@@ -14,7 +14,7 @@ import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '.
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { isUntitledWorkspace, IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { isUntitledWorkspace, IWorkspace, IWorkspaceContextService, isWorkspaceFolderAtAlternateLocation, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -279,7 +279,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const label = this.labelService.getWorkspaceLabel(workspace);
 		// In a single-folder workspace the root is this header, so it carries the location
 		const location = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.folderLocationService.currentLocation : undefined;
-		return getExplorerRootLabel(label, workspace.folders[0]?.primaryUri, location && getFolderLocationText(location));
+		return getExplorerRootLabel(label, !!workspace.folders[0] && isWorkspaceFolderAtAlternateLocation(workspace.folders[0]), location && getFolderLocationText(location));
 	}
 
 	override get title(): string {

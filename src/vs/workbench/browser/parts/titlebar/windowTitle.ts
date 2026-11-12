@@ -13,7 +13,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, isWorkspaceFolderAtAlternateLocation } from '../../../../platform/workspace/common/workspace.js';
 import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { trim } from '../../../../base/common/strings.js';
@@ -79,7 +79,8 @@ export class WindowTitle extends Disposable {
 
 	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
 	get folderLocationInfo() {
-		return this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation : undefined;
+		const folder = this.contextService.getWorkspace().folders[0];
+		return folder && isWorkspaceFolderAtAlternateLocation(folder) ? this.folderLocationService.currentLocation : undefined;
 	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
@@ -339,7 +340,7 @@ export class WindowTitle extends Disposable {
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {
-			root = workspace.folders[0].primaryUri ?? workspace.folders[0].uri;
+			root = workspace.folders[0].identity;
 		}
 
 		// Compute active editor folder
