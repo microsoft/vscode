@@ -566,7 +566,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const folderLocation = !isCompactMode && progressText ? undefined : this._windowTitle.folderLocationInfo;
 		const labelHovers = disposables.add(new MutableDisposable());
 		const setupLabelHover = (element: HTMLElement, content: string) => this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, content);
-		const showLabel = (text: string, location: IFolderLocation | undefined) => labelHovers.value = renderCommandCenterLabel(label, text, location, setupLabelHover);
+		const showLabel = (text: string, location: IFolderLocation | undefined) => {
+			labelHovers.value = renderCommandCenterLabel(label, text, location, setupLabelHover);
+			// The button's own name overrides its descendants, so it has to carry the location
+			inputArea.setAttribute('aria-label', location
+				? localize('openQuickAccessAtFolderLocation', "Open Quick Access, {0}", label.getAttribute('aria-label') ?? text)
+				: localize('openQuickAccess', "Open Quick Access"));
+		};
 		showLabel(defaultLabel, folderLocation);
 		inputArea.appendChild(label);
 
