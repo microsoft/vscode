@@ -41,6 +41,7 @@ import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, I
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
+import { FolderLocationMemory } from './folderLocationMemory.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -221,6 +222,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly windows = new Map<number, ICodeWindow>();
 
 	private readonly windowsStateHandler: WindowsStateHandler;
+	private readonly folderLocationMemory: FolderLocationMemory;
 
 	constructor(
 		private readonly machineId: string,
@@ -248,6 +250,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	) {
 		super();
 
+		this.folderLocationMemory = new FolderLocationMemory(stateService);
 		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 		this.registerListeners();
@@ -835,6 +838,23 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		});
 	}
 
+	/**
+	 * The alternate location a fresh open of a local folder starts at: the one the folder was last at.
+	 * The window validates it on startup and falls back to the folder itself.
+	 */
+	private getRememberedFolderLocation(folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen): IWindowFolderLocation | undefined {
+		const workspace = folderOrWorkspace.workspace;
+		if (folderOrWorkspace.remoteAuthority || !workspace || !isSingleFolderWorkspaceIdentifier(workspace) || workspace.uri.scheme !== Schemas.file) {
+			return undefined;
+		}
+
+		return this.folderLocationMemory.get(workspace.uri);
+	}
+
+	rememberFolderLocation(primary: URI, location: IWindowFolderLocation | undefined): void {
+		this.folderLocationMemory.set(primary, location);
+	}
+
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
 
@@ -846,7 +866,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return this.openInBrowserWindow({
 			workspace: folderOrWorkspace.workspace,
-			folderLocation: folderOrWorkspace.folderLocation,
+			folderLocation: folderOrWorkspace.folderLocation ?? this.getRememberedFolderLocation(folderOrWorkspace),
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
