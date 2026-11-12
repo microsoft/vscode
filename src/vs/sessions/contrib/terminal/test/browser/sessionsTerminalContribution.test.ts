@@ -577,6 +577,32 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
 	}));
 
+	test('adopts the Agent Host terminal the terminal view creates when its shell takes longer than the timeout to start', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		sessionProviders.set('agenthost-one', { id: 'agenthost-one', remoteAddress: 'ssh-remote+one' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-one', providerId: 'agenthost-one', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// With the session's Agent Host profile as the default profile, the view creates
+		// its terminal through AgentHostTerminalService.createTerminal, on a custom pty.
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'ssh-remote+one');
+		const ready = viewTerminal._testSetProcessStarting();
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await timeout(10000);
+		ready.complete();
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
+	}));
+
 	test('does not create a second terminal when the terminal view is shown again while its terminal starts', async () => {
 		terminalViewVisible = false;
 		terminalGroupCount = 0;

@@ -424,7 +424,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	/**
 	 * Whether the terminal could be the one the terminal view creates when it
 	 * opens empty: a shell in the panel that no editor, task, extension or
-	 * restored terminal session asked for.
+	 * restored terminal session asked for. It may run on a custom pty, since
+	 * an Agent Host profile can be the default profile; the custom ptys of
+	 * tasks, extensions and revived Agent Host terminals carry the flags below.
 	 */
 	private _couldBeTerminalViewShell(instance: ITerminalInstance): boolean {
 		const config = instance.shellLaunchConfig;
@@ -434,7 +436,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			&& !config.isExtensionOwnedTerminal
 			&& config.type !== 'Task'
 			&& !config.extHostTerminalId
-			&& !config.customPtyImplementation
 			&& !config.attachPersistentProcess;
 	}
 
