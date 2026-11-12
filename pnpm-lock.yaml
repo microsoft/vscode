@@ -523,9 +523,6 @@ importers:
       vinyl-fs:
         specifier: ^3.0.3
         version: 3.0.3
-      vscode-grammar-updater:
-        specifier: ^1.1.0
-        version: 1.1.0
       xml2js:
         specifier: ^0.5.0
         version: 0.5.0
@@ -627,6 +624,9 @@ importers:
       path-browserify:
         specifier: ^1.0.1
         version: 1.0.1
+      vscode-grammar-updater:
+        specifier: ^1.1.0
+        version: 1.1.0
 
   extensions/configuration-editing:
     dependencies:
