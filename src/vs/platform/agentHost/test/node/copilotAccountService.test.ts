@@ -204,9 +204,26 @@ suite('Copilot account resource authentication', () => {
 		await f.authenticate(f.credential('m365'));
 		const selected = f.context.requireReady();
 		await f.context.releaseSession();
-		await f.context.getSession(selected, f.runtime);
-		assert.deepStrictEqual({ service: f.context.requireReady().choice.service, created: f.state.created, released: f.state.deleted }, {
-			service: 'm365', created: 2, released: 1,
+		await Promise.all([f.context.getSession(selected, f.runtime), f.context.getSession(selected, f.runtime)]);
+		assert.deepStrictEqual({ contextUnchanged: f.context.requireReady() === selected, created: f.state.created, released: f.state.deleted }, {
+			contextUnchanged: true, created: 2, released: 1,
+		});
+	});
+
+	test('a failed runtime restoration can be retried unless the runtime disowns the selected service', async () => {
+		const f = fixture();
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const selected = f.context.requireReady();
+		await f.context.releaseSession();
+		f.state.step = { kind: 'error', message: 'offline' };
+		await assert.rejects(f.context.getSession(selected, f.runtime), /offline/);
+		const afterTransientFailure = f.context.state.get() === selected;
+		f.state.selected = 'opaque-emu';
+		f.state.step = { kind: 'completed', result: { status: 'completed', host: choices[1].host, login: choices[1].login } };
+		await assert.rejects(f.context.getSession(selected, f.runtime), /no longer available/);
+		assert.deepStrictEqual({ afterTransientFailure, state: f.context.state.get(), released: f.state.deleted }, {
+			afterTransientFailure: true, state: { kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' }, released: 3,
 		});
 	});
 

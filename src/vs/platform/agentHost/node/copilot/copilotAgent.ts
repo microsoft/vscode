@@ -59,7 +59,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
-import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
+import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, COPILOT_RESERVED_AGENT_NAMES, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
@@ -1168,6 +1168,14 @@ function extensionHostCliRepositoryPath(marker: IExtensionHostCliMarker | undefi
 	return typeof path === 'string' && path.length > 0 ? path : undefined;
 }
 
+/** The catalog status while a Microsoft account has no service ready to list models from. */
+function getUnlistedAccountCatalogStatus(context: CopilotAccountContext): AgentModelCatalogStatus | undefined {
+	if (context.kind === 'legacy' || context.kind === 'ready') {
+		return undefined;
+	}
+	return context.kind === 'error' ? 'error' : 'pending';
+}
+
 /**
  * Shape of the extension-host Copilot CLI `vscode.requests.metadata.json`
  * sidecar written next to a session's SDK event log. Only the fields adoption
@@ -1552,19 +1560,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
 		this._entraAuthentication = this._accountService.authentication;
 		if (this._entraAuthentication) {
-			this._register(autorun(reader => {
-				const state = this._accountService.state.read(reader);
-				this._capiModels = [];
-				this._managedModelPolicy = undefined;
-				this._setAutoTierMetadata(undefined);
-				this._freeLongContextModels.clear();
-				this._publishModels();
-				if (state.kind === 'ready' || state.kind === 'legacy') {
-					void this._scheduleModelRefresh();
-				} else {
-					this._publishModelCatalogStatus(state.kind === 'error' ? 'error' : 'pending');
-				}
-			}));
+			this._register(autorun(reader => this._onDidChangeAccountContext(this._accountService.state.read(reader))));
 			this._register(this._entraAuthentication.onDidRevoke(() => {
 				void this._requestClientRestart('Microsoft authentication cleared').catch(error => this._logService.error('[Copilot] Failed to restart runtime after Microsoft authentication was cleared', error));
 			}));
@@ -3984,6 +3980,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
 		if (await this._entraAuthentication?.authenticate(params, this.getProtectedResources().find(resource => resource.resource === params.resource))) {
+			if (!params.token) {
+				await this._clientStopping;
+			}
 			return true;
 		}
 		let handled = false;
@@ -4537,8 +4536,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		const accountContext = this._accountService.state.get();
-		if (isMicrosoftCopilotAccountContext(accountContext) && accountContext.kind !== 'ready') {
-			this._publishModelCatalogStatus('pending');
+		const unlistedStatus = getUnlistedAccountCatalogStatus(accountContext);
+		if (unlistedStatus) {
+			this._publishModelCatalogStatus(unlistedStatus);
 			return;
 		}
 		if (!tokenAtRefreshStart && accountContext.kind === 'legacy') {
@@ -4548,15 +4548,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._publishModelCatalogStatus('ready');
 			return;
 		}
+		const isCurrent = () => this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation && this._accountService.state.get() === accountContext;
 		try {
 			const client = await this._ensureClient();
 			const session = accountContext.kind === 'ready' ? await this._accountService.getSession(accountContext, Promise.resolve(client)) : undefined;
 			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart, this._capiModels, session);
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise || this._accountService.state.get() !== accountContext) {
+			if (!isCurrent() || this._shutdownPromise) {
 				return;
 			}
 			const modelPolicy = await this._managedSettingsResolver.resolve(session?.rpc.managedSettings ?? client.rpc.managedSettings, session ? undefined : tokenAtRefreshStart);
-			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation && this._accountService.state.get() === accountContext) {
+			if (isCurrent()) {
 				this._setAutoTierMetadata(autoTierMetadata);
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
@@ -4571,7 +4572,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Token rotated mid-flight — a newer refresh owns the result — or
 			// teardown began while the request was in flight, in which case a
 			// retry would just resurrect the client we are tearing down.
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise || this._accountService.state.get() !== accountContext) {
+			if (!isCurrent() || this._shutdownPromise) {
 				return;
 			}
 			if (accountContext.kind === 'legacy' && /\b401\b/.test(getErrorMessage(err))) {
@@ -4602,6 +4603,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _publishModelCatalogStatus(status: AgentModelCatalogStatus): void {
 		this._configurationService.publishRootTransientValues?.({ [agentModelCatalogStatusKey(this.id)]: status });
+	}
+
+	/** Another account's catalog and policy never carry over to the context that replaced it. */
+	private _onDidChangeAccountContext(context: CopilotAccountContext): void {
+		this._capiModels = [];
+		this._managedModelPolicy = undefined;
+		this._setAutoTierMetadata(undefined);
+		this._freeLongContextModels.clear();
+		this._publishModels();
+		const unlistedStatus = getUnlistedAccountCatalogStatus(context);
+		if (unlistedStatus) {
+			this._publishModelCatalogStatus(unlistedStatus);
+		} else {
+			void this._scheduleModelRefresh();
+		}
 	}
 
 	/**
@@ -6116,7 +6132,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			if (err instanceof CancellationError || isRecognizedCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
 				timing?.complete('unavailable');
-				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${getErrorMessage(err)}`);
+				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
 				return undefined;
 			}
 			timing?.complete('error');

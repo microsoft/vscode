@@ -44,14 +44,8 @@ function getManagedModelValues(policy: CopilotManagedModelPolicy) {
 }
 
 function readModelSetting(value: ResolvedManagedSettings['resolved']['settings']): string | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
 	const setting = value && typeof value === 'object' && !Array.isArray(value) ? value.overridable : value;
-	if (typeof setting !== 'string') {
-		throw new Error('The runtime returned an invalid effective model setting.');
-	}
-	return setting;
+	return typeof setting === 'string' ? setting : undefined;
 }
 
 /**

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotClient, CopilotSession, EntraAuthOptions, EntraTokenProvider, EntraTokenProviderArgs, EntraTokenProviderResult } from '@github/copilot-sdk';
-import { raceCancellation, raceCancellationError, timeout } from '../../../../base/common/async.js';
+import { raceCancellation, raceCancellationError, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
@@ -25,7 +25,16 @@ import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata, copilotEntra
 import { AGENT_HOST_COPILOT_CLIENT_NAME } from './copilotManagedSettings.js';
 
 type LoginStep = Awaited<ReturnType<CopilotSession['rpc']['accounts']['login']['advance']>>;
-type LoginAccount = NonNullable<Extract<LoginStep, { kind: 'completed' }>['result']['accounts']>[number];
+type CompletedLogin = Extract<LoginStep, { kind: 'completed' }>['result'];
+type LoginAccount = NonNullable<CompletedLogin['accounts']>[number];
+type ReadyAccountContext = Extract<CopilotAccountContext, { kind: 'ready' }>;
+
+/** What the runtime reports once its login flow completes. */
+type LoginOutcome =
+	| { readonly kind: 'ready'; readonly choice: ICopilotServiceChoice }
+	| { readonly kind: 'choiceRequired'; readonly choices: readonly ICopilotServiceChoice[] };
+
+const CREDENTIAL_WAIT_MS = 30_000;
 
 interface ILoginAttempt {
 	readonly client: Promise<CopilotClient>;
@@ -44,8 +53,8 @@ export interface ICopilotAccountService {
 	readonly state: IObservable<CopilotAccountContext>;
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
 	authenticate(client: Promise<CopilotClient>, params: AuthenticateParams): Promise<void>;
-	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }>;
-	getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>, client: Promise<CopilotClient>): Promise<CopilotSession>;
+	requireReady(): ReadyAccountContext;
+	getSession(context: ReadyAccountContext, client: Promise<CopilotClient>): Promise<CopilotSession>;
 	isAuthenticationSession(sessionId: string): boolean;
 	reset(): Promise<void>;
 	releaseSession(): Promise<void>;
@@ -60,6 +69,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 	readonly state: IObservable<CopilotAccountContext> = this._state;
 	private _attempt: ILoginAttempt | undefined;
 	private _releasing: Promise<void> | undefined;
+	private readonly _sessionRestoration = new Sequencer();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -117,19 +127,9 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 
 	private async select(attempt: ILoginAttempt, choice: ICopilotServiceChoice): Promise<void> {
 		this.assertCurrent(attempt);
-		const { session, flowId } = attempt;
-		if (!session || !flowId) {
-			throw new CancellationError();
-		}
 		this._state.set({ kind: 'activating', entraAccountId: attempt.entraAccountId, choice }, undefined);
 		try {
-			const step = await session.rpc.accounts.login.advance({ flowId, input: choice.selectionId });
-			this.assertCurrent(attempt);
-			if (step.kind !== 'completed' || step.result.status !== 'completed') {
-				throw new Error('The selected Copilot service was not activated.');
-			}
-			await confirmAccount(session, choice);
-			this.assertCurrent(attempt);
+			await this.activate(attempt, choice);
 			this._state.set({ kind: 'ready', entraAccountId: attempt.entraAccountId, choice }, undefined);
 		} catch (error) {
 			if (this._attempt === attempt) {
@@ -139,7 +139,22 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		}
 	}
 
-	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }> {
+	/** Advances the runtime login to the chosen service and confirms the runtime activated it. */
+	private async activate(attempt: ILoginAttempt, choice: ICopilotServiceChoice): Promise<void> {
+		const { session, flowId } = attempt;
+		if (!session || !flowId) {
+			throw new CancellationError();
+		}
+		const step = await session.rpc.accounts.login.advance({ flowId, input: choice.selectionId });
+		this.assertCurrent(attempt);
+		if (step.kind !== 'completed' || step.result.status !== 'completed') {
+			throw new Error('The selected Copilot service was not activated.');
+		}
+		await confirmAccount(session, choice);
+		this.assertCurrent(attempt);
+	}
+
+	requireReady(): ReadyAccountContext {
 		const state = this.state.get();
 		if (state.kind !== 'ready') {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Authenticate an offered Copilot resource before continuing.', { resources: this.getProtectedResources() });
@@ -151,33 +166,45 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		return this._attempt?.session?.sessionId === sessionId;
 	}
 
-	async getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>, client: Promise<CopilotClient>): Promise<CopilotSession> {
-		if (this.state.get().kind !== 'ready') {
+	getSession(context: ReadyAccountContext, client: Promise<CopilotClient>): Promise<CopilotSession> {
+		return this._sessionRestoration.queue(async () => {
+			this.assertSelected(context);
+			const session = this._attempt?.session ?? await this.restore(context, client);
+			this.assertSelected(context);
+			return session;
+		});
+	}
+
+	private assertSelected(context: ReadyAccountContext): void {
+		const state = this.state.get();
+		if (state.kind !== 'ready') {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot account is no longer available.');
 		}
-		if (this.state.get() !== context) {
+		if (state !== context) {
 			throw new CancellationError();
 		}
-		if (!this._attempt?.session) {
-			await this.discover(client, context.entraAccountId, context.choice);
-			const offered = this.state.get();
-			if (offered.kind === 'choiceRequired') {
-				const choice = offered.choices.find(choice => sameServiceAccount(choice, context.choice));
-				if (!choice || !this._attempt) {
-					throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot service is no longer available.');
-				}
-				await this.select(this._attempt, choice);
+	}
+
+	/** Signs a restarted runtime back in to the selected service; the context stays ready so its catalog is kept. */
+	private async restore(context: ReadyAccountContext, client: Promise<CopilotClient>): Promise<CopilotSession> {
+		const attempt: ILoginAttempt = { client, entraAccountId: context.entraAccountId, cancellation: new CancellationTokenSource() };
+		this._attempt = attempt;
+		try {
+			const { session, outcome } = await this.login(attempt);
+			this.assertCurrent(attempt);
+			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(offered => sameServiceAccount(offered, context.choice));
+			if (!choice || !sameServiceAccount(choice, context.choice)) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot service is no longer available.');
 			}
+			if (outcome.kind === 'choiceRequired') {
+				await this.activate(attempt, choice);
+			}
+			return session;
+		} catch (error) {
+			// Only the runtime disowning the selection ends the context; any other failure can be retried.
+			await this.abandon(attempt, error instanceof ProtocolError ? 'discovery' : undefined);
+			throw error;
 		}
-		const session = this._attempt?.session;
-		if (!session) {
-			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot account is no longer available.');
-		}
-		const current = this.requireReady();
-		if (current.entraAccountId !== context.entraAccountId || !sameServiceAccount(current.choice, context.choice)) {
-			throw new CancellationError();
-		}
-		return session;
 	}
 
 	reset(): Promise<void> {
@@ -222,7 +249,8 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 	private async acquire(request: EntraTokenProviderArgs, cancellation: Parameters<EntraTokenProvider>[1]): Promise<EntraTokenProviderResult> {
 		const resource = copilotEntraResourceForRequest(request);
 		const attempt = this._attempt;
-		if (cancellation.isCancellationRequested || attempt?.cancellation.token.isCancellationRequested) {
+		const isCancelled = () => cancellation.isCancellationRequested || attempt?.cancellation.token.isCancellationRequested;
+		if (isCancelled()) {
 			return { kind: 'cancelled' };
 		}
 		if (!attempt || request.clientId !== this.authentication!.options.clientId || request.accountId && request.accountId !== attempt.entraAccountId) {
@@ -232,81 +260,70 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		const changed = Event.toPromise(Event.filter(this._authenticationService.onDidAuthenticate ?? Event.None, event => event.resource === resource?.resource), store);
 		try {
 			const result = await this.authentication!.options.tokenProvider!(request, cancellation);
-			if (cancellation.isCancellationRequested || attempt.cancellation.token.isCancellationRequested) {
+			if (isCancelled()) {
 				return { kind: 'cancelled' };
 			}
 			const state = this.state.get();
 			if (result.kind !== 'unavailable' || !resource || state.kind !== 'discovering' && state.kind !== 'activating') {
 				return result;
 			}
-			const wait = timeout(30_000);
-			try {
-				await raceCancellation(raceCancellation(Promise.race([changed, wait]), cancellation), attempt.cancellation.token);
-			} finally {
-				wait.cancel();
-			}
-			return cancellation.isCancellationRequested || attempt.cancellation.token.isCancellationRequested
-				? { kind: 'cancelled' }
-				: this.authentication!.options.tokenProvider!(request, cancellation);
+			await raceCancellation(raceCancellation(raceTimeout(changed, CREDENTIAL_WAIT_MS), cancellation), attempt.cancellation.token);
+			return isCancelled() ? { kind: 'cancelled' } : this.authentication!.options.tokenProvider!(request, cancellation);
 		} finally {
 			store.dispose();
 		}
 	}
 
-	private async discover(client: Promise<CopilotClient>, entraAccountId: string, expectedChoice?: ICopilotServiceChoice): Promise<void> {
+	private async discover(client: Promise<CopilotClient>, entraAccountId: string): Promise<void> {
 		const attempt: ILoginAttempt = { client, entraAccountId, cancellation: new CancellationTokenSource() };
 		this._attempt = attempt;
 		this._state.set({ kind: 'discovering', entraAccountId }, undefined);
 		try {
-			const runtime = await raceCancellationError(client, attempt.cancellation.token);
+			const { outcome } = await this.login(attempt);
 			this.assertCurrent(attempt);
-			const session = await runtime.createSession({
-				clientName: AGENT_HOST_COPILOT_CLIENT_NAME, configDirectory: this._home.home.fsPath,
-				enableConfigDiscovery: false, enableSessionStore: false, enableManagedSettings: true,
-				availableTools: [], disabledMcpServers: ['github-mcp-server'],
-				requestExtensions: false, requestCanvasRenderer: false, enableSessionTelemetry: false, enableHostGitOperations: false,
-				infiniteSessions: { enabled: false }, memory: { enabled: false },
-			});
-			attempt.session = session;
-			this.assertCurrent(attempt);
-			const flow = await session.rpc.accounts.login.begin({ kind: 'entra' });
-			attempt.flowId = flow.flowId;
-			let step = flow.step;
-			while (step.kind === 'awaiting' || step.kind === 'needs-interaction') {
-				step = await raceCancellationError(session.rpc.accounts.login.advance({ flowId: flow.flowId }), attempt.cancellation.token);
-				this.assertCurrent(attempt);
-			}
-			if (step.kind !== 'completed') {
-				throw new Error(step.kind === 'error' ? step.message : 'The runtime requested an unsupported Microsoft login interaction.');
-			}
-			if (step.result.status === 'completed') {
-				const choice = await readActiveAccount(session);
-				this.assertCurrent(attempt);
-				if (choice.host !== step.result.host || choice.accountName !== step.result.login) {
-					throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The runtime did not confirm the completed Copilot login.');
-				}
-				if (expectedChoice && !sameServiceAccount(choice, expectedChoice)) {
-					throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The runtime did not restore the selected Copilot service.');
-				}
-				this._state.set({ kind: 'ready', entraAccountId, choice }, undefined);
-			} else if (step.result.status === 'needs-account-selection') {
-				const choices = (step.result.accounts ?? []).map(toServiceChoice);
-				if (choices.length !== 2 || new Set(choices.map(choice => choice.resource)).size !== 2 || new Set(choices.map(choice => choice.selectionId)).size !== 2) {
-					throw new Error('Microsoft discovery did not return distinct supported services.');
-				}
-				this._state.set({ kind: 'choiceRequired', entraAccountId, choices }, undefined);
-			} else {
-				throw new Error('Microsoft service discovery did not return selectable accounts.');
-			}
+			this._state.set({ ...outcome, entraAccountId }, undefined);
 		} catch (error) {
-			if (this._attempt === attempt) {
-				this._attempt = undefined;
-				attempt.cancellation.dispose(true);
-				this._state.set({ kind: 'error', entraAccountId, stage: 'discovery' }, undefined);
-			}
-			await this.release(attempt).catch(cleanupError => this._logService.error('[Copilot] Failed to release rejected Microsoft login', cleanupError));
+			await this.abandon(attempt, 'discovery');
 			throw error;
 		}
+	}
+
+	/** Runs the runtime login for an attempt, which owns the created session even when this fails. */
+	private async login(attempt: ILoginAttempt): Promise<{ readonly session: CopilotSession; readonly outcome: LoginOutcome }> {
+		const runtime = await raceCancellationError(attempt.client, attempt.cancellation.token);
+		this.assertCurrent(attempt);
+		const session = await runtime.createSession({
+			clientName: AGENT_HOST_COPILOT_CLIENT_NAME, configDirectory: this._home.home.fsPath,
+			enableConfigDiscovery: false, enableSessionStore: false, enableManagedSettings: true,
+			availableTools: [], disabledMcpServers: ['github-mcp-server'],
+			requestExtensions: false, requestCanvasRenderer: false, enableSessionTelemetry: false, enableHostGitOperations: false,
+			infiniteSessions: { enabled: false }, memory: { enabled: false },
+		});
+		attempt.session = session;
+		this.assertCurrent(attempt);
+		const flow = await session.rpc.accounts.login.begin({ kind: 'entra' });
+		attempt.flowId = flow.flowId;
+		let step = flow.step;
+		while (step.kind === 'awaiting' || step.kind === 'needs-interaction') {
+			step = await raceCancellationError(session.rpc.accounts.login.advance({ flowId: flow.flowId }), attempt.cancellation.token);
+			this.assertCurrent(attempt);
+		}
+		if (step.kind !== 'completed') {
+			throw new Error(step.kind === 'error' ? step.message : 'The runtime requested an unsupported Microsoft login interaction.');
+		}
+		return { session, outcome: await readLoginOutcome(session, step.result) };
+	}
+
+	/** Releases a failed attempt; when it still owns the context, a given stage reports the failure. */
+	private async abandon(attempt: ILoginAttempt, stage: 'discovery' | undefined): Promise<void> {
+		if (this._attempt === attempt) {
+			this._attempt = undefined;
+			attempt.cancellation.dispose(true);
+			if (stage) {
+				this._state.set({ kind: 'error', entraAccountId: attempt.entraAccountId, stage }, undefined);
+			}
+		}
+		await this.release(attempt).catch(cleanupError => this._logService.error('[Copilot] Failed to release rejected Microsoft login', cleanupError));
 	}
 
 	private assertCurrent(attempt: ILoginAttempt): void {
@@ -319,6 +336,25 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		void this.reset().catch(error => this._logService.error('[Copilot] Failed to release Microsoft login', error));
 		super.dispose();
 	}
+}
+
+/** Reads a completed runtime login as the service it activated or the services still to choose from. */
+async function readLoginOutcome(session: CopilotSession, result: CompletedLogin): Promise<LoginOutcome> {
+	if (result.status === 'completed') {
+		const choice = await readActiveAccount(session);
+		if (choice.host !== result.host || choice.accountName !== result.login) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The runtime did not confirm the completed Copilot login.');
+		}
+		return { kind: 'ready', choice };
+	}
+	if (result.status !== 'needs-account-selection') {
+		throw new Error('Microsoft service discovery did not return selectable accounts.');
+	}
+	const choices = (result.accounts ?? []).map(toServiceChoice);
+	if (choices.length !== 2 || new Set(choices.map(choice => choice.resource)).size !== 2 || new Set(choices.map(choice => choice.selectionId)).size !== 2) {
+		throw new Error('Microsoft discovery did not return distinct supported services.');
+	}
+	return { kind: 'choiceRequired', choices };
 }
 
 function toServiceChoice(account: LoginAccount): ICopilotServiceChoice {
