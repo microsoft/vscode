@@ -345,6 +345,8 @@ export class MenuId {
 	static readonly SessionItemContextMenu = new MenuId('SessionItemContextMenu');
 	static readonly SessionHeaderContext = new MenuId('SessionsSessionHeaderContext');
 	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
+	/** Buttons that extensions contribute to the title bar of the Agents window, left of its built-in buttons. */
+	static readonly AgentsTitleBar = new MenuId('AgentsTitleBar');
 	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
 	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
 	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');
