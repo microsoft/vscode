@@ -28,7 +28,7 @@ suite('BrowserWorkspacesService', () => {
 		const uriIdentityService = ds.add(new UriIdentityService(fileService));
 		const service = ds.add(new BrowserWorkspacesService(
 			ds.add(new TestStorageService()),
-			new TestContextService(new Workspace('id', [folder], false, null, () => false, undefined, primary)),
+			new TestContextService(new Workspace('id', [folder], false, null, () => false, undefined, { id: 'id', uri: primary })),
 			new NullLogService(),
 			fileService,
 			{ remoteAuthority: undefined } as IWorkbenchEnvironmentService,

@@ -16,7 +16,7 @@ import { IAddressProvider } from '../../../../platform/remote/common/remoteAgent
 import { IRemoteAuthorityResolverService, TunnelDescription } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOST_ADDRESSES, ProvidedPortAttributes, PortAttributesProvider, isLocalhost, isAllInterfaces, ProvidedOnAutoForward, ALL_INTERFACES_ADDRESSES } from '../../../../platform/tunnel/common/tunnel.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -558,7 +558,8 @@ export class TunnelModel extends Disposable {
 
 	private async addStorageKeyPostfix(prefix: string): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash((workspace.identity ?? workspace.folders[0].uri).path) : undefined);
+		const identifier = toWorkspaceIdentifier(workspace);
+		const workspaceHash = isWorkspaceIdentifier(identifier) ? hash(identifier.configPath.path) : (isSingleFolderWorkspaceIdentifier(identifier) ? hash(identifier.uri.path) : undefined);
 		if (workspaceHash === undefined) {
 			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
 			return undefined;

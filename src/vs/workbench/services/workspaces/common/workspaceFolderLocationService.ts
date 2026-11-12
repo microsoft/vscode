@@ -11,7 +11,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -47,7 +47,8 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	isAtAlternateLocation(): boolean {
 		const workspace = this.contextService.getWorkspace();
-		return !!workspace.identity && workspace.folders.length === 1 && !this.uriIdentityService.extUri.isEqual(workspace.folders[0].uri, workspace.identity);
+		const identifier = toWorkspaceIdentifier(workspace);
+		return isSingleFolderWorkspaceIdentifier(identifier) && workspace.folders.length === 1 && !this.uriIdentityService.extUri.isEqual(workspace.folders[0].uri, identifier.uri);
 	}
 
 	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {

@@ -24,7 +24,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../onboarding/common/onboardingRegistry.js';
@@ -145,7 +145,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 
 	private update(): void {
 		const location = this.folderLocationService.currentLocation;
-		const identity = this.contextService.getWorkspace().identity;
+		const identifier = toWorkspaceIdentifier(this.contextService.getWorkspace());
+		const identity = isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
 		if (!location || !identity || !this.folderLocationService.isAtAlternateLocation()) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
@@ -231,7 +232,8 @@ registerAction2(class ReturnToPrimaryFolderLocationAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const identity = accessor.get(IWorkspaceContextService).getWorkspace().identity;
+		const identifier = toWorkspaceIdentifier(accessor.get(IWorkspaceContextService).getWorkspace());
+		const identity = isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
 		if (identity && accessor.get(IWorkspaceFolderLocationService).isAtAlternateLocation()) {
 			await accessor.get(IWorkspaceEditingService).setFolderLocation(identity, { reason: 'user' });
 		}
@@ -252,7 +254,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspace = contextService.getWorkspace();
 		const folder = workspace.folders[0];
-		const primary = workspace.identity;
+		const identifier = toWorkspaceIdentifier(workspace);
+		const primary = isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
 		if (!folder || !primary) {
 			return;
 		}
@@ -388,7 +391,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		}
 
 		// Re-submitting the current location is deliberate: it supersedes a different switch that is still pending
-		const currentIdentity = contextService.getWorkspace().identity;
+		const currentIdentifier = toWorkspaceIdentifier(contextService.getWorkspace());
+		const currentIdentity = isSingleFolderWorkspaceIdentifier(currentIdentifier) ? currentIdentifier.uri : undefined;
 		if (!currentIdentity || !uriIdentityService.extUri.isEqual(currentIdentity, primary)) {
 			return;
 		}

@@ -88,15 +88,15 @@ suite('WorkspaceEditingService', () => {
 
 	suite('setFolderLocation', () => {
 
-		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean }) {
+		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState }) {
 			const trusted: URI[] = [];
 			const resolved: URI[] = [];
 			const switched: (URI | undefined)[] = [];
 			const reasons: (string | undefined)[] = [];
-						const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
 				{
-					getWorkbenchState: () => WorkbenchState.FOLDER,
+					getWorkbenchState: () => options.state ?? WorkbenchState.FOLDER,
 					getWorkspace: () => ({ folders: [{ uri: options.current }], identity: URI.file('/work/project') }),
 					setFolderLocation: async (location: URI) => { switched.push(location); }
 				},
@@ -120,6 +120,17 @@ suite('WorkspaceEditingService', () => {
 			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true });
 			await assert.rejects(() => fixture.service.setFolderLocation(URI.parse('vscode-remote://host/work/alt')));
 			assert.deepStrictEqual({ resolved: fixture.resolved(), trusted: fixture.trusted(), switched: fixture.switched() }, { resolved: 0, trusted: [], switched: [] });
+		});
+
+		test('the folder option must match the folder of the workspace, and multi-root workspaces are rejected', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'), { folder: URI.file('/work/project') });
+			await assert.rejects(() => fixture.service.setFolderLocation(URI.file('/work/alt2'), { folder: URI.file('/work/other') }));
+
+			const multiRoot = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE });
+			await assert.rejects(() => multiRoot.service.setFolderLocation(URI.file('/work/alt'), { folder: URI.file('/work/project') }));
+
+			assert.deepStrictEqual({ switched: fixture.switched(), multiRootSwitched: multiRoot.switched() }, { switched: [URI.file('/work/alt').toString()], multiRootSwitched: [] });
 		});
 
 		test('the reason of the request is propagated to the current location change', async () => {

@@ -179,27 +179,17 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
 
-	// Multi root
-	const workspace = arg0;
+	return arg0.identity ?? deriveWorkspaceIdentifier(arg0);
+}
+
+function deriveWorkspaceIdentifier(workspace: IWorkspace): IAnyWorkspaceIdentifier {
 	if (workspace.configuration) {
-		return {
-			id: workspace.id,
-			configPath: workspace.configuration
-		};
+		return { id: workspace.id, configPath: workspace.configuration };
 	}
-
-	// Single folder
 	if (workspace.folders.length === 1) {
-		return {
-			id: workspace.id,
-			uri: workspace.identity ?? workspace.folders[0].uri
-		};
+		return { id: workspace.id, uri: workspace.folders[0].uri };
 	}
-
-	// Empty window
-	return {
-		id: workspace.id
-	};
+	return { id: workspace.id };
 }
 
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
@@ -293,11 +283,12 @@ export interface IWorkspace {
 	readonly name?: string;
 
 	/**
-	 * The URI that identifies a single-folder workspace: its folder's own location,
-	 * unchanged while the folder is at an alternate location. `undefined` for other
-	 * workspaces, and when the folder is at its own location it equals the folder `uri`.
+	 * The identifier of the workspace: `{ id, uri }` with the folder's own location for a
+	 * single-folder workspace (unchanged while the folder is at an alternate location),
+	 * `{ id, configPath }` for a multi-root workspace and `{ id }` for an empty workspace.
+	 * When absent, it is derived from the folders and configuration.
 	 */
-	readonly identity?: URI;
+	readonly identity?: IAnyWorkspaceIdentifier;
 
 }
 
@@ -364,7 +355,7 @@ export class Workspace implements IWorkspace {
 		private _configuration: URI | null,
 		private ignorePathCasing: (key: URI) => boolean,
 		private _workspaceName?: string,
-		private _identity?: URI,
+		private _identity?: IAnyWorkspaceIdentifier,
 	) {
 		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
@@ -375,7 +366,7 @@ export class Workspace implements IWorkspace {
 		this._configuration = workspace.configuration;
 		this._transient = workspace.transient;
 		this._workspaceName = workspace.name;
-		this._identity = workspace.identity;
+		this._identity = workspace._identity;
 		this.ignorePathCasing = workspace.ignorePathCasing;
 		this.folders = workspace.folders;
 	}
@@ -400,8 +391,8 @@ export class Workspace implements IWorkspace {
 		return this._workspaceName;
 	}
 
-	get identity(): URI | undefined {
-		return this._identity;
+	get identity(): IAnyWorkspaceIdentifier {
+		return this._identity ?? deriveWorkspaceIdentifier(this);
 	}
 
 	getFolder(resource: URI): IWorkspaceFolder | null {

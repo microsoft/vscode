@@ -58,8 +58,10 @@ export interface IWorkspaceEditingService {
 	 * location. The workspace identity (id, storage, extension state) is unchanged. Any other
 	 * `location` must be resolved by a registered `IWorkspaceFolderLocationProvider`.
 	 * Only supported for single local folder workspaces.
+	 * `options.folder` optionally names the folder to move by its current `uri`; it must match
+	 * the folder of the workspace. Multi-root workspaces are not supported yet.
 	 */
-	setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void>;
+	setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.

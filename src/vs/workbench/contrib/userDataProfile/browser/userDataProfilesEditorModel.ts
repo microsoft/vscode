@@ -42,7 +42,7 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IWorkspaceContextService, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -347,7 +347,8 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	getCurrentWorkspace(): URI | undefined {
 		const workspace = this.workspaceContextService.getWorkspace();
-		return workspace.configuration ?? workspace.identity ?? workspace.folders[0]?.uri;
+		const identifier = toWorkspaceIdentifier(workspace);
+		return isWorkspaceIdentifier(identifier) ? identifier.configPath : isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
 	}
 
 	openWorkspace(workspace: URI): void {

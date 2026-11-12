@@ -85,11 +85,12 @@ suite('WorkspaceFolderLocationService', () => {
 
 		assert.deepStrictEqual(
 			{
-				alternate: check(new Workspace('id', [folder(a)], false, null, () => false, undefined, primary)),
-				atIdentity: check(new Workspace('id', [folder(primary)], false, null, () => false, undefined, primary)),
-				withoutIdentity: check(new Workspace('id', [folder(a)], false, null, () => false))
+				alternate: check(new Workspace('id', [folder(a)], false, null, () => false, undefined, { id: 'id', uri: primary })),
+				atIdentity: check(new Workspace('id', [folder(primary)], false, null, () => false, undefined, { id: 'id', uri: primary })),
+				withoutIdentity: check(new Workspace('id', [folder(a)], false, null, () => false)),
+				multiRootSingleFolder: check(new Workspace('id', [folder(a)], false, URI.file('/ws.code-workspace'), () => false, undefined, { id: 'id', configPath: URI.file('/ws.code-workspace') }))
 			},
-			{ alternate: true, atIdentity: false, withoutIdentity: false });
+			{ alternate: true, atIdentity: false, withoutIdentity: false, multiRootSingleFolder: false });
 	});
 
 	test('getLocationText joins label and description', () => {

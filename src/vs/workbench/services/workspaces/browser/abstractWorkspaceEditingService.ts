@@ -8,7 +8,7 @@ import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/wor
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
+import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from '../../configuration/common/jsonEditing.js';
 import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkspaceService } from '../../configuration/browser/configurationService.js';
@@ -129,9 +129,13 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private folderLocationRequest = 0;
 
-	async setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void> {
+	async setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
+		}
+
+		if (options?.folder && !this.uriIdentityService.extUri.isEqual(options.folder, this.contextService.getWorkspace().folders[0].uri)) {
+			throw new Error(localize('folderLocationUnknownFolder', "'{0}' is not a folder of this workspace.", options.folder.toString()));
 		}
 
 		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
@@ -142,7 +146,8 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 			}
 			const workspace = this.contextService.getWorkspace();
-			return workspace.identity ?? workspace.folders[0].uri;
+			const identifier = toWorkspaceIdentifier(workspace);
+			return isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : workspace.folders[0].uri;
 		};
 		const identity = getIdentity();
 		const validatePrimary = () => {

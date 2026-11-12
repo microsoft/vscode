@@ -38,7 +38,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 		private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri), localize('agentsWindow', "Agents Window"));
+		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri), localize('agentsWindow', "Agents Window"), workspaceIdentifier);
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -93,7 +93,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 		return this.doUpdateFolders(foldersToAdd, foldersToDelete, index);
 	}
 
-	async setFolderLocation(_location: URI): Promise<void> { }
+	async setFolderLocation(_location: URI, _options?: { readonly folder?: URI }): Promise<void> { }
 
 	async enterWorkspace(_path: URI): Promise<void> { }
 
@@ -161,7 +161,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 		// Update workspace
 		const workspaceIdentifier = getWorkspaceIdentifier(this.workspace.configuration!);
-		const workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), this.workspace.name);
+		const workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), this.workspace.name, workspaceIdentifier);
 		this.workspace.update(workspace);
 
 		// Fire did change event
