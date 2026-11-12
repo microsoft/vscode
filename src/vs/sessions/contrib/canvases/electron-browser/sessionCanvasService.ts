@@ -37,7 +37,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 
 	constructor(
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
-		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISessionEditorWorkingSetService editorWorkingSetService: ISessionEditorWorkingSetService,
@@ -206,8 +206,8 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 
 	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined {
-		const session = this.focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-		return session && ownsSession(owner, session) ? session.resource : undefined;
+		const session = this.getShowingWindow(owner, reader)?.session;
+		return session?.chats.read(reader).find(chat => isEqual(chat.resource, owner.chat))?.resource;
 	}
 
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {

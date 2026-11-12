@@ -145,6 +145,7 @@ import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from 
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
+import type { CopilotRuntimeRestartEvent } from '../../node/copilot/copilotRuntimeRestartTelemetry.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import type { CompactionTurnCorrelation, ICompactionTurnCorrelationResult } from '../../node/copilot/compactionTurnCorrelation.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
@@ -334,6 +335,7 @@ function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknow
 	chatSession.topLevelMcpCustomizations ??= () => [];
 	chatSession.mcpServerOwners ??= () => undefined;
 	chatSession.listInstalledPlugins ??= async () => [];
+	chatSession.assertCanvasRuntimeAvailable ??= () => { };
 	chatEntriesBySdkId(agent).set(sdkSessionId, {
 		chatSession,
 		dispose: () => (stub as { dispose?: () => void }).dispose?.(),
@@ -2667,6 +2669,7 @@ suite('CopilotAgent', () => {
 		const healthy = URI.parse(buildChatUri(session, 'healthy'));
 		const liveExtension = { id: 'user:preview', name: 'Preview', source: 'user' as const, status: 'running' as const };
 		const failureStarted = new DeferredPromise<void>();
+		const failurePublished = new DeferredPromise<void>();
 		const healthyFinished = new DeferredPromise<void>();
 		const calls: string[] = [];
 		let failReconciliation = true;
@@ -2676,6 +2679,7 @@ suite('CopilotAgent', () => {
 			reconcileExtensions: async () => { calls.push('selected'); },
 		});
 		setPeerChatStub(agent, failed, {
+			publishCanvases: () => { failurePublished.complete(); },
 			listExtensions: async () => {
 				if (inventoryUnavailable) {
 					throw new Error('fixture inventory unavailable');
@@ -2709,8 +2713,15 @@ suite('CopilotAgent', () => {
 		]);
 		releaseFailure.complete();
 		await failureLogged.p;
+		const publishedBeforeInventoryRead = failurePublished.isSettled;
 		const failedInventory = await agent.listAgentExtensions(session, failed);
+		await agent.listAgentExtensions(session, failed);
+		agent['_onChatTurnEnded']();
+		const failedSession = agent['_findPluginOperationSession'](session, failed)!;
+		await agent['_queueChat'](failedSession.sessionId, failedSession.sessionId, 'drainFailureObserver', async () => { });
+		await assert.rejects(agent.listSessionCanvases(session, failed, exactChatContext(session, failed)), /fixture reconcile failed/);
 		const beforeRepair = {
+			publishedBeforeInventoryRead,
 			calls: [...calls].sort(),
 			reconciliation: failedInventory.reconciliation,
 			effectiveStatus: failedInventory.extensions[0]?.status,
@@ -2723,10 +2734,11 @@ suite('CopilotAgent', () => {
 
 		assert.deepStrictEqual({ beforeRepair, writes: client.extensionDisableRequests }, {
 			beforeRepair: {
-				calls: ['failed', 'failed', 'healthy', 'selected'],
-				reconciliation: { status: 'failed', message: 'fixture reconcile failed' },
+				publishedBeforeInventoryRead: true,
+				calls: ['failed', 'healthy', 'selected'],
+				reconciliation: { status: 'failed', message: 'Canvas extension changes couldn\'t be fully applied. Disable the failing extension or send a message when this chat is idle to restart it. fixture reconcile failed' },
 				effectiveStatus: 'running',
-				warnings: 2,
+				warnings: 1,
 			},
 			writes: [{ ids: ['user:preview'] }, { ids: ['user:preview'] }],
 		});
@@ -3291,7 +3303,7 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('rejects extension reconciliation after a queued replacement with the same SDK id', async () => {
+	test('confirms extension enablement on a queued replacement of the same chat and SDK id', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
 			mode: 'load_and_augment',
@@ -3333,7 +3345,7 @@ suite('CopilotAgent', () => {
 			const mutation = agent.setAgentExtensionEnabled('user:preview', false, session);
 			await reconcileQueued.p;
 			(agent as unknown as { _chatEntriesBySdkId: { deleteAndDispose(key: string): void } })._chatEntriesBySdkId.deleteAndDispose(sessionId);
-			setLiveChatStub(agent, sessionId, {
+			setDefaultSessionStub(agent, sessionId, {
 				sessionId,
 				sessionUri: session,
 				ownerSessionUri: session,
@@ -3352,27 +3364,54 @@ suite('CopilotAgent', () => {
 			}, defaultChatUri(session));
 			releaseReconcile.complete();
 
-			let errorMessage: string | undefined;
-			try {
-				await mutation;
-			} catch (error) {
-				errorMessage = error instanceof Error ? error.message : String(error);
-			}
+			await mutation;
 			assert.deepStrictEqual({
-				errorMessage,
 				disableRequests: client.extensionDisableRequests,
 				originalReconcileCalls,
 				replacementReconcileCalls,
 			}, {
-				errorMessage: 'After disabling \'Preview\', the canvas extension change couldn\'t be confirmed because the selected chat stopped or was replaced. \'Preview\' is disabled in settings.',
 				disableRequests: [{ ids: ['user:preview'] }],
 				originalReconcileCalls: 0,
-				replacementReconcileCalls: 0,
+				replacementReconcileCalls: 1,
 			});
 		} finally {
 			releaseReconcile.complete();
 			await disposeAgent(agent);
 		}
+	});
+
+	test('retries queued extension inventory outside the queue after its runtime is replaced', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const release = new DeferredPromise<void>();
+		afterTest(async () => { release.complete(); await disposeAgent(agent); });
+		const sessionId = 'inventory-replacement';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		setDefaultSessionStub(agent, sessionId, {});
+		await agent.setAgentExtensionEnabled('user:preview', false);
+		const entered = new DeferredPromise<void>();
+		const barrier = agent['_queueChat'](sessionId, sessionId, 'inventoryReplacementBarrier', async () => {
+			entered.complete();
+			await release.p;
+		});
+		await entered.p;
+		const listing = agent.listAgentExtensions(session);
+		await timeout(0);
+		let reconciles = 0;
+		setDefaultSessionStub(agent, sessionId, {
+			listExtensions: async () => [{ id: 'user:preview', name: 'Preview', source: 'user', status: 'disabled' }],
+			reconcileExtensions: async () => { reconciles++; },
+		});
+		release.complete();
+		const inventory = await listing;
+		await barrier;
+		assert.deepStrictEqual({ status: inventory.extensions[0]?.status, reconciliation: inventory.reconciliation, reconciles }, {
+			status: 'disabled', reconciliation: undefined, reconciles: 1,
+		});
 	});
 
 	test('preserves marketplace revisions through the SDK server API', async () => {
@@ -27091,8 +27130,8 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		for (const failure of [undefined, 'disconnect', 'launch'] as const) {
-			test(`recovers extension enablement before a new turn${failure ? ` or rejects ${failure} failure` : ''}`, async () => {
+		for (const operation of ['send', 'resume'] as const) {
+			test(`reconciles extension changes when admitting a ${operation} with background subagents`, async () => {
 				const client = new TestCopilotClient([]);
 				client.extensionInventory = {
 					mode: 'load_and_augment',
@@ -27100,15 +27139,116 @@ suite('CopilotAgent', () => {
 				};
 				const agent = createTestAgent(disposables, { copilotClient: client });
 				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', `extension-subagent-${operation}`);
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const peer = makeFakeChatSession(session, 'extension-subagent-peer');
+				const calls: string[] = [];
+				Object.assign(peer.fake, {
+					hasActiveSubagents: true,
+					reconcileExtensions: async () => { calls.push('reconcile'); },
+					send: async () => { calls.push('send'); },
+					resume: async () => { calls.push('resume'); },
+				});
+				setPeerChatStub(agent, chat, peer.fake);
+				await agent.setAgentExtensionEnabled('user:preview', false);
+				const context = exactChatContext(session, chat);
+				if (operation === 'send') {
+					await agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, context);
+				} else {
+					assert.ok(agent.chats.resumeTurn);
+					await agent.chats.resumeTurn(chat, 'new-turn', context);
+				}
+				assert.deepStrictEqual({ calls, backgroundStillActive: peer.fake.hasActiveSubagents }, {
+					calls: ['reconcile', operation], backgroundStillActive: true,
+				});
+			});
+
+			test(`reports an actionable reconciliation failure without restarting active work during ${operation}`, async () => {
+				const client = new TestCopilotClient([]);
+				client.extensionInventory = {
+					mode: 'load_and_augment',
+					extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+				};
+				const agent = createTestAgent(disposables, { copilotClient: client });
+				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', `extension-active-failure-${operation}`);
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const peer = makeFakeChatSession(session, 'extension-active-failure-peer');
+				Object.assign(peer.fake, {
+					hasActiveSubagents: true,
+					reconcileExtensions: async () => { throw new Error('fixture reconcile failed'); },
+				});
+				setPeerChatStub(agent, chat, peer.fake);
+				await agent.setAgentExtensionEnabled('user:preview', false);
+				assert.ok(agent.chats.resumeTurn);
+				const action = operation === 'send'
+					? agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, exactChatContext(session, chat))
+					: agent.chats.resumeTurn(chat, 'new-turn', exactChatContext(session, chat));
+				await assert.rejects(action, /Couldn't apply canvas extension changes.*still working.*fixture reconcile failed/);
+				assert.deepStrictEqual({ sends: peer.rec.sends, disposed: peer.rec.disposed, active: peer.fake.hasActiveSubagents }, {
+					sends: [], disposed: false, active: true,
+				});
+			});
+		}
+
+		for (const operation of ['list', 'open'] as const) {
+			test(`does not block a send behind an in-flight Canvas ${operation}`, async () => {
+				const agent = createTestAgent(disposables);
+				const release = new DeferredPromise<void>();
+				afterTest(async () => {
+					release.complete();
+					await disposeAgent(agent);
+				});
+				const session = AgentSession.uri('copilotcli', `canvas-queue-${operation}`);
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const peer = makeFakeChatSession(session, 'canvas-queue-peer');
+				const entered = new DeferredPromise<void>();
+				const sent = new DeferredPromise<void>();
+				const canvasCall = async () => {
+					entered.complete();
+					await release.p;
+				};
+				Object.assign(peer.fake, {
+					listCanvases: async () => { await canvasCall(); return []; },
+					openCanvas: canvasCall,
+					send: async () => { sent.complete(); },
+				});
+				setPeerChatStub(agent, chat, peer.fake);
+				const context = exactChatContext(session, chat);
+				const canvas = operation === 'list'
+					? agent.listSessionCanvases(session, chat, context)
+					: agent.openSessionCanvas(session, { extensionId: 'user:preview', canvasId: 'preview', instanceId: 'preview' }, chat, context);
+				await entered.p;
+				const sending = agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, context);
+				await sent.p;
+				const sentBeforeCanvas = !release.isSettled;
+				agent['_chatEntriesBySdkId'].deleteAndDispose(peer.fake.sessionId);
+				setPeerChatStub(agent, chat, makeFakeChatSession(session, 'canvas-queue-peer').fake);
+				release.complete();
+				const [canvasResult] = await Promise.all([canvas, sending]);
+				assert.deepStrictEqual({ sentBeforeCanvas, canvasResult }, { sentBeforeCanvas: true, canvasResult: undefined });
+			});
+		}
+
+		for (const failure of [undefined, 'disconnect', 'launch'] as const) {
+			test(`recovers extension enablement before a new turn${failure ? ` or rejects ${failure} failure` : ''}`, async () => {
+				const client = new TestCopilotClient([]);
+				client.extensionInventory = {
+					mode: 'load_and_augment',
+					extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+				};
+				const telemetryService = new RecordingTelemetryService();
+				const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+				afterTest(() => disposeAgent(agent));
 				const session = AgentSession.uri('copilotcli', 'extension-turn-admission');
 				const chat = URI.parse(buildChatUri(session, 'peer'));
 				const peer = makeFakeChatSession(session, 'extension-turn-peer');
 				const replacement = makeFakeChatSession(session, 'extension-turn-peer');
-				let busy = !failure;
 				let reconciles = 0;
 				let disconnects = 0;
 				let launches = 0;
-				Object.defineProperty(peer.fake, 'hasActiveSubagents', { get: () => busy });
+				let publications = 0;
+				replacement.fake.publishCanvases = () => { publications++; };
 				peer.fake.reconcileExtensions = async () => {
 					reconciles++;
 					throw new Error('extension_reconciliation_lifecycle_failed');
@@ -27132,10 +27272,6 @@ suite('CopilotAgent', () => {
 				await agent.setAgentExtensionEnabled('user:preview', false);
 				const send = () => agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, exactChatContext(session, chat));
 
-				if (busy) {
-					await assert.rejects(send(), /waiting for this chat to finish its work/);
-					busy = false;
-				}
 				await assert.rejects(agent.listSessionCanvases(session, chat, exactChatContext(session, chat)), /extension_reconciliation_lifecycle_failed/);
 				const inventory = await agent.listAgentExtensions(session, chat);
 				if (failure) {
@@ -27145,18 +27281,56 @@ suite('CopilotAgent', () => {
 				}
 
 				assert.deepStrictEqual({
-					reconciles, disconnects, launches, oldDisposed: peer.rec.disposed,
+					reconciles, disconnects, launches, publications, oldDisposed: peer.rec.disposed,
 					reconciliation: inventory.reconciliation,
+					restartCauses: telemetryService.events.filter(event => event.eventName === 'agentHost.copilot.runtimeRestart')
+						.map(event => (event.data as CopilotRuntimeRestartEvent).cause),
 					oldSends: peer.rec.sends,
 					newSends: replacement.rec.sends.map(s => s.prompt),
 				}, {
-					reconciles: 3, disconnects: 1, launches: failure === 'disconnect' ? 0 : 1,
+					reconciles: 2, disconnects: 1, launches: failure === 'disconnect' ? 0 : 1, publications: failure ? 0 : 1,
 					oldDisposed: failure !== 'disconnect',
-					reconciliation: { status: 'failed', message: 'extension_reconciliation_lifecycle_failed' },
+					reconciliation: { status: 'failed', message: 'Canvas extension changes couldn\'t be fully applied. Disable the failing extension or send a message when this chat is idle to restart it. extension_reconciliation_lifecycle_failed' },
+					restartCauses: ['extensionEnablementResync'],
 					oldSends: [], newSends: failure ? [] : ['new turn'],
 				});
 			});
 		}
+
+		test('registers an initialized runtime as unconfirmed so the turn can recover a raced extension change', async () => {
+			const client = new TestCopilotClient([]);
+			client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const release = new DeferredPromise<void>();
+			afterTest(async () => { release.complete(); await disposeAgent(agent); });
+			const session = AgentSession.uri('copilotcli', 'initializing-extension-failure');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const initializing = makeFakeChatSession(session, 'initializing-extension-peer');
+			const replacement = makeFakeChatSession(session, 'initializing-extension-peer');
+			const started = new DeferredPromise<void>();
+			Object.assign(initializing.fake, {
+				canvasRuntimeEnabled: true,
+				initializeSession: async () => { started.complete(); await release.p; },
+				reconcileExtensions: async () => { throw new Error('fixture reconcile failed'); },
+			});
+			const initialization = agent['_initializeAndRegisterSession'](initializing.fake, () => setPeerChatStub(agent, chat, initializing.fake));
+			await started.p;
+			await agent.setAgentExtensionEnabled('user:preview', false);
+			release.complete();
+			await initialization;
+			const registeredUnconfirmed = !agent['_isExtensionEnablementCurrent'](initializing.fake);
+			agent['_ensureResolvedChatSession'] = async () => {
+				await agent['_initializeAndRegisterSession'](replacement.fake, () => setPeerChatStub(agent, chat, replacement.fake));
+				return replacement.fake;
+			};
+			await agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, exactChatContext(session, chat));
+			assert.deepStrictEqual({ registeredUnconfirmed, oldSends: initializing.rec.sends, sends: replacement.rec.sends.map(send => send.prompt) }, {
+				registeredUnconfirmed: true, oldSends: [], sends: ['new turn'],
+			});
+		});
 
 		for (const operation of ['send', 'resume'] as const) {
 			test(`does not ${operation} a stopped turn after final extension catch-up`, async () => {
@@ -30367,6 +30541,29 @@ suite('CopilotAgent', () => {
 				});
 			});
 		}
+
+		test('preserves best-effort teardown for an unrelated MCP configuration restart', async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			afterTest(() => disposeAgent(agent));
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const previous = {
+				...refreshSessionStub([]),
+				requiresMcpLaunchConfigurationRefresh: true,
+				async destroySession() { throw new Error('fixture disconnect failed'); },
+			};
+			const replacement = refreshSessionStub([]);
+			setDefaultSessionStub(agent, sessionId, previous);
+			agent['_resumeSession'] = async () => {
+				setDefaultSessionStub(agent, sessionId, replacement);
+				return agent['_findPluginOperationSession'](session, chat)!;
+			};
+			await agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn');
+			assert.deepStrictEqual({ previousDisposed: previous.disposeCalls, sends: replacement.sendCalls }, {
+				previousDisposed: 1, sends: ['new turn'],
+			});
+		});
 
 		test('reports the bounded SDK session refresh reason during turn preparation', async () => {
 			const telemetryService = new RecordingTelemetryService();

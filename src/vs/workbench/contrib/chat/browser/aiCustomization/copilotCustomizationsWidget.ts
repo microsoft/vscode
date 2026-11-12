@@ -967,7 +967,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private refreshCanvases(notifyOnError = true, focusToRestore?: IFocusedCanvasAction): void {
-		this.canvasErrors.clear();
 		const generation = this.canvasRefreshGeneration.get() + 1;
 		this.canvasRefreshBatch = {
 			generation,
@@ -993,7 +992,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		}
 		const ownerKey = lifetime.ownerKey;
 		this.loadingCanvasOwnerKeys.add(ownerKey);
-		this.canvasErrors.delete(ownerKey);
 		this.render();
 		try {
 			const frontendSessionResource = this.canvasContextService.getFrontendSessionResource(context.owner);
@@ -1009,6 +1007,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				this.extensionInventories.set(ownerKey, inventory);
 				if (inventory.reconciliation) {
 					this.canvasErrors.set(ownerKey, inventory.reconciliation.message);
+				} else {
+					this.canvasErrors.delete(ownerKey);
 				}
 				this.extensionInventoriesChanged.trigger(undefined);
 			}
@@ -1017,6 +1017,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			}
 			const definitions = definitionsResult.value;
 			if (isCurrent() && definitions !== undefined) {
+				if (!inventory?.reconciliation) {
+					this.canvasErrors.delete(ownerKey);
+				}
 				this.updateCachedDefinitions(context, inventory, definitions);
 				this.extensionInventoriesChanged.trigger(undefined);
 			}
@@ -1623,9 +1626,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getCanvasRefreshMessage(context: ICanvasContext): string | undefined {
-		const ownerKey = canvasOwnerKey(context.owner);
-		return this.canvasErrors.get(ownerKey)
-			?? (this.loadingCanvasOwnerKeys.has(ownerKey) ? localize('copilotCanvases.loading', "Loading Canvases...") : undefined);
+		return this.canvasErrors.get(canvasOwnerKey(context.owner));
 	}
 
 	private getCanvasDetail(item: ICopilotCanvasItem): string {

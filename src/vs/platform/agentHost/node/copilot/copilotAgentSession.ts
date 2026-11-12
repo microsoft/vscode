@@ -4273,12 +4273,13 @@ export class CopilotAgentSession extends Disposable {
 	 * cannot cancel the in-flight SDK request, so the model/agent/history state
 	 * this session believes it applied may not match the SDK's. The next send
 	 * discards and resumes the SDK session so a late-settling request lands on a
-	 * session nothing is using rather than mutating live state. A retained session
-	 * whose canvas projection was released also needs a fresh runtime.
+	 * session nothing is using rather than mutating live state.
 	 */
 	get requiresControlPlaneResync(): boolean {
-		return this._controlPlaneDesynchronized || this._canvasPhase === 'released';
+		return this._controlPlaneDesynchronized;
 	}
+
+	get hasReleasedCanvasProjection(): boolean { return this._canvasPhase === 'released'; }
 
 	get appliedDisabledRootMcpServers(): readonly string[] {
 		return this._launchPlan.disabledRootMcpServers ?? [];
@@ -5055,7 +5056,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _assertCanvasRuntimeAvailable(): void {
+	assertCanvasRuntimeAvailable(): void {
 		if (this._canvasPhase === 'released') {
 			throw new Error(localize('copilot.canvasesReleased', "This chat needs to restart before its canvases can be used. Send a message to continue."));
 		}
@@ -5065,7 +5066,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		this._assertCanvasRuntimeAvailable();
+		this.assertCanvasRuntimeAvailable();
 		const generation = this._canvasRegistryGeneration;
 		const [result, extensions] = await Promise.all([
 			this._awaitControlPlaneRpc('rpc.canvas.list', this._wrapper.session.rpc.canvas.list()),
@@ -5132,7 +5133,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		this._assertCanvasRuntimeAvailable();
+		this.assertCanvasRuntimeAvailable();
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {

@@ -77,6 +77,7 @@ suite('CopilotCanvasesWidget', () => {
 		readonly storageService?: IStorageService;
 		readonly visible?: boolean;
 		readonly contextAvailable?: boolean;
+		readonly frontendSessionAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
 		readonly mutationError?: Error;
@@ -121,7 +122,7 @@ suite('CopilotCanvasesWidget', () => {
 			override readonly onDidRemoveOwner = Event.None;
 			override isOwnerVisible() { return true; }
 			override getContext() { return context; }
-			override getFrontendSessionResource() { return frontendSessionResource; }
+			override getFrontendSessionResource() { return options?.frontendSessionAvailable === false ? undefined : frontendSessionResource; }
 			override getEditorGroup() { return undefined; }
 		}();
 		const canvasService = new class extends mock<ICanvasService>() {
@@ -1173,10 +1174,12 @@ suite('CopilotCanvasesWidget', () => {
 		};
 		const pending = inspect();
 		reopened.setExtensionInventory(inventory([preview]));
+		const refreshing = inspect();
 		await timeout(0);
 
-		assert.deepStrictEqual({ pending, applied: inspect() }, {
+		assert.deepStrictEqual({ pending, refreshing, applied: inspect() }, {
 			pending: { visible: true, parentReason: true, accessible: true, canDisable: true, canOpen: false },
+			refreshing: { visible: true, parentReason: true, accessible: true, canDisable: true, canOpen: false },
 			applied: { visible: false, parentReason: false, accessible: false, canDisable: true, canOpen: true },
 		});
 	});
@@ -1230,7 +1233,68 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	}
 
-	test('marks populated Canvas rows unconfirmed during refresh and failure without blocking corrective toggles', async () => {
+	test('retains known reconciliation health during a toggle-triggered refresh', async () => {
+		const preview = definition();
+		const reason = 'Fixture extension reconciliation failed.';
+		const release = new DeferredPromise<void>();
+		const requested = new DeferredPromise<void>();
+		let refreshing = false;
+		const harness = createHarness({
+			extensionInventory: { ...inventory([preview]), reconciliation: { status: 'failed', message: reason } },
+			mutationError: new Error('Fixture toggle did not settle.'),
+			onMutation: () => { refreshing = true; },
+			listCanvases: async () => {
+				if (refreshing) {
+					requested.complete();
+					await release.p;
+				}
+				return [preview];
+			},
+		});
+		await timeout(0);
+		try {
+			harness.container.querySelector<HTMLElement>('[role="switch"]')!.click();
+			await requested.p;
+			const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			more.click();
+			assert.deepStrictEqual({
+				knownReason: harness.widget.getAccessibilityContent().includes(reason),
+				claimsReady: harness.widget.getAccessibilityContent().includes('Ready to Open'),
+				canOpen: harness.menuActions.find(action => action.id === 'canvas.show')?.enabled,
+			}, { knownReason: true, claimsReady: false, canOpen: false });
+			harness.hideMenu();
+		} finally {
+			release.complete();
+			await timeout(0);
+		}
+	});
+
+	test('clears a recovered Canvas listing error when no extension inventory is available', async () => {
+		const preview = definition();
+		let failing = true;
+		const harness = createHarness({
+			frontendSessionAvailable: false,
+			listCanvases: async () => {
+				if (failing) {
+					throw new Error('Fixture Canvas listing failed.');
+				}
+				return [preview];
+			},
+		});
+		await timeout(0);
+		const failed = harness.widget.getAccessibilityContent().includes('Fixture Canvas listing failed.');
+		failing = false;
+		harness.definitionsChanged.fire();
+		await timeout(0);
+		assert.deepStrictEqual({
+			failed,
+			retainedFailure: harness.widget.getAccessibilityContent().includes('Fixture Canvas listing failed.'),
+			ready: harness.widget.getAccessibilityContent().includes('Ready to Open'),
+		}, { failed: true, retainedFailure: false, ready: true });
+	});
+
+	test('retains confirmed Canvas states during ordinary refresh and reports failures without blocking corrective toggles', async () => {
 		const preview = definition();
 		const refresh = new DeferredPromise<readonly ICanvasDefinition[]>();
 		const requested = new DeferredPromise<void>();
@@ -1261,7 +1325,7 @@ suite('CopilotCanvasesWidget', () => {
 		await staleOpen.run();
 		harness.hideMenu();
 		const pending = {
-			visibleReason: harness.container.textContent?.includes('Loading Canvases...'),
+			visibleReason: harness.container.querySelector('.copilot-canvas-tree-item')?.textContent?.includes('Loading Canvases...'),
 			accessibleReason: harness.widget.getAccessibilityContent().includes('Loading Canvases...'),
 			claimsReadyToOpen: harness.widget.getAccessibilityContent().includes('Ready to Open'),
 			openEnabled: openMenu().enabled,
@@ -1272,7 +1336,7 @@ suite('CopilotCanvasesWidget', () => {
 		refresh.error(new Error('Fixture refresh failed.'));
 		await timeout(0);
 		const failed = {
-			visibleReason: harness.container.textContent?.includes('Fixture refresh failed.'),
+			visibleReason: harness.container.querySelector('.copilot-canvas-tree-item')?.textContent?.includes('Fixture refresh failed.'),
 			accessibleReason: harness.widget.getAccessibilityContent().includes('Fixture refresh failed.'),
 			claimsReadyToOpen: harness.widget.getAccessibilityContent().includes('Ready to Open'),
 			openEnabled: openMenu().enabled,
@@ -1300,10 +1364,10 @@ suite('CopilotCanvasesWidget', () => {
 		harness.hideMenu();
 
 		assert.deepStrictEqual({ pending, failed, opens: harness.openCalls, closes: harness.closeCalls }, {
-			pending: { visibleReason: true, accessibleReason: true, claimsReadyToOpen: false, openEnabled: false, openLabel: 'Open Canvas', canDisable: true },
+			pending: { visibleReason: false, accessibleReason: false, claimsReadyToOpen: true, openEnabled: true, openLabel: 'Open Canvas', canDisable: true },
 			failed: { visibleReason: true, accessibleReason: true, claimsReadyToOpen: false, openEnabled: false, openLabel: 'Open Canvas', canDisable: true },
-			opens: 0,
-			closes: 0,
+			opens: 1,
+			closes: 1,
 		});
 	});
 
