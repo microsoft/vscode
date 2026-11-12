@@ -15,10 +15,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewStorageScope, IBrowserViewOwner } from '../../../../../platform/browserView/common/browserView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -59,6 +60,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		readonly editor?: Partial<IEditorService>;
 		readonly editorGroups?: Partial<IEditorGroupsService>;
 		readonly configuration?: TestConfigurationService;
+		readonly trust?: IWorkspaceTrustManagementService;
 	}): IBrowserViewNetworkResolver {
 		const instantiationService = store.add(new TestInstantiationService());
 		let resolver: IBrowserViewNetworkResolver | undefined;
@@ -87,6 +89,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, services.configuration ?? new TestConfigurationService());
+		instantiationService.stub(IWorkspaceTrustManagementService, services.trust ?? upcastPartial<IWorkspaceTrustManagementService>({ onDidChangeTrust: Event.None, onDidChangeTrustedFolders: Event.None, getUriTrustInfo: async uri => ({ uri, trusted: true }) }));
 		store.add(instantiationService.createInstance(SessionBrowserNetworkContribution));
 		return resolver!;
 	}
@@ -150,20 +153,28 @@ suite('SessionBrowserNetworkContribution', () => {
 		});
 	});
 
-	test('keeps the folders of sessions on remote hosts trusted after focus moves to another session', () => {
-		const withFolder = (id: string, providerId: string, folder: string, requiresWorkspaceTrust: boolean) => upcastPartial<ISession>({
+	test('keeps the folders of trusted sessions on remote hosts trusted after focus moves to another session', async () => {
+		const folder = (path: string) => toAgentHostUri(URI.file(path), 'ssh-host');
+		const withFolder = (id: string, providerId: string, workingDirectory: URI, requiresWorkspaceTrust: boolean) => upcastPartial<ISession>({
 			sessionId: id,
 			resource: URI.parse(`session:/${id}`),
 			providerId,
-			workspace: constObservable(upcastPartial<ISessionWorkspace>({ requiresWorkspaceTrust, folders: [upcastPartial<ISessionFolder>({ root: URI.file(folder), workingDirectory: URI.file(folder) })] })),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ requiresWorkspaceTrust, folders: [upcastPartial<ISessionFolder>({ root: workingDirectory, workingDirectory })] })),
 		});
-		const first = withFolder('first', 'agenthost-ssh', '/first', false);
-		const second = withFolder('second', 'agenthost-ssh', '/second', false);
-		const needsTrust = withFolder('needs-trust', 'agenthost-ssh', '/trust', true);
-		const local = withFolder('local', 'local-agent-host', '/local', false);
+		const first = withFolder('first', 'agenthost-ssh', folder('/first'), true);
+		const second = withFolder('second', 'agenthost-ssh', folder('/second'), true);
+		const untrusted = withFolder('untrusted', 'agenthost-ssh', folder('/untrusted'), true);
+		const local = withFolder('local', 'local-agent-host', URI.file('/local'), false);
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
 		const onDidChangeSessions = store.add(new Emitter<void>());
-		let sessions = [first, local, needsTrust];
+		let sessions = [first, local, untrusted];
+		const trustedPaths = new Set(['/first', '/second']);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({
+			onDidChangeTrust: Event.None,
+			onDidChangeTrustedFolders: Event.None,
+			getUriTrustInfo: async uri => ({ uri, trusted: trustedPaths.has(fromAgentHostUri(uri).path) }),
+		}));
 
 		const resolver = createResolver({
 			sessionsManagement: { getSessions: () => sessions, onDidChangeSessions: onDidChangeSessions.event as never },
@@ -171,23 +182,27 @@ suite('SessionBrowserNetworkContribution', () => {
 			connections: {
 				resolveSessionResourceIdentity: resource => ({ connectionAuthority: resource.path === '/local' ? AMBIENT_AGENT_HOST_AUTHORITY : 'ssh-host', backendSession: resource }),
 			},
+			trust: instantiationService.get(IWorkspaceTrustManagementService),
 		});
 		let changes = 0;
 		store.add(resolver.onDidChangeTrustedFileRoots!(() => changes++));
-		const roots = () => resolver.getTrustedFileRoots!().map(root => root.path);
+		const roots = async () => {
+			await timeout(0);
+			return resolver.getTrustedFileRoots!().map(root => fromAgentHostUri(root).path);
+		};
 
 		activeSession.set(upcastPartial<ITestSessionWithChat>(first), undefined);
-		const focusedFirst = roots();
+		const focusedFirst = await roots();
 		activeSession.set(upcastPartial<ITestSessionWithChat>(second), undefined);
 		onDidChangeSessions.fire();
-		const afterFocusMoved = { roots: roots(), changes };
-		sessions = [first, second, local, needsTrust];
+		const afterFocusMoved = { roots: await roots(), changes };
+		sessions = [first, second, local, untrusted];
 		onDidChangeSessions.fire();
 
-		assert.deepStrictEqual({ focusedFirst, afterFocusMoved, afterSessionAdded: { roots: roots(), changes } }, {
+		assert.deepStrictEqual({ focusedFirst, afterFocusMoved, afterSessionAdded: { roots: await roots(), changes } }, {
 			focusedFirst: ['/first'],
-			afterFocusMoved: { roots: ['/first'], changes: 0 },
-			afterSessionAdded: { roots: ['/first', '/second'], changes: 1 },
+			afterFocusMoved: { roots: ['/first'], changes: 1 },
+			afterSessionAdded: { roots: ['/first', '/second'], changes: 2 },
 		});
 	});
 

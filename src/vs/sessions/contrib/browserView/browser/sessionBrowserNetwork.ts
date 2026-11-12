@@ -16,6 +16,7 @@ import { agentHostAuthority } from '../../../../platform/agentHost/common/agentH
 import { BrowserViewStorageScope, getBrowserViewSessionAffinity, IBrowserViewNetwork, IBrowserViewOwner, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { BrowserRemoteProxyEnabledSettingId, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
@@ -64,6 +65,9 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	/** Browser tabs opened from the new-session composer. */
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
+	private _trustedFileRoots: URI[] = [];
+	private _trustedFileRootsKey = '[]';
+	private readonly _trustedFileRootsUpdates: Sequencer;
 	/** Moves of composer tabs run one at a time, so each sees the tabs earlier moves created. */
 	private readonly _composerTabMoves = new Sequencer();
 
@@ -78,6 +82,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -91,14 +96,20 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		this._register(runOnChange(statuses, () => onDidChangeNetworkStatus.fire()));
 
 		const onDidChangeTrustedFileRoots = this._register(new Emitter<void>());
-		let trustedFileRootsKey = this._getTrustedFileRootsKey();
-		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
-			const key = this._getTrustedFileRootsKey();
-			if (key !== trustedFileRootsKey) {
-				trustedFileRootsKey = key;
+		this._trustedFileRootsUpdates = new Sequencer();
+		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
+			const roots = await this._computeTrustedFileRoots();
+			const key = JSON.stringify(roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort());
+			if (key !== this._trustedFileRootsKey) {
+				this._trustedFileRootsKey = key;
+				this._trustedFileRoots = roots;
 				onDidChangeTrustedFileRoots.fire();
 			}
-		}));
+		});
+		this._register(this._sessionsManagementService.onDidChangeSessions(updateTrustedFileRoots));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(updateTrustedFileRoots));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(updateTrustedFileRoots));
+		updateTrustedFileRoots();
 
 		this._register(this._browserViewService.registerNetworkResolver({
 			resolveNetwork: owner => {
@@ -107,7 +118,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 				return owner.type === 'agent' && !host ? null : this._getNetwork(host?.authority);
 			},
 			resolveStorageAffinity: owner => this._getStorageAffinity(this._resolveHost(owner)),
-			getTrustedFileRoots: () => this._getTrustedFileRoots(),
+			getTrustedFileRoots: () => this._trustedFileRoots,
 			onDidChangeTrustedFileRoots: onDidChangeTrustedFileRoots.event,
 			getNetworkStatus: network => this._getNetworkStatus(network.authority, undefined),
 			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
@@ -184,21 +195,19 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	/**
 	 * The working directories of all sessions on remote agent hosts, not just the focused one the window mounts.
-	 * Sessions that require workspace trust are covered by the window's trusted URIs instead.
+	 * Follows the rule for mounting a session's folders: sessions that require workspace trust only count
+	 * when their folder is trusted.
 	 */
-	private _getTrustedFileRoots(): URI[] {
-		const roots: URI[] = [];
+	private async _computeTrustedFileRoots(): Promise<URI[]> {
+		const candidates: { readonly folder: URI; readonly requiresTrust: boolean }[] = [];
 		for (const session of this._sessionsManagementService.getSessions()) {
 			const workspace = session.workspace.get();
-			if (workspace && !workspace.requiresWorkspaceTrust && this._getNetwork(this._getSessionAuthority(session))) {
-				roots.push(...workspace.folders.map(folder => folder.workingDirectory));
+			if (workspace && this._getNetwork(this._getSessionAuthority(session))) {
+				candidates.push(...workspace.folders.map(folder => ({ folder: folder.workingDirectory, requiresTrust: workspace.requiresWorkspaceTrust })));
 			}
 		}
-		return roots;
-	}
-
-	private _getTrustedFileRootsKey(): string {
-		return JSON.stringify(this._getTrustedFileRoots().map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort());
+		const trusted = await Promise.all(candidates.map(async ({ folder, requiresTrust }) => !requiresTrust || (await this._workspaceTrustManagementService.getUriTrustInfo(folder)).trusted));
+		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
 	}
 
 	private _getNetworkStatus(authority: string, reader: IReader | undefined): IBrowserViewNetworkStatus {
