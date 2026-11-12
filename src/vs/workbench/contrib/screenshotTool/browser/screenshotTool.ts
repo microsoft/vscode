@@ -95,14 +95,18 @@ export interface IScreenshotToolService {
 	/** Lets the user click or press Enter to capture the window, or drag to capture an area. */
 	capture(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
 
-	/** Captures the whole window, as the user sees it, without letting the user select. */
-	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;
+	/**
+	 * Captures the whole window, as the user sees it, without letting the user select. With `afterRepaint`, it first
+	 * lets the window repaint, so UI that just closed is not captured.
+	 */
+	captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined>;
 
 	/**
 	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it.
-	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed.
+	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed. `name` names an image
+	 * that is not a screenshot, such as an image file.
 	 */
-	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface): Promise<IScreenshotToolEdit | undefined>;
+	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined>;
 
 	/**
 	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Escape and Done end it, as does
