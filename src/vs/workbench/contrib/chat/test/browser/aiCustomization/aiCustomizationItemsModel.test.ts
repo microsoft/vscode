@@ -25,7 +25,7 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -501,6 +501,7 @@ suite('AICustomizationItemsModel', () => {
 				type: PromptsType.hook,
 				storage: PromptsStorage.plugin,
 				pluginUri: plugin.uri,
+				source: PromptFileSource.Plugin,
 			}));
 			hooksDidChange.fire();
 			await timeout(0);
