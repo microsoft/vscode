@@ -270,8 +270,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 		this._register(this.on('dispatch-key-event', data => {
 			try {
-				if (!this.shouldForwardKeyEvent(data.event) || !this.isActiveElement() || !this.element) {
+				if (!this.shouldForwardKeyEvent(data.event) || !this.element) {
 					throw new Error('Cannot dispatch a key event from an inactive or unauthenticated webview');
+				}
+				if (!this.isActiveElement()) {
+					this._logService.trace('Cancelled webview keybinding dispatch after focus changed');
+					this._send('did-dispatch-key-event', { id: data.id, result: { handled: false, cancelled: true } });
+					return;
 				}
 				if (!Array.isArray(data.localCommands) || !data.localCommands.every(id => typeof id === 'string')) {
 					throw new Error('Invalid webview keyboard command list');

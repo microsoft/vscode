@@ -24,6 +24,7 @@ type KeyEvent = {
 
 export interface KeybindingDispatchResult {
 	readonly handled: boolean;
+	readonly cancelled?: boolean;
 	readonly command?: { readonly id: string; readonly args: unknown };
 }
 

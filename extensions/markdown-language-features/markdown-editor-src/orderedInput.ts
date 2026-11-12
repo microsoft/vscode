@@ -10,6 +10,7 @@ declare const EditContext: new (options: EditContextInit) => EditContext;
 
 export interface KeybindingDispatchResult {
 	readonly handled: boolean;
+	readonly cancelled?: boolean;
 	readonly command?: { readonly id: string; readonly args: unknown };
 }
 
@@ -29,8 +30,9 @@ export class OrderedInput extends EventTarget implements NonNullable<EditorViewO
 	#nativeSelectionEnd = 0;
 	#pending = 0;
 	#tail: Promise<void> = Promise.resolve();
-	#lastKey: Promise<KeybindingDispatchResult | undefined> | undefined;
+	#lastKey: Promise<KeybindingDispatchResult> | undefined;
 	#composing = false;
+	#compositionSelection: { start: number; end: number } | undefined;
 	#disposed = false;
 	#failed = false;
 
@@ -63,13 +65,22 @@ export class OrderedInput extends EventTarget implements NonNullable<EditorViewO
 		dispatch: () => Promise<KeybindingDispatchResult>,
 		execute: (command: NonNullable<KeybindingDispatchResult['command']>) => void | Promise<void>,
 	): void {
+		if (this.#disposed || this.#failed) {
+			return;
+		}
 		this.#nativeSelectionStart = this.#native.selectionStart;
 		this.#nativeSelectionEnd = this.#native.selectionEnd;
-		const result = this.#tail.then(() => this.#disposed || this.#failed ? undefined : dispatch());
+		const result = dispatch();
+		// Observe failures immediately even when earlier input is still awaiting execution.
+		const settled = result.then(value => ({ kind: 'result' as const, value }), error => ({ kind: 'error' as const, error }));
 		this.#lastKey = result;
 		this.enqueue(async () => {
-			const resolved = await result;
-			if (!this.#disposed && !this.#failed && resolved?.command) {
+			const outcome = await settled;
+			if (outcome.kind === 'error') {
+				throw outcome.error;
+			}
+			const resolved = outcome.value;
+			if (!this.#disposed && !this.#failed && resolved.command) {
 				await execute(resolved.command);
 			}
 		});
@@ -104,31 +115,38 @@ export class OrderedInput extends EventTarget implements NonNullable<EditorViewO
 		const key = this.#lastKey;
 		this.#lastKey = undefined;
 		const text = event.text;
+		const selectionStartDelta = event.selectionStart - event.updateRangeStart;
+		const selectionEndDelta = event.selectionEnd - event.updateRangeStart;
+		const composing = this.#composing;
 		this.enqueue(async () => {
 			if (key && (await key)?.handled) {
 				return;
 			}
-			const start = this.#selectionStart + startDelta;
-			const end = this.#selectionEnd + endDelta;
+			const start = (this.#compositionSelection?.start ?? this.#selectionStart) + startDelta;
+			const end = (this.#compositionSelection?.end ?? this.#selectionEnd) + endDelta;
 			if (start < 0 || end < start || end > this.#text.length) {
 				throw new Error('Markdown input no longer matches the document selection');
 			}
 			this.dispatchEvent(new TextUpdateEvent('textupdate', {
 				text, updateRangeStart: start, updateRangeEnd: end,
-				selectionStart: start + text.length, selectionEnd: start + text.length,
+				selectionStart: start + selectionStartDelta, selectionEnd: start + selectionEndDelta,
 				compositionStart: -1, compositionEnd: -1,
 			}));
+			if (composing) {
+				this.#compositionSelection = { start: start + selectionStartDelta, end: start + selectionEndDelta };
+			}
 		});
 	};
 
 	readonly #onCompositionStart = (): void => {
 		this.#composing = true;
 		this.#lastKey = undefined;
+		this.enqueue(() => { this.#compositionSelection = undefined; });
 	};
 
 	readonly #onCompositionEnd = (): void => {
 		this.#composing = false;
-		this.#syncNative();
+		this.enqueue(() => { this.#compositionSelection = undefined; });
 	};
 
 	#syncNative(): void {

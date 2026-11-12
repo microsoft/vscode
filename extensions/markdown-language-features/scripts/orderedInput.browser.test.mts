@@ -8,37 +8,43 @@ import { it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 import { chromium } from 'playwright';
+import { markdownEditorOverridePlugin, resolveMarkdownEditorPackage } from './markdownEditorPackage.mts';
 
 it('orders native text and composition behind delayed, remapped and removed keybindings', async () => {
+	const editorPackage = await resolveMarkdownEditorPackage();
 	const bundle = await esbuild.build({
 		stdin: {
 			resolveDir: fileURLToPath(new URL('..', import.meta.url)),
 			loader: 'ts',
 			contents: `
-				import { EditorModel, EditorView, EditorController, StringValue, Selection, commands, vscodeHostKeyboardProfile } from '@vscode/markdown-editor';
+				import { EditorModel, EditorView, EditorController, StringValue, Selection, commands, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile } from '@vscode/markdown-editor';
 				import { OrderedInput } from './markdown-editor-src/orderedInput';
 				let dispose = () => {};
 				window.inputTest = {
-					mount(source, selection, backspace = 'markdown.editor.deleteLeft') {
+					mount(source, selection, backspace = 'markdown.editor.deleteLeft', cancelled = false) {
 						dispose();
 						const model = new EditorModel();
 						model.sourceText.set(new StringValue(source), undefined);
 						const errors = [];
+						let dispatched = 0;
 						let release;
 						const gate = new Promise(resolve => { release = resolve; });
 						const input = new OrderedInput(source, error => errors.push(String(error)));
 						const view = new EditorView(model, { textInput: input, showReadonlyToggle: false });
 						const controller = new EditorController(model, view, {
-							keyboardProfile: { bindings: [] },
+							keyboardProfile: vscodeLocalKeyboardProfile,
 							forwardedKeyboardProfile: vscodeHostKeyboardProfile,
+							scheduleInput: operation => input.enqueue(operation),
 						});
 						document.body.appendChild(view.element);
 						model.selection.set(new Selection(...selection), undefined);
 						const listener = event => {
-							if (event.target !== view.element || event.isComposing) { return; }
+							if (event.target !== view.element || event.isComposing || event.cancelBubble) { return; }
 							event.stopPropagation();
 							input.dispatchKey(async () => {
+								dispatched++;
 								await gate;
+								if (cancelled) { return { handled: false, cancelled: true }; }
 								return {
 									handled: event.key === 'Backspace' && !!backspace,
 									command: event.key === 'Backspace' && backspace ? { id: backspace } : undefined,
@@ -52,6 +58,8 @@ it('orders native text and composition behind delayed, remapped and removed keyb
 						window.inputTest.drain = () => input.drain();
 						window.inputTest.release = () => release();
 						window.inputTest.result = () => ({ text: model.sourceText.get().value, errors });
+						window.inputTest.selection = () => model.selection.get()?.active;
+						window.inputTest.dispatched = () => dispatched;
 						dispose = () => {
 							input.dispose();
 							view.element.removeEventListener('keydown', listener);
@@ -70,6 +78,7 @@ it('orders native text and composition behind delayed, remapped and removed keyb
 		format: 'iife',
 		platform: 'browser',
 		external: ['node:fs/promises'],
+		plugins: editorPackage.directory ? [markdownEditorOverridePlugin(editorPackage.directory)] : [],
 	});
 	const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined });
 	try {
@@ -97,6 +106,54 @@ it('orders native text and composition behind delayed, remapped and removed keyb
 		}
 
 		await page.evaluate('window.inputTest.mount("one", [3, 3])');
+		await page.keyboard.type('abc');
+		assert.strictEqual(await page.evaluate('window.inputTest.dispatched()'), 3, 'Later keybindings must resolve without waiting for earlier replies');
+		await page.evaluate('window.inputTest.release()');
+		await page.evaluate('window.inputTest.drain()');
+		assert.deepStrictEqual(await page.evaluate('window.inputTest.result()'), { text: 'oneabc', errors: [] });
+
+		for (const [keys, text, expected, selection] of [
+			[['Backspace', 'Tab'], 'x', 'on  x', 5],
+			[['Backspace', 'Escape'], '', 'on', undefined],
+		] as const) {
+			await page.evaluate('window.inputTest.mount("one", [3, 3])');
+			for (const key of keys) { await page.keyboard.press(key); }
+			await page.keyboard.type(text);
+			await page.evaluate('window.inputTest.release()');
+			await page.evaluate('window.inputTest.drain()');
+			assert.deepStrictEqual(await page.evaluate('[window.inputTest.result(), window.inputTest.selection()]'), [
+				{ text: expected, errors: [] }, selection,
+			]);
+		}
+
+		await page.evaluate('window.inputTest.mount("one", [3, 3])');
+		await page.keyboard.type('x');
+		await page.keyboard.press('Escape');
+		await page.evaluate('window.inputTest.release()');
+		await page.evaluate('window.inputTest.drain()');
+		assert.deepStrictEqual(await page.evaluate('[window.inputTest.result(), window.inputTest.selection()]'), [
+			{ text: 'onex', errors: [] }, undefined,
+		]);
+
+		await page.evaluate('window.inputTest.mount("one", [3, 3])');
+		await page.keyboard.type('x');
+		const paragraph = page.locator('.md-editor p').first();
+		await paragraph.click({ position: { x: 1, y: 5 } });
+		await page.evaluate('window.inputTest.release()');
+		await page.evaluate('window.inputTest.drain()');
+		assert.deepStrictEqual(await page.evaluate('[window.inputTest.result(), window.inputTest.selection()]'), [
+			{ text: 'onex', errors: [] }, 0,
+		]);
+
+		await page.evaluate('window.inputTest.mount("one", [3, 3], null, true)');
+		await page.keyboard.type('x');
+		await page.evaluate('window.inputTest.release()');
+		await page.evaluate('window.inputTest.drain()');
+		await page.keyboard.type('y');
+		await page.evaluate('window.inputTest.drain()');
+		assert.deepStrictEqual(await page.evaluate('window.inputTest.result()'), { text: 'onexy', errors: [] });
+
+		await page.evaluate('window.inputTest.mount("one", [3, 3])');
 		await page.keyboard.press('Backspace');
 		await page.keyboard.insertText('\u{1f600}');
 		await page.evaluate('window.inputTest.release()');
@@ -117,6 +174,35 @@ it('orders native text and composition behind delayed, remapped and removed keyb
 		await page.evaluate('window.inputTest.release()');
 		await page.evaluate('window.inputTest.drain()');
 		assert.deepStrictEqual(await page.evaluate('window.inputTest.result()'), { text: 'o\u65e5\u672c', errors: [] });
+
+		await page.evaluate('window.inputTest.mount("one", [3, 3])');
+		const composition = await page.context().newCDPSession(page);
+		try {
+			await composition.send('Input.imeSetComposition', { text: '\u306b\u307b\u3093', selectionStart: 1, selectionEnd: 1 });
+			await page.evaluate('window.inputTest.drain()');
+			await composition.send('Input.imeSetComposition', { text: '\u65e5\u672c', selectionStart: 2, selectionEnd: 2 });
+			await page.evaluate('window.inputTest.drain()');
+			await composition.send('Input.insertText', { text: '\u65e5\u672c' });
+		} finally {
+			await composition.detach();
+		}
+		await page.evaluate('window.inputTest.drain()');
+		assert.deepStrictEqual(await page.evaluate('window.inputTest.result()'), { text: 'one\u65e5\u672c', errors: [] });
+
+		await page.evaluate('window.inputTest.mount("one", [3, 3])');
+		const rangedComposition = await page.context().newCDPSession(page);
+		try {
+			await rangedComposition.send('Input.imeSetComposition', { text: '\u65e5\u672c', selectionStart: 0, selectionEnd: 1 });
+			await page.evaluate('window.inputTest.drain()');
+			await rangedComposition.send('Input.imeSetComposition', { text: '\u65e5\u672c\u8a9e', selectionStart: 3, selectionEnd: 3 });
+			await page.evaluate('window.inputTest.drain()');
+			assert.deepStrictEqual(await page.evaluate('window.inputTest.result()'), { text: 'one\u65e5\u672c\u8a9e', errors: [] });
+			await rangedComposition.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
+		} finally {
+			await rangedComposition.detach();
+		}
+		await page.evaluate('window.inputTest.drain()');
+		assert.deepStrictEqual(await page.evaluate('window.inputTest.result()'), { text: 'one', errors: [] });
 
 		await page.evaluate('window.inputTest.mount("one", [3, 3])');
 		await page.keyboard.press('Backspace');

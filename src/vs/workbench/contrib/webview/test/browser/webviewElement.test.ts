@@ -351,6 +351,7 @@ suite('WebviewElement', () => {
 			local.push(handler!('markdown.editor.deleteWordLeft', { count: 2 }));
 			return true;
 		});
+
 		const event = {
 			key: 'Backspace', keyCode: 8, code: 'Backspace',
 			ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, repeat: false,
@@ -366,6 +367,37 @@ suite('WebviewElement', () => {
 				{ id: 1, result: { handled: true, command: { id: 'markdown.editor.deleteWordLeft', args: { count: 2 } } } },
 				{ id: 2, result: { handled: true, command: undefined } },
 				{ id: 3, error: 'Cannot dispatch a key event from an inactive or unauthenticated webview' },
+			],
+		});
+	});
+
+	test('focus loss cancels authenticated dispatch without poisoning subsequent input', async () => {
+		const { webview, port, frame, createReadyEvent, dispatchEvent } = await createWebview();
+		const replies: ToWebviewMessage['did-dispatch-key-event'][] = [];
+		const done = new DeferredPromise<void>();
+		store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
+			if (event.data.channel === 'did-dispatch-key-event') {
+				replies.push(event.data.args);
+				if (replies.length === 2) { done.complete(); }
+			}
+		}));
+		const button = append(mainWindow.document.body, $('button'));
+		store.add(toDisposable(() => button.remove()));
+		frame.contentWindow!.focus();
+		const event = {
+			key: 'x', keyCode: 88, code: 'KeyX', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, repeat: false,
+			isTrusted: true, keyEventToken: createReadyEvent().data.data.keyEventToken,
+		};
+		button.focus();
+		await sendWebviewMessage(webview, port, 'dispatch-key-event', { id: 1, type: 'keydown', event, localCommands: [] });
+		frame.contentWindow!.focus();
+		await sendWebviewMessage(webview, port, 'dispatch-key-event', { id: 2, type: 'keydown', event, localCommands: [] });
+		await done.p;
+		assert.deepStrictEqual({ calls: dispatchEvent.callCount, replies }, {
+			calls: 1,
+			replies: [
+				{ id: 1, result: { handled: false, cancelled: true } },
+				{ id: 2, result: { handled: false, command: undefined } },
 			],
 		});
 	});

@@ -122,6 +122,7 @@ class Editor extends Disposable {
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
 	#input: OrderedInput | undefined;
+	#editorFocusReady: Promise<void> = Promise.resolve();
 	#rename: RenameController | undefined;
 	#completion: CompletionController | undefined;
 	#diagnostics: DiagnosticsController | undefined;
@@ -457,8 +458,9 @@ class Editor extends Disposable {
 				return;
 			}
 			const dispatch = this.#vscode.prepareKeybinding(event, localCommands);
+			const focusReady = this.#editorFocusReady;
 			input.dispatchKey(async () => {
-				await this.#drainEdits();
+				await focusReady;
 				return dispatch();
 			}, async ({ id }) => {
 				const command = commands.find(command => command.id === id);
@@ -492,7 +494,8 @@ class Editor extends Disposable {
 				return;
 			}
 			lastEditorFocus = focused;
-			this.#send('editorFocusChanged', this.#host.editorFocusChanged({ focused }));
+			this.#editorFocusReady = this.#host.editorFocusChanged({ focused });
+			this.#send('editorFocusChanged', this.#editorFocusReady);
 		};
 		const onFocusOut = (): void => queueMicrotask(postEditorFocus);
 		document.addEventListener('focusin', postEditorFocus);
