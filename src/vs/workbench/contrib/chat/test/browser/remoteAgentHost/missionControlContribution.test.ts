@@ -154,12 +154,16 @@ suite('Mission Control sharing service', () => {
 		let hidden = false;
 		let starts = 0;
 		const calls: { options: IMissionControlOptions | undefined; withdrawingAccountId: string | undefined }[] = [];
+		const withdrawals: boolean[] = [];
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = hostStarted.event;
 			override startAgentHost(): void { starts++; }
 			override async getMissionControlEnvironmentId(): Promise<string | undefined> { return options.existingEnvironment; }
-			override async configureMissionControl(missionControlOptions: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+			override async configureMissionControl(missionControlOptions: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration = false): Promise<void> {
 				calls.push({ options: missionControlOptions, withdrawingAccountId });
+				if (!missionControlOptions) {
+					withdrawals.push(deleteRegistration);
+				}
 				await options.configure?.(missionControlOptions);
 			}
 		}());
@@ -212,7 +216,7 @@ suite('Mission Control sharing service', () => {
 			protected override get isWindowsPlatform(): boolean { return options.windows ?? false; }
 		}));
 		return {
-			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, availability, starts: () => starts,
+			calls, withdrawals, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, availability, starts: () => starts,
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 			changeDefaultAccount: (account: IDefaultAccount | null) => { defaultAccount = account; defaultAccountChanged.fire(account); },
 		};
@@ -269,11 +273,12 @@ suite('Mission Control sharing service', () => {
 	}));
 
 	test('renaming an enabled environment withdraws and registers the new name while preserving sharing', () => runWithFakedTimers({}, async () => {
-		const { sharing, calls } = fixture();
+		const { sharing, calls, withdrawals } = fixture();
 		await sharing.setEnabled(true);
 		await sharing.setEnvironmentName('New shared name');
 		await timeout(0);
-		assert.deepStrictEqual({ calls, state: sharing.state.get() }, {
+		assert.deepStrictEqual({ calls, withdrawals, state: sharing.state.get() }, {
+			withdrawals: [false],
 			calls: [
 				{ options: expectedOptions, withdrawingAccountId: undefined },
 				{ options: undefined, withdrawingAccountId: 'account' },
@@ -698,16 +703,18 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual(calls, [{ options: expectedOptions, withdrawingAccountId: undefined }]);
 	}));
 
-	test('withdraws registration when the toggle is disabled', () => runWithFakedTimers({}, async () => {
-		const { calls, sharing } = fixture();
+	test('deletes the registration when sharing is explicitly stopped', () => runWithFakedTimers({}, async () => {
+		const { calls, withdrawals, sharing } = fixture();
 		await sharing.setEnabled(true);
 		await timeout(0);
 		await sharing.setEnabled(false);
 		await timeout(0);
-		assert.deepStrictEqual(calls, [
-			{ options: expectedOptions, withdrawingAccountId: undefined },
-			{ options: undefined, withdrawingAccountId: 'account' },
-		]);
+		assert.deepStrictEqual({ calls, withdrawals }, {
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: 'account' },
+			], withdrawals: [true],
+		});
 	}));
 
 	test('withdraws registration when AI features are hidden', () => runWithFakedTimers({}, async () => {

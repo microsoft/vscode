@@ -2635,7 +2635,9 @@ suite('Mission Control WPS', () => {
 				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
 				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
-				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
+				requests: { path: string; method: string | undefined; credential: string | null; body?: Record<string, unknown> }[];
+				readonly registeredEnvironments: readonly string[];
+				delayRegistration: () => { started: Promise<void>; complete: () => Promise<void> };
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
 				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
 				changePolicy: (policy: Record<string, unknown> | undefined) => Promise<void>;
@@ -2653,6 +2655,8 @@ suite('Mission Control WPS', () => {
 				manualPublishAcks?: boolean;
 				tokenReplies?: readonly { status: number; retryAfter?: string; body: object }[];
 				failSigningKeyRefresh?: boolean;
+				deleteReplies?: readonly number[];
+				skipInitialRegistration?: boolean;
 			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
@@ -2665,11 +2669,14 @@ suite('Mission Control WPS', () => {
 				const errors: string[] = [];
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
-				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
+				const requests: { path: string; method: string | undefined; credential: string | null; body?: Record<string, unknown> }[] = [];
+				const registeredEnvironments = new Set(['other-environment']);
+				let deletions = 0;
 				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
 				let projectUpdates = 0;
 				let signingKeyRequests = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
+				let delayedRegistration: { started: DeferredPromise<void>; response: DeferredPromise<void> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
 				let policyReported: DeferredPromise<void> | undefined;
@@ -2686,10 +2693,24 @@ suite('Mission Control WPS', () => {
 					name: 'Test Machine (VS Code OSS)',
 					fetch: async (input, init) => {
 						const url = new URL(input.toString());
-						requests.push({ path: url.pathname, credential: new Headers(init?.headers).get('Authorization'), body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined });
+						requests.push({ path: url.pathname, method: init?.method, credential: new Headers(init?.headers).get('Authorization'), body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined });
+						if (init?.method === 'DELETE') {
+							const status = overrides.deleteReplies?.[deletions++] ?? 204;
+							if (status === 204 || status === 404) {
+								registeredEnvironments.delete(url.pathname.split('/').at(-1)!);
+							}
+							return new Response(null, { status });
+						}
 						if (url.pathname.endsWith('/register')) {
 							await policyReported?.complete();
 							policyReported = undefined;
+							if (delayedRegistration) {
+								const delayed = delayedRegistration;
+								delayedRegistration = undefined;
+								await delayed.started.complete();
+								await delayed.response.p;
+							}
+							registeredEnvironments.add(environment.id);
 						}
 						if (url.pathname === '/user' && delayedIdentity) {
 							const delayed = delayedIdentity;
@@ -2746,9 +2767,18 @@ suite('Mission Control WPS', () => {
 				}
 				));
 				const options: IMissionControlOptions = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [], ...(overrides.ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}) };
-				await service.configure(options);
+				if (!overrides.skipInitialRegistration) {
+					await service.configure(options);
+				}
 				await run({
 					service, clock, heartbeats, diagnostics, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					get registeredEnvironments() { return [...registeredEnvironments]; },
+					delayRegistration: () => {
+						const started = new DeferredPromise<void>();
+						const response = new DeferredPromise<void>();
+						delayedRegistration = { started, response };
+						return { started: started.p, complete: () => response.complete() };
+					},
 					setSessionEventsFormats: formats => { environment.webpubsub.session_events_formats = formats; },
 					get projectUpdates() { return projectUpdates; },
 					delayHeartbeat: () => {
@@ -3429,11 +3459,105 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
+		test('explicit opt-out removes only this registration and re-enabling reuses its compute identity', async () => {
+			await withEnvironment([], async fixture => {
+				const { service, options, sockets, requests, clock } = fixture;
+				const stopping = service.configure(undefined, options.accountId, true);
+				const immediately = { enabled: service.isEnabled, closed: sockets[0].closed };
+				await stopping;
+				await clock.tickAsync(120_000);
+				const stoppedInventory = [...fixture.registeredEnvironments];
+				await service.configure(options);
+				assert.deepStrictEqual({
+					immediately, stoppedInventory,
+					restartedInventory: fixture.registeredEnvironments,
+					deletions: requests.filter(request => request.method === 'DELETE').map(request => ({ path: request.path, credential: request.credential })),
+					stableIdentity: new Set(requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.compute_id)).size,
+					heartbeats: fixture.heartbeats,
+				}, {
+					immediately: { enabled: false, closed: true }, stoppedInventory: ['other-environment'],
+					restartedInventory: ['other-environment', 'environment'],
+					deletions: [{ path: '/cmc_internal/api/agents/environments/environment', credential: 'Bearer fake-token' }],
+					stableIdentity: 1, heartbeats: [{ time: 0, status: 'online' }, { time: 120_000, status: 'online' }],
+				});
+			});
+		});
+
+		test('failed opt-out deletion is surfaced and can be retried after local ingress is closed', async () => {
+			await withEnvironment([], async fixture => {
+				const { service, options, sockets, requests } = fixture;
+				await assert.rejects(service.configure(undefined, options.accountId, true), /Mission Control request failed \(503\)/);
+				const failed = { enabled: service.isEnabled, closed: sockets[0].closed, inventory: [...fixture.registeredEnvironments] };
+				await service.configure(undefined, options.accountId, true);
+				await service.configure(undefined, options.accountId, true);
+				assert.deepStrictEqual({
+					failed, inventory: fixture.registeredEnvironments,
+					deletions: requests.filter(request => request.method === 'DELETE').length,
+				}, {
+					failed: { enabled: false, closed: true, inventory: ['other-environment', 'environment'] },
+					inventory: ['other-environment'], deletions: 2,
+				});
+			}, undefined, false, { deleteReplies: [503, 404] });
+		});
+
+		test('opt-out waits for an in-flight initial registration and deletes it without opening a relay', async () => {
+			await withEnvironment([], async fixture => {
+				const { service, options, requests, sockets, delayRegistration } = fixture;
+				const delayed = delayRegistration();
+				const starting = service.configure(options);
+				await delayed.started;
+				const stopping = service.configure(undefined, options.accountId, true);
+				const deletedBeforeResponse = requests.some(request => request.method === 'DELETE');
+				await delayed.complete();
+				await Promise.all([starting, stopping]);
+				assert.deepStrictEqual({
+					deletedBeforeResponse, inventory: fixture.registeredEnvironments,
+					deletions: requests.filter(request => request.method === 'DELETE').length,
+					enabled: service.isEnabled, sockets: sockets.length,
+				}, { deletedBeforeResponse: false, inventory: ['other-environment'], deletions: 1, enabled: false, sockets: 0 });
+			}, undefined, false, { skipInitialRegistration: true });
+		});
+
+		test('closing the application retains the registration for the next launch', async () => {
+			await withEnvironment([], async fixture => {
+				const { service, clock, requests, sockets } = fixture;
+				service.dispose();
+				await clock.tickAsync(120_000);
+				assert.deepStrictEqual({
+					inventory: fixture.registeredEnvironments,
+					deleted: requests.some(request => request.method === 'DELETE'),
+					closed: sockets[0].closed,
+				}, { inventory: ['other-environment', 'environment'], deleted: false, closed: true });
+			});
+		});
+
+		test('opt-out waits for older registration generations and keeps refreshed credentials for deletion retries', async () => {
+			await withEnvironment([], async fixture => {
+				const { service, options, clock, requests, delayRegistration, changePolicy } = fixture;
+				const delayed = delayRegistration();
+				await changePolicy({ '*': false });
+				await delayed.started;
+				await service.configure({ ...options, credential: 'replacement-token' });
+				const stopping = assert.rejects(service.configure(undefined, options.accountId, true), /Mission Control request failed \(503\)/);
+				await clock.tickAsync(0);
+				const deletedBeforeOldResponse = requests.some(request => request.method === 'DELETE');
+				await delayed.complete();
+				await stopping;
+				await service.configure(undefined, options.accountId, true);
+				assert.deepStrictEqual({
+					deletedBeforeOldResponse, inventory: fixture.registeredEnvironments,
+					deletions: requests.filter(request => request.method === 'DELETE').map(request => request.credential),
+				}, { deletedBeforeOldResponse: false, inventory: ['other-environment'], deletions: ['Bearer replacement-token', 'Bearer replacement-token'] });
+			}, undefined, false, { deleteReplies: [503, 204] });
+		});
+
 		test('a rejected foreign account cannot withdraw the pinned owner or close its relay', async () => {
 			await withEnvironment([{ retryAfter: '300' }], async ({ service, options, sockets, clock, heartbeats, requests, errors }) => {
 				await assert.rejects(service.configure({ ...options, accountId: 'other' }), /another local account/);
 				const requestCount = requests.length;
 				await assert.rejects(service.configure(undefined, 'other'), /Only the Agent Host owner/);
+				await assert.rejects(service.configure(undefined, 'other', true), /Only the Agent Host owner/);
+				await assert.rejects(service.configure(undefined, undefined, true), /Only the Agent Host owner/);
 				const immediatelyAfterRefusal = {
 					enabled: service.isEnabled, environmentId: service.environmentId,
 					closed: sockets[0].closed, extraRequests: requests.length - requestCount,

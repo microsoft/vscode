@@ -393,21 +393,21 @@ export class AgentsWindow {
 		const page = this.code.driver.currentPage;
 		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
 		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
-		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
+		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This computer', { exact: true }) });
 		const deadline = Date.now() + 60_000;
 		let lastError: unknown;
 		while (await cloudEnvironment.isVisible()) {
 			if (Date.now() >= deadline) {
-				throw new Error(`Timed out selecting This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+				throw new Error(`Timed out selecting This computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 			}
 			try {
 				await cloudEnvironment.click({ timeout: 5_000 });
 				if (await localEnvironment.isVisible()) {
 					await localEnvironment.click({ timeout: 5_000 });
-					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 15_000 });
+					await environmentPicker.filter({ hasText: 'This computer' }).waitFor({ timeout: 15_000 });
 					return;
 				}
-				lastError = new Error('This Computer is not listed in the Environment picker');
+				lastError = new Error('This computer is not listed in the Environment picker');
 			} catch (error) {
 				lastError = error;
 			}

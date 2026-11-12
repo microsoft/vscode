@@ -74,8 +74,8 @@ registerAction2(class extends Action2 {
 
 		// Prompt for address
 		const address = await quickInputService.input({
-			title: localize('addRemoteTitle', "Add Remote Agent Host"),
-			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Example: {0}", 'ws://127.0.0.1:8089'),
+			title: localize('addRemoteTitle', "Add remote agent host"),
+			prompt: localize('addRemotePrompt', "Enter the address of an already running remote agent host (host, host:port, or WebSocket URL). Example: {0}", 'ws://127.0.0.1:8089'),
 			placeHolder: 'ws://127.0.0.1:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
@@ -100,9 +100,9 @@ registerAction2(class extends Action2 {
 		// Prompt for display name
 		const defaultName = parsed.parsed.suggestedName;
 		const name = await quickInputService.input({
-			title: localize('nameRemoteTitle', "Name Remote Agent Host"),
-			prompt: localize('nameRemotePrompt', "Enter a display name for this remote agent host."),
-			placeHolder: localize('nameRemotePlaceholder', "My Remote"),
+			title: localize('nameRemoteTitle', "Name remote agent host"),
+			prompt: localize('nameRemotePrompt', "Enter a name for this remote agent host."),
+			placeHolder: localize('nameRemotePlaceholder', "My remote"),
 			value: defaultName,
 			valueSelection: [0, defaultName.length],
 			ignoreFocusLost: true,
@@ -124,7 +124,7 @@ registerAction2(class extends Action2 {
 			});
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
-			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
+			notificationService.error(localize('addRemoteFailed', "Couldn't connect to remote agent host {0}.", parsed.parsed.address));
 		}
 	}
 });
@@ -449,7 +449,7 @@ async function promptForCredentialsAndConnect(
 
 	if (!username) {
 		const usernameInput = await quickInputService.input({
-			title: localize('sshUsernameTitle', "SSH Username"),
+			title: localize('sshUsernameTitle', "SSH username"),
 			prompt: localize('sshUsernamePrompt', "Enter the username for {0}.", host),
 			placeHolder: 'root',
 			ignoreFocusLost: true,
@@ -464,12 +464,12 @@ async function promptForCredentialsAndConnect(
 	const authPicks: ISSHAuthMethodPickItem[] = [
 		{
 			method: SSHAuthMethod.Agent,
-			label: localize('sshAuthAgent', "SSH Agent"),
+			label: localize('sshAuthAgent', "SSH agent"),
 			description: localize('sshAuthAgentDesc', "Use the running SSH agent for authentication"),
 		},
 		{
 			method: SSHAuthMethod.KeyFile,
-			label: localize('sshAuthKey', "Private Key File"),
+			label: localize('sshAuthKey', "Private key file"),
 			description: localize('sshAuthKeyDesc', "Authenticate with a private key file"),
 		},
 		{
@@ -480,7 +480,7 @@ async function promptForCredentialsAndConnect(
 	];
 
 	const authPicked = await quickInputService.pick(authPicks, {
-		title: localize('sshAuthTitle', "Authentication Method"),
+		title: localize('sshAuthTitle', "Authentication method"),
 		placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
 		ignoreFocusLost: true,
 	});
@@ -494,7 +494,7 @@ async function promptForCredentialsAndConnect(
 
 	if (authMethod === SSHAuthMethod.KeyFile) {
 		const keyPath = await quickInputService.input({
-			title: localize('sshKeyTitle', "Private Key Path"),
+			title: localize('sshKeyTitle', "Private key path"),
 			prompt: localize('sshKeyPrompt', "Enter the path to your SSH private key."),
 			placeHolder: '~/.ssh/id_rsa',
 			value: defaultKeyPath ?? '~/.ssh/id_rsa',
@@ -507,7 +507,7 @@ async function promptForCredentialsAndConnect(
 		privateKeyPath = keyPath.trim();
 	} else if (authMethod === SSHAuthMethod.Password) {
 		const pw = await quickInputService.input({
-			title: localize('sshPasswordTitle', "SSH Password"),
+			title: localize('sshPasswordTitle', "SSH password"),
 			prompt: localize('sshPasswordPrompt', "Enter the password for {0}@{1}.", username, host),
 			password: true,
 			ignoreFocusLost: true,
@@ -521,9 +521,9 @@ async function promptForCredentialsAndConnect(
 
 	const defaultName = suggestedName ?? `${username}@${host}`;
 	const name = await quickInputService.input({
-		title: localize('sshNameTitle', "Name Remote"),
+		title: localize('sshNameTitle', "Name remote"),
 		prompt: localize('sshNamePrompt', "Enter a display name for this SSH remote."),
-		placeHolder: localize('sshNamePlaceholder', "My Remote"),
+		placeHolder: localize('sshNamePlaceholder', "My remote"),
 		value: defaultName,
 		valueSelection: [0, defaultName.length],
 		ignoreFocusLost: true,
@@ -888,9 +888,11 @@ async function promptToConnectViaTunnel(
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
 			label: tunnel.name,
-			description: tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
-				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			description: tunnel.hostConnectionCount === undefined
+				? localize('tunnelPickUnknown', "{0} · Status unknown", tunnel.tunnelId)
+				: tunnel.hostConnectionCount > 0
+					? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+					: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
 			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
 			tunnel,
 		}));

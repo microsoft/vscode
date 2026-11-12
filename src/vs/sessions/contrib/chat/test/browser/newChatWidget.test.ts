@@ -36,6 +36,7 @@ import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/c
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProgressOptions } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -810,6 +811,8 @@ suite('NewChatWidget', () => {
 				return value;
 			};
 			const harness = {
+				_environmentSelectionVersion: 0,
+				_connectEnvironment: async () => true,
 				_environment: derived(reader => picked.read(reader) ?? local),
 				_environmentWorkspaces: new Map<string, URI>(),
 				_environmentWorkspaceChanged: { trigger: () => { } },
@@ -922,13 +925,16 @@ suite('NewChatWidget', () => {
 
 		test('does not announce or open the workspace picker for a superseded destination after late draft creation', async () => {
 			const pending = new DeferredPromise<void>();
+			const creating = new DeferredPromise<void>();
 			let selections = 0;
 			const { harness, calls, select } = createHarness(true, async () => {
 				if (++selections === 1) {
+					await creating.complete();
 					await pending.p;
 				}
 			});
 			const first = select(cloud);
+			await creating.p;
 			await select(local);
 			await pending.complete();
 			await first;
@@ -970,7 +976,15 @@ suite('NewChatWidget', () => {
 			};
 			const targetHarness = { sessionsManagementService: management };
 			const handleClear = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: NewChatWidget, folderUri: URI | undefined) => Promise<void>;
+			const failedTunnel = {
+				id: tunnel.id,
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+				connect: async () => { throw new Error('tunnel relay connect timed out after 30000ms'); },
+			};
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_store: disposables,
+				_environmentSelectionVersion: 0,
+				_environmentSelection: disposables.add(new MutableDisposable<IDisposable>()),
 				_environment: picked,
 				_environments: constObservable([local, cloud, container, remote, tunnel]),
 				_environmentWorkspaces: new Map<string, URI>(),
@@ -1002,12 +1016,9 @@ suite('NewChatWidget', () => {
 				},
 				sessionsManagementService: management,
 				sessionsProvidersService: {
-					getProvider: (id: string) => id === tunnel.id ? {
-						id,
-						connectionStatus: constObservable({ kind: 'disconnected' }),
-						connect: async () => { throw new Error('tunnel relay connect timed out after 30000ms'); },
-					} : undefined,
+					getProvider: (id: string) => id === tunnel.id ? failedTunnel : undefined,
 				},
+				progressService: { withProgress: async (_options: IProgressOptions, task: () => Promise<void>) => task() },
 				_paneSession: session,
 				sessionsService: {
 					activeSession: session,
@@ -1026,7 +1037,7 @@ suite('NewChatWidget', () => {
 				},
 				accessibilityService: { status: (message: string) => announcements.push(message) },
 				logService: { error: (_message: string, error: Error) => errors.push(error.message), trace: (message: string) => traces.push(message) },
-				notificationService: { error: () => { } },
+				notificationService: { error: () => { }, notify: () => { } },
 			});
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: NewChatWidget, environment: ISessionCreationEnvironment) => Promise<void>;
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: NewChatWidget) => Promise<void>;
@@ -1062,13 +1073,13 @@ suite('NewChatWidget', () => {
 			});
 		}
 
-		test('recovers This Computer after selecting a failed tunnel without keeping the SSH draft', async () => {
+		test('preserves the SSH draft after a failed tunnel connection and can then select This Computer', async () => {
 			const state = createFolderlessHarness();
 			await state.select(state.tunnel);
 			const afterFailure = state.session.get()?.providerId;
 			await state.select(local);
 			assert.deepStrictEqual({ afterFailure, providerId: state.session.get()?.providerId, errors: state.errors }, {
-				afterFailure: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				afterFailure: state.remote.id, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 				errors: ['tunnel relay connect timed out after 30000ms'],
 			});
 		});
@@ -2364,7 +2375,7 @@ suite('NewChatWidget', () => {
 			}
 			: {
 				ids: ['newSessionWorkspacePicker.quickChat', 'newSessionWorkspacePicker.quickChat'],
-				labels: ['This Computer', 'Test Remote'],
+				labels: ['This computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
@@ -2535,10 +2546,10 @@ suite('NewChatWidget', () => {
 		visibility.set(false, undefined);
 		states.push(snapshot());
 
-		const offline = { hosts: ['This Computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
+		const offline = { hosts: ['This computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
 		assert.deepStrictEqual(states, isWeb
 			? Array.from({ length: 3 }, () => ({ hosts: undefined, selectedLabel: undefined, isSelected: undefined }))
-			: [offline, { ...offline, hosts: ['This Computer', 'Test Remote', 'Old Environment'] }, offline]);
+			: [offline, { ...offline, hosts: ['This computer', 'Test Remote', 'Old Environment'] }, offline]);
 	});
 
 	for (const hasLocalProvider of [false, true]) {
@@ -2664,7 +2675,7 @@ suite('NewChatWidget', () => {
 		});
 		await option?.submenuActions?.[1].run();
 
-		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This Computer', 'Test Remote']);
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This computer', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {

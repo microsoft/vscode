@@ -201,7 +201,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		this._enablement.clear();
 		if (!enabled) {
 			this._storage.store(sharingStorageKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			await this._withdraw();
+			await this._withdraw(true);
 			return;
 		}
 		this.state.set('connecting', undefined);
@@ -257,7 +257,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		this._logService.error('Mission Control withdrawal failed', error);
 	}
 
-	private async _withdraw(): Promise<void> {
+	private async _withdraw(deleteRegistration = false): Promise<void> {
 		const generation = ++this._generation;
 		this._configured = false;
 		this._accountSessionIds.clear();
@@ -275,7 +275,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			}
 		}
 		if (accountId !== undefined && generation === this._generation && !this._store.isDisposed) {
-			await this._agentHost.configureMissionControl?.(undefined, accountId);
+			await this._agentHost.configureMissionControl?.(undefined, accountId, deleteRegistration);
 		}
 	}
 

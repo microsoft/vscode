@@ -548,7 +548,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.remoteEnvironmentsThisComputer', "Controls whether the Remote Environments editor shows a This Computer section for choosing how this computer is shared with other devices. Requires Remote Environments management."),
 			tags: ['experimental'],

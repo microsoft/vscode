@@ -108,8 +108,8 @@ export interface ITunnelInfo {
 	readonly tags: readonly string[];
 	/** Parsed protocol version from tags. */
 	readonly protocolVersion: number;
-	/** Number of hosts currently accepting connections (0 = offline). */
-	readonly hostConnectionCount: number;
+	/** Number of hosts accepting connections at discovery time; undefined if status was not reported. */
+	readonly hostConnectionCount: number | undefined;
 }
 
 /** How startup auto-connect should establish a tunnel connection. */

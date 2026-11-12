@@ -21,7 +21,7 @@ import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/c
 import { RemoteConnectionsToggleResult } from '../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { MANAGE_REMOTE_ENVIRONMENTS_TOOLTIP, OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const TOGGLE_SHARING_FROM_AGENTS_ID = TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID;
@@ -76,6 +76,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 					? toAction({
 						id: OPEN_REMOTES_EDITOR_COMMAND_ID,
 						label: localize('manageRemoteEnvironments', "Manage Remote Environments..."),
+						tooltip: MANAGE_REMOTE_ENVIRONMENTS_TOOLTIP,
 						run: () => commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID),
 					})
 					: undefined,

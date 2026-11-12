@@ -101,7 +101,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 				this._discoveredTunnels = tunnels.map(tunnel => ({ ...tunnel, tags: [] }));
 			}
 			const dismissed = tunnels.filter(tunnel => this._tunnelService.isTunnelDismissed(tunnel.tunnelId)).length;
-			this._record(localize('diagnostics.discoveryFinished', "Discovery #{0} succeeded in {1} ms: {2} found, {3} with an active host, {4} dismissed.", attempt.id, attempt.finishedAt - attempt.startedAt, tunnels.length, tunnels.filter(tunnel => tunnel.hostConnectionCount > 0).length, dismissed));
+			this._record(localize('diagnostics.discoveryFinished', "Discovery #{0} succeeded in {1} ms: {2} found, {3} with an active host, {4} dismissed.", attempt.id, attempt.finishedAt - attempt.startedAt, tunnels.length, tunnels.filter(tunnel => tunnel.hostConnectionCount !== undefined && tunnel.hostConnectionCount > 0).length, dismissed));
 			return tunnels;
 		} catch (error) {
 			attempt.finishedAt = Date.now();
@@ -294,7 +294,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			if (tunnel) {
 				entries.push(
 					{ label: localize('diagnostics.cluster', "Tunnel cluster"), value: safeAddress(tunnel.clusterId) },
-					{ label: localize('diagnostics.activeHostCount', "Active tunnel hosts"), value: String(tunnel.hostConnectionCount) },
+					{ label: localize('diagnostics.activeHostCount', "Active tunnel hosts"), value: tunnel.hostConnectionCount === undefined ? localize('diagnostics.unknownHostCount', "Unknown") : String(tunnel.hostConnectionCount) },
 					{ label: localize('diagnostics.tunnelProtocol', "Tunnel protocol version"), value: String(tunnel.protocolVersion) },
 				);
 			}

@@ -508,7 +508,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 				disabling: content.includes('Selecting Off disables sharing'),
 				remembered: content.includes('without changing the preferred method'),
 				footer: content.includes('The footer shows the name used to identify this machine on other clients'),
-				rename: content.includes('press Tab to reach the name link in the footer') && content.includes('Renaming while Off does not enable sharing'),
+				renameInManagement: content.includes('choose Manage Remote Environments to edit the sharing name under This computer'),
+				renameFallback: content.includes('If management is unavailable, choose Change Sharing Name instead'),
+				renameKeepsSharingOff: content.includes('Renaming changes the name shown on other clients without enabling sharing'),
+				obsoleteFooterRename: content.includes('press Tab to reach the name link in the footer'),
 				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
@@ -517,7 +520,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 				previewSetting: !hidden && !aiDisabled,
 				enabling: !hidden && !aiDisabled, disabling: !hidden && !aiDisabled, remembered: !hidden && !aiDisabled,
 				footer: !hidden && !aiDisabled,
-				rename: !hidden && !aiDisabled,
+				renameInManagement: !hidden && !aiDisabled,
+				renameFallback: !hidden && !aiDisabled,
+				renameKeepsSharingOff: !hidden && !aiDisabled,
+				obsoleteFooterRename: false,
 			});
 		});
 	}

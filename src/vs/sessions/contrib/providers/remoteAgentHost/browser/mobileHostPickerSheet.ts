@@ -409,18 +409,22 @@ export class MobileHostPickerSheet extends Disposable {
 				}
 				message.remove();
 				const rows = tunnels.map(tunnel => {
-					const online = tunnel.hostConnectionCount > 0;
+					const online = tunnel.hostConnectionCount !== undefined && tunnel.hostConnectionCount > 0;
 					return this._renderRow(list, store, {
 						icon: Codicon.vm,
 						iconClass: 'computer',
 						label: tunnel.name,
 						description: online
 							? localize('hostPicker.tunnels.online', "{0} · Online", tunnel.tunnelId)
-							: localize('hostPicker.tunnels.offline', "{0} · Offline", tunnel.tunnelId),
+							: tunnel.hostConnectionCount === undefined
+								? localize('hostPicker.tunnels.unknown', "{0} · Status unavailable", tunnel.tunnelId)
+								: localize('hostPicker.tunnels.offline', "{0} · Offline", tunnel.tunnelId),
 						statusClass: online ? AgentHostFilterConnectionStatus.Connected : AgentHostFilterConnectionStatus.Disconnected,
 						ariaLabel: online
 							? localize('hostPicker.tunnels.online.aria', "{0}, online. Add this computer.", tunnel.name)
-							: localize('hostPicker.tunnels.offline.aria', "{0}, offline. Add this computer.", tunnel.name),
+							: tunnel.hostConnectionCount === undefined
+								? localize('hostPicker.tunnels.unknown.aria', "{0}, connection status unavailable. Add this computer.", tunnel.name)
+								: localize('hostPicker.tunnels.offline.aria', "{0}, offline. Add this computer.", tunnel.name),
 					}, () => {
 						api.close();
 						void this._addTunnel(tunnel);

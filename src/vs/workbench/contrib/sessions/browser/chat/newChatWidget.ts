@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -18,6 +18,7 @@ import { autorun, constObservable, derived, derivedObservableWithCache, disposab
 import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import Severity from '../../../../../base/common/severity.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -25,6 +26,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -40,7 +42,7 @@ import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../../services/sessions/browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../common/sessionCommands.js';
-import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -165,6 +167,8 @@ export class NewChatWidget extends Disposable {
 	private _lastBackgroundSentSession: ISession | undefined;
 	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
+	private readonly _environmentSelection = this._register(new MutableDisposable<IDisposable>());
+	private _environmentSelectionVersion = 0;
 	private readonly _environmentWorkspaces = new Map<string, URI>();
 	private readonly _environmentWorkspaceChanged = observableSignal(this);
 	private readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
@@ -269,6 +273,7 @@ export class NewChatWidget extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
@@ -341,6 +346,7 @@ export class NewChatWidget extends Disposable {
 			const providers = this.sessionsProvidersService.getProviders();
 			for (const provider of providers) {
 				if (isAgentHostProvider(provider)) {
+					provider.isAvailableInEnvironmentPicker?.read(reader);
 					provider.isVisibleInEnvironmentPicker?.read(reader);
 					provider.connectionStatus?.read(reader);
 				}
@@ -519,6 +525,15 @@ export class NewChatWidget extends Disposable {
 
 		const backgroundSend = this._backgroundSend;
 		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
+			selectEnvironment: async providerId => {
+				const provider = this.sessionsProvidersService.getProvider(providerId);
+				const environment = provider && getRemoteSessionCreationEnvironment(provider);
+				if (!environment) {
+					throw new Error(localize('environmentPicker.unavailable', "This environment is no longer available."));
+				}
+				await this._selectEnvironment(environment);
+				this._newChatInput.focus();
+			},
 			inputEditorOptions: this.options.inputEditorOptions,
 			session: this._session,
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
@@ -2044,6 +2059,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
+		const selectionVersion = ++this._environmentSelectionVersion;
+		if (!await this._connectEnvironment(environment) || selectionVersion !== this._environmentSelectionVersion) {
+			return;
+		}
 		const previousEnvironment = this._environment.get();
 		if (environment.id === previousEnvironment?.id) {
 			return;
@@ -2090,18 +2109,76 @@ export class NewChatWidget extends Disposable {
 		if (this._pickedEnvironment.get() !== environment) {
 			return;
 		}
-		const host = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
-		if (host && isAgentHostProvider(host) && host.connectionStatus?.get().kind === 'disconnected' && host.connect) {
-			try {
-				await host.connect();
-			} catch (error) {
-				this.logService.error('Failed to connect to the selected environment', error);
-				this.notificationService.error(localize('environmentPicker.connectionFailed', "Failed to connect to {0}: {1}", environment.label, toErrorMessage(error)));
-				return;
-			}
-		}
 		if (this._pickedEnvironment.get() === environment) {
 			this.accessibilityService.status(localize('environmentPicker.selected', "Environment: {0}", environment.label));
+		}
+	}
+
+	private async _connectEnvironment(environment: ISessionCreationEnvironment): Promise<boolean> {
+		if (this._store.isDisposed) {
+			return false;
+		}
+		this._environmentSelection.clear();
+		if (environment.kind !== 'remote') {
+			return true;
+		}
+		const cancellation = new CancellationTokenSource();
+		const selection = toDisposable(() => cancellation.dispose(true));
+		this._environmentSelection.value = selection;
+		try {
+			const host = this.sessionsProvidersService.getProvider(environment.providerIds[0]);
+			if (!host || !isRemoteSessionCreationEnvironment(host) || !isAgentHostEnvironmentAvailable(host)) {
+				throw new Error(localize('environmentPicker.unavailable', "This environment is no longer available."));
+			}
+			if (!RemoteAgentHostConnectionStatus.isConnected(host.connectionStatus.get())) {
+				await this.progressService.withProgress({
+					location: ProgressLocation.Notification,
+					title: localize('environmentPicker.connecting', "Connecting to {0}...", environment.label),
+					delay: 500,
+					cancellable: true,
+				}, async () => {
+					if (RemoteAgentHostConnectionStatus.isDisconnected(host.connectionStatus.get())) {
+						if (!host.connect) {
+							throw new Error(localize('environmentPicker.cannotConnect', "This environment cannot be connected from the picker."));
+						}
+						await raceCancellationError(host.connect(), cancellation.token);
+					}
+					const status = await waitForState(host.connectionStatus,
+						status => !RemoteAgentHostConnectionStatus.isConnecting(status) && !RemoteAgentHostConnectionStatus.isReconnecting(status),
+						undefined, cancellation.token);
+					if (!RemoteAgentHostConnectionStatus.isConnected(status)) {
+						throw new Error(RemoteAgentHostConnectionStatus.isIncompatible(status) ? status.message
+							: localize('environmentPicker.notConnected', "The environment did not connect. Try again or manage the environment to troubleshoot."));
+					}
+				}, () => cancellation.cancel());
+			}
+			if (cancellation.token.isCancellationRequested) {
+				return false;
+			}
+			if (this.sessionsProvidersService.getProvider(host.id) !== host || !isAgentHostEnvironmentAvailable(host)) {
+				throw new Error(localize('environmentPicker.unavailable', "This environment is no longer available."));
+			}
+			return true;
+		} catch (error) {
+			if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
+				this.logService.error('Failed to connect to the selected environment', error);
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('environmentPicker.connectionFailed', "Failed to connect to {0}: {1}", environment.label, toErrorMessage(error)),
+					actions: {
+						primary: [toAction({
+							id: 'environmentPicker.retry',
+							label: localize('environmentPicker.retry', "Retry"),
+							run: () => this._selectEnvironment(environment),
+						})],
+					},
+				});
+			}
+			return false;
+		} finally {
+			if (this._environmentSelection.value === selection) {
+				this._environmentSelection.clear();
+			}
 		}
 	}
 

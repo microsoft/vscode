@@ -308,7 +308,7 @@ suite('BrowserTunnelAgentHostService', () => {
 			name: 'v6',
 			tags: ['vscode-server-launcher', 'protocolv6'],
 			protocolVersion: 6,
-			hostConnectionCount: 0,
+			hostConnectionCount: undefined,
 		}]);
 	});
 

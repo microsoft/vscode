@@ -9,6 +9,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
@@ -17,12 +18,16 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ThisComputerSection } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/thisComputerSection.js';
+import '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/media/remotesWidget.css';
 
 interface IThisComputerFixtureState {
 	readonly method: 'off' | 'devTunnel' | 'githubEnvironment';
 	readonly starting?: boolean;
 	readonly width?: number;
 	readonly policyDisabled?: boolean;
+	readonly showOptions?: boolean;
+	readonly failSharing?: boolean;
+	readonly selectMethod?: 'devTunnel' | 'githubEnvironment' | 'none';
 }
 
 async function render({ container, disposableStore, theme }: ComponentFixtureContext, state: IThisComputerFixtureState): Promise<void> {
@@ -40,6 +45,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			reg.define(IHoverService, HoverService);
 			reg.definePartialInstance(ILayoutService, { getContainer: () => container });
 			reg.definePartialInstance(IQuickInputService, {});
+			if (state.failSharing) {
+				reg.definePartialInstance(ICommandService, { executeCommand: async () => undefined });
+			}
 			reg.defineInstance(IRemoteTunnelService, new class extends mock<IRemoteTunnelService>() {
 				override readonly onDidChangeTunnelStatus = Event.None;
 				override readonly onDidChangeMode = Event.None;
@@ -66,8 +74,25 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			? { ...inspect<T>(key), policyValue: false as T }
 			: inspect<T>(key);
 	}
-	disposableStore.add(instantiationService.createInstance(ThisComputerSection, container));
-	await waitForFixtureCondition(() => !!container.querySelector('.remotes-this-computer-name')?.textContent, 'This Computer should show its sharing name before capture');
+	const section = disposableStore.add(instantiationService.createInstance(ThisComputerSection, container, () => { }));
+	await waitForFixtureCondition(() => !!container.querySelector('.remotes-this-computer-name')?.textContent, 'This computer should show its sharing name before capture');
+	if (state.showOptions) {
+		container.style.height = state.width === 360 ? '800px' : '620px';
+		container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!.click();
+		if (state.selectMethod !== 'none') {
+			const method = state.selectMethod ?? (state.policyDisabled || state.failSharing ? 'devTunnel' : 'githubEnvironment');
+			container.querySelector<HTMLElement>(`[data-sharing-method="${method}"]`)!.click();
+		}
+		section.layout();
+		await waitForFixtureCondition(() => section.isExpanded && ['githubEnvironment', 'devTunnel'].every(method =>
+			!!container.querySelector(`[data-sharing-method="${method}"] .remotes-sharing-choice-description li`)?.textContent),
+			'Both sharing methods should be explained before capture');
+		if (state.failSharing) {
+			container.style.height = '660px';
+			container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!.click();
+			await waitForFixtureCondition(() => !!container.querySelector('.remotes-sharing-feedback-container.sharing-failed'), 'Unsuccessful sharing should show recovery guidance');
+		}
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
@@ -79,5 +104,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	GitHubEnvironments: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'githubEnvironment' }) }),
 	GitHubEnvironmentsStarting: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'githubEnvironment', starting: true }) }),
 	Narrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'githubEnvironment', width: 360 }) }),
-	PolicyDisabled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'off', policyDisabled: true }) }),
+	PolicyDisabled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'off', policyDisabled: true, showOptions: true }) }),
+	GuidedSharing: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, { method: 'off', showOptions: true }) }),
+	GuidedSharingNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'off', showOptions: true, width: 360 }) }),
+	GuidedSharingInitial: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, { method: 'off', showOptions: true, selectMethod: 'none' }) }),
+	GuidedSharingTunnel: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, { method: 'off', showOptions: true, selectMethod: 'devTunnel' }) }),
+	FailedSharing: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, { method: 'off', showOptions: true, failSharing: true }) }),
 });

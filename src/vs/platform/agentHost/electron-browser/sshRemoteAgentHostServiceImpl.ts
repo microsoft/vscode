@@ -54,6 +54,7 @@ import {
 	type ISSHRemoteAgentHostMainService,
 	type ISSHResolvedConfig,
 	type ISSHConnectProgress,
+	type SSHHostReachability,
 } from '../common/sshRemoteAgentHost.js';
 import { ISSHHostKeyTrustService } from '../common/sshHostKeyTrust.js';
 import { decideHostKeyTrust, type SSHHostKeyDenial } from '../common/sshHostKeyPolicy.js';
@@ -625,6 +626,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
 		return this._mainService.resolveSSHConfig(host);
+	}
+
+	async checkReachability(host: string, port?: number): Promise<SSHHostReachability> {
+		return await this._mainService.checkReachability?.(host, port) ?? 'unknown';
 	}
 
 	async reconnect(sshConfigHost: string, _name: string, userInitiated?: boolean): Promise<ISSHAgentHostConnection> {

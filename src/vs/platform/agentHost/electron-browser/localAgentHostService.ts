@@ -878,8 +878,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		);
 	}
 
-	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		const result = await this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): Promise<void> {
+		const result = await this._getManagementService().configureMissionControl(options, withdrawingAccountId, deleteRegistration);
 		if (result) {
 			throw reviveConnectionDiagnosticError(result.error);
 		}

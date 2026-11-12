@@ -87,6 +87,20 @@ suite('TunnelAgentHostService - correlation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
+	for (const additionalLookup of [false, true]) {
+		test(`rejects failed discovery rather than returning an authoritative empty or partial inventory (additional=${additionalLookup})`, async () => {
+			const list = sinon.stub(TunnelManagementHttpClient.prototype, 'listTunnels');
+			if (additionalLookup) {
+				list.onFirstCall().resolves([]);
+				list.onSecondCall().rejects(new Error('Enumeration failed'));
+			} else {
+				list.rejects(new Error('Enumeration failed'));
+			}
+			const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
+			await assert.rejects(service.listTunnels('token', 'github', ['additional-tunnel']), /Enumeration failed/);
+		});
+	}
+
 	test('uses the injected telemetry session and retains the operation across enumeration requests', async () => {
 		const requests: Record<string, string>[] = [];
 		sinon.stub(TunnelManagementHttpClient.prototype, 'listTunnels').callsFake(async function captureHeaders(this: TunnelManagementHttpClient) {

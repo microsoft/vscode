@@ -192,6 +192,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Successful session-list revision for this connection; zero means the host list has not resolved. */
+	readonly sessionListVersion?: IObservable<number>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Opens this host's connection log, including while connecting. */

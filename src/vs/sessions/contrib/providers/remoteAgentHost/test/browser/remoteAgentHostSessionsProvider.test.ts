@@ -981,7 +981,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		{ address: 'ws://localhost:9000' },
 		{ address: 'cloudsandbox:desktop', pickerVisibilityKey: getRemoteAgentHostPickerKey('cloudsandbox:desktop', 'account-one') },
 	]) {
-		test(`management setting gates hidden preferences live without overriding availability (${host.address})`, async () => {
+		test(`hidden preferences survive management setting changes without overriding availability (${host.address})`, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
 			const configurationService = new TestConfigurationService();
 			disposables.add(configurationService.onDidChangeConfigurationEmitter);
@@ -992,6 +992,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const provider = createProvider(disposables, connection, { ...host, storageService, configurationService }, {
 				pickerVisibilityKey: host.pickerVisibilityKey, isVisibleInEnvironmentPicker: available,
 			});
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 			const observed: boolean[] = [];
 			disposables.add(autorun(reader => observed.push(provider.isVisibleInEnvironmentPicker!.read(reader))));
 			const snapshot = () => ({ visible: provider.isVisibleInEnvironmentPicker!.get(), entries: getSessionCreationEnvironments([provider]).length, hidden: preference.isHidden(key) });
@@ -1007,22 +1008,22 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			await setEnabled(true);
 			const enabled = snapshot();
 			await setEnabled(false);
-			provider.showInEnvironmentPicker();
 			const disabled = snapshot();
 			available.set(false, undefined);
 			const offline = snapshot();
 			available.set(true, undefined);
 			await setEnabled(true);
 			const restored = snapshot();
+			await setEnabled(false);
 			provider.showInEnvironmentPicker();
 			assert.deepStrictEqual({ defaultOn, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
 				defaultOn: { visible: false, entries: 0, hidden: true },
 				enabled: { visible: false, entries: 0, hidden: true },
-				disabled: { visible: true, entries: 1, hidden: true },
+				disabled: { visible: false, entries: 0, hidden: true },
 				offline: { visible: false, entries: 0, hidden: true },
 				restored: { visible: false, entries: 0, hidden: true },
 				shown: { visible: true, entries: 1, hidden: false },
-				observed: [false, true, false, true, false, true],
+				observed: [false, true],
 			});
 		});
 	}
@@ -2574,6 +2575,44 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	// ---- Session listing via refresh -------
+
+	test('session list readiness includes an authoritative empty result and resets on disconnection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, connection);
+		const before = provider.sessionListVersion.get();
+		await timeout(0);
+		const resolved = provider.sessionListVersion.get() > 0;
+		provider.setConnection(disposables.add(new MockAgentConnection()));
+		const replacing = provider.sessionListVersion.get();
+		await timeout(0);
+		provider.clearConnection();
+		assert.deepStrictEqual({ before, resolved, replacing, disconnected: provider.sessionListVersion.get() }, {
+			before: 0, resolved: true, replacing: 0, disconnected: 0,
+		});
+	}));
+
+	for (const address of ['ssh:build', 'wsl:Ubuntu', 'tunnel:desktop']) {
+		test(`disconnect invalidates session list readiness before unpublishing ${address}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			connection.addSession(createSession('working', { status: ProtocolSessionStatus.InProgress }));
+			const provider = createProvider(disposables, connection, { address }, {
+				disconnectOnDemand: async () => { provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected); },
+			});
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			await timeout(0);
+			const before = { ready: provider.sessionListVersion.get() > 0, sessions: provider.getSessions().length };
+			const changes: { ready: boolean; sessions: number; connected: boolean }[] = [];
+			disposables.add(provider.onDidChangeSessions(() => changes.push({
+				ready: provider.sessionListVersion.get() > 0,
+				sessions: provider.getSessions().length,
+				connected: RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get()),
+			})));
+			await provider.disconnect();
+			assert.deepStrictEqual({ before, changes, ready: provider.sessionListVersion.get() > 0 }, {
+				before: { ready: true, sessions: 1 },
+				changes: [{ ready: false, sessions: 0, connected: true }],
+				ready: false,
+			});
+		}));
+	}
 
 	test('getSessions populates from connection.listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('list-1', { summary: 'First' }));
