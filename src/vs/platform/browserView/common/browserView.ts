@@ -363,7 +363,10 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 	if (original.scheme !== Schemas.file && original.scheme !== Schemas.vscodeRemote) {
 		return url;
 	}
-	return URI.from({ scheme: Schemas.file, path: original.path, query: original.query, fragment: uri.fragment }).toString(true);
+	// Encode the path so literal percent sequences in file names survive, but keep the query and fragment as is.
+	const path = URI.from({ scheme: Schemas.file, path: original.path }).toString();
+	const suffix = URI.from({ scheme: Schemas.file, path: '/', query: original.query, fragment: uri.fragment }).toString(true).slice('file:///'.length);
+	return path + suffix;
 }
 
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {

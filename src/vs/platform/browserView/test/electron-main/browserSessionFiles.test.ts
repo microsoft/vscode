@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
-import { computeFileTrust, IWindowFileTrust } from '../../electron-main/browserSessionFiles.js';
+import { computeFileTrust, IWindowFileTrust, normalizeRemoteFilePath } from '../../electron-main/browserSessionFiles.js';
 
 suite('computeFileTrust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,6 +61,22 @@ suite('computeFileTrust', () => {
 				'host-a': { roots: ['/repo'], trustAll: false, windowId: 3, scheme: AGENT_HOST_SCHEME },
 				'host-b': { roots: ['/other'], trustAll: false, windowId: 3, scheme: AGENT_HOST_SCHEME },
 			},
+		});
+	});
+});
+
+suite('normalizeRemoteFilePath', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes dot segments and rejects backslashes', () => {
+		assert.deepStrictEqual({
+			dotSegments: normalizeRemoteFilePath('/trusted/a/../b.html'),
+			escapes: normalizeRemoteFilePath('/trusted/../secret'),
+			backslash: normalizeRemoteFilePath('/c:/trusted/..\\secret.txt'),
+		}, {
+			dotSegments: '/trusted/b.html',
+			escapes: '/secret',
+			backslash: undefined,
 		});
 	});
 });

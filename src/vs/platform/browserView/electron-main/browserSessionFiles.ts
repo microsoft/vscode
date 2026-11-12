@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { posix } from '../../../base/common/path.js';
 import { getOrSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { Mutable } from '../../../base/common/types.js';
@@ -64,4 +65,13 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 		}
 	}
 	return { local: { roots: localRoots, trustAll: localTrustAll }, remotes };
+}
+
+/**
+ * Normalizes the path of a remote `file:` request for both authorization and reading.
+ * Returns `undefined` for paths containing backslashes, which are separators on Windows remotes
+ * but not for the POSIX normalization and trusted root comparison.
+ */
+export function normalizeRemoteFilePath(path: string): string | undefined {
+	return path.includes('\\') ? undefined : posix.normalize(path);
 }

@@ -19,7 +19,7 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
-import type { IRemoteFileTrust } from './browserSessionFiles.js';
+import { normalizeRemoteFilePath, type IRemoteFileTrust } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
@@ -452,9 +452,9 @@ export class BrowserSession {
 	 */
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
 		// Check and serve the same normalized path so `..` segments cannot escape the trusted roots.
-		const path = posix.normalize(uri.path);
+		const path = normalizeRemoteFilePath(uri.path);
 		const trusted = BrowserSession._trustedRemoteFileRoots.get(authority.toLowerCase());
-		if (!trusted || (!trusted.trustAll && !trusted.roots.findSubstr(path))) {
+		if (path === undefined || !trusted || (!trusted.trustAll && !trusted.roots.findSubstr(path))) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 

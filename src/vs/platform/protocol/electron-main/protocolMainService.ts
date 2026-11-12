@@ -95,7 +95,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		if (!this.managedRemoteResourceHandler) {
 			return new Response('Remote resources are not available', { status: 503 });
 		}
-		return this.managedRemoteResourceHandler(new Request(url.toString(true)));
+		return this.managedRemoteResourceHandler(new Request(url.toString()));
 	}
 
 	//#region file://

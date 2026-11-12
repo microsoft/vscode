@@ -68,7 +68,7 @@ export class ElectronRemoteResourceLoader extends Disposable {
 		let content: IFileContent;
 		try {
 			const actual = params.get('scheme') === AGENT_HOST_SCHEME
-				? toAgentHostUri(URI.file(uri.path), authority)
+				? toAgentHostUri(URI.from({ scheme: Schemas.file, path: uri.path }), authority)
 				: uri.with({
 					scheme: Schemas.vscodeRemote,
 					authority,

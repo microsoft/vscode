@@ -21,6 +21,7 @@ suite('BrowserView', () => {
 			noNetwork: remoteUrlToFileUrl(undefined, url),
 			otherNetwork: remoteUrlToFileUrl({ authority: 'wsl+Ubuntu' }, url),
 			web: remoteUrlToFileUrl(network, 'https://example.com/a'),
+			encodedPercent: remoteUrlToFileUrl(network, 'vscode-remote://ssh-remote%2Bhost/a/report%2520.html'),
 			agentHost: remoteUrlToFileUrl({ authority: 'Host-A' }, toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()),
 			otherAgentHost: remoteUrlToFileUrl({ authority: 'host-b' }, toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()),
 		}, {
@@ -28,6 +29,7 @@ suite('BrowserView', () => {
 			noNetwork: url,
 			otherNetwork: url,
 			web: 'https://example.com/a',
+			encodedPercent: 'file:///a/report%2520.html',
 			agentHost: 'file:///a/index.html',
 			otherAgentHost: toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString(),
 		});
