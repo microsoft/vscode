@@ -3507,7 +3507,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._reconcileExtensions(session);
 			} catch (error) {
 				if (revision === this._extensionPreferenceRevision || !isCurrentSession()) {
-					throw error;
+					const failure = !atTurnBoundary && this._extensionReconciliationFailure(session);
+					throw failure ? new Error(failure) : error;
 				}
 				this._logService.warn(`[Copilot:${session.sessionId}] Superseded canvas extension reconciliation failed`, error);
 			}
@@ -3685,14 +3686,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _withSessionCanvasChat<T>(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases', task: (liveSession: CopilotAgentSession) => Promise<T>): Promise<T> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		context.target?.assertCanvasRuntimeAvailable();
-		const failure = context.target ? this._extensionReconciliationFailure(context.target) : undefined;
-		if (failure) {
-			throw new Error(failure);
-		}
-		const pending = context.target ? this._extensionCatchUpPendingError(context.target) : undefined;
-		if (pending) {
-			throw pending;
+		if (context.target && !context.target.hasReleasedCanvasProjection) {
+			const failure = this._extensionReconciliationFailure(context.target);
+			if (failure) {
+				throw new Error(failure);
+			}
+			const pending = this._extensionCatchUpPendingError(context.target);
+			if (pending) {
+				throw pending;
+			}
 		}
 		let liveSession: CopilotAgentSession;
 		do {

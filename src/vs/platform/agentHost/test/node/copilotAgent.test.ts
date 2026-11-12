@@ -27272,7 +27272,7 @@ suite('CopilotAgent', () => {
 				await agent.setAgentExtensionEnabled('user:preview', false);
 				const send = () => agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn', undefined, exactChatContext(session, chat));
 
-				await assert.rejects(agent.listSessionCanvases(session, chat, exactChatContext(session, chat)), /extension_reconciliation_lifecycle_failed/);
+				await assert.rejects(agent.listSessionCanvases(session, chat, exactChatContext(session, chat)), /send a message.*extension_reconciliation_lifecycle_failed/);
 				const inventory = await agent.listAgentExtensions(session, chat);
 				if (failure) {
 					await assert.rejects(send(), new RegExp(`fixture ${failure} failed`));
@@ -30564,6 +30564,49 @@ suite('CopilotAgent', () => {
 				previousDisposed: 1, sends: ['new turn'],
 			});
 		});
+
+		for (const operation of ['list', 'open'] as const) {
+			test(`queues a Canvas ${operation} arriving during routine restart onto the replacement`, async () => {
+				const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+				const release = new DeferredPromise<void>();
+				afterTest(async () => { release.complete(); await disposeAgent(agent); });
+				const sessionId = 'config-refresh-session';
+				const session = AgentSession.uri('copilotcli', sessionId);
+				const chat = defaultChatUri(session);
+				const destroying = new DeferredPromise<void>();
+				let released = false;
+				let opens = 0;
+				const previous = {
+					...refreshSessionStub([]),
+					requiresMcpLaunchConfigurationRefresh: true,
+					get hasReleasedCanvasProjection() { return released; },
+					takeCanvasProjection: () => { released = true; return undefined; },
+					assertCanvasRuntimeAvailable: () => { if (released) { throw new Error('fixture released projection'); } },
+					destroySession: async () => { destroying.complete(); await release.p; },
+				};
+				const replacement = {
+					...refreshSessionStub([]),
+					listCanvases: async () => [],
+					openCanvas: async () => { opens++; },
+				};
+				setDefaultSessionStub(agent, sessionId, previous);
+				agent['_resumeSession'] = async () => {
+					setDefaultSessionStub(agent, sessionId, replacement);
+					return agent['_findPluginOperationSession'](session, chat)!;
+				};
+				const sending = agent.chats.sendMessage(chat, 'new turn', undefined, undefined, 'new-turn');
+				await destroying.p;
+				const context = exactChatContext(session, chat);
+				const request = operation === 'list'
+					? agent.listSessionCanvases(session, chat, context)
+					: agent.openSessionCanvas(session, { extensionId: 'user:preview', canvasId: 'preview', instanceId: 'preview' }, chat, context);
+				release.complete();
+				const [, result] = await Promise.all([sending, request]);
+				assert.deepStrictEqual({ result, opens, sends: replacement.sendCalls }, {
+					result: operation === 'list' ? [] : undefined, opens: operation === 'open' ? 1 : 0, sends: ['new turn'],
+				});
+			});
+		}
 
 		test('reports the bounded SDK session refresh reason during turn preparation', async () => {
 			const telemetryService = new RecordingTelemetryService();
