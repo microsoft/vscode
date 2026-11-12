@@ -26,7 +26,6 @@ import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from 
 import { CopilotAccountService } from '../../../node/copilot/copilotAccountService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { toCopilotAccountModelCatalog } from '../../../node/copilot/copilotAccountModelCatalog.js';
-import { resolveCopilotManagedSettings } from '../../../node/copilot/copilotManagedSettings.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 class LocalAccountRequests extends CopilotRequestHandler {
@@ -47,7 +46,7 @@ suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
-	(isLinux ? test.skip : test)('uses the confirmed setup account for the catalog and policy without global login', async function () {
+	(isLinux ? test.skip : test)('uses the confirmed setup account for the catalog without global login', async function () {
 		this.timeout(60_000);
 		const { createServer } = await import('http');
 		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
@@ -135,19 +134,18 @@ suite('Copilot account context native SDK', () => {
 			const setup = await accounts.getSession(context, Promise.resolve(client));
 			const catalog = toCopilotAccountModelCatalog(await setup.rpc.model.list());
 			await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
+			// The runtime cannot resolve this account's managed settings yet, so the host applies none to its catalog.
 			await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
-			const policy = await resolveCopilotManagedSettings(setup.rpc.managedSettings, undefined, 5000);
 			assert.deepStrictEqual({
 				service: context.choice.service,
 				setupModels: catalog.models.map(model => model.id),
-				policyUnresolved: policy.resolved.failClosed,
 				globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
 				sourceUnchanged: accounts.requireReady() === context,
 				catalogFetched: requests.some(request => request.path === '/models'),
 				authenticatedRequests: requests.every(request => request.authenticated),
 			}, {
 				service: 'm365', setupModels: [modelId],
-				policyUnresolved: false, globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
+				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
 			await accounts.reset();
 			await assert.rejects(accounts.getSession(context, Promise.resolve(client)), /no longer available/);

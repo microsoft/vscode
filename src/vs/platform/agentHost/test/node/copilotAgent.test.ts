@@ -27098,6 +27098,26 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ discovery, failed, refreshed: status() }, { discovery: { authenticated: false }, failed: 'error', refreshed: 'error' });
 		});
 
+		test('a Microsoft account catalogue is published without managed settings', async () => {
+			const client = new TestCopilotClient([], []);
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+			afterTest(() => disposeAgent(agent));
+			const accountService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
+			const context = upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' });
+			const state = stub(accountService.state, 'get').returns(context);
+			const session = stub(accountService, 'getSession').resolves(upcastPartial<CopilotSession>({
+				rpc: upcastPartial<CopilotSession['rpc']>({ model: upcastPartial<CopilotSession['rpc']['model']>({ list: async () => ({ list: [{ id: 'model-a', name: 'Model A', capabilities: {} }] }) }) }),
+			}));
+			try {
+				await (agent as unknown as { _refreshModels(): Promise<void> })._refreshModels();
+			} finally {
+				state.restore();
+				session.restore();
+			}
+
+			assert.deepStrictEqual({ models: agent.models.get().map(model => model.id), policyRequests: client.managedSettingsRequests }, { models: ['model-a'], policyRequests: [] });
+		});
+
 		test('changeModel keeps the selected model id and tuning through a family alias', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables);
 			afterTest(() => disposeAgent(agent));

@@ -54,34 +54,6 @@ suite('Copilot managed model configuration', () => {
 		}, new NullLogService()).configSchema), [model.configSchema, model.configSchema, model.configSchema]);
 	});
 
-	test('projects effective session policy without inventing account or source metadata', () => {
-		const projected = projectCopilotManagedModelConfiguration(model, {
-			resolved: {
-				source: 'mixed', serverManaged: true, deviceManaged: true, failClosed: false,
-				bypassPermissionsDisabled: false, managedKeys: ['model', 'effortLevel', 'contextTier'],
-				settings: { model: 'gpt-5', effortLevel: { overridable: 'high' }, contextTier: 'long_context' },
-			},
-		}, new NullLogService());
-		assert.deepStrictEqual({
-			effort: projected.configSchema?.properties.thinkingLevel.default,
-			context: projected.configSchema?.properties.contextSize.default,
-			managed: readAgentManagedModelDefaults(projected),
-		}, { effort: 'high', context: 1_000_000, managed: { model: true, keys: ['thinkingLevel', 'contextSize'] } });
-	});
-
-	test('an effective session setting of an unexpected shape leaves the picker unchanged', () => {
-		const projected = projectCopilotManagedModelConfiguration(model, {
-			resolved: {
-				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
-				bypassPermissionsDisabled: false, managedKeys: ['model', 'effortLevel', 'contextTier'],
-				settings: { model: 'gpt-5', effortLevel: 5, contextTier: ['long_context'] },
-			},
-		}, new NullLogService());
-		assert.deepStrictEqual({ properties: projected.configSchema?.properties, managed: readAgentManagedModelDefaults(projected) }, {
-			properties: model.configSchema?.properties, managed: { model: true, keys: [] },
-		});
-	});
-
 	test('a managed Copilot Fusion model marks Auto as the managed default', () => {
 		const auto: IAgentModelInfo = {
 			provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,

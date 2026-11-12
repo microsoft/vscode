@@ -4556,7 +4556,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!isCurrent() || this._shutdownPromise) {
 				return;
 			}
-			const modelPolicy = await this._managedSettingsResolver.resolve(session?.rpc.managedSettings ?? client.rpc.managedSettings, session ? undefined : tokenAtRefreshStart);
+			// TODO@TylerLeonhardt: the runtime cannot resolve managed settings for a Microsoft account yet, so none are applied to its catalog.
+			const modelPolicy = session ? undefined : await this._managedSettingsResolver.resolve(client.rpc.managedSettings, tokenAtRefreshStart);
 			if (isCurrent()) {
 				this._setAutoTierMetadata(autoTierMetadata);
 				this._capiModels = models;
