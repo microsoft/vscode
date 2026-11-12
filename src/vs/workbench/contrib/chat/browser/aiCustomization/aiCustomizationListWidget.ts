@@ -56,6 +56,7 @@ import { getCustomizationSecondaryText, MiddleEllipsisPathLabel } from './aiCust
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { CustomizationOrganizationPolicyNotice, getOrganizationManagedTooltip, OrganizationManagedTag } from './customizationOrganizationPolicy.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -154,7 +155,7 @@ interface IAICustomizationItemTemplateData {
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
-	readonly tag: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly statusIcon: HTMLElement;
 	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
@@ -346,7 +347,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
-		const tag = DOM.append(nameRow, $('.inline-badge.item-tag'));
+		const managedTag = disposables.add(new OrganizationManagedTag(nameRow, this.hoverService));
 		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
 		const description = disposables.add(new HighlightedLabel(descriptionContainer));
@@ -373,7 +374,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			typeIcon,
 			nameLabel,
 			badge,
-			tag,
+			managedTag,
 			statusIcon,
 			descriptionContainer,
 			description,
@@ -460,8 +461,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.badge.style.display = 'none';
 		}
 
-		templateData.tag.textContent = '';
-		templateData.tag.style.display = 'none';
+		templateData.managedTag.update(element.organizationControl);
 
 		// Status icon for external items with sync/loading status
 		const hideLoadedStatus = element.status === 'loaded'
@@ -802,7 +802,7 @@ export function getCustomizationItemAriaLabel(item: IAICustomizationListItem, so
 	const displayName = item.displayName ?? formatDisplayName(item.name);
 	const secondaryText = sourceLabel ?? getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
-	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
+	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage, item.organizationControl ? getOrganizationManagedTooltip(item.organizationControl) : undefined].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
 }
@@ -839,6 +839,7 @@ export class AICustomizationListWidget extends Disposable {
 	private emptyStateSubtext!: HTMLElement;
 
 	private currentSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
+	private organizationPolicyNotice!: CustomizationOrganizationPolicyNotice;
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
@@ -968,6 +969,9 @@ export class AICustomizationListWidget extends Disposable {
 				this.openerService.open(URI.parse(href));
 			}
 		}));
+		this.organizationPolicyNotice = this._register(this.instantiationService.createInstance(CustomizationOrganizationPolicyNotice));
+		this.sectionTitleHeader.appendChild(this.organizationPolicyNotice.element);
+		this.organizationPolicyNotice.setSection(this.currentSection);
 
 		// Re-layout when the header height changes (e.g. description wraps,
 		// or CSS adjustments alter padding) so the list's allotted height stays
@@ -1094,7 +1098,6 @@ export class AICustomizationListWidget extends Disposable {
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
-				expandOnlyOnTwistieClick: entry => entry.type !== 'skill-bundle',
 			}
 		));
 
@@ -1242,6 +1245,7 @@ export class AICustomizationListWidget extends Disposable {
 		}
 		this.currentSection = section;
 		this.updateSectionHeader();
+		this.organizationPolicyNotice.setSection(section);
 
 		const modelSection = toItemsModelSection(section);
 		if (!modelSection) {

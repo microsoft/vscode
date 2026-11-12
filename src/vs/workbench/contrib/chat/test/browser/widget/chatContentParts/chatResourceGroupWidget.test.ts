@@ -561,6 +561,21 @@ suite('ChatResourceGroupWidget', () => {
 		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
 	});
 
+	test('tool result thumbnails show an image placeholder, not a warning, until they are ready', async () => {
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', value: decodeBase64(imageData).buffer }], false);
+		const state = () => ({
+			icons: [...widget.domNode.querySelectorAll('.image-attachment .chat-attached-context-pill .codicon')].map(icon => icon.className),
+			images: snapshot(widget).images,
+		});
+		const loading = state();
+		await waitForElement(widget.domNode, 'img.chat-attached-context-pill-image');
+
+		assert.deepStrictEqual({ loading, ready: state() }, {
+			loading: { icons: ['codicon codicon-file-media-compact'], images: 0 },
+			ready: { icons: [], images: 1 },
+		});
+	});
+
 	for (const inline of [false, true]) {
 		test(`${inline ? 'selected generated-image previews' : 'tool result thumbnails'} keep one image copy menu`, async () => {
 			const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
