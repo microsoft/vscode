@@ -11,7 +11,7 @@ import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
-import { Action, Separator } from '../../../../../../base/common/actions.js';
+import { Action, Separator, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -509,36 +509,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
 				const showUpdate = showConnection && RemoteAgentHostConnectionStatus.isIncompatible(entry.remote.connectionStatus) && !!entry.remote.connectionStatus.vscodeUpgradeMethod;
 				const showCopyAddress = showConnection && !!entry.remote.copyableAddress;
-				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showNewSession}:${canConnect}:${showDelete}:${showLocationPreference}:${showUpdate}:${showCopyAddress}`;
-				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
-					template.actionLayout = actionLayout;
-					const activeElement = dom.getActiveElement();
-					const focusedAction = dom.isHTMLElement(activeElement) && template.container.contains(activeElement) ? template.toolbar.getItemAction(activeElement) : undefined;
-					const actions = showConnection ? [] : [
-						...(showDocumentation ? [template.documentation] : []),
-						...(showConfig ? [template.action] : []),
-					];
-					const secondary = showConnection ? Separator.join(
-						[...(showNewSession ? [template.newSessionAction] : []), ...(canConnect ? [template.action] : []), template.troubleshoot],
-						[template.visibility],
-						showCopyAddress ? [template.copyAddress] : [],
-						[
-							template.rename,
-							...(showLocationPreference ? [template.locationPreference] : []),
-							...(showUpdate ? [template.updateServer] : []),
-							...(showDelete ? [template.delete] : []),
-						],
-					) : [];
-					template.toolbar.setActions(actions, secondary);
-					if (focusedAction) {
-						const index = actions.findIndex(action => action === focusedAction);
-						if (index >= 0) {
-							template.toolbar.focus(index);
-						} else {
-							template.container.closest<HTMLElement>('.monaco-list')?.focus();
-						}
-					}
-				}
 				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showConfig && !showDocumentation && !showConnection);
 				if (template.column === 'actions') {
 					const hideConnect = !showConnection || !canConnect && !pending && !error;
@@ -615,6 +585,43 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.delete.enabled = showDelete && !entry.busy;
 					template.updateServer.label = localize('remotes.updateServer', "Update Server");
 					template.updateServer.enabled = showUpdate && !entry.busy;
+				}
+				if (template.column === 'actions') {
+					const actions = showConnection ? [] : [
+						...(showDocumentation ? [template.documentation] : []),
+						...(showConfig ? [template.action] : []),
+					];
+					// An open overflow menu must retain its environment and labels when the row template is recycled.
+					const menuAction = (action: Action, kind: RemoteRowAction) => toAction({
+						id: action.id, label: action.label, tooltip: action.tooltip, class: action.class, enabled: action.enabled,
+						run: () => this.onAction(entry, kind),
+					});
+					const secondary = showConnection ? Separator.join(
+						[...(showNewSession ? [menuAction(template.newSessionAction, 'newSession')] : []), ...(canConnect ? [menuAction(template.action, 'connect')] : []), menuAction(template.troubleshoot, 'troubleshoot')],
+						[menuAction(template.visibility, 'toggleVisibility')],
+						showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : [],
+						[
+							menuAction(template.rename, 'rename'),
+							...(showLocationPreference ? [menuAction(template.locationPreference, 'locationPreference')] : []),
+							...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
+							...(showDelete ? [menuAction(template.delete, 'delete')] : []),
+						],
+					) : [];
+					const actionLayout = JSON.stringify([row.id, showConfig, showDocumentation, secondary.map(action => [action.id, action.label, action.tooltip, action.class, action.enabled])]);
+					if (template.actionLayout !== actionLayout) {
+						template.actionLayout = actionLayout;
+						const activeElement = dom.getActiveElement();
+						const focusedAction = dom.isHTMLElement(activeElement) && template.container.contains(activeElement) ? template.toolbar.getItemAction(activeElement) : undefined;
+						template.toolbar.setActions(actions, secondary);
+						if (focusedAction) {
+							const index = actions.findIndex(action => action === focusedAction);
+							if (index >= 0) {
+								template.toolbar.focus(index);
+							} else {
+								template.container.closest<HTMLElement>('.monaco-list')?.focus();
+							}
+						}
+					}
 				}
 				break;
 			}

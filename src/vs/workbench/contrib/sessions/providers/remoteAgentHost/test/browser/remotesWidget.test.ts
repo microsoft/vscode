@@ -1328,6 +1328,25 @@ suite('RemotesWidget', () => {
 		});
 	}
 
+	test('an open row menu retains its environment when discovery recycles the row', async () => {
+		const { parent, model } = createWidget();
+		const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		model.remotes.set([remote, { ...remote, id: 'ssh:other', name: 'Other server' }], undefined);
+		const visibility = getMenuAction(parent, remote.id, 'visibility');
+		model.remotes.set(model.remotes.get().map(item => item.id === remote.id ? { ...item, name: 'Z server' } : item), undefined);
+		await store.add(new ActionRunner()).run(visibility);
+		assert.deepStrictEqual({
+			label: visibility.label,
+			visibilityChanges: model.visibilityChanges,
+			connectionChanges: model.connectionChanges,
+			managementChanges: model.managementChanges,
+		}, {
+			label: 'Hide from Environment Picker',
+			visibilityChanges: [{ id: remote.id, hidden: true }],
+			connectionChanges: [], managementChanges: [],
+		});
+	});
+
 	test('row actions expose only the connection button and overflow, with deletion last in the menu', () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
@@ -1364,10 +1383,11 @@ suite('RemotesWidget', () => {
 			};
 			runMenuAction(parent, remote.id, 'visibility');
 			model.remotes.set([{ ...remote, pickerUnavailableReason: undefined }], undefined);
+			const restoredAction = getMenuAction(parent, remote.id, 'visibility');
 			assert.deepStrictEqual({
 				unavailable,
 				restored: {
-					label: action.label, disabled: !action.enabled,
+					label: restoredAction.label, disabled: !restoredAction.enabled,
 					unavailableClass: row.classList.contains('remotes-row-picker-unavailable'),
 				},
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,

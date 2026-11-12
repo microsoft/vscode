@@ -83,7 +83,7 @@ export const gitHubEnvironmentSharingDiscovery = localize('remoteConnections.git
 export const devTunnelSharingClients = localize('remoteConnections.devTunnel.clients', "Connect from VS Code or the browser-based Agents window");
 
 export function getOffDetail(): string {
-	return localize('remoteConnections.off.detail', "Other devices can't connect to this computer. Agent tasks keep running here.");
+	return localize('remoteConnections.off.detail', "Sharing through this app is off. Agent tasks keep running on this computer.");
 }
 
 export function getDevTunnelsDetail(): string {

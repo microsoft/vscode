@@ -288,7 +288,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 	test('connection explanations are available through managed hovers and accessible descriptions', () => {
 		const { openMenu } = fixture();
 		assert.deepStrictEqual(openMenu().filter(action => action.checked !== undefined).map(action => ({ id: action.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })), [
-			{ id: 'remoteConnections.off', description: 'Other devices can\'t connect to this computer. Agent tasks keep running here.', hoverMatches: true },
+			{ id: 'remoteConnections.off', description: 'Sharing through this app is off. Agent tasks keep running on this computer.', hoverMatches: true },
 			{ id: 'remoteConnections.githubEnvironment', description: 'Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.', hoverMatches: true },
 			{ id: 'remoteConnections.devTunnel', description: 'Connect from VS Code or the browser-based Agents window.', hoverMatches: true },
 		]);
@@ -1198,22 +1198,45 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				}
 				const notificationService = new TestNotificationService();
 				const notify = stub(notificationService, 'error').callThrough();
+				const prompt = stub(notificationService, 'prompt').callThrough();
 				const logService = store.add(new NullLogService());
 				const log = stub(logService, 'error');
 				await toggle(remoteTunnel, commands, undefined, backend, sharing, notificationService, logService);
 				assert.deepStrictEqual({
 					notifications: notify.args,
+					retries: prompt.args.map(([, message, choices]) => ({ message, labels: choices.map(choice => choice.label) })),
 					logs: log.args,
 					commands: commands.commands,
 				}, {
-					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
-						? 'Failed to disable GitHub environment sharing: fetch failed'
-						: 'Failed to enable GitHub environment sharing: fetch failed']],
+					notifications: operation === 'cancel sign-in' || operation === 'disable' ? [] : [['Failed to enable GitHub environment sharing: fetch failed']],
+					retries: operation === 'disable' ? [{ message: 'Failed to disable GitHub environment sharing: fetch failed', labels: ['Retry Stop Sharing'] }] : [],
 					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
 					commands: [],
 				});
 			});
 		}
+
+		test(`retries failed ${backend} registration removal without restarting sharing`, async () => {
+			const remoteTunnel = store.add(new TestRemoteTunnelService());
+			const commands = new TestCommandService();
+			const sharing = new TestMissionControlSharingService();
+			sharing.state.set('enabled', undefined);
+			const update = stub(sharing, 'setEnabled').callsFake(async enabled => {
+				sharing.calls.push(enabled);
+				sharing.state.set('disabled', undefined);
+				if (update.callCount === 1) {
+					throw new Error('Registration deletion failed');
+				}
+			});
+			const notifications = new TestNotificationService();
+			const prompt = stub(notifications, 'prompt').callThrough();
+			const result = await toggle(remoteTunnel, commands, undefined, backend, sharing, notifications);
+			await prompt.firstCall.args[2][0].run();
+			assert.deepStrictEqual({
+				result, calls: sharing.calls, state: sharing.state.get(),
+				tunnelStops: remoteTunnel.stops, commands: commands.commands,
+			}, { result: 'failed', calls: [false, false], state: 'disabled', tunnelStops: 0, commands: [] });
+		});
 
 		test(`routes ${backend} enable, disable and cancellation without Dev Tunnel commands`, async () => {
 			const remoteTunnel = store.add(new TestRemoteTunnelService());

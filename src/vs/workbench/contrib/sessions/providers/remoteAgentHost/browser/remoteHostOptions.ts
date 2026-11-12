@@ -378,7 +378,7 @@ export function usesSSHConfigFile(preferenceKey: string, isWebPlatform: boolean 
  * when the host has no such address.
  *
  * SSH hosts copy their `~/.ssh/config` alias or `[user@]host[:port]`, which
- * both `ssh` and the Connect via SSH picker accept. Manually added WebSocket
+ * the Connect via SSH picker accepts. Manually added WebSocket
  * hosts copy the address entered in Add Remote Agent Host. Tunnels, WSL
  * distributions, and GitHub Environments are discovered through the signed-in
  * account or this computer, so their internal identifiers are not offered.
