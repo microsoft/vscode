@@ -974,8 +974,8 @@ suite('ByokLmProxyService', () => {
 		// retries the whole turn, resending the already-shown text alongside the
 		// retry's own output. Closing as `response.completed` with the output that
 		// was already streamed keeps that duplication from happening; the failure
-		// itself is only logged server-side (see byokLmProxyService.ts), not shown
-		// in-stream.
+		// itself is only logged server-side (see byokLmProxyService.ts); the stream
+		// carries a fixed note that the answer was cut short instead.
 		const models = store.add(new Emitter<IByokLmModelInfo[]>({ onDidAddFirstListener: () => models.fire([]) }));
 		const deltas = store.add(new Emitter<IByokLmStreamDelta>());
 
@@ -999,7 +999,7 @@ suite('ByokLmProxyService', () => {
 				failed: text.includes('event: response.failed'),
 				message: text.includes('upstream exploded'),
 				completed: text.includes('event: response.completed'),
-				outputText: text.includes('"output_text":"partial"'),
+				outputText: text.includes('"output_text":"partial\\n\\n_Response interrupted: the model stopped before finishing. Try again._"'),
 			}, {
 				status: 200,
 				failed: false,

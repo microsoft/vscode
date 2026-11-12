@@ -709,10 +709,14 @@ export interface IResponsesSseEmitter {
 	 * delta was already written. Closes as a normal completion of whatever was
 	 * streamed so far, rather than `response.failed`: a runtime that retries a
 	 * hard failure resends the request from scratch, and the client would see the
-	 * already-shown output duplicated alongside the retry's own output.
+	 * already-shown output duplicated alongside the retry's own output. A fixed
+	 * note is appended to the message so the truncated answer is visibly incomplete.
 	 */
 	fail(): string[];
 }
+
+/** Appended to a streamed answer that the provider cut short, so it is not mistaken for a complete one. */
+const BYOK_INTERRUPTED_RESPONSE_NOTE = '\n\n_Response interrupted: the model stopped before finishing. Try again._';
 
 export function createResponsesSseEmitter(model: string, responseId: string = nextId('resp')): IResponsesSseEmitter {
 	const sequence = { value: 0 };
@@ -793,6 +797,27 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 		return frames;
 	};
 
+	/** Appends text to the open message item, opening one first when the open item is not a message. */
+	const pushText = (text: string): string[] => {
+		const frames: string[] = [];
+		if (open?.type !== 'message') {
+			frames.push(
+				...closeOpenItem(),
+				...openItem({ index: streamed.length, id: outputItemId('message'), type: 'message', key: undefined, callId: '', name: '', text: '', summary: [], partOpen: true, encryptedContent: undefined }),
+			);
+			frames.push(frame('response.content_part.added', {
+				type: 'response.content_part.added',
+				item_id: open!.id,
+				output_index: open!.index,
+				content_index: 0,
+				part: { type: 'output_text', text: '', annotations: [], logprobs: [] },
+			}));
+		}
+		open!.text += text;
+		frames.push(frame('response.output_text.delta', { type: 'response.output_text.delta', item_id: open!.id, output_index: open!.index, content_index: 0, delta: text, logprobs: [] }));
+		return frames;
+	};
+
 	return {
 		responseId,
 
@@ -804,22 +829,7 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 			const frames: string[] = [];
 
 			if (delta.kind === 'text') {
-				if (open?.type !== 'message') {
-					frames.push(
-						...closeOpenItem(),
-						...openItem({ index: streamed.length, id: outputItemId('message'), type: 'message', key: undefined, callId: '', name: '', text: '', summary: [], partOpen: true, encryptedContent: undefined }),
-					);
-					frames.push(frame('response.content_part.added', {
-						type: 'response.content_part.added',
-						item_id: open!.id,
-						output_index: open!.index,
-						content_index: 0,
-						part: { type: 'output_text', text: '', annotations: [], logprobs: [] },
-					}));
-				}
-				open!.text += delta.delta;
-				frames.push(frame('response.output_text.delta', { type: 'response.output_text.delta', item_id: open!.id, output_index: open!.index, content_index: 0, delta: delta.delta, logprobs: [] }));
-				return frames;
+				return pushText(delta.delta);
 			}
 
 			if (delta.kind === 'reasoning') {
@@ -905,8 +915,10 @@ export function createResponsesSseEmitter(model: string, responseId: string = ne
 			// turn from scratch, resending the visible output this stream already
 			// delivered. Closing as a normal completion — with whatever reached the
 			// client as the final content — keeps that output from being duplicated.
-			// The failure itself is logged server-side instead of surfaced in-stream.
-			const frames = closeOpenItem();
+			// The provider's error stays in the server log, since it may not be meant
+			// for display; the user only sees a fixed note that the answer is incomplete.
+			const frames = pushText(BYOK_INTERRUPTED_RESPONSE_NOTE);
+			frames.push(...closeOpenItem());
 			const items = streamed.map(item => streamedItem(item));
 			frames.push(frame('response.completed', { type: 'response.completed', response: responseEnvelope(responseId, model, 'completed', items, undefined) }));
 			return frames;

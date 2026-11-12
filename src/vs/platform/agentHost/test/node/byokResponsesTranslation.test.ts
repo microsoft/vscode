@@ -431,7 +431,8 @@ suite('byokResponsesTranslation', () => {
 	test('closes as a completion instead of failing in-stream after output was written', () => {
 		// A runtime that sees `response.failed` here would retry the whole turn,
 		// resending the text this stream already delivered; closing as a normal
-		// completion of what was streamed so far keeps that from duplicating.
+		// completion of what was streamed so far keeps that from duplicating. A fixed
+		// note is appended so the truncated answer is not mistaken for a complete one.
 		const emitter = createResponsesSseEmitter('gpt-5');
 		const frames = parseFrames([...emitter.begin(), ...emitter.push({ requestId: 'req', kind: 'text', delta: 'partial' }), ...emitter.fail()]);
 
@@ -442,11 +443,30 @@ suite('byokResponsesTranslation', () => {
 			error: (frames.at(-1)?.data.response as { error: unknown }).error,
 			outputText: (frames.at(-1)?.data.response as { output_text: string }).output_text,
 		}, {
-			eventTypes: ['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.output_text.delta', 'response.output_text.done', 'response.content_part.done', 'response.output_item.done', 'response.completed'],
+			eventTypes: ['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.output_text.delta', 'response.output_text.delta', 'response.output_text.done', 'response.content_part.done', 'response.output_item.done', 'response.completed'],
 			last: 'response.completed',
 			status: 'completed',
 			error: null,
-			outputText: 'partial',
+			outputText: 'partial\n\n_Response interrupted: the model stopped before finishing. Try again._',
+		});
+	});
+
+	test('opens a message item for the interruption note when a reasoning item is open', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const frames = parseFrames([
+			...emitter.begin(),
+			...emitter.push({ requestId: 'req', kind: 'reasoning', id: 'rs_1', delta: 'thinking', newSummaryPart: true, encryptedContent: 'state' }),
+			...emitter.fail(),
+		]);
+
+		assert.deepStrictEqual({
+			itemsDone: frames.filter(frame => frame.event === 'response.output_item.done').map(frame => (frame.data.item as { type: string }).type),
+			output: (frames.at(-1)?.data.response as { output: { type: string }[] }).output.map(item => item.type),
+			outputText: (frames.at(-1)?.data.response as { output_text: string }).output_text,
+		}, {
+			itemsDone: ['reasoning', 'message'],
+			output: ['reasoning', 'message'],
+			outputText: '\n\n_Response interrupted: the model stopped before finishing. Try again._',
 		});
 	});
 

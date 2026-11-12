@@ -278,7 +278,9 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 		// client closes the stream as a completion of that partial output instead
 		// of an in-stream failure (see byokResponsesTranslation.ts's `fail()`): a
 		// runtime that retried an in-stream failure would resend the already-shown
-		// text alongside the retry's own output, duplicating it.
+		// text alongside the retry's own output, duplicating it. The message ends
+		// with a fixed note so the user can tell the answer was cut short.
+		const interruptionNote = '\n\n_Response interrupted: the model stopped before finishing. Try again._';
 		let calls = 0;
 		await withSdkSession('byok-responses-partial-failure', async () => {
 			calls++;
@@ -297,10 +299,10 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				resultContent: result?.type === 'assistant.message' ? result.data.content : undefined,
 			}, {
 				calls: 1,
-				joined: 'Partial answer',
+				joined: `Partial answer${interruptionNote}`,
 				errors: [],
 				resultType: 'assistant.message',
-				resultContent: 'Partial answer',
+				resultContent: `Partial answer${interruptionNote}`,
 			});
 		}, {}, () => [{ kind: 'text', delta: 'Partial answer' }]);
 	});

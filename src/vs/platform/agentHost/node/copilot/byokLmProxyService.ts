@@ -420,7 +420,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				if (committed) {
 					// Visible output already reached the client; closing the stream as a
 					// failure here would have the runtime retry and resend it, duplicating
-					// what the client already has. The failure is logged, not shown in-stream.
+					// what the client already has. The stream ends with a fixed note that the answer is incomplete; the failure itself is only logged.
 					this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} failed after streaming visible output (${failure}); closing the response instead of retrying to avoid duplicating the partial output`);
 					write(emitter.fail());
 					res.end();
