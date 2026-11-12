@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .customizations-marketplace-welcome-container {
-	height: 100%;
 	width: 100%;
 
 	&.hide {
@@ -12,26 +11,43 @@
 	}
 
 	.customizations-marketplace-welcome-content {
-		display: flex;
-		flex-direction: column;
+		box-sizing: border-box;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: center;
-		height: 100%;
-		padding: 0 var(--vscode-spacing-size400);
-		text-align: center;
-		margin: var(--vscode-spacing-size200) auto;
+		column-gap: var(--vscode-spacing-size120);
+		min-width: 0;
+		margin: var(--vscode-spacing-size40) var(--vscode-spacing-size100);
+		padding: var(--vscode-spacing-size100);
+		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+		border-radius: var(--vscode-cornerRadius-medium);
+		background: var(--vscode-editorWidget-background);
+
+		.customizations-marketplace-welcome-icon {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-codiconFontSize);
+		}
+
+		.customizations-marketplace-welcome-text {
+			min-width: 0;
+		}
 
 		.customizations-marketplace-welcome-title {
-			font-size: var(--vscode-fontSize-heading3);
-			margin: var(--vscode-spacing-size40) 0 0;
+			margin: 0;
+			font-size: var(--vscode-fontSize-body1);
 			font-weight: var(--vscode-fontWeight-semiBold);
 			line-height: normal;
 		}
 
 		.customizations-marketplace-welcome-description {
-			font-size: var(--vscode-fontSize-body1);
-			max-width: 350px;
-			padding: 0 var(--vscode-spacing-size200);
-			margin-top: var(--vscode-spacing-size160);
+			margin-top: var(--vscode-spacing-size20);
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-body2);
+			overflow-wrap: anywhere;
+
+			p {
+				margin: 0;
+			}
 
 			a {
 				color: var(--vscode-textLink-foreground);
@@ -39,9 +55,12 @@
 		}
 
 		.customizations-marketplace-welcome-button-container {
-			margin-top: var(--vscode-spacing-size160);
-			max-width: 320px;
-			width: 100%;
+			display: flex;
+			align-items: center;
 		}
 	}
+}
+
+.vscode-high-contrast .customizations-marketplace-welcome-content {
+	border-color: var(--vscode-contrastBorder);
 }

@@ -282,9 +282,9 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 	private createWelcomeContent(welcomeContainer: HTMLElement): void {
 		this._register(this.instantiationService.createInstance(CustomizationMarketplaceWelcome, welcomeContainer, {
-			title: localize('mcp.welcome.title', "Find MCP Servers in Customizations"),
-			description: new MarkdownString(localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers) from the Customizations marketplace.")),
-			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse MCP Servers"),
+			title: localize('mcp.welcome.title', "MCP Servers have moved"),
+			description: new MarkdownString(localize('mcp.welcome.description', "Browse and manage MCP servers in Customizations")),
+			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse"),
 			section: AICustomizationManagementSection.McpServers,
 		}));
 	}
@@ -508,7 +508,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 			{
 				id: InstalledMcpServersViewId,
 				name: localize2('mcp-installed', "MCP Servers - Installed"),
-				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
+				ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showMarketplaceWelcome: true }]),
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				weight: 40,
 				order: 4,
