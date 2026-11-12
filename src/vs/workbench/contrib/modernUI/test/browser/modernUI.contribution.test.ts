@@ -1460,6 +1460,46 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
+	test('keeps bottommost content inside the connected pane frame stroke', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels noactivitybar';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-toolsPanel-cornerRadius: 8px; --modern-ui-floating-card-stroke-width: 1px;';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const { actionItem } = createCompositeAction(root, 32, true);
+		const part = actionItem.closest<HTMLElement>('.part')!;
+		part.classList.add('panel');
+		const content = appendElement(part, 'content');
+		const targetWindow = getWindow(root);
+		const contentClip = () => targetWindow.getComputedStyle(content).clipPath;
+
+		const rounded = contentClip();
+		root.style.setProperty('--vscode-toolsPanel-cornerRadius', '2px');
+		const customized = contentClip();
+		const footer = appendElement(part, 'header-or-footer footer');
+		const withFooter = {
+			contentClip: contentClip(),
+			footerRadii: [
+				targetWindow.getComputedStyle(footer).borderBottomLeftRadius,
+				targetWindow.getComputedStyle(footer).borderBottomRightRadius,
+			],
+		};
+		footer.remove();
+		root.classList.add('modern-ui-compact');
+		const compact = contentClip();
+
+		assert.deepStrictEqual({ rounded, customized, withFooter, compact }, {
+			rounded: 'inset(0px 0px 1px round 0px 0px 7px 7px)',
+			customized: 'inset(0px 0px 1px round 0px 0px 1px 1px)',
+			withFooter: {
+				contentClip: 'none',
+				footerRadii: ['2px', '2px'],
+			},
+			compact: 'none',
+		});
+	});
+
 	test('floating connected caps follow their semantic corner-radius customizations', () => {
 		const actual = [];
 		const expected = [];

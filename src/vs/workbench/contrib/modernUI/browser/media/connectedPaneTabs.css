@@ -28,17 +28,6 @@
 		clip-path: inset(0);
 	}
 
-	.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.noactivitybar) .pane-composite-part.sidebar.right {
-		--modern-ui-connected-pane-right-radius: 0px;
-	}
-
-	.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-left.floating-part-outer-bottom {
-		--modern-ui-connected-pane-bottom-left-radius: var(--modern-ui-window-corner-radius);
-	}
-
-	.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-right.floating-part-outer-bottom {
-		--modern-ui-connected-pane-bottom-right-radius: var(--modern-ui-window-corner-radius);
-	}
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part {
@@ -59,6 +48,26 @@
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact):not(.noactivitybar) .pane-composite-part.sidebar.left {
 	--modern-ui-connected-pane-frame-radius: 0px;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.noactivitybar) .pane-composite-part.sidebar.right {
+	--modern-ui-connected-pane-right-radius: 0px;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-left.floating-part-outer-bottom {
+	--modern-ui-connected-pane-bottom-left-radius: var(--modern-ui-window-corner-radius);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-right.floating-part-outer-bottom {
+	--modern-ui-connected-pane-bottom-right-radius: var(--modern-ui-window-corner-radius);
+}
+
+/* Keep bottommost content inside the frame stroke while caps retain the border-box clip. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part > .content:last-child {
+	clip-path: inset(0 0 var(--modern-ui-floating-card-stroke-width) 0 round
+		0 0
+		max(0px, calc(var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))) - var(--modern-ui-floating-card-stroke-width)))
+		max(0px, calc(var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))) - var(--modern-ui-floating-card-stroke-width))));
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-left.floating-part-outer-bottom > .footer {
