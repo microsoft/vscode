@@ -336,6 +336,41 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		}
 	});
 
+	test('window.prompt() in a sandboxed iframe with an opaque origin can be answered', async function () {
+		this.timeout(60000);
+
+		for (let i = 0; i < 50 && !vscode.lm.tools.some(t => t.name === 'handle_dialog'); i++) {
+			await new Promise(r => setTimeout(r, 200));
+		}
+
+		const frameSource = `<script>setTimeout(() => parent.postMessage('got:' + JSON.stringify(prompt('Name?', 'Ada')), '*'), 1500)</script>`;
+		const server = http.createServer((_request, response) => {
+			response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+			response.end(`<!DOCTYPE html><title>start</title><script>addEventListener('message', e => document.title = e.data)</script><iframe sandbox="allow-scripts allow-modals" srcdoc="${frameSource.replace(/"/g, '&quot;')}"></iframe>`);
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(0, '127.0.0.1', resolve);
+			});
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+
+			const openOutput = await invokeTool('open_browser_page', { url: `http://127.0.0.1:${address.port}/`, forceNew: true });
+			const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+			assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+			await new Promise(r => setTimeout(r, 3000));
+			const handleOutput = await invokeTool('handle_dialog', { pageId, acceptModal: true, promptText: 'Grace' });
+			assert.ok(handleOutput.includes('Page Title: got:"Grace"'), `Expected the sandboxed frame to receive the answer, got: ${handleOutput}`);
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
+		}
+	});
+
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
 	// workspaces: the workspace folder is a `vscode-remote://` URI so it
 	// isn't added to the local `file://` trust allowlist.
