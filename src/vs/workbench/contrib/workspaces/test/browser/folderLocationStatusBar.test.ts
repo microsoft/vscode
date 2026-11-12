@@ -241,7 +241,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		const calls: [URI, URI | undefined, string | undefined][] = [];
 		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 		const accessor = {
-			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p, l, o?.reason]); } } : undefined
+			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p, l, o?.reason]); } } : id === IUriIdentityService ? { extUri } : undefined
 		} as unknown as ServicesAccessor;
 
 		await CommandsRegistry.getCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
