@@ -58,6 +58,8 @@ export interface IWorkspaceEditingService {
 	 * (`toWorkspaceIdentifier`) to return it to its own location. The workspace identity (id, storage, extension state) is unchanged. Any other
 	 * `location` must be resolved by a registered `IWorkspaceFolderLocationProvider`.
 	 * Only supported for single local folder workspaces.
+	 * If the workspace is trusted and the destination is not (and no built-in provider vouches for it),
+	 * the user is asked once; declining still switches, in Restricted Mode.
 	 * `options.folder` optionally names the folder to move by its current `uri`; it must match
 	 * the folder of the workspace. Multi-root workspaces are not supported yet.
 	 *

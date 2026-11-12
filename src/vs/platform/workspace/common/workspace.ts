@@ -242,6 +242,12 @@ export interface IWorkspaceFoldersWillChangeEvent {
 	readonly changes: IWorkspaceFoldersChangeEvent;
 	readonly fromCache: boolean;
 
+	/**
+	 * Whether the change moves the single folder to another location. The trust of
+	 * the destination is settled by the folder location change itself.
+	 */
+	readonly isFolderLocationChange?: boolean;
+
 	join(promise: Promise<void>): void;
 }
 

@@ -351,7 +351,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	private registerListeners(): void {
 		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
-			if (e.fromCache) {
+			if (e.fromCache || e.isFolderLocationChange) {
 				return;
 			}
 			if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {

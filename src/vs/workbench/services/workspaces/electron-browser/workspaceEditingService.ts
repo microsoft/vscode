@@ -30,7 +30,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -64,8 +64,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@ILogService logService: ILogService,
 		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
+		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 
 		this.registerListeners();
 	}
