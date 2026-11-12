@@ -10,7 +10,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, NAMED_LAYOUTS_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, IsSessionsWindowContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
@@ -281,6 +281,15 @@ export const ACCOUNTS_ACTIVITY_TILE_ACTION: IAction = {
 	id: ACCOUNTS_ACTIVITY_ID,
 	label: localize('accounts', "Accounts"),
 	tooltip: localize('accounts', "Accounts"),
+	class: undefined,
+	enabled: true,
+	run: function (): void { }
+};
+
+export const NAMED_LAYOUTS_ACTIVITY_TITLE_ACTION: IAction = {
+	id: NAMED_LAYOUTS_ACTIVITY_ID,
+	label: localize('layouts', "Layouts"),
+	tooltip: localize('layouts', "Layouts"),
 	class: undefined,
 	enabled: true,
 	run: function (): void { }

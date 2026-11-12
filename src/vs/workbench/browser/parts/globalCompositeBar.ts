@@ -6,7 +6,7 @@
 import './media/globalCompositeBar.css';
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ACCOUNTS_ACTIVITY_ID, ACCOUNTS_SHARED_SIGN_IN_GROUP, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, ACCOUNTS_SHARED_SIGN_IN_GROUP, GLOBAL_ACTIVITY_ID, NAMED_LAYOUTS_ACTIVITY_ID } from '../../common/activity.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
@@ -20,7 +20,7 @@ import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 import { Action, IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IMenu, IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
-import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from '../../../base/browser/dom.js';
+import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow, getDomNodePagePosition } from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
@@ -33,6 +33,7 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '../../services/authentication/browser/authenticationService.js';
 import { ACCOUNTS_AVATAR_SETTING, AuthenticationSessionAccount, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
@@ -54,13 +55,19 @@ import { createCodexAccountMenuActions, ICodexAccountService, shouldShowCodexAcc
 
 export class GlobalCompositeBar extends Disposable {
 
-	private static readonly ACCOUNTS_ACTION_INDEX = 0;
 	static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
 
 	readonly element: HTMLElement;
 
 	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
+	private readonly namedLayoutsAction = this._register(new Action(NAMED_LAYOUTS_ACTIVITY_ID));
+
+	/**
+	 * Actions that can be hidden, in the order in which they are rendered above Manage.
+	 */
+	private readonly optionalActions: readonly IAction[] = [this.namedLayoutsAction, this.accountAction];
+
 	private readonly globalActivityActionBar: ActionBar;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -74,6 +81,8 @@ export class GlobalCompositeBar extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -86,6 +95,10 @@ export class GlobalCompositeBar extends Disposable {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === GLOBAL_ACTIVITY_ID) {
 					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { ...options, colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
+				}
+
+				if (action.id === NAMED_LAYOUTS_ACTIVITY_ID) {
+					return this.instantiationService.createInstance(NamedLayoutsActivityActionViewItem, this.contextMenuActionsProvider, { ...options, colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
 				}
 
 				if (action.id === ACCOUNTS_ACTIVITY_ID) {
@@ -113,10 +126,20 @@ export class GlobalCompositeBar extends Disposable {
 		}));
 
 		if (this.accountsVisibilityPreference) {
-			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
+			this.globalActivityActionBar.push(this.accountAction);
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
+
+		// Named layouts are contributed through a menu, the item is only shown while the menu has entries
+		const namedLayoutsMenu = this._register(menuService.createMenu(MenuId.NamedLayoutsActivity, contextKeyService));
+		const updateNamedLayoutsActivity = () => this.setActionVisible(this.namedLayoutsAction, namedLayoutsMenu.getActions().length > 0);
+		updateNamedLayoutsActivity();
+		this._register(namedLayoutsMenu.onDidChange(() => {
+			if (updateNamedLayoutsActivity()) {
+				this._onDidChange.fire();
+			}
+		}));
 
 		this.registerListeners();
 	}
@@ -147,16 +170,28 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private toggleAccountsActivity() {
-		const accountsVisible = this.globalActivityActionBar.length() === 2;
-		if (accountsVisible === this.accountsVisibilityPreference) {
-			return;
+		if (this.setActionVisible(this.accountAction, this.accountsVisibilityPreference)) {
+			this._onDidChange.fire();
 		}
-		if (accountsVisible) {
-			this.globalActivityActionBar.pull(GlobalCompositeBar.ACCOUNTS_ACTION_INDEX);
+	}
+
+	/**
+	 * Shows or hides one of the {@link optionalActions} at its position.
+	 * Returns `true` if the visibility changed.
+	 */
+	private setActionVisible(action: IAction, visible: boolean): boolean {
+		if (this.globalActivityActionBar.hasAction(action) === visible) {
+			return false;
+		}
+
+		const precedingActions = this.optionalActions.slice(0, this.optionalActions.indexOf(action));
+		const index = precedingActions.filter(candidate => this.globalActivityActionBar.hasAction(candidate)).length;
+		if (visible) {
+			this.globalActivityActionBar.push(action, { index });
 		} else {
-			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
+			this.globalActivityActionBar.pull(index);
 		}
-		this._onDidChange.fire();
+		return true;
 	}
 
 	private get accountsVisibilityPreference(): boolean {
@@ -175,7 +210,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 		action: CompositeBarAction,
 		options: ICompositeBarActionViewItemOptions,
 		private readonly contextMenuActionsProvider: () => IAction[],
-		private readonly contextMenuAlignmentOptions: () => Readonly<{ anchorAlignment: AnchorAlignment; anchorAxisAlignment: AnchorAxisAlignment }> | undefined,
+		protected readonly contextMenuAlignmentOptions: () => Readonly<{ anchorAlignment: AnchorAlignment; anchorAxisAlignment: AnchorAxisAlignment }> | undefined,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -248,7 +283,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 		return this.contextMenuActionsProvider();
 	}
 
-	private async run(): Promise<void> {
+	protected async run(): Promise<void> {
 		const disposables = new DisposableStore();
 		const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
 		const actions = await this.resolveMainMenuActions(menu, disposables);
@@ -775,6 +810,90 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 	}
 }
 
+/**
+ * The layout switcher. Clicking it runs the entry contributed to {@link MenuId.NamedLayoutsActivity},
+ * so that the picker the entry opens is anchored to the switcher. The title of the entry, which
+ * names the active layout, is the hover of the switcher.
+ */
+export class NamedLayoutsActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
+
+	static readonly NAMED_LAYOUTS_ICON = registerIcon('named-layouts-view-bar-icon', Codicon.layout, localize('namedLayoutsViewBarIcon', "Layouts icon in the view bar."));
+
+	private static readonly PICKER_GAP = 4;
+
+	private readonly menu: IMenu;
+
+	constructor(
+		contextMenuActionsProvider: () => IAction[],
+		options: ICompositeBarActionViewItemOptions,
+		contextMenuAlignmentOptions: () => Readonly<{ anchorAlignment: AnchorAlignment; anchorAxisAlignment: AnchorAxisAlignment }> | undefined,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IActivityService activityService: IActivityService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+	) {
+		const layoutsName = localize('layouts', "Layouts");
+		const action = instantiationService.createInstance(CompositeBarAction, {
+			id: NAMED_LAYOUTS_ACTIVITY_ID,
+			name: layoutsName,
+			classNames: ThemeIcon.asClassNameArray(NamedLayoutsActivityActionViewItem.NAMED_LAYOUTS_ICON)
+		});
+		super(MenuId.NamedLayoutsActivity, action, options, contextMenuActionsProvider, contextMenuAlignmentOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
+		this._register(action);
+
+		this.menu = this._register(menuService.createMenu(MenuId.NamedLayoutsActivity, contextKeyService));
+		const updateName = () => {
+			const name = this.getSwitcherAction()?.label || layoutsName;
+			if (action.compositeBarActionItem.name !== name) {
+				action.compositeBarActionItem = { ...action.compositeBarActionItem, name };
+			}
+		};
+		updateName();
+		this._register(this.menu.onDidChange(() => updateName()));
+	}
+
+	private getSwitcherAction(): IAction | undefined {
+		return this.menu.getActions().flatMap(([, actions]) => actions)[0];
+	}
+
+	protected override async run(): Promise<void> {
+		const action = this.getSwitcherAction();
+		if (action) {
+			const { anchor, anchorPosition } = this.getPickerAnchor();
+			await this.quickInputService.withQuickInputAnchor(anchor, anchorPosition, async () => { await action.run(); });
+		}
+	}
+
+	/**
+	 * Like the menus of the other global activities, the picker opens beside the switcher in
+	 * the activity bar, level with its bottom edge, and below the switcher in the title bar.
+	 */
+	private getPickerAnchor(): { anchor: HTMLElement | { x: number; y: number }; anchorPosition: 'above' | 'below' } {
+		const alignment = this.contextMenuAlignmentOptions();
+		if (alignment?.anchorAxisAlignment !== AnchorAxisAlignment.HORIZONTAL) {
+			return { anchor: this.label, anchorPosition: 'below' };
+		}
+
+		// A quick input opens above or below its anchor, so anchor it to a point beside the switcher.
+		// It is placed with a gap to the anchor, which is added to the point to align the bottom edges
+		const gap = NamedLayoutsActivityActionViewItem.PICKER_GAP;
+		const position = getDomNodePagePosition(this.label);
+		return {
+			anchor: {
+				x: alignment.anchorAlignment === AnchorAlignment.RIGHT ? position.left + position.width + gap : position.left - gap,
+				y: position.top + position.height + gap
+			},
+			anchorPosition: 'above'
+		};
+	}
+}
+
 export class SimpleAccountActivityActionViewItem extends AccountsActivityActionViewItem {
 
 	constructor(
@@ -841,6 +960,39 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 				hoverOptions,
 				compact: true,
 			}, () => undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService, instantiationService, activityService);
+	}
+}
+
+/**
+ * The layout switcher in the title bar, used when the activity bar is at the top or the bottom.
+ */
+export class SimpleNamedLayoutsActivityActionViewItem extends NamedLayoutsActivityActionViewItem {
+
+	constructor(
+		hoverOptions: IActivityHoverOptions,
+		options: IBaseActionViewItemOptions,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IActivityService activityService: IActivityService,
+		@IStorageService storageService: IStorageService,
+		@IQuickInputService quickInputService: IQuickInputService
+	) {
+		super(() => simpleActivityContextMenuActions(storageService, false),
+			{
+				...options,
+				colors: theme => ({
+					badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+					badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+				}),
+				hoverOptions,
+				compact: true,
+			}, () => undefined, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, instantiationService, activityService, quickInputService);
 	}
 }
 

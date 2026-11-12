@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -55,8 +59,47 @@ registerWorkbenchContribution2(NamedLayoutParticipantsContribution.ID, NamedLayo
 
 const NamedLayoutsEnabledContext = ContextKeyExpr.equals(`config.${NAMED_LAYOUTS_ENABLED_SETTING}`, true);
 
+const SAVE_LAYOUT_AS_COMMAND_ID = 'workbench.action.saveLayoutAs';
+const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
+
+/**
+ * Contributes the layout switcher of the activity bar. Its title names the active layout,
+ * and selecting it opens the picker of {@link SWITCH_LAYOUT_COMMAND_ID}.
+ */
+class NamedLayoutsSwitcherContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.namedLayoutsSwitcher';
+
+	private readonly switcherEntry = this._register(new MutableDisposable());
+
+	constructor(
+		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService
+	) {
+		super();
+
+		this.registerSwitcherEntry();
+		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.registerSwitcherEntry()));
+	}
+
+	private registerSwitcherEntry(): void {
+		this.switcherEntry.value = MenuRegistry.appendMenuItem(MenuId.NamedLayoutsActivity, {
+			command: {
+				id: SWITCH_LAYOUT_COMMAND_ID,
+				title: localize('activeLayoutTitle', "Layout: {0}", this.namedLayoutsService.activeLayout.name)
+			},
+			when: NamedLayoutsEnabledContext
+		});
+	}
+}
+
+registerWorkbenchContribution2(NamedLayoutsSwitcherContribution.ID, NamedLayoutsSwitcherContribution, WorkbenchPhase.BlockRestore);
+
 interface INamedLayoutQuickPickItem extends IQuickPickItem {
 	readonly layout: INamedLayout;
+}
+
+interface ILayoutSwitcherQuickPickItem extends IQuickPickItem {
+	readonly layout?: INamedLayout;
 }
 
 function toQuickPickItems(layouts: readonly INamedLayout[], activeLayout: INamedLayout): INamedLayoutQuickPickItem[] {
@@ -70,7 +113,7 @@ function toQuickPickItems(layouts: readonly INamedLayout[], activeLayout: INamed
 registerAction2(class SaveLayoutAsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.saveLayoutAs',
+			id: SAVE_LAYOUT_AS_COMMAND_ID,
 			title: localize2('saveLayoutAs', "Save Layout As..."),
 			category: Categories.View,
 			precondition: NamedLayoutsEnabledContext,
@@ -107,7 +150,7 @@ registerAction2(class SaveLayoutAsAction extends Action2 {
 registerAction2(class SwitchLayoutAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.switchLayout',
+			id: SWITCH_LAYOUT_COMMAND_ID,
 			title: localize2('switchLayout', "Switch Layout..."),
 			category: Categories.View,
 			precondition: NamedLayoutsEnabledContext,
@@ -118,15 +161,46 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const namedLayoutsService = accessor.get(INamedLayoutsService);
+		const commandService = accessor.get(ICommandService);
 
-		const pick = await quickInputService.pick(toQuickPickItems(namedLayoutsService.layouts, namedLayoutsService.activeLayout), {
-			placeHolder: localize('switchLayout.placeholder', "Select a layout to switch to")
+		const disposables = new DisposableStore();
+		const picker = disposables.add(quickInputService.createQuickPick<ILayoutSwitcherQuickPickItem>({ useSeparators: true }));
+		// There are only a few layouts, so they are not filtered
+		picker.hideInput = true;
+		picker.ariaLabel = localize('switchLayout.ariaLabel', "Select a layout to switch to");
+
+		const deleteButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.trash), tooltip: localize('deleteLayoutButton', "Delete Layout") };
+		const saveLayoutAsItem: ILayoutSwitcherQuickPickItem = { label: localize('saveLayoutAsItem', "Save Layout As...") };
+		const updateItems = () => {
+			const layoutItems = toQuickPickItems(namedLayoutsService.layouts, namedLayoutsService.activeLayout)
+				.map(item => item.layout.id === DEFAULT_NAMED_LAYOUT_ID ? item : { ...item, buttons: [deleteButton] });
+			picker.items = [...layoutItems, { type: 'separator' }, saveLayoutAsItem];
+			picker.activeItems = layoutItems.filter(item => item.layout.id === namedLayoutsService.activeLayout.id);
+		};
+		updateItems();
+		disposables.add(namedLayoutsService.onDidChangeLayouts(() => updateItems()));
+		disposables.add(namedLayoutsService.onDidChangeActiveLayout(() => updateItems()));
+		disposables.add(picker.onDidTriggerItemButton(({ item }) => {
+			if (item.layout) {
+				namedLayoutsService.deleteLayout(item.layout).catch(onUnexpectedError);
+			}
+		}));
+
+		const pick = await new Promise<ILayoutSwitcherQuickPickItem | undefined>(resolve => {
+			disposables.add(picker.onDidAccept(() => {
+				resolve(picker.selectedItems[0]);
+				picker.hide();
+			}));
+			disposables.add(picker.onDidHide(() => resolve(undefined)));
+			picker.show();
 		});
-		if (!pick) {
-			return;
-		}
+		disposables.dispose();
 
-		await namedLayoutsService.switchLayout(pick.layout);
+		if (pick === saveLayoutAsItem) {
+			await commandService.executeCommand(SAVE_LAYOUT_AS_COMMAND_ID);
+		} else if (pick?.layout) {
+			await namedLayoutsService.switchLayout(pick.layout);
+		}
 	}
 });
 

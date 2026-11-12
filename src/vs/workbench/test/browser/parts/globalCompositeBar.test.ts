@@ -13,18 +13,22 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ACCOUNTS_ACTIVITY_ID, ACCOUNTS_SHARED_SIGN_IN_GROUP, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, ACCOUNTS_SHARED_SIGN_IN_GROUP, GLOBAL_ACTIVITY_ID, NAMED_LAYOUTS_ACTIVITY_ID } from '../../../common/activity.js';
 
 interface IGlobalCompositeBarTestHarness {
 	globalActivityActionBar: ActionBar;
 	accountAction: Action;
+	namedLayoutsAction: Action;
+	optionalActions: readonly IAction[];
 	accountsVisibilityPreference: boolean;
 	_onDidChange: Emitter<void>;
 	getHeight: typeof GlobalCompositeBar.prototype.getHeight;
 	toggleAccountsActivity(): void;
+	setActionVisible(action: IAction, visible: boolean): boolean;
 }
 
 const toggleAccountsActivity = Reflect.get(GlobalCompositeBar.prototype, 'toggleAccountsActivity') as (this: IGlobalCompositeBarTestHarness) => void;
+const setActionVisible = Reflect.get(GlobalCompositeBar.prototype, 'setActionVisible') as (this: IGlobalCompositeBarTestHarness, action: IAction, visible: boolean) => boolean;
 
 suite('GlobalCompositeBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,6 +36,7 @@ suite('GlobalCompositeBar', () => {
 	function createGlobalBar(accountsVisible: boolean): IGlobalCompositeBarTestHarness {
 		const globalActivityActionBar = store.add(new ActionBar(document.createElement('div')));
 		const accountAction = store.add(new Action(ACCOUNTS_ACTIVITY_ID));
+		const namedLayoutsAction = store.add(new Action(NAMED_LAYOUTS_ACTIVITY_ID));
 		if (accountsVisible) {
 			globalActivityActionBar.push(accountAction);
 		}
@@ -39,10 +44,13 @@ suite('GlobalCompositeBar', () => {
 		return {
 			globalActivityActionBar,
 			accountAction,
+			namedLayoutsAction,
+			optionalActions: [namedLayoutsAction, accountAction],
 			accountsVisibilityPreference: accountsVisible,
 			_onDidChange: store.add(new Emitter<void>()),
 			getHeight: GlobalCompositeBar.prototype.getHeight,
 			toggleAccountsActivity,
+			setActionVisible,
 		};
 	}
 
@@ -81,6 +89,26 @@ suite('GlobalCompositeBar', () => {
 		bar.toggleAccountsActivity();
 
 		assert.deepStrictEqual({ heights, height: bar.getHeight(28, 0), actions: bar.globalActivityActionBar.length() }, { heights: [], height: 28, actions: 1 });
+	});
+
+	test('renders Layouts above Accounts while Accounts is toggled', () => {
+		const bar = createGlobalBar(false);
+		const ids = () => Array.from({ length: bar.globalActivityActionBar.length() }, (_, index) => bar.globalActivityActionBar.getAction(index)?.id);
+
+		bar.setActionVisible(bar.namedLayoutsAction, true);
+		bar.accountsVisibilityPreference = true;
+		bar.toggleAccountsActivity();
+		const accountsShown = ids();
+		bar.accountsVisibilityPreference = false;
+		bar.toggleAccountsActivity();
+		const accountsHidden = ids();
+		bar.setActionVisible(bar.namedLayoutsAction, false);
+
+		assert.deepStrictEqual({ accountsShown, accountsHidden, layoutsHidden: ids() }, {
+			accountsShown: [NAMED_LAYOUTS_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID],
+			accountsHidden: [NAMED_LAYOUTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID],
+			layoutsHidden: [GLOBAL_ACTIVITY_ID]
+		});
 	});
 });
 
