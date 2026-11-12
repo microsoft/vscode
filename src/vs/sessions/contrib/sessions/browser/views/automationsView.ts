@@ -31,7 +31,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -84,7 +85,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/ses
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -394,7 +395,8 @@ class AutomationCardsSection extends Disposable {
 	private partialState: AutomationCatalogueState = 'ready';
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private manageRemotesVisible = false;
-	private managedDisconnectedProviderIds = new Set<string>();
+	private managedDisconnectedProviderIds: ReadonlySet<string> = new Set();
+	private ignoredGitHubEnvironmentProviderIds: ReadonlySet<string> = new Set();
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
 
@@ -418,6 +420,7 @@ class AutomationCardsSection extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly missionControlEnvironmentService: IMissionControlEnvironmentService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -1197,29 +1200,28 @@ class AutomationCardsSection extends Disposable {
 			configurationChanged.read(reader);
 			remoteHostsChanged.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
+			const automations = this.automationService.automations.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
 			const configuredEntries = this.remoteAgentHostService.configuredEntries;
-			const remoteProviderIds = new Set(configuredEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
-			const remoteProviderLabels = new Set([
-				...configuredEntries.map(entry => entry.name),
-				...this.remoteAgentHostService.connections.map(connection => connection.name),
-			]);
-			const managedDisconnectedProviderIds = new Set(unavailableProviders
-				.filter(provider => provider.unavailableReasonCode === 'disconnected'
-					&& (remoteProviderIds.has(provider.id) || remoteProviderLabels.has(provider.label)))
-				.map(provider => provider.id));
-			const visible = catalogueState === 'unavailable'
-				&& managedDisconnectedProviderIds.size > 0
-				&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+			const remoteManagementEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			const presentation = getAutomationRemoteStatusPresentation(
+				unavailableProviders,
+				configuredEntries,
+				this.missionControlEnvironmentService.hosts.read(reader).map(host => host.id),
+				remoteManagementEnabled,
+			);
+			const managedDisconnectedProviderIds = presentation.replacedTunnelProviderIds;
+			const ignoredGitHubEnvironmentProviderIds = presentation.ignoredGitHubEnvironmentProviderIds;
+			const visible = catalogueState === 'unavailable' && managedDisconnectedProviderIds.size > 0;
 			const connectedAddresses = new Set(this.remoteAgentHostService.connections
 				.filter(connection => RemoteAgentHostConnectionStatus.isConnected(connection.status))
 				.map(connection => normalizeRemoteAgentHostAddress(connection.address)));
-			const connectedCount = configuredEntries.filter(entry =>
+			const connectedCount = presentation.tunnelEntries.filter(entry =>
 				connectedAddresses.has(normalizeRemoteAgentHostAddress(getEntryAddress(entry)))
 			).length;
-			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, configuredEntries.length);
+			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, presentation.tunnelEntries.length);
 			count.textContent = countLabel;
 			link.setAttribute('aria-label', localize('automationsManageRemotesWithCount', "{0}, Manage Remotes", countLabel));
 			if (!visible && container.contains(DOM.getActiveElement())) {
@@ -1228,12 +1230,18 @@ class AutomationCardsSection extends Disposable {
 			container.style.display = visible ? '' : 'none';
 			const managedProvidersChanged = managedDisconnectedProviderIds.size !== this.managedDisconnectedProviderIds.size
 				|| [...managedDisconnectedProviderIds].some(id => !this.managedDisconnectedProviderIds.has(id));
-			if (this.manageRemotesVisible !== visible || managedProvidersChanged) {
+			const ignoredProvidersChanged = ignoredGitHubEnvironmentProviderIds.size !== this.ignoredGitHubEnvironmentProviderIds.size
+				|| [...ignoredGitHubEnvironmentProviderIds].some(id => !this.ignoredGitHubEnvironmentProviderIds.has(id));
+			if (this.manageRemotesVisible !== visible || managedProvidersChanged || ignoredProvidersChanged) {
 				this.manageRemotesVisible = visible;
 				this.managedDisconnectedProviderIds = managedDisconnectedProviderIds;
+				this.ignoredGitHubEnvironmentProviderIds = ignoredGitHubEnvironmentProviderIds;
 				if (catalogueState === 'unavailable') {
 					this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
-					this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+					const hasPartialMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+					if (automations.length > 0) {
+						this.partialStateContainer.style.display = hasPartialMessage || visible ? '' : 'none';
+					}
 				}
 			}
 		}));
@@ -1283,29 +1291,31 @@ class AutomationCardsSection extends Disposable {
 		this.partialStateContainer.style.display = '';
 		this.partialStateContainer.classList.toggle('automations-cards-partial-state-error', isError);
 		if (catalogueState === 'unavailable') {
-			this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			const hasMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			this.partialStateContainer.style.display = hasMessage || this.manageRemotesVisible ? '' : 'none';
 		} else {
 			this.partialStateMessage.style.display = '';
 			this.partialStateMessage.textContent = localize('automationsPartialLoadError', "Some automations could not be loaded.");
 		}
 	}
 
-	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
-		const visibleProviders = this.manageRemotesVisible
-			? unavailableProviders.filter(provider => !this.managedDisconnectedProviderIds.has(provider.id))
-			: unavailableProviders;
+	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): boolean {
+		const visibleProviders = unavailableProviders.filter(provider =>
+			!this.ignoredGitHubEnvironmentProviderIds.has(provider.id)
+			&& (!this.manageRemotesVisible || !this.managedDisconnectedProviderIds.has(provider.id)));
 		const reasons = getUnavailableAutomationsReasons(visibleProviders);
-		const replacedAllReasons = this.manageRemotesVisible && unavailableProviders.length > 0 && visibleProviders.length === 0;
-		container.style.display = replacedAllReasons ? 'none' : '';
+		const suppressedAllReasons = unavailableProviders.length > 0 && visibleProviders.length === 0;
+		container.style.display = suppressedAllReasons ? 'none' : '';
 		if (reasons.length === 1) {
 			container.textContent = reasons[0];
 		} else if (reasons.length > 1) {
 			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
-		} else if (!replacedAllReasons) {
+		} else if (!suppressedAllReasons) {
 			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");
 		} else {
 			DOM.clearNode(container);
 		}
+		return !suppressedAllReasons;
 	}
 
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
@@ -2595,6 +2605,16 @@ async function showAutomationsDisabled(dialogService: IDialogService): Promise<v
 	);
 }
 
+function getSharedAutomationWarning(action: 'disable' | 'delete'): string {
+	return action === 'disable'
+		? localize('disableSharedAutomationWarning', "WARNING: This is a shared automation, this will disable it for everyone in this repository.")
+		: localize('deleteSharedAutomationWarning', "WARNING: This is a shared automation, this will delete it for everyone in this repository.");
+}
+
+function withSharedAutomationWarning(action: 'disable' | 'delete', detail: string): string {
+	return localize('sharedAutomationWarningDetail', "{0}\n\n{1}", getSharedAutomationWarning(action), detail);
+}
+
 async function confirmAndDeleteAutomation(
 	automation: IAutomationDescriptor,
 	automationService: IAutomationService,
@@ -2610,14 +2630,13 @@ async function confirmAndDeleteAutomation(
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	const supportsHistoryChoice = automationService.supportsDeleteHistoryChoice?.(automation.id) === true;
+	const deleteDetail = localize('confirmDeleteDetail', "This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.");
+	const shared = automation.ownership === 'repository';
 	const confirmed = await dialogService.confirm({
+		type: 'warning',
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: supportsHistoryChoice
-			? localize('confirmDeleteHistoryChoice', "This will permanently delete the automation. Clear the checkbox to keep its run history.")
-			: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+		detail: shared ? withSharedAutomationWarning('delete', deleteDetail) : deleteDetail,
 		primaryButton: localize('delete', "Delete"),
-		...(supportsHistoryChoice ? { checkbox: { label: localize('deleteAutomationHistory', "Delete Run History"), checked: true } } : {}),
 	});
 	if (!confirmed.confirmed) {
 		return;
@@ -2631,7 +2650,7 @@ async function confirmAndDeleteAutomation(
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
 			}
-		}, supportsHistoryChoice ? { deleteHistory: confirmed.checkboxChecked !== false } : undefined);
+		}, automationService.supportsDeleteHistoryChoice?.(automation.id) === true ? { deleteHistory: true } : undefined);
 		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
 	} catch (error) {
 		logService.error('[AutomationsCards] Failed to delete automation', error);
@@ -3308,6 +3327,21 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 	if (!automationsEnabled()) {
 		await showAutomationsDisabled(dialogService);
 		return;
+	}
+	if (!enabled && automation.ownership === 'repository') {
+		const confirmed = await dialogService.confirm({
+			type: 'warning',
+			message: localize('confirmDisableSharedAutomation', "Disable automation \"{0}\"?", automation.name),
+			detail: getSharedAutomationWarning('disable'),
+			primaryButton: localize('disable', "Disable"),
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
+		if (!automationsEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
 	}
 	try {
 		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {

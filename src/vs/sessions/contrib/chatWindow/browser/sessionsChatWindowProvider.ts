@@ -50,17 +50,18 @@ import { SessionChangesEditorFileListContext } from '../../../../workbench/contr
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext, getUnsentComposerMoveReason } from '../common/chatWindows.js';
-import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
-import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
+import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
+import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
-import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
+import { ChatEditorContent, IChatEditorComposer } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 import { localize } from '../../../../nls.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { INewSessionTarget } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
+import { ChatWindowSessionDropTarget } from './chatWindowSessionDropTarget.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';
@@ -173,6 +174,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	readonly onWillDispose = this._onWillDispose.event;
 	/** Keeps the chat out of the main window's grid while the window shows it. */
 	private readonly _gridHold = this._register(new MutableDisposable());
+	private _heldSession: ISession | undefined;
 
 	/** The views of its editor, the last of which shows it; see {@link view}. */
 	private readonly _attachedViews: ChatEditorContent[] = [];
@@ -195,6 +197,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
@@ -313,11 +316,11 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			}
 			const shown = this._shown.get();
 			if (shown?.session !== owner.session || shown.chat !== owner.chat) {
-				const sessionChanged = shown?.session.sessionId !== owner.session.sessionId;
 				this._shown.set({ session: owner.session, chat: owner.chat }, undefined);
-				if (sessionChanged) {
-					this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
-				}
+			}
+			if (this.window.read(reader) && this._heldSession?.sessionId !== owner.session.sessionId) {
+				this._heldSession = owner.session;
+				this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
 			}
 			return;
 		}
@@ -359,6 +362,10 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 				void this._chatHostOpenerService.getOpenerOf(resource)?.close(resource).catch(onUnexpectedError);
 			},
 		};
+	}
+
+	createDropTarget(element: HTMLElement, chat: () => URI | undefined): IDisposable {
+		return this._instantiationService.createInstance(ChatWindowSessionDropTarget, element, chat);
 	}
 
 	attach(view: ChatEditorContent): IDisposable {

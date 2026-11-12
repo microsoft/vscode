@@ -30,7 +30,7 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { canStartNewSessionLike, getNewSessionSources, getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -1231,53 +1231,25 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		return;
 	}
 	const undo = modelService.setInboxState(targets, action);
-	const message = action === 'done' ? localize('inboxCleared', "{0} cleared from inbox", targets.length)
-		: action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
-			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
-				: localize('inboxSnoozed', "{0} snoozed", targets.length);
-	if (targets.length === 1 && action !== 'done') {
+	const message = action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
+		: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
+			: localize('inboxSnoozed', "{0} snoozed", targets.length);
+	if (targets.length === 1) {
 		status(message);
 		return;
 	}
 	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
 		message,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
-		showCountdown: action !== 'done',
+		showCountdown: true,
 		undo: async () => { undo(); status(localize('inboxTriageUndone', "Inbox change undone.")); },
 	});
 }
 
-registerAction2(class ClearInboxSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.inboxDone',
-			title: localize2('inboxClear', "Clear from Inbox"),
-			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
-			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
-				id,
-				group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
-				order: id === Menus.SessionItemToolbar ? 4 : 2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(),
-					id === Menus.SessionItemToolbar ? SessionItemInboxStateContext.isEqualTo('') : SessionItemInboxStateContext.notEqualsTo('done')),
-			})),
-			keybinding: {
-				primary: KeyCode.Delete,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-			},
-		});
-	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-		triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'done');
-	}
-});
-
 registerAction2(class ResumeInboxSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.inboxResume',
+			id: RESUME_INBOX_SESSION_COMMAND_ID,
 			title: localize2('inboxResume', "Return to Inbox"),
 			icon: Codicon.inbox,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
@@ -1385,7 +1357,7 @@ registerAction2(class MergeInboxPullRequestAction extends Action2 {
 registerAction2(class HoldInboxSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.inboxHold',
+			id: HOLD_INBOX_SESSION_COMMAND_ID,
 			title: localize2('inboxHold', "Put on Hold"),
 			icon: Codicon.history,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
@@ -1470,7 +1442,6 @@ KeybindingsRegistry.registerKeybindingRule({
 		IsSessionsWindowContext,
 		FocusedViewContext.isEqualTo(SessionsViewId),
 		WorkbenchListFocusContextKey,
-		InboxModeContext.negate(),
 	),
 	primary: KeyCode.Delete,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
@@ -1507,19 +1478,6 @@ registerAction2(class ImportSessionAction extends Action2 {
 	}
 });
 
-for (const id of [Menus.SessionItemToolbar, SessionItemContextMenuId]) {
-	MenuRegistry.appendMenuItem(id, {
-		command: {
-			id: ARCHIVE_SESSION_COMMAND_ID,
-			title: localize2('inboxArchiveSession', "Archive Session"),
-			icon: Codicon.archive,
-		},
-		group: id === Menus.SessionItemToolbar ? 'navigation' : '4_manage',
-		order: id === Menus.SessionItemToolbar ? 3 : 2.5,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate()),
-	});
-}
-
 abstract class BaseArchiveSessionAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
@@ -1531,12 +1489,12 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(InboxModeContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionIsArchivedContext.negate()),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_state',
 				order: 3,
-				when: ContextKeyExpr.and(InboxModeContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionIsArchivedContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/1_state',
