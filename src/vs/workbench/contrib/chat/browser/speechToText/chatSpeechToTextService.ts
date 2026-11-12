@@ -1028,6 +1028,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.dictationDisconnected);
 		this._notificationService.error(message);
 	}
 

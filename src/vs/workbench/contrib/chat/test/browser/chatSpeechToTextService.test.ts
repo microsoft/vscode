@@ -18,6 +18,7 @@ import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlemen
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatUtilityModelService, IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { AccessibilitySignal } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
 import { ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 
@@ -143,7 +144,7 @@ type StartupFailureTestService = {
 };
 
 type MaiFailureTestService = {
-	_activeBackend: 'mai';
+	_activeBackend: 'nemo' | 'mai';
 	_state: ChatSpeechToTextState;
 	_maiTurnId: string;
 	_sessionGeneration: number;
@@ -154,6 +155,7 @@ type MaiFailureTestService = {
 	_cancelBackend: () => void;
 	_teardown: () => void;
 	_setState: (state: ChatSpeechToTextState) => void;
+	_accessibilitySignalService: { playSignal: (signal: unknown) => void };
 	_notificationService: { error: (message: string) => void };
 	_failMaiSession: (message: string) => void;
 };
@@ -597,6 +599,7 @@ suite('ChatSpeechToTextService', () => {
 		service._cancelBackend = () => calls.push('cancel');
 		service._teardown = () => calls.push('teardown');
 		service._setState = state => calls.push(`state:${state}`);
+		service._accessibilitySignalService = { playSignal: signal => calls.push(signal === AccessibilitySignal.dictationDisconnected ? 'signal:dictationDisconnected' : 'signal:unexpected') };
 		service._notificationService = { error: message => calls.push(`error:${message}`) };
 
 		service._failMaiSession('disconnected');
@@ -610,8 +613,26 @@ suite('ChatSpeechToTextService', () => {
 			sessionGeneration: 3,
 			startGeneration: 5,
 			errorCode: 'disconnect',
-			calls: ['telemetry:error', 'cancel', 'teardown', `state:${ChatSpeechToTextState.Idle}`, 'error:disconnected'],
+			calls: ['telemetry:error', 'cancel', 'teardown', `state:${ChatSpeechToTextState.Idle}`, 'signal:dictationDisconnected', 'error:disconnected'],
 		});
+	});
+
+	test('does not play the disconnected sound when no MAI session is active', () => {
+		const calls: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as MaiFailureTestService;
+		service._activeBackend = 'mai';
+		service._state = ChatSpeechToTextState.Idle;
+		service._maiTurnId = '';
+		service._accessibilitySignalService = { playSignal: () => calls.push('signal') };
+		service._notificationService = { error: () => calls.push('error') };
+
+		service._failMaiSession('disconnected');
+		service._activeBackend = 'nemo';
+		service._state = ChatSpeechToTextState.Recording;
+		service._maiTurnId = 'turn-1';
+		service._failMaiSession('disconnected');
+
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('routes synchronous MAI audio send failures through session failure handling', () => {
