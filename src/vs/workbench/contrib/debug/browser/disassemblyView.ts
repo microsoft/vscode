@@ -31,7 +31,7 @@ import { WorkbenchTable } from '../../../../platform/list/browser/listService.js
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorBackground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
@@ -208,18 +208,21 @@ export class DisassemblyView extends EditorPane {
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry> {
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
+				const hasSymbol = !!row.instruction.symbol;
+				const symbolLines = hasSymbol ? 1 : 0;
+
 				if (thisOM.isSourceCodeRender && row.showSourceLocation && row.instruction.location?.path && row.instruction.line) {
-					// instruction line + source lines
+					// instruction line + source lines + optional symbol label
 					if (row.instruction.endLine) {
-						return lineHeight * Math.max(2, (row.instruction.endLine - row.instruction.line + 2));
+						return lineHeight * Math.max(2 + symbolLines, (row.instruction.endLine - row.instruction.line + 2 + symbolLines));
 					} else {
 						// source is only a single line.
-						return lineHeight * 2;
+						return lineHeight * (2 + symbolLines);
 					}
 				}
 
-				// just instruction line
-				return lineHeight;
+				// instruction line + optional symbol label
+				return lineHeight * (1 + symbolLines);
 			}
 		};
 
@@ -858,6 +861,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.currentElement.element = element;
 		const instruction = element.instruction;
 		templateData.sourcecode.innerText = '';
+		const hasSymbol = !!instruction.symbol;
 		const sb = new StringBuilder(1000);
 
 		if (this._disassemblyView.isSourceCodeRender && element.showSourceLocation && instruction.location?.path && instruction.line !== undefined) {
@@ -891,9 +895,17 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 						break;
 					}
 
-					templateData.sourcecode.innerText = sourceSB.build();
+					templateData.sourcecode.innerText = '';
+					this._renderSymbolLabel(templateData.sourcecode, instruction.symbol);
+					templateData.sourcecode.appendChild(document.createTextNode(sourceSB.build()));
 				}
 			}
+		}
+
+		// Show symbol label even when source code rendering is disabled
+		if (hasSymbol && !templateData.sourcecode.innerText && templateData.sourcecode.childElementCount === 0) {
+			templateData.sourcecode.innerText = '';
+			this._renderSymbolLabel(templateData.sourcecode, instruction.symbol);
 		}
 
 		let spacesToAppend = 10;
@@ -974,6 +986,18 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		}
 	}
 
+	private _renderSymbolLabel(container: HTMLElement, symbol: string | undefined): void {
+		if (!symbol) {
+			return;
+		}
+		const symbolSpan = document.createElement('span');
+		symbolSpan.style.color = asCssVariable(textLinkForeground);
+		symbolSpan.style.fontWeight = 'bold';
+		symbolSpan.textContent = symbol + ':';
+		container.appendChild(symbolSpan);
+		container.appendChild(document.createTextNode('\n'));
+	}
+
 	private getUriFromSource(instruction: DebugProtocol.DisassembledInstruction): URI {
 		// Try to resolve path before consulting the debugSession.
 		const path = instruction.location!.path;
@@ -1006,6 +1030,9 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 		const instruction = element.instruction;
 		if (instruction.address !== '-1') {
 			label += `${localize('instructionAddress', "Address")}: ${instruction.address}`;
+		}
+		if (instruction.symbol) {
+			label += `, ${localize('instructionSymbol', "Symbol")}: ${instruction.symbol}`;
 		}
 		if (instruction.instructionBytes) {
 			label += `, ${localize('instructionBytes', "Bytes")}: ${instruction.instructionBytes}`;
