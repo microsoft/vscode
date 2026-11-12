@@ -8,6 +8,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { FocusTracker } from '../../../browser/controller/editContext/native/nativeEditContextUtils.js';
+import { registerTestIframe } from '../../../../base/test/browser/testWindow.js';
 
 suite('NativeEditContextUtils', () => {
 
@@ -17,6 +18,7 @@ suite('NativeEditContextUtils', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
 
 		const target = iframe.contentDocument!.createElement('div');
 		target.tabIndex = 0;
