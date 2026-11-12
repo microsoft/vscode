@@ -15,11 +15,21 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
  */
 export const fixtureDirectory = path.join(__dirname, '../ts7/fixtures/structuralDiff/source');
 
-export type ComputeStructuralDiff = (originalText: string, modifiedText: string, changes?: readonly vscode.DiffTextChange[], fileUri?: vscode.Uri, languageId?: string, originalUri?: vscode.Uri) => Promise<vscode.StructuralDiff>;
+/** A node that lists its children even when it has none, so that tests can read them directly. */
+interface NodeWithChildren extends vscode.StructuralDiffNode {
+	readonly children: readonly NodeWithChildren[];
+}
+
+interface StructuralDiffWithChildren extends vscode.StructuralDiff {
+	readonly root: NodeWithChildren;
+}
+
+export type ComputeStructuralDiff = (originalText: string, modifiedText: string, changes?: readonly vscode.DiffTextChange[], fileUri?: vscode.Uri, languageId?: string, originalUri?: vscode.Uri) => Promise<StructuralDiffWithChildren>;
 
 /**
  * Returns a function that diffs two texts with the provider and checks the result against the provider
- * contract. Without explicit changes, the whole texts form one change.
+ * contract. Without explicit changes, the whole texts form one change. Nodes without children get an
+ * empty list.
  */
 export function createCompute(getProvider: () => vscode.StructuralDiffProvider, defaultUri: vscode.Uri): ComputeStructuralDiff {
 	return async (originalText, modifiedText, changes, fileUri = defaultUri, languageId = 'typescript', originalUri = fileUri.with({ scheme: 'git' })) => {
@@ -29,7 +39,7 @@ export function createCompute(getProvider: () => vscode.StructuralDiffProvider, 
 		const result = await getProvider().provideStructuralDiff(original, modified, context, CancellationToken.None);
 		assert.ok(result);
 		assertContract(result, original, modified, context);
-		return result;
+		return { ...result, root: withChildren(result.root) };
 	};
 }
 
@@ -587,8 +597,12 @@ function fullRange(document: vscode.TextDocument): vscode.Range {
 	return new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
 }
 
-function flatten(node: vscode.StructuralDiffNode): vscode.StructuralDiffNode[] {
+function flatten(node: NodeWithChildren): NodeWithChildren[] {
 	return [node, ...node.children.flatMap(flatten)];
+}
+
+function withChildren(node: vscode.StructuralDiffNode): NodeWithChildren {
+	return { ...node, children: (node.children ?? []).map(withChildren) };
 }
 
 export function rangeOf(text: string, part: string, from = 0): vscode.Range {
@@ -609,7 +623,7 @@ function declarationKeyword(entity: vscode.StructuralDiffItem | undefined, text:
 	return entity && modifiedText(entity.range, text).split(' ')[0];
 }
 
-export function summarize(diff: vscode.StructuralDiff, original: string, modified: string) {
+export function summarize(diff: StructuralDiffWithChildren, original: string, modified: string) {
 	const result: {
 		path: string[];
 		original: string | undefined;
@@ -618,7 +632,7 @@ export function summarize(diff: vscode.StructuralDiff, original: string, modifie
 		originalChanges: [number, vscode.StructuralDiffClassification, string, readonly vscode.StructuralDiffTag[] | undefined][];
 		modifiedChanges: [number, vscode.StructuralDiffClassification, string, readonly vscode.StructuralDiffTag[] | undefined][];
 	}[] = [];
-	const visit = (node: vscode.StructuralDiffNode, parent: string[]) => {
+	const visit = (node: NodeWithChildren, parent: string[]) => {
 		const path = [...parent, (node.modifiedItem ?? node.originalItem)!.name];
 		result.push({
 			path,
@@ -664,7 +678,7 @@ function assertContract(diff: vscode.StructuralDiff, original: vscode.TextDocume
 			}
 			coverage[side].push(...changes);
 		}
-		node.children.forEach(child => visit(child, node));
+		node.children?.forEach(child => visit(child, node));
 	};
 	visit(diff.root);
 	for (const [index, change] of context.changes.entries()) {
