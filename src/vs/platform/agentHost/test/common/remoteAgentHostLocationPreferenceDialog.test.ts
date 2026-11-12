@@ -61,10 +61,10 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 		const dialogService = new CapturingDialogService(0);
 		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName);
 
-		assert.strictEqual(dialogService.lastPrompt?.message, 'How long should agents keep running on my-remote-host?');
+		assert.strictEqual(dialogService.lastPrompt?.message, 'How should agents run on my-remote-host?');
 	});
 
-	test('exports the exact command id registered by the sessions-layer "Chat: Change Preferred Remote Agent Location" command', () => {
+	test('exports the exact command id registered by the sessions-layer run behavior command', () => {
 		// The sessions layer cannot be imported here (platform cannot depend
 		// on it), so this literal is the contract the sessions-layer command
 		// registration must match when it consumes this exported constant.
@@ -76,7 +76,7 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName);
 
 		const detail = dialogService.lastPrompt?.detail as IMarkdownString;
-		const changeCommandLabel = 'Chat: Change Preferred Remote Agent Location';
+		const changeCommandLabel = 'Chat: Configure Remote Agent Run Behavior';
 		const expectedLink = createMarkdownCommandLink({
 			text: changeCommandLabel,
 			id: ChangeRemoteAgentHostLocationPreferenceCommandId,
@@ -84,7 +84,7 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 		});
 
 		assert.strictEqual(typeof detail, 'object', 'detail should be an IMarkdownString, not a plain string');
-		assert.strictEqual(detail.value, `You can change this later with the **${expectedLink}** command.`);
+		assert.strictEqual(detail.value, `Keep the remote computer awake and online while agents work. You can change this later with the **${expectedLink}** command.`);
 		// The command link is bold and only its own command id is trusted -
 		// not a blanket `isTrusted: true` - so no other command can be invoked
 		// from this detail text.
@@ -100,12 +100,12 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 		assert.strictEqual(prompt.cancelButton, true);
 		assert.strictEqual(prompt.buttons?.length, 2);
 		assert.deepStrictEqual(prompt.buttons!.map(b => b.label), [
-			'Keep My Agents Running in a Dedicated Process',
-			'Stop My Agents if I Close Test Product',
+			'Run in the Background',
+			'Use Remote Test Product',
 		]);
 		assert.deepStrictEqual((prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails, [
-			'Agents continue after you close Test Product and stop when their work finishes.',
-			'Agents are available only while the remote Test Product window is open.',
+			'For tasks you want to leave running. Agents can keep working after you close Test Product on the remote computer.',
+			'Uses an open Test Product window on the remote computer when available. Agents stop when that window closes.',
 		]);
 		assert.strictEqual((prompt as unknown as { custom: { icon: unknown } }).custom.icon, Codicon.remote);
 		assert.strictEqual((prompt as unknown as { custom: { alignment: unknown } }).custom.alignment, 'vertical');
@@ -120,12 +120,12 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 			details: (dialogService.lastPrompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails,
 		}, {
 			labels: [
-				'Keep My Agents Running in a Dedicated Process',
-				'Stop My Agents if I Close Other IDE',
+				'Run in the Background',
+				'Use Remote Other IDE',
 			],
 			details: [
-				'Agents continue after you close Other IDE and stop when their work finishes.',
-				'Agents are available only while the remote Other IDE window is open.',
+				'For tasks you want to leave running. Agents can keep working after you close Other IDE on the remote computer.',
+				'Uses an open Other IDE window on the remote computer when available. Agents stop when that window closes.',
 			],
 		});
 	});
@@ -156,39 +156,39 @@ suite('promptRemoteAgentHostLocationPreference', () => {
 		assert.strictEqual(dialogService.lastPrompt?.token, undefined);
 	});
 
-	test('marks the current preference\'s detail with "(Current)", reordered first, when the host currently prefers "editor"', async () => {
+	test('marks the saved preference and offers it first when the host prefers editor', async () => {
 		const dialogService = new CapturingDialogService(0);
 		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName, 'editor');
 
 		const prompt = dialogService.lastPrompt!;
 		assert.deepStrictEqual(prompt.buttons!.map(b => b.label), [
-			'Stop My Agents if I Close Test Product',
-			'Keep My Agents Running in a Dedicated Process',
+			'Use Remote Test Product',
+			'Run in the Background',
 		], 'the current preference is still reordered first');
 		assert.deepStrictEqual((prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails, [
-			'Agents are available only while the remote Test Product window is open. (Current)',
-			'Agents continue after you close Test Product and stop when their work finishes.',
+			'Uses an open Test Product window on the remote computer when available. Agents stop when that window closes. (Saved preference)',
+			'For tasks you want to leave running. Agents can keep working after you close Test Product on the remote computer.',
 		]);
 	});
 
-	test('marks the current preference\'s detail with "(Current)" when the host currently prefers "dedicated"', async () => {
+	test('marks the saved preference when the host prefers dedicated', async () => {
 		const dialogService = new CapturingDialogService(0);
 		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName, 'dedicated');
 
 		const prompt = dialogService.lastPrompt!;
 		assert.deepStrictEqual((prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails, [
-			'Agents continue after you close Test Product and stop when their work finishes. (Current)',
-			'Agents are available only while the remote Test Product window is open.',
+			'For tasks you want to leave running. Agents can keep working after you close Test Product on the remote computer. (Saved preference)',
+			'Uses an open Test Product window on the remote computer when available. Agents stop when that window closes.',
 		]);
 	});
 
-	test('adds no "(Current)" marker to either option when there is no current preference', async () => {
+	test('adds no saved preference marker when there is no preference', async () => {
 		const dialogService = new CapturingDialogService(0);
 		await promptRemoteAgentHostLocationPreference(dialogService, 'my-remote-host', productName, undefined);
 
 		const prompt = dialogService.lastPrompt!;
 		const details = (prompt as unknown as { custom: { buttonDetails: string[] } }).custom.buttonDetails;
-		assert.ok(details.every(detail => !detail.includes('Current')), 'no detail should mention "Current" when there is no saved preference');
+		assert.ok(details.every(detail => !detail.includes('Saved preference')));
 	});
 });
 
@@ -220,20 +220,20 @@ suite('orderRemoteAgentHostLocationOptions', () => {
 		}
 	});
 
-	test('marks the current option\'s detail with "(Current)" after reordering, for both "dedicated" and "editor"', () => {
+	test('marks only the saved option after reordering', () => {
 		const dedicatedFirst = orderRemoteAgentHostLocationOptions(productName, 'dedicated');
 		assert.strictEqual(dedicatedFirst[0].preference, 'dedicated');
-		assert.ok(dedicatedFirst[0].detail.endsWith('(Current)'));
-		assert.ok(!dedicatedFirst[1].detail.includes('Current'));
+		assert.ok(dedicatedFirst[0].detail.endsWith('(Saved preference)'));
+		assert.ok(!dedicatedFirst[1].detail.includes('Saved preference'));
 
 		const editorFirst = orderRemoteAgentHostLocationOptions(productName, 'editor');
 		assert.strictEqual(editorFirst[0].preference, 'editor');
-		assert.ok(editorFirst[0].detail.endsWith('(Current)'));
-		assert.ok(!editorFirst[1].detail.includes('Current'));
+		assert.ok(editorFirst[0].detail.endsWith('(Saved preference)'));
+		assert.ok(!editorFirst[1].detail.includes('Saved preference'));
 	});
 
-	test('adds no "(Current)" marker to any option when there is no current preference', () => {
+	test('adds no saved preference marker when neither option is saved', () => {
 		const options = orderRemoteAgentHostLocationOptions(productName, undefined);
-		assert.ok(options.every(option => !option.detail.includes('Current')));
+		assert.ok(options.every(option => !option.detail.includes('Saved preference')));
 	});
 });

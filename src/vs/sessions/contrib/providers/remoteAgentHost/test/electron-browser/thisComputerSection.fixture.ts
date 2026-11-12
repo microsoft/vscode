@@ -84,7 +84,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			container.querySelector<HTMLElement>(`[data-sharing-method="${method}"]`)!.click();
 		}
 		section.layout();
-		await waitForFixtureCondition(() => section.isExpanded && container.querySelectorAll('.remotes-sharing-choice-description li').length === 6, 'Both sharing methods should be explained before capture');
+		await waitForFixtureCondition(() => section.isExpanded && ['githubEnvironment', 'devTunnel'].every(method =>
+			!!container.querySelector(`[data-sharing-method="${method}"] .remotes-sharing-choice-description li`)?.textContent),
+			'Both sharing methods should be explained before capture');
 		if (state.failSharing) {
 			container.style.height = '660px';
 			container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!.click();

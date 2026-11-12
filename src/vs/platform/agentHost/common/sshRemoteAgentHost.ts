@@ -203,6 +203,9 @@ export interface ISSHRemoteAgentHostService {
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
+	/** See {@link ISSHRemoteAgentHostMainService.checkReachability}. */
+	checkReachability?(host: string, port?: number): Promise<SSHHostReachability>;
+
 	/**
 	 * Re-establish an SSH tunnel on startup for a previously connected host.
 	 * Resolves once the service-owned protocol connection is ready.
@@ -266,6 +269,9 @@ export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHos
 	return value === 'ask' || value === 'accept-new' || value === 'yes' || value === 'no' || value === 'off';
 }
 
+/** Whether an SSH server answered at a host's address, without signing in. */
+export type SSHHostReachability = 'reachable' | 'unreachable' | 'unknown';
+
 /**
  * Resolved SSH configuration for a host, obtained from `ssh -G`.
  */
@@ -279,6 +285,8 @@ export interface ISSHResolvedConfig {
 	readonly identityAgent: string | undefined;
 	/** Command providing the raw SSH connection over standard input/output. */
 	readonly proxyCommand?: string;
+	/** Jump hosts the connection is relayed through. */
+	readonly proxyJump?: string;
 	readonly forwardAgent: boolean;
 	/**
 	 * `UserKnownHostsFile` paths, in priority order. The node service recovers
@@ -601,6 +609,17 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
+
+	/**
+	 * Check whether an SSH server answers at a host without signing in. Opens a
+	 * TCP connection to the resolved address and waits for the SSH greeting.
+	 * Hosts reached through `ProxyCommand` or `ProxyJump` can't be checked
+	 * directly and report `unknown`.
+	 *
+	 * @param host An `~/.ssh/config` alias or host name.
+	 * @param port Overrides the configured port.
+	 */
+	checkReachability?(host: string, port?: number): Promise<SSHHostReachability>;
 
 	/**
 	 * Re-establish an SSH tunnel for a previously connected host.

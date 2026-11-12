@@ -136,7 +136,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ChangeRemoteAgentHostLocationPreferenceCommandId,
-			title: localize2('changeRemoteAgentHostLocationPreference', "Change Preferred Remote Agent Location"),
+			title: localize2('changeRemoteAgentHostLocationPreference', "Configure Remote Agent Run Behavior"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(

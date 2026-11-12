@@ -161,7 +161,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		}
 		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
 		this._policyFooterSupportUrl = { url: supportUrl };
-		const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View setting");
+		const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View Setting");
 		return {
 			...options,
 			footerText: supportUrl
@@ -232,7 +232,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
 		const management = this._options.getManagementAction?.() ?? toAction({
 			id: 'remoteConnections.rename',
-			label: localize('remoteConnections.renameComputer', "Rename This Computer..."),
+			label: localize('remoteConnections.renameComputer', "Change Sharing Name..."),
 			enabled: this.isEnabled() && !!this._sharing.name && !this._sharing.getState().isConnecting,
 			run: async () => {
 				if (!this.isEnabled() || !this._sharing.name || this._sharing.getState().isConnecting || usesGitHubEnvironment !== this._sharing.usesGitHubEnvironment) {
@@ -249,9 +249,11 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			...toAction({
 				id: management.id,
 				label: management.label,
+				tooltip: management.tooltip,
 				enabled: management.enabled,
 				run: () => management.run(),
 			}),
+			hover: { content: management.tooltip || management.label },
 			// Keeps the label aligned with the checkable connection methods.
 			icon: Codicon.blank,
 			category: { label: 'management', order: 1 },
@@ -353,12 +355,12 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		} else {
 			const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
 			lines.push(agentsUrl
-				? localize('tunnelHost.hover.idle', "Share this computer to use its agents and folders from other devices, including in {0}", `[${agentsUrl.replace(/https?:\/\//, '')}](${agentsUrl})`)
-				: localize('tunnelHost.hover.idle.noWebUrl', "Share this computer to use its agents and folders from other devices."));
+				? localize('tunnelHost.hover.idle', "Use this computer's agent sessions, tools, and files from other devices. The {0} can connect too.", `[${localize('tunnelHost.browserAgents', "browser-based Agents window")}](${agentsUrl})`)
+				: localize('tunnelHost.hover.idle.noWebUrl', "Use this computer's agent sessions, tools, and files from other devices"));
 		}
 
-		lines.push(localize('tunnelHost.hover.method', "Connection method: Dev Tunnel"));
-		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${RemoteTunnelCommandIds.showLog}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RemoteTunnelCommandIds.rename}) | [${localize('tunnelHost.hover.learnMore', "Learn More")}](${TUNNEL_ACCESS_DOCS_URL})`);
+		lines.push(localize('tunnelHost.hover.connectionMethod', "Connection method: Dev Tunnel"));
+		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show output")}](command:${RemoteTunnelCommandIds.showLog}) | [${localize('tunnelHost.hover.renameTunnel', "Rename tunnel")}](command:${RemoteTunnelCommandIds.rename}) | [${localize('tunnelHost.hover.learnMore', "Learn more")}](${TUNNEL_ACCESS_DOCS_URL})`);
 
 		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [RemoteTunnelCommandIds.showLog, RemoteTunnelCommandIds.rename] } });
 		return { markdown: md, markdownNotSupportedFallback: lines[0] };
@@ -381,9 +383,6 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 				? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "This computer is shared through the Dev Tunnel '{0}'", state.tunnelName)
 				: localize('tunnelHost.hover.enabled', "This computer is shared through a Dev Tunnel");
 		}
-		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
-		return agentsUrl
-			? localize('tunnelHost.hover.idle.ariaLabel', "Share this computer to use its agents and folders from other devices, including in {0}", agentsUrl.replace(/https?:\/\//, ''))
-			: localize('tunnelHost.hover.idle.ariaLabel.noWebUrl', "Share this computer to use its agents and folders from other devices.");
+		return localize('tunnelHost.hover.idle.ariaLabel', "Share this computer's agent sessions, tools, and files with other devices");
 	}
 }

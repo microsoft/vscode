@@ -281,16 +281,16 @@ suite('RemoteConnectionsActionViewItem', () => {
 			{ label: 'GitHub Environment', detail: undefined, badge: 'Preview', role: 'menuitemcheckbox' },
 			{ label: 'Dev Tunnel', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
 			{ label: '', detail: undefined, badge: undefined, role: 'separator' },
-			{ label: 'Rename This Computer...', detail: undefined, badge: undefined, role: 'menuitem' },
+			{ label: 'Change Sharing Name...', detail: undefined, badge: undefined, role: 'menuitem' },
 		]);
 	});
 
 	test('connection explanations are available through managed hovers and accessible descriptions', () => {
 		const { openMenu } = fixture();
 		assert.deepStrictEqual(openMenu().filter(action => action.checked !== undefined).map(action => ({ id: action.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })), [
-			{ id: 'remoteConnections.off', description: 'Don\'t allow connections from other devices through this app.', hoverMatches: true },
-			{ id: 'remoteConnections.githubEnvironment', description: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', hoverMatches: true },
-			{ id: 'remoteConnections.devTunnel', description: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', hoverMatches: true },
+			{ id: 'remoteConnections.off', description: 'Other devices can\'t connect to this computer. Agent tasks keep running here.', hoverMatches: true },
+			{ id: 'remoteConnections.githubEnvironment', description: 'Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.', hoverMatches: true },
+			{ id: 'remoteConnections.devTunnel', description: 'Connect from VS Code or the browser-based Agents window.', hoverMatches: true },
 		]);
 	});
 
@@ -365,7 +365,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, {
 			tabFocus: true, shiftTabFocus: true, describedBy: true,
 			header: undefined,
-			explanation: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View setting',
+			explanation: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
 		});
@@ -428,18 +428,19 @@ suite('RemoteConnectionsActionViewItem', () => {
 	test('offers a separate management entry after the connection methods when provided', async () => {
 		const manage = stub().resolves(undefined);
 		const managementAction = store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, manage));
+		managementAction.tooltip = 'Connect to and manage remote environments';
 		const { openMenu, menuItems, sharing, executeCommand } = fixture('devTunnel', { quality: 'insider', managementAction });
 		const actions = openMenu();
 		await actions.find(action => action.id === 'test.manage')!.run();
 		assert.deepStrictEqual({
 			items: menuItems().map(item => item.label),
-			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked })),
+			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked, tooltip: action.tooltip, hover: action.hover?.content })),
 			managed: manage.callCount,
 			sharing: sharing.calls,
 			commands: executeCommand.callCount,
 		}, {
 			items: ['Off', 'GitHub Environment', 'Dev Tunnel', '', 'Manage Remote Environments...'],
-			management: [{ category: 'management', icon: undefined, checked: undefined }],
+			management: [{ category: 'management', icon: undefined, checked: undefined, tooltip: managementAction.tooltip, hover: managementAction.tooltip }],
 			managed: 1,
 			sharing: [],
 			commands: 0,
@@ -818,12 +819,14 @@ suite('RemoteConnectionsActionViewItem', () => {
 		assert.deepStrictEqual({
 			title: quickInput.options?.title,
 			value: quickInput.options?.value,
+			empty: await quickInput.options?.validateInput?.('  '),
 			invalid: await quickInput.options?.validateInput?.('bad\nname'),
 			name: sharing.environmentName.get(),
 			sharing: sharing.state.get(),
 		}, {
-			title: 'Rename remote environment', value: 'Test Machine (VS Code Insiders)',
-			invalid: 'Enter an environment name without control characters.',
+			title: 'Change Sharing Name', value: 'Test Machine (VS Code Insiders)',
+			empty: 'Enter a sharing name.',
+			invalid: 'Enter a sharing name without control characters.',
 			name: 'Renamed workstation', sharing: 'disabled',
 		});
 	});
@@ -887,7 +890,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Share this computer as a GitHub Environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Share this computer as a GitHub Environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Share this computer as a GitHub Environment\n\nConnect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {

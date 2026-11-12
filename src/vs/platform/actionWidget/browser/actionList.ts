@@ -2982,7 +2982,7 @@ export class ActionListWidget<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 
 		let totalHeight = 0;
-		let maxWidth = hoverHeader ? hoverHeader.offsetWidth : 0;
+		let maxWidth = hoverHeader ? Math.ceil(hoverHeader.getBoundingClientRect().width / dom.getDomNodeZoomLevel(hoverHeader)) : 0;
 		let submenuWidget: ActionListWidget<IAction> | undefined;
 
 		if (hasSubmenuActions) {

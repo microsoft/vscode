@@ -158,6 +158,9 @@ class RepositoryConfigSeparatorActionViewItem extends ActionViewItem {
  * toolbar and the input's own model commands and notifications act on it.
  */
 export class SharedChatInputComposer extends Disposable implements INewSessionComposer, INewChatVoiceComposer {
+	get selectEnvironment(): INewSessionComposer['selectEnvironment'] {
+		return this.options.selectEnvironment;
+	}
 
 	private static readonly _backgroundComposers = new WeakMap<IChatWidget, SharedChatInputComposer>();
 

@@ -32,16 +32,18 @@ import { getRemoteTypeLabel } from '../../browser/remotesTable.js';
 import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
 import { RemoteEnvironmentDetails } from '../../browser/remoteEnvironmentDetails.js';
+import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
+import { INewSessionComposerService } from '../../../../browser/newSessionComposerService.js';
 
 const remotes: ICustomizationRemote[] = [
-	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: true, canDelete: true, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
-	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the environment picker.' },
-	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
-	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1'], undefined, 'vscode/upgrade') },
-	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'The remote computer is offline. Start sharing it before connecting.', pickerUnavailableReason: 'Available in the environment picker when the remote computer is online.' },
+	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, copyableAddress: 'build', availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: true, canDelete: true, hidden: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connecting },
+	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the environment picker.' },
+	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
+	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, canDelete: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1'], undefined, 'vscode/upgrade') },
+	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, availability: 'offline', connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'The remote computer is offline. Start sharing it before connecting.', pickerUnavailableReason: 'Available in the environment picker when the remote computer is online.' },
 ];
 
 async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly troubleshoot?: ICustomizationRemote; readonly filter?: RemoteKind; readonly query?: string; readonly kinds?: readonly RemoteKind[] } = {}): Promise<void> {
@@ -53,6 +55,8 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
+			reg.defineInstance(INewSessionComposerService, new class extends mock<INewSessionComposerService>() { }());
 			reg.define(IHoverService, HoverService);
 			reg.definePartialInstance(ILayoutService, { getContainer: () => container });
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
@@ -110,7 +114,10 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: `${remote.name} (renamed)` } : remote), undefined);
 		}
 		async copyAddress(id: string) {
-			await instantiationService.get(IClipboardService).writeText(id);
+			const address = this.remotes.get().find(remote => remote.id === id)?.copyableAddress;
+			if (address) {
+				await instantiationService.get(IClipboardService).writeText(address);
+			}
 		}
 		readonly preferences = new Map<string, RemoteAgentHostLocationPreference>();
 		async changePreferredAgentLocation(id: string, preference?: RemoteAgentHostLocationPreference) {
@@ -145,7 +152,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 	}());
 	if (options.troubleshoot) {
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, options.troubleshoot, 'troubleshoot', model, () => { }, () => { }));
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, options.troubleshoot, 'troubleshoot', model, () => { }, () => { }, async () => { }));
 		content.appendChild(details.domNode);
 		details.layout();
 		return;
@@ -153,7 +160,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	if (options.runBehavior) {
 		const remote = model.remotes.get()[0];
 		model.preferences.set(remote.id, 'dedicated');
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, () => { }, () => { }));
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, () => { }, () => { }, async () => { }));
 		content.appendChild(details.domNode);
 		details.domNode.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
 		details.layout();
@@ -261,19 +268,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, 'tunnel') }),
 	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, 'ssh') }),
 	TunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true) }),
-	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending') }),
+	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending', { filter: 'tunnel' }) }),
 	TunnelSignInNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, ['tunnel'], true, undefined, true) }),
 	FilteredTunnelSignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other environments', filter: 'tunnel' }),
+		render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other computers', filter: 'tunnel' }),
 	}),
 	FilteredTunnelSignInNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 360, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other environments', filter: 'tunnel' }),
+		render: context => render(context, 360, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other computers', filter: 'tunnel' }),
 	}),
 	OtherTypesWithoutTunnelSignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 1000, OS, false, ['tunnel'], true, undefined, true, { heading: 'Other environments', kinds: ['ssh'] }),
+		render: context => render(context, 1000, OS, false, ['tunnel'], true, undefined, true, { heading: 'Other computers', kinds: ['ssh'] }),
 	}),
 	FilteredSSHEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -297,10 +304,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	Table: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000) }),
 	TableWithHeading: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => render(context, 1000, OS, false, [], true, undefined, false, { heading: 'Other environments' }),
+		render: context => render(context, 1000, OS, false, [], true, undefined, false, { heading: 'Other computers' }),
 	}),
-	EmptyWithHeading: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true, undefined, false, { heading: 'Other environments' }) }),
-	NarrowWithHeading: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true, undefined, false, { heading: 'Other environments' }) }),
+	EmptyWithHeading: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true, undefined, false, { heading: 'Other computers' }) }),
+	NarrowWithHeading: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true, undefined, false, { heading: 'Other computers' }) }),
 	Wide: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1400) }),
 	Windows: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OperatingSystem.Windows) }),
 	Narrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360) }),

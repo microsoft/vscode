@@ -6,6 +6,8 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,6 +24,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { INotification } from '../../../../../../platform/notification/common/notification.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -35,12 +38,13 @@ import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.
 import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../../browser/chat/sessionEnvironmentPicker.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../common/chatConstants.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
+import { NewChatWidget } from '../../../browser/chat/newChatWidget.js';
 
 suite('SessionEnvironmentPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const folder = URI.file('/project');
 	const workspace = upcastPartial<ISessionWorkspace>({ uri: folder });
-	const local: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
+	const local: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
 	const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
 
 	function provider(id: string, environment: string, options: Partial<ISessionsProvider> = {}): ISessionsProvider {
@@ -108,7 +112,7 @@ suite('SessionEnvironmentPicker', () => {
 		], [LOCAL_AGENT_HOST_PROVIDER_ID, undefined, 'cloud']);
 	});
 
-	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {
+	test('available remotes remain in the picker while disconnected or connecting, but incompatible remotes do not', () => {
 		const states = [
 			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.disconnected, RemoteAgentHostConnectionStatus.reconnecting,
@@ -117,9 +121,28 @@ suite('SessionEnvironmentPicker', () => {
 		const providers = states.map((connectionStatus, index) => upcastPartial<IAgentHostSessionsProvider>({
 			...provider(`agenthost-remote-${index}`, 'remote'), connectionStatus: constObservable(connectionStatus),
 		}));
-		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(environment => environment.description), [
-			'Connected', 'Connecting', 'Disconnected', 'Disconnected', 'Disconnected',
-		]);
+		assert.deepStrictEqual({
+			picker: getSessionCreationEnvironments(providers).map(environment => ({ id: environment.id, description: environment.description })),
+			retainedDraft: getRemoteSessionCreationEnvironment(providers[2])?.id,
+		}, {
+			picker: [
+				{ id: 'agenthost-remote-0', description: 'Connected' },
+				{ id: 'agenthost-remote-1', description: 'Connecting' },
+				{ id: 'agenthost-remote-2', description: 'Disconnected' },
+				{ id: 'agenthost-remote-3', description: 'Reconnecting' },
+			],
+			retainedDraft: 'agenthost-remote-2',
+		});
+	});
+
+	test('availability cannot be overridden by picker visibility', () => {
+		const unavailable = upcastPartial<IAgentHostSessionsProvider>({
+			...provider('agenthost-unavailable', 'remote'),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+			isAvailableInEnvironmentPicker: constObservable(false),
+			isVisibleInEnvironmentPicker: constObservable(true),
+		});
+		assert.deepStrictEqual(getSessionCreationEnvironments([unavailable]), []);
 	});
 
 	test('keeps worktree-capable providers in This Computer without separate isolation environments', () => {
@@ -132,6 +155,143 @@ suite('SessionEnvironmentPicker', () => {
 			{ id: 'local', label: 'This computer', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
 			{ id: 'cloud', label: 'Cloud', providerIds: ['cloud'] },
 		]);
+	});
+
+	suite('connection selection', () => {
+		const remote: ISessionCreationEnvironment = { id: 'agenthost-remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote'] };
+
+		function createSelection(initial = local) {
+			const status = observableValue<RemoteAgentHostConnectionStatus>(store, RemoteAgentHostConnectionStatus.disconnected);
+			const available = observableValue(store, true);
+			const started = new DeferredPromise<void>();
+			const notifications: INotification[] = [];
+			const changes: string[] = [];
+			let connectCalls = 0;
+			let connect: () => Promise<void> = async () => { status.set(RemoteAgentHostConnectionStatus.connected, undefined); };
+			let cancel: (() => void) | undefined;
+			let registered = true;
+			const host = upcastPartial<IAgentHostSessionsProvider>({
+				id: remote.id,
+				connectionStatus: status,
+				isAvailableInEnvironmentPicker: available,
+				connect: async () => { connectCalls++; await connect(); },
+			});
+			const owner = {
+				select: Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (environment: ISessionCreationEnvironment) => Promise<void>,
+				_selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> { return this.select(environment); },
+				_connectEnvironment: Reflect.get(NewChatWidget.prototype, '_connectEnvironment') as (environment: ISessionCreationEnvironment) => Promise<boolean>,
+				_environmentSelection: store.add(new MutableDisposable<IDisposable>()),
+				_store: store,
+				_environmentSelectionVersion: 0,
+				_environment: constObservable(initial),
+				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>(store, undefined),
+				_environmentWorkspaces: new Map(),
+				_session: constObservable(undefined),
+				_workspaceOptOutTarget: constObservable(undefined),
+				_workspaceOptOutEnabled: constObservable(false),
+				_newChatInput: { saveState: () => changes.push('saveDraft') },
+				_pendingPreferredUpgrade: { clear: () => { } },
+				_newSessionCreation: { clear: () => { } },
+				_noWorkspaceRestore: { clear: () => { } },
+				_requestTarget: () => { },
+				_workspacePicker: {
+					selectedFolderUri: undefined,
+					getEnvironmentWorkspace: () => undefined,
+					clearSelection: () => changes.push('clearWorkspace'),
+				},
+				newSessionComposerService: { notifyUserWorkspaceSelection: () => { } },
+				sessionsProvidersService: { getProvider: () => registered ? host : undefined },
+				accessibilityService: { status: (message: string) => changes.push(message) },
+				progressService: {
+					withProgress: async (_options: object, task: () => Promise<void>, onCancel: () => void) => {
+						cancel = onCancel;
+						void started.complete();
+						await task();
+					},
+				},
+				logService: { error: () => changes.push('connectionError') },
+				notificationService: { notify: (notification: INotification) => notifications.push(notification) },
+			};
+			return {
+				owner, host, status, available, started, changes, notifications,
+				setConnect: (value: () => Promise<void>) => { connect = value; },
+				withdraw: () => { registered = false; },
+				cancel: () => cancel?.(),
+				connectCalls: () => connectCalls,
+			};
+		}
+
+		test('connects and waits for readiness before changing the draft destination', async () => {
+			const h = createSelection();
+			h.setConnect(async () => { h.status.set(RemoteAgentHostConnectionStatus.connecting, undefined); });
+			const selecting = h.owner.select(remote);
+			await h.started.p;
+			const pending = { selected: h.owner._pickedEnvironment.get(), changes: [...h.changes] };
+			h.status.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			await selecting;
+			assert.deepStrictEqual({
+				pending, selected: h.owner._pickedEnvironment.get()?.id, changes: h.changes, connects: h.connectCalls(), notifications: h.notifications,
+			}, {
+				pending: { selected: undefined, changes: [] }, selected: remote.id,
+				changes: ['saveDraft', 'clearWorkspace', 'Environment: Remote'], connects: 1, notifications: [],
+			});
+		});
+
+		test('a failed connection preserves the draft and destination and offers a working retry', async () => {
+			const h = createSelection();
+			h.setConnect(async () => { throw new Error('Connection refused'); });
+			await h.owner.select(remote);
+			const failed = { selected: h.owner._pickedEnvironment.get(), changes: [...h.changes], message: h.notifications[0]?.message };
+			h.setConnect(async () => { h.status.set(RemoteAgentHostConnectionStatus.connected, undefined); });
+			await h.notifications[0].actions!.primary![0].run();
+			assert.deepStrictEqual({
+				failed, selected: h.owner._pickedEnvironment.get()?.id, connects: h.connectCalls(), changes: h.changes,
+			}, {
+				failed: { selected: undefined, changes: ['connectionError'], message: 'Failed to connect to Remote: Connection refused' },
+				selected: remote.id, connects: 2, changes: ['connectionError', 'saveDraft', 'clearWorkspace', 'Environment: Remote'],
+			});
+		});
+
+		test('reselecting the current disconnected destination still reconnects it', async () => {
+			const h = createSelection(remote);
+			await h.owner.select(remote);
+			assert.deepStrictEqual({ connects: h.connectCalls(), changes: h.changes, notifications: h.notifications }, {
+				connects: 1, changes: [], notifications: [],
+			});
+		});
+
+		for (const superseded of [false, true]) {
+			test(`${superseded ? 'another selection' : 'canceling progress'} prevents a late connection from changing the draft`, async () => {
+				const h = createSelection();
+				const connected = new DeferredPromise<void>();
+				h.setConnect(() => connected.p);
+				const selecting = h.owner.select(remote);
+				await h.started.p;
+				if (superseded) {
+					await h.owner.select(local);
+				} else {
+					h.cancel();
+				}
+				await selecting;
+				h.status.set(RemoteAgentHostConnectionStatus.connected, undefined);
+				await connected.complete();
+				assert.deepStrictEqual({ selected: h.owner._pickedEnvironment.get(), changes: h.changes, notifications: h.notifications }, {
+					selected: undefined, changes: [], notifications: [],
+				});
+			});
+		}
+
+		test('a withdrawn provider cannot become the destination after connecting', async () => {
+			const h = createSelection();
+			h.setConnect(async () => {
+				h.withdraw();
+				h.status.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			});
+			await h.owner.select(remote);
+			assert.deepStrictEqual({ selected: h.owner._pickedEnvironment.get(), changes: h.changes, message: h.notifications[0]?.message }, {
+				selected: undefined, changes: ['connectionError'], message: 'Failed to connect to Remote: This environment is no longer available.',
+			});
+		});
 	});
 
 	test('an explicitly selected host never resolves through another host or an unavailable provider', () => {
@@ -244,7 +404,7 @@ suite('SessionEnvironmentPicker', () => {
 				{ hover: 'Run this session directly on this computer', aria: 'This computer, Run this session directly on this computer' },
 				{ hover: 'Run this session in a cloud environment, not on this computer', aria: 'Cloud, Run this session in a cloud environment, not on this computer' },
 			],
-			tooltipLabels: ['Environment where the agent runs: This computer', 'Environment where the agent runs: Cloud'],
+			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
 	});
 
@@ -264,7 +424,7 @@ suite('SessionEnvironmentPicker', () => {
 		];
 		const providers = entries.map((entry, index) => upcastPartial<IAgentHostSessionsProvider>({
 			...provider(`agenthost-remote-${index}`, 'remote'), label: entry.name, remoteAddress: getEntryAddress(entry),
-			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
 		}));
 		instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
 		instantiation.stub(IRemoteAgentHostService, { configuredEntries: entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox) });
@@ -293,19 +453,19 @@ suite('SessionEnvironmentPicker', () => {
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud, ...getSessionCreationEnvironments(providers), container]), observableValue<ISessionCreationEnvironment | undefined>(store, local), async () => { }, () => []));
 		store.add(picker.render(dom.$('div')));
 		picker.showPicker();
-		const remote = (name: string, hover: string, escaped = hover) => ({ hover: escaped, aria: `${name}, Disconnected, ${hover}` });
+		const remote = (name: string, hover: string, escaped = hover) => ({ hover: escaped, aria: `${name}, Connected, ${hover}` });
 		assert.deepStrictEqual(described, [
-			{ hover: 'Run this session directly on this computer', aria: 'This computer, Run this session directly on this computer' },
+			{ hover: 'Run this session directly on this computer', aria: 'This Computer, Run this session directly on this computer' },
 			{ hover: 'Run this session in a cloud environment, not on this computer', aria: 'Cloud, Run this session in a cloud environment, not on this computer' },
 			remote('build-box', 'Run this session on build-box over SSH'),
-			remote('laptop', 'Run this session on laptop through a dev tunnel'),
+			remote('laptop', 'Run this session on laptop through a Dev Tunnel'),
 			remote('Ubuntu', 'Run this session on Ubuntu in WSL'),
 			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
 			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
 			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container, Run this session in a dev container for the selected folder' },
 			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
 			{ hover: undefined, aria: 'Other...' },
-			{ hover: 'Add, connect, and manage remote environments', aria: 'Manage Remote Environments..., Add, connect, and manage remote environments' },
+			{ hover: 'Connect to and manage remote environments', aria: 'Manage Remote Environments..., Connect to and manage remote environments' },
 		]);
 	});
 
@@ -336,11 +496,11 @@ suite('SessionEnvironmentPicker', () => {
 					...provider(`agenthost-remote-${index}`, 'remote'),
 					label: entry.name,
 					remoteAddress: getEntryAddress(entry),
-					connectionStatus: constObservable(index % 2 ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected),
+					connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
 				}));
 				providers.push(upcastPartial<IAgentHostSessionsProvider>({
 					...provider('agenthost-remote-unknown', 'remote'), label: 'Unknown',
-					remoteAddress: 'unknown:remote', connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+					remoteAddress: 'unknown:remote', connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
 				}));
 				const otherEnvironments = [
 					{ id: 'managed', kind: 'managed-sandbox', label: 'Managed Sandbox' },
@@ -349,7 +509,7 @@ suite('SessionEnvironmentPicker', () => {
 				for (const host of otherEnvironments) {
 					providers.push(upcastPartial<IAgentHostSessionsProvider>({
 						...provider(`agenthost-${host.id}`, 'remote'), label: host.label,
-						remoteAddress: `cloudsandbox:${host.id}`, connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+						remoteAddress: `cloudsandbox:${host.id}`, connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
 					}));
 				}
 				const hosts = observableValue<readonly IMissionControlHost[]>(store, [
@@ -421,7 +581,7 @@ suite('SessionEnvironmentPicker', () => {
 					menu, hideDefaultKeybindingTooltip, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
 				}, {
 					menu: [
-						{ label: 'This computer', separator: false },
+						{ label: 'This Computer', separator: false },
 						...providers.map(provider => ({ label: provider.label, separator: false })),
 						{ label: '', separator: true },
 						{ label: 'Connect via SSH...', separator: false },

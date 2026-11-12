@@ -16,12 +16,12 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/virtua
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHHostReachability } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IVscodeUpgradeResult } from '../../../../../../../platform/agentHost/common/state/protocolUpgrade.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
-import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
+import { IWSLCachedDistro, IWSLDistro, IWSLRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -65,6 +65,7 @@ suite('RemotesModel', () => {
 		const providersChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const tunnelsChanged = store.add(new Emitter<void>());
+		const wslConnectionsChanged = store.add(new Emitter<void>());
 		const tunnelStatusChanged = store.add(new Emitter<TunnelStatus>());
 		const tunnelState: { canDelete: boolean; pendingDeletion?: DeferredPromise<void>; failure?: Error } = { canDelete: true };
 		const deletedTunnels: { tunnel: ITunnelInfo; authProvider?: 'github' | 'microsoft' }[] = [];
@@ -111,7 +112,10 @@ suite('RemotesModel', () => {
 		let connectionFailure: Error | undefined;
 		const logEntries: { message: string; args: readonly unknown[] }[] = [];
 		let wslDiscoveryCalls = 0;
+		const wslState: { discoveryFailure?: Error; runningFailure?: Error } = {};
+		let wslDistros: IWSLDistro[] = [{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }];
 		let sshDiscovery: () => Promise<string[]> = async () => ['build', 'build'];
+		let sshReachability: (host: string) => Promise<SSHHostReachability> = async () => 'unknown';
 		let tunnelDiscovery: () => Promise<ITunnelInfo[]> = async () => [tunnel];
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
@@ -197,6 +201,7 @@ suite('RemotesModel', () => {
 		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
 			listSSHConfigHosts: () => sshDiscovery(),
+			checkReachability: host => sshReachability(host),
 			disconnect: async key => {
 				sshDisconnects.push(key);
 				if (connectionFailure) {
@@ -207,11 +212,20 @@ suite('RemotesModel', () => {
 			resolveSSHConfig: async () => ({ hostname: 'build.example', user: 'developer', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined }),
 		});
 		instantiationService.stub(IWSLRemoteAgentHostService, {
-			onDidChangeConnections: Event.None,
+			onDidChangeConnections: wslConnectionsChanged.event,
 			getCachedDistros: () => distros,
 			listDistros: async () => {
 				wslDiscoveryCalls++;
-				return [{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }];
+				if (wslState.discoveryFailure) {
+					throw wslState.discoveryFailure;
+				}
+				return wslDistros;
+			},
+			listRunningDistros: async () => {
+				if (wslState.runningFailure) {
+					throw wslState.runningFailure;
+				}
+				return wslDistros.filter(distro => distro.isRunning).map(distro => distro.name);
 			},
 			cacheDistro: distro => { distros = [distro]; },
 		});
@@ -306,6 +320,7 @@ suite('RemotesModel', () => {
 		return {
 			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
+			wslState, wslConnectionsChanged,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			getCachedTunnels: () => tunnels,
@@ -314,7 +329,8 @@ suite('RemotesModel', () => {
 			setTunnelStatus: (status: TunnelStatus) => tunnelStatusChanged.fire(status),
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
-			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
+			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setWSLDistros: (value: IWSLDistro[]) => { wslDistros = value; }, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
+			setSSHReachability: (check: (host: string) => Promise<SSHHostReachability>) => { sshReachability = check; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
 			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations,
@@ -354,11 +370,11 @@ suite('RemotesModel', () => {
 		nextProvider.sessionListVersion.set(1, undefined);
 		const empty = second.model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata!;
 		assert.deepStrictEqual({
-			unresolvedReads, observed: { ...observed, observedAt: observed.observedAt > 0 },
+			unresolvedReads, observed: { ...observed, observedAt: observed.observedAt > 0, lastOnlineAt: typeof observed.lastOnlineAt },
 			cached, whileLoading: whileLoading?.activeSessionCount, empty: empty.activeSessionCount,
 			connectionChanges: [...first.connectionChanges, ...second.connectionChanges],
 		}, {
-			unresolvedReads: 0, observed: { operatingSystem: OperatingSystem.Linux, activeSessionCount: 1, lastConnectedAt: undefined, observedAt: true },
+			unresolvedReads: 0, observed: { operatingSystem: OperatingSystem.Linux, activeSessionCount: 1, lastConnectedAt: undefined, lastOnlineAt: 'number', observedAt: true },
 			cached: { metadata: observed, stale: true }, whileLoading: 1, empty: 0, connectionChanges: [],
 		});
 	});
@@ -387,8 +403,9 @@ suite('RemotesModel', () => {
 		}, StorageScope.PROFILE, StorageTarget.MACHINE);
 		await model.refresh(CancellationToken.None);
 		const remote = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!;
-		assert.deepStrictEqual({ metadata: remote.metadata, stale: remote.metadataIsStale, connectionChanges }, {
-			metadata: { operatingSystem: OperatingSystem.Macintosh, activeSessionCount: undefined, observedAt: 100000, lastConnectedAt: undefined },
+		assert.deepStrictEqual({ metadata: { ...remote.metadata, lastOnlineAt: typeof remote.metadata?.lastOnlineAt }, stale: remote.metadataIsStale, connectionChanges }, {
+			// Recording when the tunnel was seen online must not refresh when its system details were observed.
+			metadata: { operatingSystem: OperatingSystem.Macintosh, activeSessionCount: undefined, observedAt: 100000, lastConnectedAt: undefined, lastOnlineAt: 'number' },
 			stale: true, connectionChanges: [],
 		});
 	});
@@ -414,8 +431,9 @@ suite('RemotesModel', () => {
 	});
 
 	test('explicit inline run behavior bypasses the prompt and uses the existing stable preference and reconnect path', async () => {
-		const { model, locationPreferences, connectionChanges } = setup();
+		const { model, providers, locationPreferences, connectionChanges } = setup();
 		await model.refresh(CancellationToken.None);
+		providers.get('ssh:build')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		const result = await model.changePreferredAgentLocation('ssh:build', 'dedicated');
 		assert.deepStrictEqual({ result, preference: locationPreferences.get('ssh:build'), connections: connectionChanges }, {
 			result: 'reconnected', preference: 'dedicated', connections: [{ id: 'ssh:build', connected: true }],
@@ -482,6 +500,45 @@ suite('RemotesModel', () => {
 		});
 	});
 
+	test('live connection service state wins over a lagging provider and offline discovery', async () => {
+		const connection: IRemoteAgentHostConnectionInfo = { address: 'tunnel:laptop', name: 'Laptop', status: RemoteAgentHostConnectionStatus.connected };
+		const { model, providers, setConnections, setTunnelDiscovery, connectionChanges } = setup([connection]);
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => {
+			const remote = model.remotes.get().find(remote => remote.id === connection.address)!;
+			return { status: remote.connectionStatus.kind, availability: remote.availability };
+		};
+		const connected = snapshot();
+		await model.setConnected(connection.address, true);
+		const redundantAttempts = connectionChanges.length;
+		providers.get(connection.address)!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		setConnections([{ ...connection, status: RemoteAgentHostConnectionStatus.disconnected }]);
+		const disconnected = snapshot();
+		await assert.rejects(model.setConnected(connection.address, true), /offline/);
+		assert.deepStrictEqual({ connected, redundantAttempts, disconnected, connectionChanges }, {
+			connected: { status: 'connected', availability: 'online' }, redundantAttempts: 0,
+			disconnected: { status: 'disconnected', availability: 'offline' },
+			connectionChanges: [],
+		});
+	});
+
+	test('unrecognized GitHub Environment states and failed refreshes are not reported as offline', async () => {
+		const { model, setConfiguration, environmentAvailable, environmentHosts, environmentState } = setup();
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		const host = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'starting' };
+		environmentHosts.set([host], undefined);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => model.remotes.get().find(remote => remote.id === cloudSandboxAddress(host.id))!.availability;
+		const unrecognized = snapshot();
+		environmentHosts.set([{ ...host, status: 'online' }], undefined);
+		const online = snapshot();
+		environmentState.refreshFailure = new Error('Network unavailable');
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ unrecognized, online, failed: snapshot() }, { unrecognized: 'unknown', online: 'online', failed: 'unknown' });
+	});
+
 	test('fresh tunnel discovery wins over cached and provider names without registering or connecting', async () => {
 		const { model, setCachedTunnels, getCachedTunnels, setTunnelDiscovery, providersChanged, connectionChanges, reconnects } = setup();
 		const cached: ICachedTunnel[] = [
@@ -508,6 +565,44 @@ suite('RemotesModel', () => {
 		});
 	});
 
+	test('tunnel availability follows discovery even when a GitHub Environment has the same name', async () => {
+		const { model, providers, setCachedTunnels, setTunnelDiscovery, setConfiguration, environmentAvailable, environmentHosts } = setup();
+		const reasons = () => Object.fromEntries(model.remotes.get().filter(remote => remote.kind === 'tunnel').map(remote => [remote.id, `${remote.availability}: ${remote.unavailableReason?.split(' ').slice(0, 4).join(' ')}`]));
+		setCachedTunnels([{ ...tunnel, tunnelId: 'gone', name: 'Gone', authProvider: 'github' }]);
+		setTunnelDiscovery(async () => { throw new Error('network'); });
+		await model.refresh(CancellationToken.None);
+		const discoveryFailed = reasons();
+		setTunnelDiscovery(async () => [
+			{ ...tunnel },
+			{ ...tunnel, tunnelId: 'idle', name: 'Idle', hostConnectionCount: 0 },
+			{ ...tunnel, tunnelId: 'moogle', name: 'Moogle' },
+		]);
+		await model.refresh(CancellationToken.None);
+		const discovered = reasons();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set([{ id: 'moogle', name: 'moogle', kind: 'user-local', status: 'online' }], undefined);
+		const matchingName = reasons()['tunnel:moogle'];
+		environmentHosts.set([{ id: 'other', name: 'other', displayName: 'Moogle', kind: 'user-local', status: 'online' }], undefined);
+		const matchingDisplayName = reasons()['tunnel:moogle'];
+		await model.setConnected('tunnel:moogle', true);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ discoveryFailed, discovered, matchingName, matchingDisplayName, connectedWithoutHost: reasons()['tunnel:laptop'] }, {
+			discoveryFailed: { 'tunnel:gone': 'unknown: Couldn\'t check this environment\'s' },
+			discovered: {
+				'tunnel:gone': 'unknown: This saved Dev Tunnel',
+				'tunnel:idle': 'offline: The Dev Tunnel host',
+				'tunnel:laptop': 'online: undefined',
+				'tunnel:moogle': 'online: undefined',
+			},
+			matchingName: 'online: undefined',
+			matchingDisplayName: 'online: undefined',
+			connectedWithoutHost: 'online: undefined',
+		});
+	});
+
 	test('explicit tunnel rename overrides discovery and clearing it restores the latest discovered name', async () => {
 		const { model, setCachedTunnels, setTunnelDiscovery, setRenameInput, renameInputs } = setup();
 		setCachedTunnels([{ ...tunnel, name: 'Old cached name' }]);
@@ -522,6 +617,36 @@ suite('RemotesModel', () => {
 		await model.rename('tunnel:laptop');
 		assert.deepStrictEqual({ renamed, cleared: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.name, initialRenameValue: renameInputs[0].value }, {
 			renamed: 'My tunnel', cleared: 'Newest discovered name', initialRenameValue: 'Discovered name',
+		});
+	});
+
+	test('missing or failed tunnel status stays unverified and confirmed offline blocks connection until refresh', async () => {
+		const { model, providers, setTunnelDiscovery, connectionChanges } = setup();
+		const snapshot = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.availability;
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: undefined }]);
+		await model.refresh(CancellationToken.None);
+		const missing = snapshot();
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 1 }]);
+		await model.refresh(CancellationToken.None);
+		const online = snapshot();
+		setTunnelDiscovery(async () => { throw new Error('Network unavailable'); });
+		await model.refresh(CancellationToken.None);
+		const failed = snapshot();
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+		await model.refresh(CancellationToken.None);
+		const offline = snapshot();
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
+		const connecting = snapshot();
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		await assert.rejects(model.setConnected('tunnel:laptop', true), /offline/);
+		const offlineAttempts = connectionChanges.length;
+		setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 1 }]);
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('tunnel:laptop', true);
+		assert.deepStrictEqual({ missing, online, failed, offline, connecting, offlineAttempts, connected: snapshot(), connectionChanges }, {
+			missing: 'unknown', online: 'online', failed: 'unknown', offline: 'offline', connecting: 'offline', connected: 'online',
+			offlineAttempts: 0,
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }],
 		});
 	});
 
@@ -564,35 +689,59 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('copies each remote address without connecting or copying its display name', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, copiedAddresses, connectionChanges, reconnects, setDisplayName } = setup();
+	test('copies only pasteable SSH hosts, without connecting or copying display names', async () => {
+		const { model, storage, configuration, environmentAvailable, environmentHosts, copiedAddresses, connectionChanges, reconnects, setDisplayName } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([{ id: 'desktop', name: 'Friendly desktop', kind: 'user-local', status: 'offline' }], undefined);
+		for (const port of [2222, 22]) {
+			addSSHRemoteAgentHostEntry(storage, {
+				name: `Explicit ${port}`, connection: { type: RemoteAgentHostEntryType.SSH, address: `localhost:${port}`, hostName: `host${port}.example.com`, user: 'user', port },
+			});
+		}
 		await model.refresh(CancellationToken.None);
 		setDisplayName('ssh:build', 'Renamed SSH');
-		const addresses = model.remotes.get().map(remote => remote.id);
-		for (const address of addresses) {
-			await model.copyAddress(address);
+		const copyable = model.remotes.get().filter(remote => remote.copyableAddress).map(remote => remote.id);
+		for (const id of copyable) {
+			await model.copyAddress(id);
 		}
-		assert.deepStrictEqual({ copiedAddresses, connectionChanges, reconnects }, {
-			copiedAddresses: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop', 'cloudsandbox:desktop'], connectionChanges: [], reconnects: [],
+		for (const id of ['wsl:Ubuntu', 'tunnel:laptop', 'cloudsandbox:desktop']) {
+			await assert.rejects(model.copyAddress(id), /no longer available/);
+		}
+		assert.deepStrictEqual({ copiedAddresses: [...copiedAddresses].sort(), connectionChanges, reconnects }, {
+			copiedAddresses: ['build', 'user@host22.example.com', 'user@host2222.example.com:2222'], connectionChanges: [], reconnects: [],
 		});
 	});
 
 	for (const id of ['ssh:build', 'tunnel:laptop']) {
 		for (const preference of [undefined, 'editor', 'dedicated'] as const) {
-			test(`${id} location action reuses preference persistence and reconnect (${preference})`, async () => {
+			test(`${id} location action saves without connecting a disconnected provider (${preference})`, async () => {
 				const { model, locationPromptResult, locationPreferences, connectionChanges } = setup();
 				await model.refresh(CancellationToken.None);
 				locationPromptResult.result = preference;
 				await model.changePreferredAgentLocation(id);
 				assert.deepStrictEqual({ preferences: [...locationPreferences], connectionChanges }, {
 					preferences: preference ? [[id, preference]] : [],
-					connectionChanges: preference ? [{ id, connected: true }] : [],
+					connectionChanges: [],
 				});
 			});
 		}
+	}
+
+	for (const connected of [false, true]) {
+		test(`explicit run behavior saves without connecting an offline environment and reconnects only a connected one (connected=${connected})`, async () => {
+			const { model, providers, setTunnelDiscovery, locationPreferences, connectionChanges } = setup();
+			setTunnelDiscovery(async () => [{ ...tunnel, hostConnectionCount: 0 }]);
+			await model.refresh(CancellationToken.None);
+			if (connected) {
+				providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			}
+			const result = await model.changePreferredAgentLocation('tunnel:laptop', 'dedicated');
+			assert.deepStrictEqual({ result, preferences: [...locationPreferences], connectionChanges }, {
+				result: connected ? 'reconnected' : 'saved', preferences: [['tunnel:laptop', 'dedicated']],
+				connectionChanges: connected ? [{ id: 'tunnel:laptop', connected: true }] : [],
+			});
+		});
 	}
 
 	for (const sshConfigHost of ['remote', undefined]) {
@@ -607,6 +756,7 @@ suite('RemotesModel', () => {
 			});
 			const key = sshConfigHost ? 'ssh:remote' : 'user@remote.example.com:2222';
 			providers.set(address, createProvider(address, key));
+			providers.get(address)!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 			providersChanged.fire({ added: [], removed: [] });
 			locationPromptResult.result = 'editor';
 			await model.changePreferredAgentLocation(address);
@@ -675,6 +825,7 @@ suite('RemotesModel', () => {
 		const { model, providers, locationPromptResult, locationPreferences, notifications, failConnection } = setup();
 		await model.refresh(CancellationToken.None);
 		locationPromptResult.result = 'editor';
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		failConnection(new Error('Connection refused'));
 		await model.changePreferredAgentLocation('tunnel:laptop');
 		providers.delete('tunnel:laptop');
@@ -692,7 +843,7 @@ suite('RemotesModel', () => {
 		await assert.rejects(model.copyAddress('missing'), /no longer available/);
 		await assert.rejects(model.changePreferredAgentLocation('missing'), /no longer available/);
 		await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
-		await assert.rejects(model.copyAddress('tunnel:laptop'), /no longer available/);
+		await assert.rejects(model.copyAddress('ssh:build'), /no longer available/);
 		await assert.rejects(model.changePreferredAgentLocation('tunnel:laptop'), /no longer available/);
 		assert.deepStrictEqual({ copiedAddresses, preferences: [...locationPreferences] }, { copiedAddresses: [], preferences: [] });
 	});
@@ -720,6 +871,65 @@ suite('RemotesModel', () => {
 			removals: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop'],
 			ssh: { name: 'build', connectionToken: undefined, connection: { type: 'ssh', address: 'ssh:build', hostName: 'build.example', user: 'developer', port: 22, sshConfigHost: 'build' } },
 			rediscovered: [{ kind: 'ssh', canRemove: false }, ...(isWindows ? [{ kind: 'wsl', canRemove: false }] : []), { kind: 'tunnel', canRemove: false }],
+		});
+	});
+
+	test('saved SSH hosts are Available only after their SSH server responds', async () => {
+		const { model, storage, setSSHReachability } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		const availability = () => model.remotes.get().find(remote => remote.id === 'ssh:removed')?.availability;
+		const probe = new DeferredPromise<SSHHostReachability>();
+		setSSHReachability(() => probe.p);
+		const initial = availability();
+		const refresh = model.refresh(CancellationToken.None);
+		await timeout(0);
+		const checking = availability();
+		probe.complete('reachable');
+		await refresh;
+		const reachable = availability();
+		const recheck = new DeferredPromise<SSHHostReachability>();
+		setSSHReachability(() => recheck.p);
+		const refreshAgain = model.refresh(CancellationToken.None);
+		await timeout(0);
+		const rechecking = availability();
+		recheck.complete('unreachable');
+		await refreshAgain;
+		const unreachable = availability();
+		setSSHReachability(async () => { throw new Error('probe failed'); });
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ initial, checking, reachable, rechecking, unreachable, failed: availability() }, {
+			initial: 'pending', checking: 'pending', reachable: 'online', rechecking: 'online', unreachable: 'unknown', failed: 'unknown',
+		});
+	});
+
+	test('SSH discovery failure invalidates its previous reachability result without removing the row', async () => {
+		const { model, setSSHDiscovery, setSSHReachability } = setup();
+		setSSHReachability(async () => 'reachable');
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => model.remotes.get().find(remote => remote.id === 'ssh:build')!.availability;
+		const online = snapshot();
+		setSSHDiscovery(async () => { throw new Error('Configuration unavailable'); });
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ online, failed: snapshot() }, { online: 'online', failed: 'unknown' });
+	});
+
+	(isWindows ? test : test.skip)('failed WSL checks cannot reuse an old offline result', async () => {
+		const { model, setWSLDistros, wslState, wslConnectionsChanged } = setup();
+		setWSLDistros([]);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => model.remotes.get().find(remote => remote.id === 'wsl:Ubuntu')!.availability;
+		const missing = snapshot();
+		wslState.discoveryFailure = new Error('WSL unavailable');
+		await model.refresh(CancellationToken.None);
+		const discoveryFailed = snapshot();
+		wslState.discoveryFailure = undefined;
+		setWSLDistros([{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }]);
+		await model.refresh(CancellationToken.None);
+		wslState.runningFailure = new Error('Running distributions unavailable');
+		wslConnectionsChanged.fire();
+		await timeout(0);
+		assert.deepStrictEqual({ missing, discoveryFailed, runningFailed: snapshot() }, {
+			missing: 'offline', discoveryFailed: 'unknown', runningFailed: 'unknown',
 		});
 	});
 
@@ -1053,6 +1263,25 @@ suite('RemotesModel', () => {
 		}, { removable: isWindows ? [false] : [], discoveryCalls: isWindows ? 1 : 0 });
 	});
 
+	(isWindows ? test : test.skip)('WSL rows are available only while the distribution is running', async () => {
+		const { model, setWSLDistros } = setup();
+		const snapshot = async (running: boolean | undefined) => {
+			setWSLDistros(running === undefined ? [] : [{ name: 'Ubuntu', isDefault: true, isRunning: running, version: 2 }]);
+			await model.refresh(CancellationToken.None);
+			const remote = model.remotes.get().find(remote => remote.id === 'wsl:Ubuntu');
+			return { availability: remote?.availability, startsOnConnect: remote?.startsOnConnect ?? false };
+		};
+		assert.deepStrictEqual({
+			running: await snapshot(true),
+			stopped: await snapshot(false),
+			uninstalled: await snapshot(undefined),
+		}, {
+			running: { availability: 'online', startsOnConnect: false },
+			stopped: { availability: 'offline', startsOnConnect: true },
+			uninstalled: { availability: 'offline', startsOnConnect: false },
+		});
+	});
+
 	test('tracks provider connection state and stops observing removed providers', async () => {
 		const { model, providers, providersChanged } = setup();
 		await model.refresh(CancellationToken.None);
@@ -1180,20 +1409,30 @@ suite('RemotesModel', () => {
 		}, { hidden: ['ssh:build', 'tunnel:laptop'], externallyShown: false, remainingHidden: [], entries: [], connectionChanges: [], reconnects: [], removals: [] });
 	});
 
-	test('offline environment visibility is account-scoped and cannot bypass availability', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentConnections, addEnvironmentProvider } = setup();
+	test('offline environment visibility remains editable and account-scoped without bypassing availability', async () => {
+		const { model, configuration, providers, environmentAvailable, environmentHosts, environmentState, environmentConnections, addEnvironmentProvider } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		const host = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' } as const;
 		environmentHosts.set([host], undefined);
-		addEnvironmentProvider(host.id);
+		const provider = addEnvironmentProvider(host.id);
+		await model.refresh(CancellationToken.None);
 		const id = cloudSandboxAddress('desktop');
+		const snapshot = () => {
+			const remote = model.remotes.get().find(remote => remote.id === id)!;
+			return {
+				hidden: remote.hidden, reason: remote.pickerUnavailableReason,
+				inPicker: getSessionCreationEnvironments([...providers.values()]).some(environment => environment.providerIds.includes(provider.id)),
+			};
+		};
 		model.setHidden(id, true);
 		const hosts = [{ ...host, status: 'offline' }] as const;
 		environmentHosts.set(hosts, undefined);
-		const hidden = model.remotes.get().find(remote => remote.id === id)?.hidden;
-		assert.throws(() => model.setHidden(id, false), /when this computer is online/);
-		const reason = model.remotes.get().find(remote => remote.id === id)?.pickerUnavailableReason;
+		provider.isAvailableInEnvironmentPicker.set(false, undefined);
+		const hiddenOffline = snapshot();
+		model.setHidden(id, false);
+		const shownOffline = snapshot();
+		model.setHidden(id, true);
 		environmentState.account = 'account-two';
 		environmentHosts.set([...hosts], undefined);
 		const otherAccount = model.remotes.get().find(remote => remote.id === id)?.hidden;
@@ -1202,9 +1441,24 @@ suite('RemotesModel', () => {
 		const restored = model.remotes.get().find(remote => remote.id === id)?.hidden;
 		await assert.rejects(model.setConnected(id, true), /offline/);
 		environmentHosts.set([host], undefined);
+		provider.isAvailableInEnvironmentPicker.set(true, undefined);
+		const hiddenOnline = snapshot();
 		model.setHidden(id, false);
-		assert.deepStrictEqual({ hidden, otherAccount, restored, reason, environmentConnections }, {
-			hidden: true, otherAccount: false, restored: true, reason: 'Available in the environment picker when this computer is online.', environmentConnections: [],
+		const shownOnline = snapshot();
+		environmentHosts.set(hosts, undefined);
+		provider.isAvailableInEnvironmentPicker.set(false, undefined);
+		const offlineAgain = snapshot();
+		environmentHosts.set([host], undefined);
+		provider.isAvailableInEnvironmentPicker.set(true, undefined);
+		assert.deepStrictEqual({ hiddenOffline, shownOffline, otherAccount, restored, hiddenOnline, shownOnline, offlineAgain, onlineAgain: snapshot(), environmentConnections }, {
+			hiddenOffline: { hidden: true, reason: undefined, inPicker: false },
+			shownOffline: { hidden: false, reason: undefined, inPicker: false },
+			otherAccount: false, restored: true,
+			hiddenOnline: { hidden: true, reason: undefined, inPicker: false },
+			shownOnline: { hidden: false, reason: undefined, inPicker: true },
+			offlineAgain: { hidden: false, reason: undefined, inPicker: false },
+			onlineAgain: { hidden: false, reason: undefined, inPicker: true },
+			environmentConnections: [],
 		});
 		environmentHosts.set([], undefined);
 		assert.throws(() => model.setHidden(id, true), /no longer available/);
@@ -1244,32 +1498,54 @@ suite('RemotesModel', () => {
 				};
 			};
 			const discovered = snapshot();
-			assert.throws(() => model.setHidden(id, false), /Connect once/);
-			assert.throws(() => model.setHidden(id, true), /Connect once/);
+			model.setHidden(id, true);
+			const hiddenBeforeRegistration = snapshot();
 			providers.set(id, provider);
 			providersChanged.fire({ added: [], removed: [] });
+			const registeredHidden = snapshot();
+			model.setHidden(id, false);
 			const registered = snapshot();
+			model.setHidden(id, true);
+			const hiddenDisconnected = snapshot();
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			const hiddenConnected = snapshot();
+			model.setHidden(id, false);
+			const connected = snapshot();
 			model.setHidden(id, true);
 			const hidden = snapshot();
 			provider.isAvailableInEnvironmentPicker.set(false, undefined);
 			const unavailable = snapshot();
-			assert.throws(() => model.setHidden(id, false), /isn't currently available/);
+			model.setHidden(id, false);
+			const shownUnavailable = snapshot();
 			provider.isAvailableInEnvironmentPicker.set(true, undefined);
 			const availableAgain = snapshot();
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			const disconnected = snapshot();
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Update required', ['1']), undefined);
+			const incompatible = snapshot();
+			model.setHidden(id, true);
+			const hiddenIncompatible = snapshot();
 			model.setHidden(id, false);
-			const shown = snapshot();
 			providers.delete(id);
 			providersChanged.fire({ added: [], removed: [] });
 			assert.deepStrictEqual({
-				discovered, registered, hidden, unavailable, availableAgain, shown, withdrawn: snapshot(), connectionChanges, reconnects, removals,
+				discovered, hiddenBeforeRegistration, registeredHidden, registered, hiddenDisconnected, hiddenConnected, connected, hidden, unavailable, shownUnavailable, availableAgain, disconnected, incompatible, hiddenIncompatible, withdrawn: snapshot(), connectionChanges, reconnects, removals,
 			}, {
-				discovered: { hidden: false, reason: 'Connect once to add this remote to the environment picker.', inPicker: false },
+				discovered: { hidden: false, reason: undefined, inPicker: false },
+				hiddenBeforeRegistration: { hidden: true, reason: undefined, inPicker: false },
+				registeredHidden: { hidden: true, reason: undefined, inPicker: false },
 				registered: { hidden: false, reason: undefined, inPicker: true },
+				hiddenDisconnected: { hidden: true, reason: undefined, inPicker: false },
+				hiddenConnected: { hidden: true, reason: undefined, inPicker: false },
+				connected: { hidden: false, reason: undefined, inPicker: true },
 				hidden: { hidden: true, reason: undefined, inPicker: false },
-				unavailable: { hidden: true, reason: 'This remote isn\'t currently available in the environment picker.', inPicker: false },
-				availableAgain: { hidden: true, reason: undefined, inPicker: false },
-				shown: { hidden: false, reason: undefined, inPicker: true },
-				withdrawn: { hidden: false, reason: 'Connect once to add this remote to the environment picker.', inPicker: false },
+				unavailable: { hidden: true, reason: undefined, inPicker: false },
+				shownUnavailable: { hidden: false, reason: undefined, inPicker: false },
+				availableAgain: { hidden: false, reason: undefined, inPicker: true },
+				disconnected: { hidden: false, reason: undefined, inPicker: true },
+				incompatible: { hidden: false, reason: undefined, inPicker: false },
+				hiddenIncompatible: { hidden: true, reason: undefined, inPicker: false },
+				withdrawn: { hidden: false, reason: undefined, inPicker: false },
 				connectionChanges: [], reconnects: [], removals: [],
 			});
 		});
@@ -1341,12 +1617,19 @@ suite('RemotesModel', () => {
 			{ id: 'sandbox', name: 'Task sandbox', kind: 'managed-sandbox', status: 'online' },
 			{ id: 'future', name: 'Future kind', kind: 'future', status: 'online' },
 		], undefined);
-		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
-			id: remote.id, name: remote.name, unavailable: !!remote.unavailableReason, canRemove: remote.canRemove,
-		})), [
-			{ id: cloudSandboxAddress('online'), name: 'A desktop', unavailable: false, canRemove: true },
-			{ id: cloudSandboxAddress('offline'), name: 'B desktop', unavailable: true, canRemove: true },
-		]);
+		const environmentRows = () => model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
+			id: remote.id, name: remote.name, availability: remote.availability, unavailable: !!remote.unavailableReason, canRemove: remote.canRemove,
+		}));
+		// Hosts restored before discovery keep a stale status, so they aren't reported as online or offline.
+		const restored = environmentRows().map(row => row.availability);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ restored, verified: environmentRows() }, {
+			restored: ['pending', 'pending'],
+			verified: [
+				{ id: cloudSandboxAddress('online'), name: 'A desktop', availability: 'online', unavailable: false, canRemove: true },
+				{ id: cloudSandboxAddress('offline'), name: 'B desktop', availability: 'offline', unavailable: true, canRemove: true },
+			],
+		});
 		await assert.rejects(model.setConnected(cloudSandboxAddress('offline'), true), /offline/);
 		await assert.rejects(model.remove(cloudSandboxAddress('sandbox')), /no longer available/);
 		await model.remove(cloudSandboxAddress('online'));
@@ -1375,8 +1658,8 @@ suite('RemotesModel', () => {
 				before: {
 					confirmations: [{
 						type: 'warning',
-						message: 'Delete dev tunnel \'My test tunnel\'?',
-						detail: 'This removes the tunnel registration and disconnects all its clients, not just this device. The remote computer and its files are kept. The tunnel may reappear if the computer starts sharing again.',
+						message: 'Delete Dev Tunnel \'My test tunnel\'?',
+						detail: 'This removes the tunnel registration and disconnects all its clients. The remote computer and its files stay available. The tunnel returns when sharing restarts on that computer.',
 						primaryButton: '&&Delete',
 					}],
 					deletedTunnels: [],

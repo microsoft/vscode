@@ -892,8 +892,8 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
-	/** Opt-in Mission Control ingress configured through trusted local IPC. */
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	/** Opt-in Mission Control ingress configured through trusted local IPC. Explicit opt-out deletes the registration; temporary withdrawal only marks it offline. */
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): Promise<void>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId(): Promise<string | undefined>;
 	getMissionControlEnvironmentName(): Promise<string | undefined>;
@@ -1609,7 +1609,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Available only through local native management IPC; does not create a chat or enable sandboxing. */
 	manageHostSandboxCertificate?(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Available only through the local native Agent Host management connection. */
-	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): Promise<void>;
 	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId?(): Promise<string | undefined>;
 	getMissionControlEnvironmentName?(): Promise<string | undefined>;

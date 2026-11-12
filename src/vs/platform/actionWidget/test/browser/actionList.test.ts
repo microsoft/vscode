@@ -817,6 +817,25 @@ suite('ActionListWidget', () => {
 	}
 
 	for (const zoom of [1, 1.25]) {
+		test(`fractional hover content fits its panel at ${zoom} zoom`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('details'), hover: { content: 'Details about this action', expandable: true } }],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.style.zoom = String(zoom);
+			widget.domNode.style.fontFamily = 'monospace';
+			widget.domNode.style.letterSpacing = '0.01px';
+			widget.domNode.style.setProperty('--vscode-editorHoverWidget-border', 'transparent');
+			widget.focus();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const paragraph = widget.domNode.querySelector('.action-list-submenu-hover-header p')!;
+			const range = document.createRange();
+			range.selectNodeContents(paragraph);
+			assert.strictEqual(range.getClientRects().length, 1);
+		});
+	}
+
+	for (const zoom of [1, 1.25]) {
 		for (const contentHeight of [80, 800]) {
 			test(`bottom-aligned details remain above the input boundary at ${zoom} zoom with ${contentHeight}px content`, async () => {
 				const content = document.createElement('div');

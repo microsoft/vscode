@@ -83,6 +83,7 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		identityFile: identityFiles,
 		identityAgent: map.get('identityagent') || undefined,
 		...(map.get('proxycommand') && map.get('proxycommand')?.toLowerCase() !== 'none' ? { proxyCommand: map.get('proxycommand') } : {}),
+		...(map.get('proxyjump') && map.get('proxyjump')?.toLowerCase() !== 'none' ? { proxyJump: map.get('proxyjump') } : {}),
 		forwardAgent: map.get('forwardagent') === 'yes',
 		userKnownHostsFiles: tokenizeSSHPathList(map.get('userknownhostsfile') ?? '').map(token => token.path),
 		globalKnownHostsFiles: tokenizeSSHPathList(map.get('globalknownhostsfile') ?? '').map(token => token.path),

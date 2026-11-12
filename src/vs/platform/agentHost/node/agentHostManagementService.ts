@@ -41,11 +41,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		this._missionControl = service;
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): Promise<void> {
 		if (!this._missionControl) {
 			throw new Error('Mission Control is unavailable in this Agent Host');
 		}
-		return this._missionControl.configure(options, withdrawingAccountId);
+		return this._missionControl.configure(options, withdrawingAccountId, deleteRegistration);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {

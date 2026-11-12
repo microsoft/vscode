@@ -219,7 +219,7 @@ suite('Sessions - New Nested Session composer', () => {
 			remote: await present({ id: 'remote-agent-host-dev', label: 'Dev Box', icon: Codicon.remote }),
 		}, {
 			standard: { row: 'Chat · Start without a backing workspace', icon: Codicon.comment.id },
-			local: { row: 'This computer · Start without a backing workspace', icon: Codicon.deviceDesktop.id },
+			local: { row: 'This Computer · Start without a backing workspace', icon: Codicon.deviceDesktop.id },
 			remote: { row: 'Chat [Dev Box] · Start without a backing workspace', icon: Codicon.remote.id },
 		});
 	});

@@ -6,15 +6,12 @@
 .remotes-this-computer {
 	display: flex;
 	flex-direction: column;
-	margin-bottom: var(--vscode-spacing-size160);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 }
 
 .remotes-this-computer.sharing-expanded {
 	height: 100%;
-	max-width: 860px;
-	margin-bottom: 0;
 }
 
 .remotes-this-computer-heading {
@@ -76,6 +73,10 @@
 	white-space: nowrap;
 	margin-top: var(--vscode-spacing-size40);
 	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-foreground);
+}
+
+.remotes-this-computer:not(.sharing-active) .remotes-this-computer-status [role="status"] {
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -86,8 +87,7 @@
 	border-inline-end: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
-.remotes-this-computer-name,
-.remotes-this-computer-description {
+.remotes-this-computer-name {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -95,16 +95,15 @@
 }
 
 .remotes-this-computer-description {
-	margin: 0 0 var(--vscode-spacing-size200);
+	margin: 0 0 var(--vscode-spacing-size240);
 	line-height: 1.5;
-	white-space: normal;
-	overflow: visible;
 }
 
 .remotes-this-computer-share {
 	display: flex;
 	flex-shrink: 0;
 	gap: var(--vscode-spacing-size80);
+	margin-inline-start: auto;
 }
 
 .remotes-this-computer-share > .monaco-button {
@@ -140,7 +139,7 @@
 }
 
 .remotes-sharing-status-icon > .codicon {
-	font-size: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .remotes-this-computer-rename {
@@ -194,16 +193,12 @@
 	padding-bottom: var(--vscode-spacing-size160);
 }
 
-.remotes-sharing-notice {
-	margin: var(--vscode-spacing-size160) 0 0;
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1.5;
-	text-wrap: pretty;
+.remotes-sharing-type-field {
+	margin-bottom: var(--vscode-spacing-size240);
 }
 
 .remotes-sharing-help {
-	margin: var(--vscode-spacing-size120) 0 0;
+	margin: var(--vscode-spacing-size240) 0 0;
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 1.5;
 }
@@ -215,13 +210,18 @@
 }
 
 .remotes-sharing-question {
-	margin: 0 0 var(--vscode-spacing-size160);
+	margin: 0 0 var(--vscode-spacing-size120);
+}
+
+.remotes-sharing-choice-description,
+.remotes-sharing-choice-detail {
+	flex-basis: 100%;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	margin: 0;
 }
 
 .remotes-sharing-choice-description {
-	flex-basis: 100%;
-	font-weight: var(--vscode-fontWeight-regular);
-	margin: 0;
 	padding-inline-start: var(--vscode-spacing-size200);
 	list-style: disc;
 }
@@ -261,7 +261,6 @@
 }
 
 .remotes-sharing-name-field {
-	margin-bottom: var(--vscode-spacing-size160);
 	max-width: 420px;
 }
 
@@ -270,22 +269,12 @@
 	margin-bottom: var(--vscode-spacing-size80);
 }
 
-.remotes-sharing-name-description,
 .remotes-sharing-name-hint {
+	margin: var(--vscode-spacing-size40) 0 0;
+	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 1.5;
-	color: var(--vscode-foreground);
-}
-
-.remotes-sharing-name-description {
-	margin: 0 0 var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-body1);
-	text-wrap: pretty;
-}
-
-.remotes-sharing-name-hint {
-	margin: var(--vscode-spacing-size80) 0 0;
-	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
 }
 
 .remotes-sharing-name-hint.not-applicable {

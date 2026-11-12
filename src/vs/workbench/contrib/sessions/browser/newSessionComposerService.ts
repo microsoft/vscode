@@ -69,6 +69,8 @@ export interface INewSessionComposerPicker {
 }
 
 export interface INewSessionComposer {
+	/** Selects the environment of the given provider without submitting a request. */
+	readonly selectEnvironment?: (providerId: string) => Promise<void>;
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly modelPicker?: INewSessionComposerPicker;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
