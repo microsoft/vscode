@@ -26,8 +26,8 @@ import { CustomizationMarketplaceIcon, ICustomizationMarketplaceService } from '
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IQueryOptions, mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { getConfiguredCustomMcpGalleryUrl, IQueryOptions, isProductMcpGalleryEnabled, mcpAccessConfig, McpAccessValue, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
@@ -95,6 +95,7 @@ import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvai
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey, isInAICustomizationWorkspaceFolder } from './aiCustomizationWorkspaceGroups.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -1610,8 +1611,14 @@ export function shouldLoadMcpGallerySnapshot(visible: boolean, query: string, it
 	return accessEnabled && visible && !query.trim() && itemCount === 0 && !failed && !loading;
 }
 
-export function shouldShowLegacyMcpGallery(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
+export function shouldShowLegacyMcpGallery(configurationService: IConfigurationService, productService: IProductService): boolean {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true
+		&& (isProductMcpGalleryEnabled(configurationService, productService)
+			|| getConfiguredCustomMcpGalleryUrl(configurationService, productService) !== undefined);
+}
+
+export function shouldRestartLegacyMcpGallerySearch(query: string, showLegacyGallery: boolean): boolean {
+	return showLegacyGallery && !!query.trim();
 }
 
 export function hasSameMcpMembership(previous: string, current: string): boolean {
@@ -2150,6 +2157,7 @@ export class McpListWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -2183,7 +2191,7 @@ export class McpListWidget extends Disposable {
 				void this.refresh();
 			}
 		}));
-		if (!this.isGalleryDiscoveryEnabled()) {
+		if (this.shouldShowLegacyGallery()) {
 			void mcpGalleryManifestService.getMcpGalleryManifest();
 		}
 		void this.refresh();
@@ -2200,7 +2208,11 @@ export class McpListWidget extends Disposable {
 				this.gallerySnapshotFailed = false;
 				this.gallerySnapshotLoading = false;
 				this.gallerySearchLoading = false;
-				void this.refresh();
+				if (shouldRestartLegacyMcpGallerySearch(this.searchQuery, this.shouldShowLegacyGallery())) {
+					void this.queryMcpSearch();
+				} else {
+					void this.refresh();
+				}
 			}
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
@@ -2329,7 +2341,7 @@ export class McpListWidget extends Disposable {
 				? this.gallerySnapshotServers.filter(server => this.matchesGalleryServerQuery(server, query))
 				: [...this.gallerySnapshotServers];
 			this.delayedFilter.trigger(() => this.filterServers());
-			if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
+			if (!this.mcpAccessEnabled || !this.shouldShowLegacyGallery()) {
 				this.gallerySearchLoading = false;
 				this.delayedGallerySearch.cancel();
 				return;
@@ -2493,7 +2505,7 @@ export class McpListWidget extends Disposable {
 	private async refresh(): Promise<void> {
 		this.updateDiscoveryMessage();
 		this.filterServers();
-		if (!this.isGalleryDiscoveryEnabled() && shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
+		if (this.shouldShowLegacyGallery() && shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
 			await this.queryGallerySnapshot();
 		}
 	}
@@ -2552,7 +2564,11 @@ export class McpListWidget extends Disposable {
 	}
 
 	private isGalleryDiscoveryEnabled(): boolean {
-		return !shouldShowLegacyMcpGallery(this.configurationService);
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
+	}
+
+	private shouldShowLegacyGallery(): boolean {
+		return shouldShowLegacyMcpGallery(this.configurationService, this.productService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -2672,7 +2688,7 @@ export class McpListWidget extends Disposable {
 				}
 			}
 		} else if (accessChanged && this.visible) {
-			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {
+			if (this.searchQuery.trim() && this.shouldShowLegacyGallery()) {
 				void this.queryMcpSearch();
 			} else {
 				void this.refresh();
@@ -2684,7 +2700,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	public showBrowseMarketplace(): void {
-		if (this.isGalleryDiscoveryEnabled()) {
+		if (!this.shouldShowLegacyGallery()) {
 			return;
 		}
 		if (!this.mcpAccessEnabled) {
@@ -2696,12 +2712,18 @@ export class McpListWidget extends Disposable {
 	}
 
 	private async queryLegacyGallery(options: IQueryOptions | undefined, token: CancellationToken): Promise<IWorkbenchMcpServer[]> {
+		const customGalleryUrl = getConfiguredCustomMcpGalleryUrl(this.configurationService, this.productService);
+		const defaultGalleryEnabled = isProductMcpGalleryEnabled(this.configurationService, this.productService);
 		const [active, fallback] = await Promise.all([
-			this.mcpGalleryManifestService.getMcpGalleryManifest(),
-			this.mcpGalleryManifestService.getDefaultMcpGalleryManifest(),
+			customGalleryUrl ? this.mcpGalleryManifestService.getMcpGalleryManifest() : Promise.resolve(null),
+			defaultGalleryEnabled ? this.mcpGalleryManifestService.getDefaultMcpGalleryManifest() : Promise.resolve(null),
 		]);
-		const manifests = active && fallback && active.url !== fallback.url ? [active, fallback] : [active ?? fallback ?? undefined];
-		const pages = await Promise.allSettled((manifests[0] ? manifests : [undefined]).map(async manifest =>
+		const manifests = [
+			active && normalizeMcpGalleryUrl(active.url) === customGalleryUrl ? active : null,
+			fallback,
+		].filter((manifest): manifest is IMcpGalleryManifest => manifest !== null)
+			.filter((manifest, index, manifests) => manifests.findIndex(candidate => candidate.url === manifest.url) === index);
+		const pages = await Promise.allSettled(manifests.map(async manifest =>
 			(await this.mcpWorkbenchService.queryGallery(options, token, manifest)).firstPage.items));
 		if (pages.length && pages.every(page => page.status === 'rejected')) {
 			throw pages[0].reason;
@@ -2710,7 +2732,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private async queryGallerySnapshot(revealMarketplace = false): Promise<void> {
-		if (!this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
+		if (!this.mcpAccessEnabled || !this.shouldShowLegacyGallery()) {
 			return;
 		}
 		this.galleryCts?.dispose(true);
@@ -2754,7 +2776,7 @@ export class McpListWidget extends Disposable {
 
 	private async queryMcpSearch(): Promise<void> {
 		const query = this.searchQuery.trim();
-		if (!query || !this.mcpAccessEnabled || this.isGalleryDiscoveryEnabled()) {
+		if (!query || !this.mcpAccessEnabled || !this.shouldShowLegacyGallery()) {
 			return;
 		}
 
@@ -3034,7 +3056,7 @@ export class McpListWidget extends Disposable {
 			return;
 		}
 
-		const showGallery = !this.isGalleryDiscoveryEnabled();
+		const showGallery = this.shouldShowLegacyGallery();
 		const allInstalledEntries = this.installedEntries.map(presentation => presentation.entry);
 		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
 		const grouped = new Map<string, IMcpSectionEntry[]>([

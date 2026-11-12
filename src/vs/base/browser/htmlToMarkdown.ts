@@ -100,7 +100,13 @@ function convertNode(node: Node): string {
 			return `- ${convertChildren(el).trim()}\n`;
 
 		case 'p':
+		case 'summary':
 			return `${convertChildren(el)}\n\n`;
+
+		case 'tr':
+			return `\n${Array.from(el.children)
+				.filter(child => child.localName === 'th' || child.localName === 'td')
+				.map(cell => convertChildren(cell).trim()).join(' | ')}\n`;
 
 		case 'div':
 			return `${convertChildren(el)}\n`;

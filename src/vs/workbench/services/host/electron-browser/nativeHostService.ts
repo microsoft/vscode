@@ -226,8 +226,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Screenshots
 
-	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> {
-		return this.nativeHostService.getScreenshot(rect);
+	getScreenshot(rect?: IRectangle, targetWindow?: Window): Promise<VSBuffer | undefined> {
+		return this.nativeHostService.getScreenshot(rect, targetWindow ? { targetWindowId: getWindowId(targetWindow) } : undefined);
 	}
 
 	//#endregion

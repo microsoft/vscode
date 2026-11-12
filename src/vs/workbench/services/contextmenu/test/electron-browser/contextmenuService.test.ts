@@ -20,6 +20,7 @@ import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { NativeContextMenuService } from '../../electron-browser/contextmenuService.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('Native ContextMenuService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -125,6 +126,7 @@ suite('Native ContextMenuService', () => {
 				const frame = mainWindow.document.createElement('iframe');
 				mainWindow.document.body.appendChild(frame);
 				store.add(toDisposable(() => frame.remove()));
+				store.add(registerTestIframe(frame));
 				const targetWindow = frame.contentWindow!;
 				const didRun = new DeferredPromise<void>();
 				const action = store.add(new Action('test', 'Test', undefined, true, async () => {

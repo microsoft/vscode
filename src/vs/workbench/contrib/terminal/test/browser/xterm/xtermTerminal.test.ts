@@ -32,6 +32,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 import { stub } from 'sinon';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 registerColors();
 
@@ -432,6 +433,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryDocument = iframe.contentDocument!;
 		const auxiliaryContainer = document.createElement('div');
 		auxiliaryDocument.body.appendChild(auxiliaryContainer);
@@ -475,6 +477,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryDocument = iframe.contentDocument!;
 		const auxiliaryContainer = document.createElement('div');
 		auxiliaryDocument.body.appendChild(auxiliaryContainer);
@@ -509,6 +512,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryContainer = document.createElement('div');
 		iframe.contentDocument!.body.appendChild(auxiliaryContainer);
 		auxiliaryContainer.appendChild(xterm.raw.element!);

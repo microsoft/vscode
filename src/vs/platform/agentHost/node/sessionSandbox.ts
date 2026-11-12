@@ -9,7 +9,7 @@ import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSet
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { resolveSessionSandboxPaths } from '../common/sandboxPathGrant.js';
+import { resolveSessionSandboxPaths, type ISessionSandboxPaths } from '../common/sandboxPathGrant.js';
 import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from './agentConfigurationService.js';
 import type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
@@ -20,16 +20,20 @@ export type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMet
  * of the client's OS or configuration source: the chat's own selection over the
  * session's, within the session's policy floor.
  */
-export function getSessionSandboxConfig(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget, platform: NodeJS.Platform = process.platform): ISandboxConfigValue {
+export function getSessionSandboxConfig(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget, platform: NodeJS.Platform = process.platform, workspacePaths?: ISessionSandboxPaths): ISandboxConfigValue {
 	const sandbox = {
 		...configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
 		...getSessionSandboxOverrides(configuration, target),
 	};
 	const policy = configuration.getSessionSandboxPolicy(target.session);
 	const sessionPaths = configuration.getSessionSandboxPaths(target.session);
-	if (sessionPaths) {
+	if (workspacePaths || sessionPaths) {
 		const os = platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
-		sandbox[AgentHostSandboxKey.UserConfiguredPaths] = resolveSessionSandboxPaths(sandbox[AgentHostSandboxKey.UserConfiguredPaths], sessionPaths, os);
+		for (const paths of [workspacePaths, sessionPaths]) {
+			if (paths) {
+				sandbox[AgentHostSandboxKey.UserConfiguredPaths] = resolveSessionSandboxPaths(sandbox[AgentHostSandboxKey.UserConfiguredPaths], paths, os);
+			}
+		}
 	}
 	const addCurrentWorkingDirectory = SandboxSettingsResolutionHelper.resolveAllowAccess(
 		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory],

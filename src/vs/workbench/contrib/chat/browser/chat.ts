@@ -193,6 +193,9 @@ export interface IChatCodeBlockInfo {
 	codemapperUri: URI | undefined;
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
+	readonly isFocused?: boolean;
+	/** Reveals hidden code without taking focus; returns whether its layout changed. */
+	reveal?(): boolean;
 	readonly languageId?: string | undefined;
 	readonly editDeltaInfo?: EditDeltaInfo | undefined;
 }
@@ -266,6 +269,8 @@ export interface IChatListItemRendererOptions {
 	 * so command/tool output pasted by the model wraps instead of overflowing).
 	 */
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	/** Enables isolated previews for explicit html-preview fences in responses. */
+	readonly renderHtmlPreviews?: boolean;
 	/** Presents responses as coming from this identity instead of the responding agent's own. */
 	readonly responseIdentity?: IChatResponseIdentity;
 }
