@@ -87,10 +87,10 @@ export const mcpWorkspaceRootConfig = 'chat.mcp.workspaceRootConfig.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
 
-/** User-scoped hints for selecting existing MCP authentication sessions. */
-export const mcpAuthenticationLoginHintsSection = 'mcp.authentication.loginHints';
+/** User-scoped account hints for MCP servers managed by Copilot Agent Host. */
+export const agentHostMcpLoginHintsSection = 'chat.agentHost.mcp.loginHints';
 
-export interface IMcpAuthenticationLoginHints {
+export interface IAgentHostMcpLoginHints {
 	/** Default login hint keyed by resolved authentication provider id. */
 	readonly defaults?: Readonly<Record<string, string>>;
 	/** Override keyed by the configured MCP server name. */
