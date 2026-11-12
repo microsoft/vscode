@@ -187,7 +187,7 @@ suite('AgentsViewFolderLocation', () => {
 		return { opened, pick };
 	}
 
-	test('a linked checkout shows with the git worktree icon, as worktree sections of the Sessions list and the composer\'s folder picker do', async () => {
+	test('a linked checkout shows with the git worktree icon, as the composer\'s folder picker shows a worktree', async () => {
 		const provider = new AgentsViewFolderLocationProvider(fileService);
 
 		const location = await provider.resolveLocation(URI.file('/work/vscode'), URI.file('/work/vscode.worktrees/feature'), CancellationToken.None);
