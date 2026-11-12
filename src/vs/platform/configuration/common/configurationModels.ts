@@ -1136,7 +1136,8 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
+				// The layout layer also wins over folder settings, which in a single folder workspace are the workspace settings
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration, this._layoutConfiguration);
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;

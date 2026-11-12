@@ -52,6 +52,14 @@ export interface INamedLayoutParticipant {
 	 * persisted, so participants must validate them before applying them.
 	 */
 	apply(state: unknown): Promise<void>;
+
+	/**
+	 * Implemented by participants whose state the default layout shares with the
+	 * other windows of the profile. Restores that shared state when the default
+	 * layout becomes active. The state of such participants is not saved for the
+	 * default layout, and {@link apply} is only called for named layouts.
+	 */
+	applyDefault?(): Promise<void>;
 }
 
 export interface INamedLayoutsService {
@@ -80,6 +88,8 @@ export interface INamedLayoutsService {
 
 	/**
 	 * Registers a participant that captures and applies one aspect of named layouts.
+	 * A participant that implements {@link INamedLayoutParticipant.applyDefault} is
+	 * brought in line with the active layout when it registers.
 	 */
 	registerParticipant(participant: INamedLayoutParticipant): IDisposable;
 

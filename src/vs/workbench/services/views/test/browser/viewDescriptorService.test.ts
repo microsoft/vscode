@@ -18,6 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ISharedLayoutStateService } from '../../../layout/common/sharedLayoutState.js';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
@@ -722,6 +723,27 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)), ['view1', 'view2']);
 		assert.deepStrictEqual(viewContainer1Views.visibleViewDescriptors.map(v => v.id), ['view2']);
 		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), []);
+	});
+
+	test('a local copy of the layout state moves view containers only in this window', async function () {
+		const testObject = aViewDescriptorService();
+		const storageService = instantiationService.get(IStorageService);
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		// eslint-disable-next-line local/code-no-any-casts
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const sharedCustomizations = storageService.get('views.customizations', StorageScope.PROFILE);
+
+		sharedLayoutStateService.setLocalState(sharedLayoutStateService.getState());
+		testObject.moveViewContainerToLocation(viewContainer, ViewContainerLocation.Panel);
+		const local = { location: testObject.getViewContainerLocation(viewContainer), sharedChanged: storageService.get('views.customizations', StorageScope.PROFILE) !== sharedCustomizations };
+
+		sharedLayoutStateService.setLocalState(undefined);
+		const shared = testObject.getViewContainerLocation(viewContainer);
+
+		assert.deepStrictEqual({ local, shared }, {
+			local: { location: ViewContainerLocation.Panel, sharedChanged: false },
+			shared: ViewContainerLocation.Sidebar
+		});
 	});
 
 });

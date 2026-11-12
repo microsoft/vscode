@@ -267,6 +267,28 @@ suite('ViewContainerModel', () => {
 		assert.deepStrictEqual(target.elements, [view1, view2, view3]);
 	});
 
+	test('applies the order of views stored by another window', () => {
+		// eslint-disable-next-line local/code-no-any-casts
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1') };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2') };
+		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: nls.localize2('Test View 3', 'Test View 3') };
+		ViewsRegistry.registerViews([view1, view2, view3], container);
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([
+			{ id: 'view1', isHidden: false, order: 2 },
+			{ id: 'view2', isHidden: false, order: 0 },
+			{ id: 'view3', isHidden: false, order: 1 }
+		]), StorageScope.PROFILE, StorageTarget.USER);
+
+		assert.deepStrictEqual(
+			{ model: testObject.visibleViewDescriptors.map(({ id }) => id), events: target.elements.map(({ id }) => id) },
+			{ model: ['view2', 'view3', 'view1'], events: ['view2', 'view3', 'view1'] }
+		);
+	});
+
 	test('view states', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		// eslint-disable-next-line local/code-no-any-casts

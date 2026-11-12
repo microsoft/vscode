@@ -20,6 +20,7 @@ import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js'
 import { CounterSet } from '../../../../base/common/map.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { windowLogGroup } from '../../log/common/logConstants.js';
+import { ISharedLayoutStateService } from '../../layout/common/sharedLayoutState.js';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
@@ -54,12 +55,16 @@ class ViewDescriptorsState extends Disposable {
 	private _onDidChangeStoredState = this._register(new Emitter<{ id: string; visible: boolean }[]>());
 	readonly onDidChangeStoredState = this._onDidChangeStoredState.event;
 
+	private _onDidChangeStoredOrder = this._register(new Emitter<{ id: string; order: number | undefined }[]>());
+	readonly onDidChangeStoredOrder = this._onDidChangeStoredOrder.event;
+
 	private readonly logger: Lazy<ILogger>;
 
 	constructor(
 		viewContainerStorageId: string,
 		private readonly viewContainerName: string,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
@@ -68,7 +73,7 @@ class ViewDescriptorsState extends Disposable {
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
+		this._register(this.sharedLayoutStateService.onDidChangeValue(this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
 
 		this.state = this.initialize();
 
@@ -127,6 +132,7 @@ class ViewDescriptorsState extends Disposable {
 			const storedViewsVisibilityStates = this.getStoredGlobalState();
 			const storedWorkspaceViewsStates = this.getStoredWorkspaceState();
 			const changedStates: { id: string; visible: boolean }[] = [];
+			const changedOrders: { id: string; order: number | undefined }[] = [];
 			for (const [id, storedState] of storedViewsVisibilityStates) {
 				const state = this.get(id);
 				if (state) {
@@ -135,6 +141,9 @@ class ViewDescriptorsState extends Disposable {
 							this.logger.value.trace(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
 						}
 						changedStates.push({ id, visible: !storedState.isHidden });
+					}
+					if (state.order !== storedState.order) {
+						changedOrders.push({ id, order: storedState.order });
 					}
 				} else {
 					const workspaceViewState: IStoredWorkspaceViewState | undefined = storedWorkspaceViewsStates[id];
@@ -158,6 +167,9 @@ class ViewDescriptorsState extends Disposable {
 						state.visibleGlobal = changedState.visible;
 					}
 				}
+			}
+			if (changedOrders.length) {
+				this._onDidChangeStoredOrder.fire(changedOrders);
 			}
 		}
 	}
@@ -269,11 +281,11 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private getStoredGlobalViewsStatesValue(): string {
-		return this.storageService.get(this.globalViewsStateStorageId, StorageScope.PROFILE, '[]');
+		return this.sharedLayoutStateService.get(this.globalViewsStateStorageId, '[]');
 	}
 
 	private setStoredGlobalViewsStatesValue(value: string): void {
-		this.storageService.store(this.globalViewsStateStorageId, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.sharedLayoutStateService.store(this.globalViewsStateStorageId, value);
 	}
 
 }
@@ -339,6 +351,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.original));
 		this._register(this.viewDescriptorsState.onDidChangeStoredState(items => this.updateVisibility(items)));
+		this._register(this.viewDescriptorsState.onDidChangeStoredOrder(items => this.updateOrder(items)));
 
 		this.updateContainerInfo();
 	}
@@ -451,6 +464,40 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 
 	isCollapsed(id: string): boolean {
 		return !!this.find(id).viewDescriptorItem.state.collapsed;
+	}
+
+	/**
+	 * Applies an order of the views that was stored by another window or that
+	 * belongs to a layout. The order of workspace views is stored per workspace.
+	 */
+	private updateOrder(viewDescriptors: { id: string; order: number | undefined }[]): void {
+		let changed = false;
+		for (const { id, order } of viewDescriptors) {
+			const viewDescriptorItem = this.findAndIgnoreIfNotFound(id)?.viewDescriptorItem;
+			if (viewDescriptorItem && !viewDescriptorItem.viewDescriptor.workspace && viewDescriptorItem.state.order !== order) {
+				viewDescriptorItem.state.order = order;
+				changed = true;
+			}
+		}
+		if (!changed) {
+			return;
+		}
+
+		const visibleViewDescriptors = [...this.visibleViewDescriptors];
+		this.viewDescriptorItems.sort(this.compareViewDescriptors.bind(this));
+
+		// Report the new order of the visible views as a sequence of moves
+		const sortedVisibleViewDescriptors = this.visibleViewDescriptors;
+		for (let index = 0; index < sortedVisibleViewDescriptors.length; index++) {
+			const viewDescriptor = sortedVisibleViewDescriptors[index];
+			const fromIndex = visibleViewDescriptors.indexOf(viewDescriptor);
+			if (fromIndex !== index) {
+				const to = visibleViewDescriptors[index];
+				move(visibleViewDescriptors, fromIndex, index);
+				this._onDidMoveVisibleViewDescriptors.fire({ from: { index: fromIndex, viewDescriptor }, to: { index, viewDescriptor: to } });
+			}
+		}
+		this.updateContainerInfo();
 	}
 
 	setCollapsed(id: string, collapsed: boolean): void {

@@ -105,8 +105,8 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 
 	/**
 	 * Replaces the settings of the named layout that is active in this window.
-	 * These settings apply to this window only and take precedence over user and
-	 * workspace settings. Settings that are not layout overridable are ignored.
+	 * These settings apply to this window only and take precedence over user,
+	 * workspace and workspace folder settings. Settings that are not layout overridable are ignored.
 	 * Pass an empty object if no named layout is active.
 	 */
 	setLayoutConfiguration(settings: IStringDictionary<unknown>): void;

@@ -17,7 +17,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from '../../../services/namedLayouts/common/namedLayouts.js';
-import { EditorGroupsLayoutParticipant, WorkbenchPartsLayoutParticipant } from './namedLayoutParticipants.js';
+import { EditorGroupsLayoutParticipant, SharedLayoutStateParticipant, WorkbenchPartsLayoutParticipant } from './namedLayoutParticipants.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			markdownDescription: localize('namedLayouts.enabled', "Controls whether the current layout of a window can be saved as a named layout and whether a window can switch between named layouts. A named layout contains the arrangement of the side bars, the panel and the editor groups and the values of layout related settings such as {0}. Changes made while a named layout is active are saved into that layout.", '`#workbench.editor.showTabs#`')
+			markdownDescription: localize('namedLayouts.enabled', "Controls whether the current layout of a window can be saved as a named layout and whether a window can switch between named layouts. A named layout contains the arrangement of the side bars, the panel and the editor groups, the location, visibility and order of view containers and views, and the values of layout related settings such as {0}. Changes made while a named layout is active are saved into that layout.", '`#workbench.editor.showTabs#`')
 		}
 	}
 });
@@ -42,8 +42,11 @@ class NamedLayoutParticipantsContribution extends Disposable implements IWorkben
 		super();
 
 		// Participants are applied in registration order. Editor groups go first because
-		// changing them can unmaximize parts, the parts participant restores maximized parts last
+		// changing them can unmaximize parts, the parts participant restores maximized parts last.
+		// The shared layout state goes before the parts participant, so that the active view
+		// containers it opens are in their locations
 		this._register(namedLayoutsService.registerParticipant(instantiationService.createInstance(EditorGroupsLayoutParticipant)));
+		this._register(namedLayoutsService.registerParticipant(instantiationService.createInstance(SharedLayoutStateParticipant)));
 		this._register(namedLayoutsService.registerParticipant(instantiationService.createInstance(WorkbenchPartsLayoutParticipant)));
 	}
 }

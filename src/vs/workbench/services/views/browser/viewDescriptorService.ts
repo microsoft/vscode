@@ -25,6 +25,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { IViewsService } from '../common/viewsService.js';
 import { windowLogGroup } from '../../log/common/logConstants.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { ISharedLayoutStateService } from '../../layout/common/sharedLayoutState.js';
 
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
@@ -80,6 +81,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILoggerService loggerService: ILoggerService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 	) {
 		super();
 
@@ -123,7 +125,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: viewContainerLocation }], added: [] });
 		}));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._store)(() => this.onDidStorageChange()));
+		this._register(this.sharedLayoutStateService.onDidChangeValue(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._store)(() => this.onDidStorageChange()));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.whenExtensionsRegistered());
 
@@ -548,7 +550,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewContainerBadgeEnablementStates.delete(viewContainerId);
 
 		// Clean up caches of container
-		this.storageService.remove(getViewsStateStorageId(viewContainer?.storageId || getViewContainerStorageId(viewContainerId)), StorageScope.PROFILE);
+		this.sharedLayoutStateService.remove(getViewsStateStorageId(viewContainer?.storageId || getViewContainerStorageId(viewContainerId)));
 	}
 
 	private registerGeneratedViewContainer(location: ViewContainerLocation, existingId?: string): ViewContainer {
@@ -645,6 +647,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this.viewContainersCustomLocations = newViewContainerCustomizations;
 		this.viewDescriptorsCustomLocations = newViewDescriptorCustomizations;
+		this.viewContainerBadgeEnablementStates = new Map<string, boolean>(Object.entries(this.viewCustomizations.viewContainerBadgeEnablementStates));
 	}
 
 	// Generated Container Id Format
@@ -712,14 +715,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (this.isSessionsWindow) {
 			return '{}';
 		}
-		return this.storageService.get(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, StorageScope.PROFILE, '{}');
+		return this.sharedLayoutStateService.get(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, '{}');
 	}
 
 	private setStoredViewCustomizationsValue(value: string): void {
 		if (this.isSessionsWindow) {
 			return;
 		}
-		this.storageService.store(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.sharedLayoutStateService.store(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, value);
 	}
 
 	private getViewsByContainer(viewContainer: ViewContainer): IViewDescriptor[] {

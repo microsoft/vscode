@@ -102,6 +102,17 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		this.participants.push(participant);
 
+		// A participant that shares its state with the default layout may still use the
+		// local copy of a named layout that no longer exists, or may not use a local copy
+		// for a layout saved before the participant existed
+		if (participant.applyDefault) {
+			this.sequencer.queue(async () => {
+				if (this.participants.includes(participant)) {
+					await this.applyLayoutState(this.getStoredLayout(this._activeLayout.id), [participant]);
+				}
+			}).catch(error => this.logService.error(`[named layouts] Failed to restore the state of participant '${participant.id}'.`, error));
+		}
+
 		return toDisposable(() => {
 			const index = this.participants.indexOf(participant);
 			if (index !== -1) {
@@ -136,6 +147,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.configurationService.setLayoutConfiguration(layout.settings);
 			this.setActiveLayout(layout);
 			this._onDidChangeLayouts.fire();
+
+			// Participants that share their state with the default layout switch to a local copy
+			await this.applyLayoutState(layout, this.participants.filter(participant => participant.applyDefault));
 
 			return this._activeLayout;
 		});
@@ -185,7 +199,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		// Apply settings first because participants may depend on them
 		this.configurationService.setLayoutConfiguration(storedLayout?.settings ?? {});
 		this.setActiveLayout(storedLayout ?? this.defaultLayout);
-		await this.applyState(storedLayout ? storedLayout.state : this.loadDefaultLayoutState());
+		await this.applyLayoutState(storedLayout, [...this.participants]);
 	}
 
 	private queueSwitchToDefaultLayout(saveOutgoingLayout: boolean): void {
@@ -205,8 +219,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return this.defaultLayout;
 		}
 
-		// The workbench restores the state of the participants itself,
-		// only the settings of the layout need to be restored
+		// The workbench restores the state of the participants itself, participants
+		// that share their state with the default layout are restored when they register.
+		// Only the settings of the layout need to be restored here
 		this.configurationService.setLayoutConfiguration(storedLayout.settings);
 
 		return { id: storedLayout.id, name: storedLayout.name };
@@ -226,7 +241,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	private saveOutgoingLayout(): void {
 		if (this._activeLayout.id === DEFAULT_NAMED_LAYOUT_ID) {
-			const state = { ...this.loadDefaultLayoutState(), ...this.captureState() };
+			// The state that the default layout shares with other windows is stored by its owners
+			const state = { ...this.loadDefaultLayoutState(), ...this.captureState(participant => !participant.applyDefault) };
 			this.storageService.store(NamedLayoutsService.DEFAULT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.saveActiveLayout();
@@ -255,9 +271,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 	}
 
-	private captureState(): IStringDictionary<unknown> {
+	private captureState(filter: (participant: INamedLayoutParticipant) => boolean = () => true): IStringDictionary<unknown> {
 		const state: IStringDictionary<unknown> = {};
-		for (const participant of this.participants) {
+		for (const participant of this.participants.filter(filter)) {
 			try {
 				state[participant.id] = participant.capture();
 			} catch (error) {
@@ -267,16 +283,28 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return state;
 	}
 
-	private async applyState(state: IStringDictionary<unknown>): Promise<void> {
+	/**
+	 * Applies the state of the given named layout, or of the default layout if no
+	 * layout is given, to the given participants. Must only be called from a task
+	 * of the sequencer.
+	 */
+	private async applyLayoutState(layout: IStoredNamedLayout | undefined, participants: readonly INamedLayoutParticipant[]): Promise<void> {
+		const state = layout ? layout.state : this.loadDefaultLayoutState();
 		this.isApplying = true;
 		try {
-			for (const participant of [...this.participants]) {
-				const participantState = state[participant.id];
-				if (participantState === undefined) {
-					continue;
-				}
+			for (const participant of participants) {
 				try {
-					await participant.apply(participantState);
+					if (!layout && participant.applyDefault) {
+						await participant.applyDefault();
+						continue;
+					}
+
+					// A layout saved before a participant that shares its state with the
+					// default layout existed starts with a copy of the current state
+					const participantState = state[participant.id] ?? (participant.applyDefault ? participant.capture() : undefined);
+					if (participantState !== undefined) {
+						await participant.apply(participantState);
+					}
 				} catch (error) {
 					this.logService.error(`[named layouts] Failed to apply the state of participant '${participant.id}'.`, error);
 				}

@@ -519,6 +519,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		this._register(this.onDidSashChange(() => this.saveViewSizes()));
 		this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(added => this.onDidAddViewDescriptors(added)));
 		this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(removed => this.onDidRemoveViewDescriptors(removed)));
+		this._register(this.viewContainerModel.onDidMoveVisibleViewDescriptors(() => this.updatePaneOrder()));
 		const addedViews: IAddedViewDescriptorRef[] = this.viewContainerModel.visibleViewDescriptors.map((viewDescriptor, index) => {
 			const size = this.viewContainerModel.getSize(viewDescriptor.id);
 			const collapsed = this.viewContainerModel.isCollapsed(viewDescriptor.id);
@@ -1121,6 +1122,38 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		this.viewContainerModel.move(fromViewDescriptor.id, toViewDescriptor.id);
 
 		this.updateTitleArea();
+	}
+
+	/**
+	 * Orders the panes like the visible views of the model, for example after
+	 * another window or a layout changed the order of the views. Panes that
+	 * the user moved are already in order.
+	 */
+	private updatePaneOrder(): void {
+		const visibleViewDescriptors = this.viewContainerModel.visibleViewDescriptors;
+		if (!this.paneview || visibleViewDescriptors.length !== this.paneItems.length) {
+			return;
+		}
+
+		let moved = false;
+		for (let index = 0; index < visibleViewDescriptors.length; index++) {
+			const paneIndex = this.paneItems.findIndex(item => item.pane.id === visibleViewDescriptors[index].id);
+			if (paneIndex === -1) {
+				return;
+			}
+			if (paneIndex !== index) {
+				const pane = this.paneItems[paneIndex].pane;
+				const target = this.paneItems[index].pane;
+				const [paneItem] = this.paneItems.splice(paneIndex, 1);
+				this.paneItems.splice(index, 0, paneItem);
+				this.paneview.movePane(pane, target);
+				moved = true;
+			}
+		}
+
+		if (moved) {
+			this.updateTitleArea();
+		}
 	}
 
 	resizePane(pane: ViewPane, size: number): void {

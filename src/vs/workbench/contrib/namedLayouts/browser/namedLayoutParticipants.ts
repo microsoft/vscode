@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/objects.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, isHorizontal, PanelAlignment, Parts, positionFromString, positionToString, SINGLE_WINDOW_PARTS } from '../../../services/layout/browser/layoutService.js';
+import { ISharedLayoutStateService } from '../../../services/layout/common/sharedLayoutState.js';
 import { INamedLayoutParticipant } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 
@@ -174,6 +176,43 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 
 		const currentSize = this.layoutService.getSize(part);
 		this.layoutService.setSize(part, sizeIsHeight ? { width: currentSize.width, height: state.size } : { width: state.size, height: currentSize.height });
+	}
+}
+
+function isSharedLayoutState(candidate: unknown): candidate is IStringDictionary<string | null> {
+	return isObject(candidate) && Object.values(candidate).every(value => typeof value === 'string' || value === null);
+}
+
+/**
+ * Captures and applies the layout state that the default layout shares with the
+ * other windows of the profile: the location of view containers and views, the
+ * view containers shown in the activity bar, the panel and the secondary side bar
+ * and their order, and the visibility and order of the views in each view container.
+ * While a named layout is active, this window uses a local copy of that state.
+ *
+ * Must be applied before {@link WorkbenchPartsLayoutParticipant}, so that the
+ * active view containers it opens are in their locations.
+ */
+export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
+
+	readonly id = 'workbench.sharedLayoutState';
+
+	constructor(
+		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService
+	) { }
+
+	capture(): IStringDictionary<string | null> {
+		return this.sharedLayoutStateService.getState();
+	}
+
+	async apply(state: unknown): Promise<void> {
+		if (isSharedLayoutState(state)) {
+			this.sharedLayoutStateService.setLocalState(state);
+		}
+	}
+
+	async applyDefault(): Promise<void> {
+		this.sharedLayoutStateService.setLocalState(undefined);
 	}
 }
 

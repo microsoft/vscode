@@ -56,6 +56,32 @@ class TestParticipant implements INamedLayoutParticipant {
 	}
 }
 
+/**
+ * A participant whose state the default layout shares with other windows.
+ * Named layouts use a local copy of it.
+ */
+class TestSharedParticipant implements INamedLayoutParticipant {
+
+	readonly id = 'shared';
+
+	readonly sharedState = 'shared state';
+	localState: string | undefined;
+
+	capture(): string {
+		return this.localState ?? this.sharedState;
+	}
+
+	async apply(state: unknown): Promise<void> {
+		if (typeof state === 'string') {
+			this.localState = state;
+		}
+	}
+
+	async applyDefault(): Promise<void> {
+		this.localState = undefined;
+	}
+}
+
 suite('NamedLayoutsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -150,5 +176,37 @@ suite('NamedLayoutsService', () => {
 			{ active: testObject.activeLayout.id, setting: configurationService.getValue(LAYOUT_SETTING), state: participant.state },
 			{ active: DEFAULT_NAMED_LAYOUT_ID, setting: 'userValue', state: 'default state' }
 		);
+	});
+
+	test('participants that share their state with the default layout use a local copy in named layouts', async () => {
+		const sharedParticipant = new TestSharedParticipant();
+		const testObject = createService(new TestParticipant());
+		disposables.add(testObject.registerParticipant(sharedParticipant));
+		const defaultLayout = testObject.activeLayout;
+
+		const debugLayout = await testObject.createLayout('Debug');
+		const afterCreate = sharedParticipant.localState;
+		sharedParticipant.localState = 'debug state';
+
+		await testObject.switchLayout(defaultLayout);
+		const afterSwitchToDefault = sharedParticipant.localState;
+
+		await testObject.switchLayout(debugLayout);
+		const afterSwitchToDebug = sharedParticipant.localState;
+
+		// A new window of the same workspace restores the local copy when the participant registers
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const secondWindow = createService(new TestParticipant());
+		const secondSharedParticipant = new TestSharedParticipant();
+		disposables.add(secondWindow.registerParticipant(secondSharedParticipant));
+		await secondWindow.switchLayout(secondWindow.activeLayout); // queued after the restore
+		const afterRestart = secondSharedParticipant.localState;
+
+		assert.deepStrictEqual({ afterCreate, afterSwitchToDefault, afterSwitchToDebug, afterRestart }, {
+			afterCreate: 'shared state',
+			afterSwitchToDefault: undefined,
+			afterSwitchToDebug: 'debug state',
+			afterRestart: 'debug state'
+		});
 	});
 });
