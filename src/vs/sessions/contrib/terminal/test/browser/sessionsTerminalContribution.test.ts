@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -251,6 +251,7 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 		instanceId: id,
 		get isDisposed() { return isDisposed; },
 		get shellLaunchConfig() { return shellLaunchConfig; },
+		processReady: Promise.resolve(),
 		async getInitialCwd() {
 			await initialCwdBarrier;
 			return cwd;
@@ -307,6 +308,9 @@ suite('SessionsTerminalContribution', () => {
 	let sessionProviders: Map<string, ISessionsProvider>;
 	let instantiationService: TestInstantiationService;
 	let cwdExists: (uri: URI) => boolean;
+	let terminalViewVisible: boolean;
+	let terminalGroupCount: number;
+	let viewVisibilityEmitter: Emitter<{ id: string; visible: boolean }>;
 
 	setup(() => {
 		createdTerminals = [];
@@ -453,9 +457,16 @@ suite('SessionsTerminalContribution', () => {
 
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 
+		terminalGroupCount = 1;
+		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
+			override get groups(): ITerminalGroup[] { return new Array<ITerminalGroup>(terminalGroupCount); }
+		});
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter = store.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override isViewVisible(): boolean { return false; }
-			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
+			override isViewVisible(id: string): boolean { return id === TERMINAL_VIEW_ID && terminalViewVisible; }
+			override onDidChangeViewVisibility = viewVisibilityEmitter.event;
 		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
@@ -481,6 +492,53 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
+	});
+
+	// --- Terminal view hidden: create terminals lazily ---
+
+	test('does not create terminals for sessions while the terminal view is hidden', async () => {
+		terminalViewVisible = false;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-b', worktree: URI.file('/worktree-b'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), []);
+	});
+
+	test('creates the terminal of the active session when the terminal view becomes visible', async () => {
+		terminalViewVisible = false;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-b', worktree: URI.file('/worktree-b'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), [URI.file('/worktree-b').fsPath]);
+	});
+
+	test('adopts the terminal the terminal view creates when it opens empty', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		const session = makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances] }, { created: [], backgrounded: [] });
 	});
 
 	// --- Missing local working directory: defer until it exists ---
