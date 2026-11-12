@@ -4494,8 +4494,12 @@ suite('CopilotAgent', () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const plugin = URI.file('/sdk-plugins/session-timeline');
 			const skill = URI.joinPath(plugin, 'skills', 'session-timeline', 'SKILL.md');
+			// The in-memory provider reports both writes in one batch a few milliseconds later. Let that happen before
+			// the plugin watcher exists, or it can republish once the uninstall settles.
+			const written = Event.toPromise(fileService.onDidFilesChange);
 			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'session-timeline' })));
 			await fileService.writeFile(skill, VSBuffer.fromString('---\nname: session-timeline\ndescription: Timeline\n---\n'));
+			await written;
 			const scans = Array.from({ length: 3 }, () => ({
 				started: new DeferredPromise<void>(),
 				release: new DeferredPromise<void>(),
