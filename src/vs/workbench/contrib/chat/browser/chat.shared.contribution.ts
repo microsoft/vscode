@@ -1340,7 +1340,7 @@ configurationRegistry.registerConfiguration({
 					description: nls.localize('chat.agentHost.mcp.loginHints.servers', "Account hints keyed by the configured Agent Host MCP server name. These override provider defaults."),
 				},
 			},
-			markdownDescription: nls.localize('chat.agentHost.mcp.loginHints', "Preferred signed-in accounts for MCP servers in the Copilot Agent Host. Does not apply to the standard VS Code MCP runtime. Hints select existing sessions only; they are not forwarded to new sign-ins and do not grant account access. Per-server hints take precedence over remembered preferences, then provider defaults."),
+			markdownDescription: nls.localize('chat.agentHost.mcp.loginHints', "Preferred signed-in accounts for MCP servers in Agent Host sessions. Does not apply to the standard VS Code MCP runtime. Hints select existing sessions only; they are not forwarded to new sign-ins and do not grant account access. Per-server hints take precedence over remembered preferences, then provider defaults."),
 		},
 		[mcpEnterpriseManagedAuthIdpSection]: {
 			type: 'object',
