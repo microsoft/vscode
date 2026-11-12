@@ -337,6 +337,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
+		browserSession.addHostWindow(host.windowId);
 		await browserSession.clearData();
 	}
 
@@ -408,7 +409,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	private _recomputeTrustedFileRoots(): void {
 		const { local, remotes } = computeFileTrust(Iterable.map(this._windowConfigurations, ([windowId, configuration]) => ({
 			...configuration,
-			windowId,
 			remoteAuthority: this.windowsMainService.getWindowById(windowId)?.remoteAuthority,
 		})));
 		BrowserSession.setTrustedLocalFileRoots([...local.roots], local.trustAll);

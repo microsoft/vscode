@@ -13,8 +13,8 @@ import { computeFileTrust, IWindowFileTrust, normalizeRemoteFilePath } from '../
 suite('computeFileTrust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function window(windowId: number, remoteAuthority: string | undefined, trustAllFiles: boolean, roots: URI[]): IWindowFileTrust {
-		return { windowId, remoteAuthority, trustAllFiles, trustedFileRoots: roots };
+	function window(_windowId: number, remoteAuthority: string | undefined, trustAllFiles: boolean, roots: URI[]): IWindowFileTrust {
+		return { remoteAuthority, trustAllFiles, trustedFileRoots: roots };
 	}
 
 	function snapshot(windows: IWindowFileTrust[]) {
@@ -32,7 +32,7 @@ suite('computeFileTrust', () => {
 			window(1, 'Test+A', false, [remoteRoot('test+a', '/mine'), remoteRoot('test+b', '/other'), URI.file('/local')]),
 		]), {
 			local: { roots: [URI.file('/local').fsPath], trustAll: false },
-			remotes: { 'test+a': { roots: ['/mine'], trustAll: false, windowIds: [1], ignoreCase: false, scheme: Schemas.vscodeRemote } },
+			remotes: { 'test+a': { roots: ['/mine'], trustAll: false, scheme: Schemas.vscodeRemote } },
 		});
 	});
 
@@ -42,20 +42,6 @@ suite('computeFileTrust', () => {
 			toAgentHostUri(URI.file('/repo'), 'host-a'),
 		])]);
 		assert.deepStrictEqual([...remotes.get('host-a')!.roots], ['/repo']);
-	});
-
-	test('keeps every window that contributed to a remote and ignores case only for Windows paths', () => {
-		const { remotes } = computeFileTrust([
-			window(1, undefined, false, [toAgentHostUri(URI.file('/repo'), 'host-a'), toAgentHostUri(URI.file('/c:/Repo'), 'host-w')]),
-			window(2, undefined, false, [toAgentHostUri(URI.file('/other'), 'host-a')]),
-		]);
-		assert.deepStrictEqual({
-			hostA: [remotes.get('host-a')!.windowIds, remotes.get('host-a')!.ignoreCase],
-			hostW: [remotes.get('host-w')!.windowIds, remotes.get('host-w')!.ignoreCase],
-		}, {
-			hostA: [[1, 2], false],
-			hostW: [[1], true],
-		});
 	});
 
 	test('ignores remote roots containing backslashes', () => {
@@ -69,13 +55,13 @@ suite('computeFileTrust', () => {
 			window(2, undefined, false, [URI.file('/local')]),
 		]), {
 			local: { roots: [URI.file('/local').fsPath], trustAll: false },
-			remotes: { 'test+a': { roots: [], trustAll: true, windowIds: [1], ignoreCase: false, scheme: Schemas.vscodeRemote } },
+			remotes: { 'test+a': { roots: [], trustAll: true, scheme: Schemas.vscodeRemote } },
 		});
 
 		assert.strictEqual(snapshot([window(2, undefined, true, [])]).local.trustAll, true);
 	});
 
-	test('keys agent host roots by host and records the contributing window', () => {
+	test('keys agent host roots by host', () => {
 		assert.deepStrictEqual(snapshot([
 			window(3, undefined, true, [
 				toAgentHostUri(URI.file('/repo'), 'Host-A'),
@@ -85,8 +71,8 @@ suite('computeFileTrust', () => {
 		]), {
 			local: { roots: [], trustAll: true },
 			remotes: {
-				'host-a': { roots: ['/repo'], trustAll: false, windowIds: [3], ignoreCase: false, scheme: AGENT_HOST_SCHEME },
-				'host-b': { roots: ['/other'], trustAll: false, windowIds: [3], ignoreCase: false, scheme: AGENT_HOST_SCHEME },
+				'host-a': { roots: ['/repo'], trustAll: false, scheme: AGENT_HOST_SCHEME },
+				'host-b': { roots: ['/other'], trustAll: false, scheme: AGENT_HOST_SCHEME },
 			},
 		});
 	});

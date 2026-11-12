@@ -284,7 +284,7 @@ export class BrowserSession {
 	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
 		BrowserSession._trustedRemoteFileRoots = new Map();
 		for (const [authority, remote] of remotes) {
-			const roots = TernarySearchTree.forPaths<true>(remote.ignoreCase);
+			const roots = TernarySearchTree.forPaths<true>();
 			for (const root of remote.roots) {
 				if (root) {
 					roots.set(posix.normalize(root), true);
@@ -447,6 +447,16 @@ export class BrowserSession {
 		});
 	}
 
+	private readonly _hostWindowIds = new Set<number>();
+
+	/**
+	 * Record a window that hosts a view of this session. Remote `file:` requests are read through such a window,
+	 * which is connected to the session's remote because it resolved the session's network.
+	 */
+	addHostWindow(windowId: number): void {
+		this._hostWindowIds.add(windowId);
+	}
+
 	/**
 	 * Serve a `file:` request from the file system of the remote the session is bound to,
 	 * through the file service of a window connected to that remote.
@@ -459,7 +469,7 @@ export class BrowserSession {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 
-		const window = trusted.windowIds.map(id => this.windowsMainService.getWindowById(id)).find(isDefined);
+		const window = [...this._hostWindowIds].map(id => this.windowsMainService.getWindowById(id)).find(isDefined);
 		if (!window) {
 			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
 		}
