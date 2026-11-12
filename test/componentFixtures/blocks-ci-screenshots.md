@@ -40,13 +40,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/6eae698ca25739514cb95bb71c4f6973e938a83a5f4e3dee7153c4c3a646c54b)
 
 #### chat/widget/chatWidget/PendingMessages/Queued/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ff9db5b64a40589538b988686ab9906714458bd2d756c851d43e14b18ef2b6b7)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4ed00a4b20c8c48f9c4dde35791203dd094ee10ac5266e3db371e4257f325001)
 
 #### chat/widget/chatWidget/PendingMessages/Steering/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/53bbe944ed13535f12436eb40541f0b504cb7cd8b8d2c700dac052897b94f560)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7f4e9fd2c27fd4277f5e3bc3cee1962c18876d029133a7a389390e2a0e5ee291)
 
 #### chat/widget/chatWidget/PendingMessages/SystemNotification/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c6f2e9991e233ed38ca6c5223819db5cda923130b45eafd3ae07b1fbd8285c07)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2feef024b730b51e61c321c2119ca549a74bca47b516a17a1b16186be0c14b1f)
 
 #### comments/commentTree/CommentTreeMetadataZoomed/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a81446b88a24acb43f7713d0d84c921bb9d79d4c06448e77b4baae5c1f5c9026)
