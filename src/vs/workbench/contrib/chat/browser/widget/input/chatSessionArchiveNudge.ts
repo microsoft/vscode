@@ -81,7 +81,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		super();
 
 		// Every arm of the copy experiments renders the suggestion; they only change its title and icon.
-		logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT);
+		this.reportTitleExperimentTrigger(options);
 		logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT);
 
 		const id = generateUuid();
@@ -147,6 +147,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 
 	setOptions(options: IChatSessionArchiveNudgeOptions): void {
 		this.options = options;
+		this.reportTitleExperimentTrigger(options);
 		this.updateContent();
 		this.worktreeElement.hidden = !options.hasWorktree;
 		const compact = !!options.compact;
@@ -166,9 +167,16 @@ export class ChatSessionArchiveNudge extends Disposable {
 		}
 	}
 
+	/** The title experiment's copy describes the session, so a suggestion that archives only its chat never shows it. */
+	private reportTitleExperimentTrigger(options: IChatSessionArchiveNudgeOptions): void {
+		if (!options.archivesChat) {
+			logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT);
+		}
+	}
+
 	private updateTitle(): void {
 		const multiple = this.options.pullRequestCount > 1;
-		const title = this.titleTreatment ?? (this.options.archivesChat
+		const title = (this.options.archivesChat ? undefined : this.titleTreatment) ?? (this.options.archivesChat
 			? this.markAsDone
 				? multiple
 					? localize('chat.sessionArchiveNudge.chatDoneQuestionAll', "All PRs merged. Mark this chat as done?")

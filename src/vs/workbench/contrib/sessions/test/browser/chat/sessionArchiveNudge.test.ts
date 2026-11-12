@@ -43,6 +43,7 @@ import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
 import { GitHubPullRequestModel } from '../../../browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../common/github/types.js';
@@ -159,6 +160,15 @@ suite('SessionArchiveNudge', () => {
 			}
 			override async archiveChat(session: ISession, chat: IChat): Promise<void> {
 				chatArchiveTargets.push(chat.resource.path);
+				if (archiveError) {
+					throw archiveError;
+				}
+			}
+		}();
+		const closedChats: string[] = [];
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override async closeChat(session: ISession, chat: IChat): Promise<void> {
+				closedChats.push(chat.resource.path);
 			}
 		}();
 		const requests: string[] = [];
@@ -283,12 +293,12 @@ suite('SessionArchiveNudge', () => {
 				const shownChat = chat ? chat.read(reader) : session?.mainChat.read(reader);
 				return session && shownChat ? { session, chat: shownChat } : undefined;
 			});
-			const nudge = store.add(new SessionArchiveNudge(target, configuration, entitlement, github, service, commandService));
+			const nudge = store.add(new SessionArchiveNudge(target, configuration, entitlement, github, service, commandService, sessionsService));
 			store.add(autorun(reader => nudge.options.read(reader)));
 			return nudge;
 		}
 		return {
-			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, chatArchiveTargets, commands,
+			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, chatArchiveTargets, closedChats, commands,
 			triggers: triggerTelemetry.triggers,
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
@@ -307,7 +317,7 @@ suite('SessionArchiveNudge', () => {
 				service.dispose();
 				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 			},
-			setArchiveError(error: Error) { archiveError = error; },
+			setArchiveError(error: Error | undefined) { archiveError = error; },
 			setArchiveNoop() { archiveNoop = true; },
 			setCatalog(next: ISession[], event: ISessionsChangeEvent) {
 				catalog = next;
@@ -599,7 +609,7 @@ suite('SessionArchiveNudge', () => {
 		});
 	});
 
-	test('archives only the peer chat showing the suggestion, and the whole session only from its main chat', async () => {
+	test('archives and closes only the peer chat showing the suggestion, and the whole session only from its main chat', async () => {
 		const session = createSession();
 		const peer = createPeerChat('peer');
 		const unarchivablePeer = createPeerChat('unarchivable', false);
@@ -625,6 +635,10 @@ suite('SessionArchiveNudge', () => {
 		};
 		const before = { main: describe(main), peer: describe(peerNudge), unarchivable: describe(unarchivable) };
 		peerNudge.markShown();
+		context.setArchiveError(new Error('Chat archive failed'));
+		await assert.rejects(peerNudge.options.get()!.onArchive(), /Chat archive failed/);
+		const closedAfterFailure = [...context.closedChats];
+		context.setArchiveError(undefined);
 		await peerNudge.options.get()!.onArchive();
 		peer.isArchived.set(true, undefined);
 
@@ -632,6 +646,8 @@ suite('SessionArchiveNudge', () => {
 			before,
 			after: { main: describe(main), peer: describe(peerNudge) },
 			chatArchiveTargets: context.chatArchiveTargets,
+			closedAfterFailure,
+			closedChats: context.closedChats,
 			sessionArchiveTargets: context.archiveTargets,
 			sessionArchived: session.isArchived.get(),
 			onboarding: context.onboarding.events,
@@ -643,7 +659,9 @@ suite('SessionArchiveNudge', () => {
 				unarchivable: undefined,
 			},
 			after: { main: { archivesChat: false, hasWorktree: true }, peer: undefined },
-			chatArchiveTargets: ['/peer'],
+			chatArchiveTargets: ['/peer', '/peer'],
+			closedAfterFailure: [],
+			closedChats: ['/peer'],
 			sessionArchiveTargets: [],
 			sessionArchived: false,
 			onboarding: [],

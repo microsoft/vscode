@@ -29,6 +29,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
 import { getChatCapabilities, getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsService } from '../sessionsService.js';
 import { IGitHubService } from '../github/githubService.js';
 import { GitHubPullRequestState } from '../../common/github/types.js';
 import { getPullRequestKey } from '../../common/github/utils.js';
@@ -409,6 +410,7 @@ export class SessionArchiveNudge extends Disposable {
 		@IGitHubService gitHubService: IGitHubService,
 		@ISessionArchiveNudgeService private readonly _nudgeService: ISessionArchiveNudgeService,
 		@ICommandService commandService: ICommandService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -493,7 +495,12 @@ export class SessionArchiveNudge extends Disposable {
 				if (!state.chat) {
 					await this._nudgeService.showArchiveOnboarding(state.session);
 				}
-				await this._nudgeService.archive(this._getArchiveState(state));
+				const archiveState = this._getArchiveState(state);
+				await this._nudgeService.archive(archiveState);
+				if (archiveState.chat) {
+					// Like Mark as Done on a chat, set the archived chat aside while its session and other chats stay open.
+					await this._sessionsService.closeChat(archiveState.session, archiveState.chat);
+				}
 			},
 		} : undefined);
 	}

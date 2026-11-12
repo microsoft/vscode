@@ -639,6 +639,23 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	});
 
+	test('keeps the session title treatment and its trigger out of chat suggestions', async () => {
+		const title = 'Tidy up this session.';
+		const { widget, triggers } = createWidget({ archivesChat: true }, createAssignmentService(name => name === CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT ? title : undefined));
+		await timeout(0);
+		const describe = () => ({ title: widget.domNode.querySelector('h3')?.textContent, triggers: [...triggers] });
+		const chat = describe();
+		widget.setOptions(options());
+		const session = describe();
+		widget.setOptions(options({ archivesChat: true }));
+
+		assert.deepStrictEqual({ chat, session, chatAgain: describe().title }, {
+			chat: { title: 'PR merged. Archive this chat?', triggers: [CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT] },
+			session: { title, triggers: [CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT] },
+			chatAgain: 'PR merged. Archive this chat?',
+		});
+	});
+
 	test('updates content and callbacks without replacing focused controls', async () => {
 		let oldActions = 0;
 		let archives = 0;
