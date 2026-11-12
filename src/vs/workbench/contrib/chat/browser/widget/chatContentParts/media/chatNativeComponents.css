@@ -20,6 +20,11 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+/* A click inside the visual focuses it as well. That needs no ring, and the workbench's inset one would cross the content. */
+.monaco-workbench .chat-native-components[tabindex="0"]:focus:not(:focus-visible) {
+	outline: none;
+}
+
 .chat-native-components-notice {
 	padding-bottom: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
@@ -56,13 +61,14 @@
 	min-width: 0;
 }
 
-/* Text */
+/* Text: a long unbroken string wraps rather than widening the chat. A table scrolls instead. */
 
-.chat-native-text,
-.chat-native-metric-label,
-.chat-native-metric-value,
-.chat-native-chart-label {
+.chat-native-components-content {
 	overflow-wrap: anywhere;
+}
+
+.chat-native-table {
+	overflow-wrap: normal;
 }
 
 /* A heading sits closer to what it introduces than to what precedes it. */
@@ -209,9 +215,10 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
+/* The values keep their width as long as the bars keep theirs, then wrap. */
 .chat-native-chart-plot {
 	display: grid;
-	grid-template-columns: fit-content(40%) minmax(40px, 1fr) max-content;
+	grid-template-columns: fit-content(40%) minmax(40px, 1fr) minmax(0, max-content);
 	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	color: var(--vscode-charts-foreground);
 }

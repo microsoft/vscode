@@ -747,6 +747,28 @@ suite('ChatResponseAccessibleView', () => {
 			});
 		});
 
+		/** The lines that the Accessible View shows for a response made of the given Markdown. */
+		function responseLines(markdown: string, configurationService: TestConfigurationService, rendersNativeComponents: boolean, isFiltered = false): string[] {
+			const responseItem = upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [{ kind: 'markdownContent', content: new MarkdownString(markdown) }] }),
+				model: upcastPartial<IChatResponseModel>({ onDidChange: Event.None }),
+				errorDetails: isFiltered ? { message: 'Filtered', responseIsFiltered: true } : undefined,
+				setVote: () => { },
+			});
+			const instantiationService = store.add(new TestInstantiationService());
+			const widget = upcastPartial<IChatWidget>({
+				rendersNativeComponents,
+				hasInputFocus: () => false, getFocus: () => responseItem,
+			});
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: widget }));
+			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+			instantiationService.stub(IConfigurationService, configurationService);
+			const provider = instantiationService.invokeFunction(accessor => new ChatResponseAccessibleView().getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			return provider.provideContent().split('\n');
+		}
+
 		test('presents a native visual as its text alternative only where it is rendered, and its markup everywhere else', async () => {
 			const markdown = [
 				'The incremental build is faster.',
@@ -767,26 +789,8 @@ suite('ChatResponseAccessibleView', () => {
 				'const cached = true;',
 				'```',
 			].join('\n');
-			const responseItem = upcastPartial<IChatResponseViewModel>({
-				response: upcastPartial<IResponse>({ value: [{ kind: 'markdownContent', content: new MarkdownString(markdown) }] }),
-				model: upcastPartial<IChatResponseModel>({ onDidChange: Event.None }),
-				setVote: () => { },
-			});
 			const configurationService = new TestConfigurationService({ [ChatConfiguration.NativeComponentsEnabled]: true });
-			const content = (rendersNativeComponents: boolean) => {
-				const instantiationService = store.add(new TestInstantiationService());
-				const widget = upcastPartial<IChatWidget>({
-					rendersNativeComponents,
-					hasInputFocus: () => false, getFocus: () => responseItem,
-				});
-				instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: widget }));
-				instantiationService.stub(IStorageService, store.add(new TestStorageService()));
-				instantiationService.stub(IConfigurationService, configurationService);
-				const provider = instantiationService.invokeFunction(accessor => new ChatResponseAccessibleView().getProvider(accessor));
-				assert.ok(provider);
-				store.add(provider);
-				return provider.provideContent().split('\n');
-			};
+			const content = (rendersNativeComponents: boolean) => responseLines(markdown, configurationService, rendersNativeComponents);
 			const source = [
 				'The incremental build is faster.',
 				'```',
@@ -822,12 +826,34 @@ suite('ChatResponseAccessibleView', () => {
 			store.add(registerChatNativeComponentsRenderer(chatNativeComponentsRenderer));
 			const rendered = content(true);
 			const otherSurface = content(false);
+			const filtered = responseLines(markdown, configurationService, true, true);
 			await configurationService.setUserConfiguration(ChatConfiguration.NativeComponentsEnabled, false);
 			const settingOff = content(true);
 			await configurationService.setUserConfiguration(ChatConfiguration.NativeComponentsEnabled, true);
 			await configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
 			const aiDisabled = content(true);
-			assert.deepStrictEqual({ withoutRenderer, rendered, otherSurface, settingOff, aiDisabled }, { withoutRenderer: source, rendered: described, otherSurface: source, settingOff: source, aiDisabled: source });
+			assert.deepStrictEqual({ withoutRenderer, rendered, otherSurface, filtered, settingOff, aiDisabled }, { withoutRenderer: source, rendered: described, otherSurface: source, filtered: ['Filtered', ...source], settingOff: source, aiDisabled: source });
+		});
+
+		test('presents a visual inside a list item or a block quote as its text alternative too', () => {
+			const markdown = [
+				'- Results',
+				'',
+				'  ```vscode-ui',
+				'  <Metric label="Passing" value="128" />',
+				'  ```',
+				'- Rerun with `--all`',
+				'',
+				'> Status',
+				'>',
+				'> ```vscode-ui',
+				'> <Badge tone="positive">Stable</Badge>',
+				'> ```',
+			].join('\n');
+			store.add(registerChatNativeComponentsRenderer(chatNativeComponentsRenderer));
+			assert.deepStrictEqual(
+				responseLines(markdown, new TestConfigurationService({ [ChatConfiguration.NativeComponentsEnabled]: true }), true),
+				['Results', 'Passing: 128', 'Rerun with `--all`', 'Status', 'Stable (Positive)']);
 		});
 
 		test('omits thinking content when disabled in storage', () => {

@@ -106,6 +106,16 @@ suite('Native components parser', () => {
 		]);
 	});
 
+	test('collapses ordinary whitespace and keeps a non-breaking space as written', () => {
+		const result = parseNativeComponents('<Stack>\u00a0\n<Text>  1.8&#160;s \n\t a\u202fb &#160;</Text><Metric label="Full  build" value="12.4&#xA0;s" /></Stack>');
+		assert.deepStrictEqual(result.document?.children, [{
+			type: 'stack', children: [
+				{ type: 'text', variant: 'body', text: '1.8\u00a0s a\u202fb \u00a0' },
+				{ type: 'metric', label: 'Full build', value: '12.4\u00a0s', delta: undefined, tone: 'neutral' },
+			]
+		}]);
+	});
+
 	test('rejects everything outside the catalogue, with the line and a reason', () => {
 		assert.deepStrictEqual([
 			'',

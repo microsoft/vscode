@@ -99,8 +99,12 @@ function decodeEntities(text: string): string {
 	});
 }
 
+/**
+ * Collapses whitespace as HTML does: only the ASCII kinds, so that a non-breaking space keeps
+ * holding its words together. Text that is nothing but spaces of any kind is empty.
+ */
 function collapseWhitespace(text: string): string {
-	return text.replace(/\s+/g, ' ').trim();
+	return /\S/.test(text) ? text.replace(/[ \t\n\r\f]+/g, ' ').replace(/^ | $/g, '') : '';
 }
 
 /** Reads the tag structure of a block without interpreting component names or attributes. */

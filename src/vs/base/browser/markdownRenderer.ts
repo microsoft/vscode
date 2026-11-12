@@ -849,8 +849,8 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	 * Provides the text of a code block that is displayed as something other than its source.
 	 * `raw` is the block's Markdown source, including its fences. Return `undefined` to keep the code.
 	 *
-	 * A code block inside a list item is not offered, unless `omitMarkdownSyntax` is set: such an
-	 * item is emitted as its source.
+	 * Code blocks inside list items and block quotes are offered too. Such a container is emitted
+	 * as its source, as it is without this option, apart from the blocks in it that get a text.
 	 */
 	readonly codeBlockText?: (languageId: string, text: string, raw: string) => string | undefined;
 }) {
@@ -871,10 +871,15 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	const codeBlockText = options?.codeBlockText;
 	if (codeBlockText) {
 		const renderCode = options?.includeCodeBlocksFences ? codeBlockFences : plainCodeBlock;
-		renderer.code = token => {
+		const describe = (token: marked.Tokens.Code) => {
 			const text = codeBlockText(postProcessCodeBlockLanguageId(token.lang), token.text, token.raw);
-			return text === undefined ? renderCode(token) : `\n${escape(text)}\n`;
+			return text === undefined ? undefined : `\n${escape(text)}\n`;
 		};
+		renderer.code = token => describe(token) ?? renderCode(token);
+		// A list item and a block quote are emitted as their source, which would leave the blocks
+		// inside them undescribed. Where one is described, they are emitted piece by piece instead.
+		renderer.listitem = item => `${describedSource(item.tokens, describe) ?? item.text}\n`;
+		renderer.blockquote = quote => `${describedSource(quote.tokens, describe) ?? quote.text}\n`;
 	}
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
@@ -982,6 +987,29 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 	}
 	return text;
 };
+
+/**
+ * Returns the source of the given tokens in which the code blocks that `describe` has a text for
+ * are replaced by that text, including those in nested lists and block quotes. Returns `undefined`
+ * when no code block is described, so that the caller keeps the source it already emits.
+ */
+function describedSource(tokens: marked.Token[], describe: (token: marked.Tokens.Code) => string | undefined): string | undefined {
+	let isDescribed = false;
+	const source = tokens.map(token => {
+		let described: string | undefined;
+		if (token.type === 'code') {
+			described = describe(token as marked.Tokens.Code);
+		} else if (token.type === 'blockquote') {
+			described = describedSource((token as marked.Tokens.Blockquote).tokens, describe);
+		} else if (token.type === 'list') {
+			const items = (token as marked.Tokens.List).items.map(item => ({ text: item.text, described: describedSource(item.tokens, describe) }));
+			described = items.some(item => item.described !== undefined) ? items.map(item => `${item.described ?? item.text}\n`).join('') : undefined;
+		}
+		isDescribed ||= described !== undefined;
+		return described ?? token.raw;
+	}).join('');
+	return isDescribed ? source : undefined;
+}
 
 /**
  * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is

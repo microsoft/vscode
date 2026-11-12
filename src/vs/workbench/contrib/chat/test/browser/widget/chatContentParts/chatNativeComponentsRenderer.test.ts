@@ -145,4 +145,20 @@ suite('Native components renderer', () => {
 			scrolls: scroller.scrollWidth > scroller.clientWidth,
 		}, { responseWidth: 300, scrollerWidth: 300, scrolls: true });
 	});
+
+	test('wraps long unbroken strings instead of widening a narrow chat', () => {
+		const long = 'W'.repeat(60);
+		const element = render([
+			`<Text>${long}</Text>`,
+			`<Metric label="${long}" value="${long}" delta="${long}" tone="positive" />`,
+			`<Badge tone="warning">${long}</Badge>`,
+			`<BarChart title="${long}" unit="${long}"><Bar label="${long}" value="1" /></BarChart>`,
+			`<Disclosure summary="${long}"><Text>${long}</Text></Disclosure>`,
+		].join('\n'));
+		element.style.width = '240px';
+		element.style.fontSize = '13px';
+		element.querySelector('details')!.open = true;
+		const overflowing = Array.from(element.querySelectorAll('*')).filter(child => child.scrollWidth > child.clientWidth + 1).map(child => child.className);
+		assert.deepStrictEqual({ width: element.scrollWidth, overflowing: [...new Set(overflowing)] }, { width: 240, overflowing: [] });
+	});
 });

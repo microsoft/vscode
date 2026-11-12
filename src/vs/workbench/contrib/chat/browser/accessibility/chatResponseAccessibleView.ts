@@ -317,7 +317,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			return '';
 		}
 
-		const parts = getChatResponsePlaintextParts(item, this._shouldIncludeThinkingContent(), this._describeCodeBlock);
+		// A filtered response shows its blocks as code, so they read as code here as well.
+		const describeCodeBlock = item.errorDetails?.responseIsFiltered ? undefined : this._describeCodeBlock;
+		const parts = getChatResponsePlaintextParts(item, this._shouldIncludeThinkingContent(), describeCodeBlock);
 		return this._normalizeWhitespace(parts.map(part => part.text).join('\n'));
 	}
 

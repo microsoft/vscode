@@ -2054,14 +2054,16 @@ suite('ChatMarkdownContentPart', () => {
 			}), cases.map(() => ({ visual: false, codeblocks: 1 })));
 		});
 
-		test('renders a block once its fence closes, in tilde and longer fences too, while the response still streams', () => {
+		test('renders a block once its fence closes, in tilde and longer fences and inside a list item or a block quote too, while the response still streams', () => {
 			const streaming = () => createRenderContext(false);
 			assert.deepStrictEqual([
 				`Intro.\n\n\`\`\`vscode-ui\n${visual}`,
 				`Intro.\n\n${fenced()}\n\nStill writ`,
 				fenced(visual, '~~~~'),
 				fenced(visual, '````', 'VSCODE-UI v1'),
-			].map(markdown => shown(createMarkdownPart(markdown, streaming(), true, false, options))?.visual ?? false), [false, true, true, true]);
+				`- Results\n\n${fenced().replace(/^/gm, '  ')}`,
+				fenced().replace(/^/gm, '> '),
+			].map(markdown => shown(createMarkdownPart(markdown, streaming(), true, false, options))?.visual ?? false), [false, true, true, true, true, true]);
 		});
 
 		test('keeps the vscode-ui and html-preview fences independent of each other', () => {
