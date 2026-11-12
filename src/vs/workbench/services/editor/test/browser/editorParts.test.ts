@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -26,8 +28,12 @@ import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from '../
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { PART_GRID_CLASS } from '../../../../browser/parts/editor/partGridClass.js';
 import { EditorGroupLockActionsHiddenContext } from '../../../../common/contextkeys.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
-import { createEditorParts, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorOpenContext } from '../../../../common/editor.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
 import { IUntitledTextEditorService } from '../../../untitled/common/untitledTextEditorService.js';
@@ -425,34 +431,38 @@ suite('Editor Parts', () => {
 		assert.strictEqual(mainPart.getContainer()!.contains(mainWindow.document.activeElement), true);
 	});
 
-	test('applying a working set with preserved focus recovers focus that is lost shortly after the apply, and leaves focus that moved elsewhere', async () => {
+	test('applying a working set with preserved focus focuses the restored editor, which opens after the state is applied', async () => {
+		class FocusableEditorPane extends EditorPane {
+			private field: HTMLInputElement | undefined;
+			constructor(group: IEditorGroup, @ITelemetryService telemetryService: ITelemetryService, @IThemeService themeService: IThemeService, @IStorageService storageService: IStorageService) {
+				super('focusableEditorPane', group, telemetryService, themeService, storageService);
+			}
+			protected createEditor(parent: HTMLElement): void { this.field = parent.appendChild(mainWindow.document.createElement('input')); }
+			override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+				await super.setInput(input, options, context, token);
+				await timeout(10);
+			}
+			override focus(): void { this.field?.focus(); }
+			layout(): void { }
+		}
+		disposables.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(FocusableEditorPane, 'focusableEditorPane', 'Focusable'), [new SyncDescriptor(TestFileEditorInput)]));
+
+		disposables.add(registerTestEditor('serializerOnlyEditor', [new SyncDescriptor(TestFileEditorInput)], 'testTypeId'));
+
 		const { parts } = await createServices();
 		const mainPart = parts.testMainPart;
-		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
-		disposables.add({ dispose: () => outside.remove() });
 
 		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
 		await mainPart.activeGroup.openEditor(first, { pinned: true });
+		const workingSet = parts.saveWorkingSet('with-editor');
+		mainPart.activeGroup.activeEditorPane?.focus();
+		assert.strictEqual(mainWindow.document.activeElement?.tagName, 'INPUT');
 
-		const lateLoss = async (moveTo?: HTMLElement) => {
-			await parts.applyWorkingSet('empty', { preserveFocus: true });
-			const late = focusIn(mainPart.getContainer()!); // like the quick input restoring focus after the apply
-			if (moveTo) {
-				moveTo.focus();
-			} else {
-				late.blur();
-				late.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); // the test window may not have focus, which leaves out focus events
-			}
-			await timeout(20);
-			return { inEditorPart: mainPart.getContainer()!.contains(mainWindow.document.activeElement), onOutside: mainWindow.document.activeElement === outside };
-		};
+		await parts.applyWorkingSet(workingSet, { preserveFocus: true });
 
-		const lost = await lateLoss();
-		const moved = await lateLoss(outside);
-		assert.deepStrictEqual({ lost, moved }, {
-			lost: { inEditorPart: true, onOutside: false },
-			moved: { inEditorPart: false, onOutside: true }
-		});
+		assert.deepStrictEqual({ editorOpen: !!mainPart.activeGroup.activeEditorPane, focused: mainWindow.document.activeElement?.tagName }, { editorOpen: true, focused: 'INPUT' });
+		await mainPart.activeGroup.closeAllEditors();
+		parts.deleteWorkingSet(workingSet);
 	});
 
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
