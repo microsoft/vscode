@@ -29,7 +29,7 @@ const good = 'version: 1\ndescription: Test.\nroutes:\n  - model: haiku\n    whe
 const files: Record<string, string> = {
 	[URI.file(goodPath).fsPath]: good,
 	[URI.file('/home/.agents/model-routers/bad.model-router.yaml').fsPath]: 'version: 1\ndescription: Bad.\nroutes:\n  - model: haiku\n    when: "unclosed\n',
-	[URI.file('/home/.agents/model-routers/workday.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Big.\n    main: haiku\n  quick:\n    when: Small.\n    main: haiku\n',
+	[URI.file('/home/.agents/model-routers/workday.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nroutes:\n  - name: feature\n    model: haiku\n    when: Big.\n    guidance: Plan first.\n  - name: quick\n    model: haiku\n    when: Small.\n',
 };
 
 suite('check_model_router', () => {
@@ -99,13 +99,13 @@ suite('check_model_router', () => {
 		});
 	});
 
-	test('names the playbook of each route of a router written as playbooks', async () => {
+	test('names each route that has a name', async () => {
 		const result = JSON.parse((await call({ path: '/home/.agents/model-routers/workday.model-router.yaml' })).textResultForLlm);
 		assert.deepStrictEqual({ diagnostics: result.router.diagnostics, routes: result.router.routes }, {
 			diagnostics: [],
 			routes: [
-				{ route: 1, playbook: 'feature', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
-				{ route: 2, playbook: 'quick', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
+				{ route: 1, name: 'feature', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
+				{ route: 2, name: 'quick', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
 			],
 		});
 	});

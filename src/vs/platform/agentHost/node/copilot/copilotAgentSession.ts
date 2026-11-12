@@ -50,8 +50,10 @@ import { getPlanActionDescription, type ChatInputRequestWithPlanReview, type IAg
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
+import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
-import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { getSessionPathDisplay, type ISessionPathDisplay, type ISessionPathRoot } from '../../common/sessionPathDisplay.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { copilotConnectorServers, reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
@@ -149,6 +151,7 @@ import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/pr
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
 import { readMcpRoutingServers, readMcpServerSource, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
+import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace } from './copilotCustomizationCommandDisplay.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
@@ -693,10 +696,13 @@ export interface ICopilotAgentSessionOptions {
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
 	readonly pathMapper: ICopilotSdkPathMapper;
+	readonly getSessionPathRoots?: () => readonly ISessionPathRoot[];
 	/** Directory used to resolve workspace-scoped customizations for this session. */
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
+	/** Called once, the first time this session starts root work: a sent message, or work the runtime starts itself. */
+	readonly onRootWorkStarted?: () => void;
 	/** Built-in plugin directories registered with the runtime, whose resources the agent reads like applied plugins. */
 	readonly builtinPluginDirectories?: readonly URI[];
 	/** Returns whether a host-published client membership includes this chat. */
@@ -1248,7 +1254,11 @@ export class CopilotAgentSession extends Disposable {
 		return (await this._wrapper.session.rpc.plugins.marketplaces.refresh(name ? { name } : {})).results;
 	}
 
-	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins']> {
+	/** Session-effective inventory is unavailable until the SDK backing is active. */
+	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins'] | undefined> {
+		if (!this._wrapper || this._wrapper.lifecycleState !== 'active') {
+			return undefined;
+		}
 		return (await this._wrapper.session.rpc.plugins.list()).plugins;
 	}
 
@@ -1331,6 +1341,8 @@ export class CopilotAgentSession extends Disposable {
 		mcpServerName: string | undefined;
 		reported: boolean;
 	}>();
+	/** Subagent permissions can arrive before their bridged tool start, so retain their agent IDs for routing. */
+	private readonly _permissionRequestAgentIds = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
@@ -1404,6 +1416,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private _hasCompletedTurn = false;
 	private _hasSentTurn = false;
+	private _rootWorkStarted = false;
 	private _completedTurnHistory: Promise<boolean> | undefined;
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -1443,6 +1456,24 @@ export class CopilotAgentSession extends Disposable {
 	 * does from creation, and for a resumed session from the first turn sent after resuming.
 	 */
 	get isHeldInUse(): boolean { return this._launchPlan.kind === 'create' || this._hasSentTurn; }
+	/** Whether this session has started root work. Until then it can be replaced without losing anything. */
+	get hasStartedRootWork(): boolean { return this._rootWorkStarted; }
+	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
+	/** The model router agent plan this session was launched with, compared by identity. */
+	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
+
+	/**
+	 * Notes that the root agent is doing work in this session, whoever started it: a sent message,
+	 * a request an extension sent through the SDK, or a notification that woke the agent. Child
+	 * agents and context-only events never count.
+	 */
+	private _noteRootWorkStarted(): void {
+		if (this._rootWorkStarted) {
+			return;
+		}
+		this._rootWorkStarted = true;
+		this._onRootWorkStarted?.();
+	}
 	/** Reuses persisted history to distinguish restored chats from a chat's first turn. */
 	get completedTurnHistory(): Promise<boolean> | undefined {
 		return this._launchPlan.kind === 'resume'
@@ -2045,6 +2076,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private readonly _onRootWorkStarted: (() => void) | undefined;
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -2185,6 +2217,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _lastLoggedMcpStatus = new Map<string, SdkMcpServerStatus>();
 
 	private readonly _realpath: (path: string) => Promise<string>;
+	private readonly _getSessionPathRoots: () => readonly ISessionPathRoot[];
 
 	get mcpServerStates() {
 		return this._mcpCustomizations.runtimeStates;
@@ -2235,6 +2268,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subagentTaskCompletionDelay = options.subagentTaskCompletionDelay ?? SUBAGENT_TASK_COMPLETION_DELAY_MS;
 		this.sessionId = options.rawSessionId;
 		this._owner = options.owner;
+		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
@@ -2263,6 +2297,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._onRootWorkStarted = options.onRootWorkStarted;
 		this._requestedModel = options.launchPlan.kind === 'create' ? options.launchPlan.model : options.launchPlan.fallback.model;
 		this._register(toDisposable(() => this._publishModelConfiguration(undefined)));
 		this._register(toDisposable(() => this._disposeLocalModelState()));
@@ -4863,6 +4898,10 @@ export class CopilotAgentSession extends Disposable {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+				await this._sandbox.prepare();
+				if (launchCancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token, reconcile => {
 					launchConnectorReconcile = reconcile;
 				}));
@@ -5271,6 +5310,7 @@ export class CopilotAgentSession extends Disposable {
 	private _extensionStatus(status: string): AgentExtensionStatus {
 		switch (status) {
 			case 'running':
+			case 'dormant':
 			case 'disabled':
 			case 'failed':
 			case 'starting':
@@ -6757,6 +6797,7 @@ export class CopilotAgentSession extends Disposable {
 			turn.sdkSendInvoked = true;
 		}
 		this._hasSentTurn = true;
+		this._noteRootWorkStarted();
 		recorder?.markMilestone?.('sdkSend');
 		try {
 			const result = await measureAgentProviderOperation(recorder, 'sdkSend', operation);
@@ -7859,7 +7900,7 @@ export class CopilotAgentSession extends Disposable {
 			undefined,
 			this._mcpCustomizations.pluginMcpServerSources,
 		);
-		const enabledById = getSdkMcpServerEnablement(resolved);
+		const enabledById = getSdkMcpServerEnablement(resolved, { ignoreRuntimeOwnedParents: true });
 		const candidates = new Map<string, Array<{ readonly server: McpServerCustomization; readonly applied: boolean; readonly explicit: boolean }>>();
 		const result = new Map<string, boolean>();
 		for (const customization of resolved.customizations) {
@@ -7871,18 +7912,22 @@ export class CopilotAgentSession extends Disposable {
 				const source = customization.type === CustomizationType.Plugin ? customization.uri : owningPluginSource;
 				const applied = source === undefined || this._appliedPluginSources.has(URI.parse(source).toString());
 				const defaultEnabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
-				const sdkDiscovered = defaultEnabled !== undefined;
+				const runtimeOwned = readRuntimePluginEnablement(customization) !== undefined;
+				const sdkDiscovered = defaultEnabled !== undefined || runtimeOwned;
 				// Observing SDK enablement is not a host request to change the runtime.
 				const hostDecision = sdkDiscovered ? this._customizationEnablementService.resolve(this.launchOwner.toString(), {
 					...targetForMcpServer(server, source, false), defaultEnabled: undefined,
 				}) : undefined;
+				if (runtimeOwned && hostDecision?.kind !== 'resolved') {
+					continue;
+				}
 				const hasDecision = hostDecision?.kind === 'resolved' ? hostDecision.enablement.length > 0 : (server.enablement?.length ?? 0) > 0;
 				const hostApplied = this._hostMcpServerEnablement.get(server.name);
-				const needsRestore = sdkDiscovered ? hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
+				const needsRestore = sdkDiscovered ? defaultEnabled !== undefined && hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
 				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
 					|| needsRestore || hasDecision
-					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
-				if (sdkDiscovered && !explicit && hostDecision?.kind === 'resolved') {
+					|| (customization.type === CustomizationType.Plugin && !runtimeOwned && (customization.enablement?.length ?? 0) > 0);
+				if (sdkDiscovered && !explicit && (runtimeOwned || hostDecision?.kind === 'resolved')) {
 					continue;
 				}
 				let namedCandidates = candidates.get(server.name);
@@ -8524,9 +8569,15 @@ export class CopilotAgentSession extends Disposable {
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
 			// parent session, which has no matching ChatToolCallStart.
-			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			// A subagent's permission can precede its bridged tool start, so
+			// fall back to the agent that raised the permission request.
+			const parentToolCallId = trackedToolCall?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent({ agentId: this._permissionRequestAgentIds.get(toolCallId) });
 			sandboxRequestId = this._sandbox.getPendingRequestId(toolCallId);
-			const grantConfirmation = sandboxPathGrant && sandboxRequestId ? getSandboxPathGrantConfirmation(sandboxPathGrant) : undefined;
+			const grantPathDisplay = sandboxPathGrant && sandboxRequestId ? {
+				path: this._getSessionPathDisplay(sandboxPathGrant.path),
+				deniedPath: sandboxPathGrant.deniedPath ? this._getSessionPathDisplay(sandboxPathGrant.deniedPath) : undefined,
+			} : undefined;
+			const grantConfirmation = sandboxPathGrant && grantPathDisplay ? getSandboxPathGrantConfirmation(sandboxPathGrant, grantPathDisplay) : undefined;
 			const grantMeta = grantConfirmation && sandboxPathGrant ? this._sandbox.pathGrantForSettings(sandboxPathGrant) : undefined;
 			if (trackedToolCall) {
 				trackedToolCall.pendingImageReady = undefined;
@@ -8595,6 +8646,9 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
 		} finally {
+			if (request.toolCallId !== undefined) {
+				this._permissionRequestAgentIds.delete(request.toolCallId);
+			}
 			if (this._sandbox.finishPermissionRequest(request.toolCallId, sandboxRequestId, sandboxPathGrant) && !this._store.isDisposed) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
@@ -8637,6 +8691,19 @@ export class CopilotAgentSession extends Disposable {
 
 		const permissionUri = normalizePath(copilotSdkPathToUri(this._pathMapper, permissionPath));
 		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
+	}
+
+	private _getSessionPathDisplay(path: string): ISessionPathDisplay {
+		const resource = copilotSdkPathToUri(this._pathMapper, path);
+		const ownerSession = this._ownerSessionUri;
+		// The live chat's own storage root is authoritative; only consult other chats on a miss.
+		const currentChatDisplay = getSessionPathDisplay(path, resource, ownerSession, [
+			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: ownerSession },
+		], extUriBiasedIgnorePathCase);
+		if (currentChatDisplay.isCurrentSession) {
+			return currentChatDisplay;
+		}
+		return getSessionPathDisplay(path, resource, ownerSession, this._getSessionPathRoots(), extUriBiasedIgnorePathCase);
 	}
 
 	/**
@@ -8716,7 +8783,7 @@ export class CopilotAgentSession extends Disposable {
 			if (event.chat !== this._chatChannelUri.toString()) {
 				return;
 			}
-			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
+			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled) || Object.hasOwn(event.config, SESSION_SANDBOX_PATHS_CHANGED)) {
 				void this._syncPermissionModeAfterConfigChange(event);
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
@@ -9221,8 +9288,9 @@ export class CopilotAgentSession extends Disposable {
 			? responseContext.userFeedback?.trim() || undefined
 			: undefined;
 		const context: IAgentPermissionResponseContext | undefined = responseContext?.userFeedback !== undefined ? { ...responseContext, userFeedback } : responseContext;
-		if (approved && (context?.selectedOptionId === SAVE_SANDBOX_PATH || metadata?.sandboxPathGrant)) {
-			if (!metadata?.sandboxPathGrant || metadata.managedApprovalRequired || context?.selectedOptionId !== SAVE_SANDBOX_PATH || context.decisionSource !== 'human_response') {
+		const sandboxPathOption = context?.selectedOptionId === SAVE_SANDBOX_PATH || context?.selectedOptionId === SAVE_SESSION_SANDBOX_PATH;
+		if (approved && (sandboxPathOption || metadata?.sandboxPathGrant)) {
+			if (!metadata?.sandboxPathGrant || metadata.managedApprovalRequired || !sandboxPathOption || context?.decisionSource !== 'human_response') {
 				this._logService.warn(`[Copilot:${this.sessionId}] Rejecting invalid sandbox path grant response: ${requestId}`);
 				const responded = this._pendingPermissions.respond(requestId, { kind: 'decision', result: { kind: 'reject' }, source: 'host_policy' });
 				if (responded) {
@@ -10030,6 +10098,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			// A notification that wakes the root agent is root work, even while a host turn is only pending.
+			if (notification.startsTurn && !e.agentId) {
+				this._noteRootWorkStarted();
+			}
 			if (this._turnId) {
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
@@ -10089,6 +10161,7 @@ export class CopilotAgentSession extends Disposable {
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
 			this._failedExecutionIdlePending = false;
+			this._noteRootWorkStarted();
 			// Show a failure held from between turns only now, so that a newer
 			// failure from this message's own preparation replaces it.
 			this._showUnshownManagedPluginFailure();
@@ -10309,6 +10382,9 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
+			if (e.agentId && !e.data.resolvedByHook) {
+				this._permissionRequestAgentIds.set(toolCallId, e.agentId);
+			}
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
 			if (permissionRequest.requestSandboxBypass && !e.data.resolvedByHook) {
@@ -10331,6 +10407,8 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				return;
 			}
+			// A handler that settles synchronously finishes before its request event is recorded.
+			this._permissionRequestAgentIds.delete(toolCallId);
 			this._sandbox.completePendingRequest(toolCallId, e.data.requestId);
 			const existing = this._toolApprovalRecords.get(toolCallId);
 			const record = {
@@ -13358,6 +13436,7 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
+				this._noteRootWorkStarted();
 				// The SDK starts the next turn only after it has emitted the failed
 				// execution's idle, so any idle from here on belongs to this turn.
 				this._failedExecutionIdlePending = false;
@@ -13703,6 +13782,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._pendingPermissions.denyAll({ kind: 'decision', result: { kind: 'reject' }, source: 'unattended_fallback' });
 		this._sandbox.clearPendingRequests();
+		this._permissionRequestAgentIds.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}
 

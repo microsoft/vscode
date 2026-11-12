@@ -1052,7 +1052,7 @@ export async function renderReleaseNotesMarkdown(
 	const container = $('div');
 	safeSetInnerHtml(container, content.toString(), tryoutSanitizerConfig);
 	if (mediaBaseUrl) {
-		// eslint-disable-next-line no-restricted-syntax -- These media elements are authored in the release note Markdown.
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- These media elements are authored in the release note Markdown.
 		for (const element of container.querySelectorAll('img, video, source')) {
 			for (const attribute of ['src', 'poster']) {
 				const value = element.getAttribute(attribute);
@@ -1069,7 +1069,7 @@ export async function renderReleaseNotesMarkdown(
 	return sanitizeHtml(container.innerHTML, tryoutSanitizerConfig);
 }
 
-/* eslint-disable no-restricted-syntax -- These serialized functions access IDs owned by the isolated release notes webview. */
+/* eslint-disable eslint-js/no-restricted-syntax -- These serialized functions access IDs owned by the isolated release notes webview. */
 export function initializeReleaseNotesNavigation(targetDocument: Document, targetWindow: Window & typeof globalThis): () => void {
 	const navigation = targetDocument.getElementById('toc-nav');
 	if (!navigation) {
@@ -1175,4 +1175,4 @@ export function applyReleaseNotesTokenization(targetDocument: Document, update: 
 		scrollingElement.scrollLeft = scrollLeft;
 	}
 }
-/* eslint-enable no-restricted-syntax */
+/* eslint-enable eslint-js/no-restricted-syntax */

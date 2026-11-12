@@ -30,12 +30,14 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -263,6 +265,7 @@ interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
 	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly location: MiddleEllipsisPathLabel;
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
@@ -278,6 +281,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 
 	constructor(
 		private readonly _harnessService: ICustomizationHarnessService,
+		private readonly _hoverService: IHoverService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
 		private readonly _showSyncToggle = true,
 	) { }
@@ -290,13 +294,14 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		const templateDisposables = new DisposableStore();
+		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
 		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, syncToggleContainer, name, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, managedTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -306,6 +311,10 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.currentItemId = element.item.plugin.uri.toString();
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
+		templateData.disposables.add(autorun(reader => {
+			const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
+			templateData.managedTag.update(policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+		}));
 
 		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
@@ -364,6 +373,7 @@ interface IPluginRemoteItemTemplateData {
 	readonly container: HTMLElement;
 	readonly name: HTMLElement;
 	readonly badge: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly description: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly statusIcon: HTMLElement;
@@ -398,14 +408,15 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('span.plugin-list-item-name'));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+		const templateDisposables = new DisposableStore();
+		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const statusIcon = DOM.append(container, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
-		const templateDisposables = new DisposableStore();
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, managedTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -424,6 +435,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.badge.style.display = 'none';
 			templateData.badge.title = '';
 		}
+		templateData.managedTag.update(element.item.organizationControl);
 
 		const description = getRemotePluginDescription(element.item);
 		if (description) {
@@ -699,7 +711,8 @@ function formatContributionLabel(count: number, singular: string, plural: string
 }
 
 function getRemotePluginStatusLabel(item: ICustomizationItem): string {
-	if (item.enabled === false) {
+	const hasEnablementToggle = item.actions?.some(action => action.checked !== undefined);
+	if (item.enabled === false && !hasEnablementToggle) {
 		return getRemotePluginDisabledLabel(item);
 	}
 
@@ -707,7 +720,7 @@ function getRemotePluginStatusLabel(item: ICustomizationItem): string {
 		case 'loading':
 			return localize('remotePluginLoading', "Loading");
 		case 'loaded':
-			return localize('remotePluginLoaded', "Loaded");
+			return hasEnablementToggle ? '' : localize('remotePluginLoaded', "Loaded");
 		case 'degraded':
 			return localize('remotePluginDegraded', "Warning");
 		case 'error':
@@ -718,6 +731,9 @@ function getRemotePluginStatusLabel(item: ICustomizationItem): string {
 }
 
 function getRemotePluginStatusDescription(item: ICustomizationItem): string {
+	if (item.statusMessage && item.actions?.some(action => action.checked !== undefined)) {
+		return item.statusMessage;
+	}
 	const label = getRemotePluginStatusLabel(item);
 	return label && item.statusMessage
 		? localize('remotePluginStatusWithMessage', "{0}: {1}", label, item.statusMessage)
@@ -727,7 +743,7 @@ function getRemotePluginStatusDescription(item: ICustomizationItem): string {
 function renderRemotePluginStatusIcon(statusIcon: HTMLElement, item: ICustomizationItem, hoverService: IHoverService, disposables: DisposableStore): void {
 	statusIcon.className = 'plugin-list-item-status-icon';
 	statusIcon.style.display = 'none';
-	if (item.enabled === false) {
+	if (item.enabled === false && !item.actions?.some(action => action.checked !== undefined)) {
 		return;
 	}
 
@@ -754,9 +770,12 @@ function getRemotePluginAriaLabel(item: ICustomizationItem): string {
 	const description = getRemotePluginDescription(item);
 	const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, truncateToFirstLine(description)) : name;
 	const statusDescription = getRemotePluginStatusDescription(item);
-	return statusDescription
+	const label = statusDescription
 		? localize('pluginSessionItemAriaLabelWithStatus', "{0}. Agent host. Status: {1}", nameAndDescription, statusDescription)
 		: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
+	const reason = item.actions?.find(action => action.checked !== undefined && action.enabled === false)?.tooltip;
+	const enablementLabel = reason ? localize('pluginEnablementUnavailableAria', "{0}. {1}", label, reason) : label;
+	return withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl);
 }
 
 function getInstalledPluginContributionSummary(item: IInstalledPluginItem): string | undefined {
@@ -778,7 +797,7 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 
 export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
 	await setAgentPluginEnablement(plugin, model, state);
-	return model.readEnabled(plugin.uri.toString());
+	return plugin.copilotCliInstallation ? plugin.enablement.get() : model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -1084,7 +1103,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
@@ -1369,9 +1388,13 @@ export class PluginListWidget extends Disposable {
 		if (element.type === 'plugin-item') {
 			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
 			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
-			return derived(this, reader => isContributionEnabled(element.item.plugin.enablement.read(reader))
-				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
-				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails));
+			return derived(this, reader => {
+				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
+					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
+					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
+				const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
+				return withOrganizationManagedAriaLabel(label, policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+			});
 		}
 		if (element.type === 'remote-item') {
 			return getRemotePluginAriaLabel(element.item);
@@ -1462,6 +1485,7 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 		actions.style.display = '';
+		this.renderRemotePluginToggle(item, actions, disposables);
 		const more = disposables.add(new Button(actions, {
 			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
@@ -1479,6 +1503,37 @@ export class PluginListWidget extends Disposable {
 			DOM.EventHelper.stop(event, true);
 			this.showRemotePluginActions(item, more.element);
 		}));
+	}
+
+	private renderRemotePluginToggle(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore): HTMLElement | undefined {
+		const action = item.actions?.find(action => action.checked !== undefined);
+		if (!action) {
+			return undefined;
+		}
+		const label = localize('pluginEnablementAria', "Plugin enablement for {0}. {1}", item.name, action.tooltip ?? action.label);
+		const toggle = disposables.add(new CustomizationToggle({
+			ariaLabel: label,
+			checked: action.checked,
+			disabled: action.enabled === false,
+			title: false,
+		}));
+		DOM.append(actions, toggle.domNode);
+		disposables.add(this.hoverService.setupDelayedHover(toggle.domNode, {
+			content: action.tooltip ?? action.label,
+			style: HoverStyle.Pointer,
+		}));
+		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
+		disposables.add(toggle.onChange(async () => {
+			toggle.disabled = true;
+			try {
+				await action.run();
+			} catch (error) {
+				toggle.checked = action.checked ?? false;
+				toggle.disabled = action.enabled === false;
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			}
+		}));
+		return toggle.domNode;
 	}
 
 	private layoutPluginSectionLists(): void {
@@ -1885,8 +1940,13 @@ export class PluginListWidget extends Disposable {
 		const statusIcon = DOM.append(row, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		renderRemotePluginStatusIcon(statusIcon, item, this.hoverService, this.cardDisposables);
 		let more: Button | undefined;
+		const rowActions: HTMLElement[] = [];
 		if (item.actions?.length) {
 			const actions = DOM.append(row, $('.plugin-list-item-action'));
+			const toggle = this.renderRemotePluginToggle(item, actions, this.cardDisposables);
+			if (toggle) {
+				rowActions.push(toggle);
+			}
 			const moreButton = this.cardDisposables.add(new Button(actions, {
 				...getButtonStyles({
 					buttonSecondaryBackground: undefined,
@@ -1902,12 +1962,13 @@ export class PluginListWidget extends Disposable {
 			this.rememberCardFocusElement(moreButton.element);
 			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
 			more = moreButton;
+			rowActions.push(moreButton.element);
 		}
 		this.cardListControllers.get(parent)?.addItem({
 			row,
 			primaryAction: row,
 			label: item.name,
-			actions: more ? [more.element] : [],
+			actions: rowActions,
 			contextMenuAction: more?.element,
 		});
 	}
@@ -2430,16 +2491,18 @@ export class PluginListWidget extends Disposable {
 		return actions;
 	}
 
-	private getRemotePluginActions(item: ICustomizationItem): IAction[] {
-		const actions: IAction[] = [];
+	private getRemotePluginActions(item: ICustomizationItem): Action[] {
+		const actions: Action[] = [];
 		for (const itemAction of item.actions ?? []) {
-			actions.push(new Action(
+			const action = new Action(
 				itemAction.id,
 				itemAction.label,
 				itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
 				itemAction.enabled !== false,
 				() => itemAction.run(),
-			));
+			);
+			action.tooltip = itemAction.tooltip ?? '';
+			actions.push(action);
 		}
 		return actions;
 	}
@@ -2454,9 +2517,11 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private showRemotePluginActions(item: ICustomizationItem, anchor: HTMLElement): void {
+		const disposables = new DisposableStore();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this.getRemotePluginActions(item),
+			getActions: () => this.getRemotePluginActions(item).map(action => disposables.add(action)),
+			onHide: () => disposables.dispose(),
 		});
 	}
 
@@ -2469,7 +2534,7 @@ export class PluginListWidget extends Disposable {
 		const disposables = new DisposableStore();
 		const actions = entry.type === 'plugin-item'
 			? this.getInstalledPluginActions(entry.item, disposables)
-			: this.getRemotePluginActions(entry.item);
+			: this.getRemotePluginActions(entry.item).map(action => disposables.add(action));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

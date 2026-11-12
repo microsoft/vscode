@@ -299,15 +299,17 @@ function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
-	const raw = value as Partial<Record<keyof IModelRoutedInfo, unknown>>;
+	const raw = value as Partial<Record<keyof IModelRoutedInfo | 'playbook', unknown>>;
 	if (typeof raw.router !== 'string' || typeof raw.chosenModel !== 'string') {
 		return undefined;
 	}
+	// A chat routed while named routes were written as playbooks saved the name as `playbook`.
+	const routeName = typeof raw.routeName === 'string' ? raw.routeName : raw.playbook;
 	return {
 		router: raw.router,
 		chosenModel: raw.chosenModel,
 		...(typeof raw.routerLabel === 'string' ? { routerLabel: raw.routerLabel } : {}),
-		...(typeof raw.playbook === 'string' ? { playbook: raw.playbook } : {}),
+		...(typeof routeName === 'string' ? { routeName } : {}),
 		...(typeof raw.preference === 'string' ? { preference: raw.preference } : {}),
 		...(typeof raw.effort === 'string' ? { effort: raw.effort } : {}),
 		...(raw.contextSize === 'default' || raw.contextSize === 'long' ? { contextSize: raw.contextSize } : {}),

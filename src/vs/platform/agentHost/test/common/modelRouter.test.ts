@@ -83,32 +83,55 @@ suite('modelRouter', () => {
 			});
 		});
 
-		test('parses playbooks as named routes, which may share a model', () => {
-			const parsed = parseModelRouter('version: 1\ndescription: Test.\nplaybooks:\n  feature:\n    when: Building.\n    main: [opus, sonnet]\n    effort: high\n  bug-fix:\n    when: Fixing.\n    main: opus\n', 'workday.model-router.yaml');
-			assert.deepStrictEqual({ routes: parsed.router?.routes, diagnostics: parsed.diagnostics }, {
+		test('parses a route\'s name and guidance, and lets named routes share a model', () => {
+			const parsed = parseModelRouter(withRoutes([
+				'  - name: feature',
+				'    model: [opus, sonnet]',
+				'    when: Building.',
+				'    effort: high',
+				'    guidance: Plan first.',
+				'  - name: bug-fix',
+				'    model: opus',
+				'    when: Fixing.',
+				'  - model: opus',
+				'    when: Anything else.',
+			].join('\n')), 'workday.model-router.yaml');
+			assert.deepStrictEqual({ routes: parsed.router?.routes, guidance: parsed.router?.guidance, diagnostics: parsed.diagnostics }, {
 				routes: [
-					{ models: ['opus', 'sonnet'], when: 'Building.', examples: [], effort: 'high', name: 'feature' },
+					{ models: ['opus', 'sonnet'], when: 'Building.', examples: [], effort: 'high', name: 'feature', mainAgentGuidance: 'Plan first.' },
 					{ models: ['opus'], when: 'Fixing.', examples: [], name: 'bug-fix' },
+					{ models: ['opus'], when: 'Anything else.', examples: [] },
 				],
+				// A route's guidance is for the chat's main agent, never for the routing decision.
+				guidance: '',
 				diagnostics: [],
 			});
 		});
 
-		test('checks playbooks', () => {
-			const playbooks = (text: string) => errors(`version: 1\ndescription: Test.\n${text}\n`);
-			const one = 'playbooks:\n  one:\n    when: A.\n    main: a';
+		test('checks names and guidance', () => {
+			const check = (text: string) => messages(parseModelRouter(`version: 1\ndescription: Test.\n${text}\n`, 'workday.model-router.yaml').diagnostics);
+			const guided = 'routes:\n  - model: a\n    when: A.\n    guidance: Plan first.';
 			assert.deepStrictEqual({
-				single: playbooks(one),
-				both: playbooks(`routes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n${one}`),
-				switching: playbooks(`switching: auto\n${one}`),
-				badName: playbooks('playbooks:\n  Bug_Fix:\n    when: A.\n    main: a'),
-				noMain: playbooks('playbooks:\n  one:\n    when: A.\n    model: a'),
+				oneGuidedRoute: check(guided),
+				oneRoute: check('routes:\n  - model: a\n    when: A.'),
+				sameName: check('routes:\n  - name: one\n    model: a\n    when: A.\n  - name: one\n    model: b\n    when: B.'),
+				sameModel: check('routes:\n  - model: a\n    when: A.\n  - model: a\n    when: B.\n    effort: low'),
+				badName: check('routes:\n  - name: Bug_Fix\n    model: a\n    when: A.\n  - model: b\n    when: B.'),
+				switching: check(`switching: auto\n${guided}`),
+				longGuidance: check(`${guided} ${'x'.repeat(4000)}`),
+				// The preview format, which this build no longer reads.
+				playbooks: check('playbooks:\n  one:\n    when: A.\n    main: a'),
+				roles: check(`roles:\n  reviewer:\n    description: Reviews.\n${guided}`),
 			}, {
-				single: [],
-				both: ['Write the router as `playbooks` or as `routes`, not both.'],
-				switching: ['A playbook is chosen once and kept for the chat, so `switching: auto` can\'t be used with `playbooks`.'],
-				badName: ['Playbook names are lowercase letters, digits and single hyphens, like `bug-fix`.'],
-				noMain: ['Playbook `one` needs `main`: a model id like `claude-haiku-5.5` or `anthropic/claude-haiku-4-5`, or a list of them in preference order.'],
+				oneGuidedRoute: [],
+				oneRoute: ['A router has 2 to 10 routes; this one has 1.'],
+				sameName: ['The name `one` is already route 1\'s; each name belongs to one route.'],
+				sameModel: ['`a` is already in route 1; each model belongs to one route, unless the routes have a `name`.'],
+				badName: ['Route 1\'s `name` is lowercase letters, digits and single hyphens, like `bug-fix`.'],
+				switching: ['A route\'s `guidance` is given to a chat when it starts and kept for that chat, so `switching: auto` can\'t be used with it.'],
+				longGuidance: ['Route 1\'s `guidance` is too long: at most 4000 characters.'],
+				playbooks: ['Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
+				roles: ['`roles` are no longer read. To have a custom agent used, name it in a route\'s `guidance`.'],
 			});
 		});
 
@@ -129,7 +152,7 @@ suite('modelRouter', () => {
 			assert.deepStrictEqual(errors(valid, 'Daily Driver.model-router.yaml'), ['The name must be lowercase letters, digits and single hyphens, like `daily-driver`.']);
 			assert.deepStrictEqual(errors(valid.replace(/^description: .*\n/m, '')), ['Add a `description`; it is shown in the model picker.']);
 			assert.deepStrictEqual(errors(withRoutes('  - model: a\n    when: A.')), ['A router has 2 to 10 routes; this one has 1.']);
-			assert.deepStrictEqual(errors(withRoutes(`${twoRoutes}\n  - model: [c, A]\n    when: C.`)), ['`A` is already in route 1; each model belongs to one route.']);
+			assert.deepStrictEqual(errors(withRoutes(`${twoRoutes}\n  - model: [c, A]\n    when: C.`)), ['`A` is already in route 1; each model belongs to one route, unless the routes have a `name`.']);
 			assert.deepStrictEqual(errors(withRoutes('  - model: a\n  - model: b\n    when: B.')), ['Route 1 needs `when`: when to use this model.']);
 			assert.deepStrictEqual(errors(withRoutes('  - model: a b\n    when: A.\n  - model: b\n    when: B.')), ['Route 1 needs `model`: a model id like `claude-haiku-5.5` or `anthropic/claude-haiku-4-5`, or a list of them in preference order.']);
 			assert.deepStrictEqual(errors(`effort: auto\n${withRoutes('  - model: a\n    when: A.\n    effort: auto\n  - model: b\n    when: B.')}`), ['Route 1\'s `effort` is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`.']);
@@ -276,18 +299,22 @@ suite('modelRouter', () => {
 			]);
 		});
 
-		test('resolves playbooks by name, so two can run on the same model', () => {
-			const playbooks = router([
+		test('resolves named routes by name, so two can run on the same model', () => {
+			const named = router([
 				{ models: ['a'], when: 'A.', examples: [], name: 'feature' },
 				{ models: ['gone', 'a'], when: 'B.', examples: [], name: 'bug-fix' },
 				{ models: ['gone'], when: 'C.', examples: [], name: 'quick' },
+				{ models: ['a'], when: 'D.', examples: [] },
+				// A pick of `a` could mean the route above or this one.
+				{ models: ['b'], when: 'E.', examples: [], name: 'a' },
 			]);
-			const result = resolveModelRouter(playbooks, [model('a')]);
+			const result = resolveModelRouter(named, [model('a'), model('b')]);
 			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics) }, {
-				routes: [['feature', 'a'], ['bug-fix', 'a']],
+				routes: [['feature', 'a'], ['bug-fix', 'a'], [undefined, 'a']],
 				diagnostics: [
-					'Playbook `bug-fix` uses `a` because `gone` is not available.',
-					'Playbook `quick` (gone) is skipped: none of its models are available on this account.',
+					'Route `bug-fix` uses `a` because `gone` is not available.',
+					'Route `quick` (gone) is skipped: none of its models are available on this account.',
+					'Route `a` is skipped: `a` is the name of one route and the model of another.',
 				],
 			});
 		});
