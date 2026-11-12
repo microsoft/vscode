@@ -14,6 +14,21 @@ suite('DefaultDocumentColorProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const { alpha, opacity, hex } of [
+		{ alpha: 1, opacity: '', hex: '#4080bf' },
+		{ alpha: 0, opacity: ' / 0%', hex: '#4080bf00' },
+		{ alpha: 0.555, opacity: ' / 55.5%', hex: '#4080bf8e' }
+	]) {
+		test(`Provides modern presentations directly for alpha ${alpha}`, () => {
+			const provider = new DefaultDocumentColorProvider(null!);
+			const range = new Range(1, 2, 1, 20);
+			const colorInfo: IColorInformation = { range, color: { red: 0.25, green: 0.5, blue: 0.75, alpha } };
+			const presentations = provider.provideColorPresentations(null!, colorInfo, CancellationToken.None, true);
+			const labels = [`rgb(64 128 191${opacity})`, `hsl(210deg 50% 50%${opacity})`, hex];
+			assert.deepStrictEqual(presentations, labels.map(label => ({ label, textEdit: { range, text: label } })));
+		});
+	}
+
 	test('Color presentations should not include alpha channel when alpha is 1', () => {
 		const provider = new DefaultDocumentColorProvider(null!);
 

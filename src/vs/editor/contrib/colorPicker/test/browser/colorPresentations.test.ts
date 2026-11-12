@@ -25,7 +25,7 @@ suite('Color picker presentations', () => {
 		};
 	}
 
-	test('Modernizes CSS language service presentations without changing edits or ordering', async () => {
+	test('Preserves extension-provided CSS presentations when modern syntax is enabled', async () => {
 		const labels = [
 			'rgba(255, 0, 0, 0.55)', '#ff00008c', 'hsla(0, 100%, 50%, 0.55)',
 			'hwb(0 0% 0% / 0.55)', 'lab(54.29% 80.81 69.89 / 0.55)',
@@ -34,29 +34,17 @@ suite('Color picker presentations', () => {
 		];
 		const presentations = labels.map(label => ({ label, textEdit: { range, text: label } }));
 		const actual = await getColorPresentations(null!, colorInfo, providerFor(presentations), CancellationToken.None, true);
-		const expected = [
-			'rgb(255 0 0 / 55%)', '#ff00008c', 'hsl(0deg 100% 50% / 55%)',
-			'hwb(0deg 0% 0% / 55%)', 'lab(54.29% 80.81 69.89 / 55%)',
-			'lch(54.29% 106.84 40.85deg / 55%)', 'oklab(62.8% 0.22 0.13 / 55%)',
-			'oklch(62.8% 0.26 29.23deg / 55%)'
-		];
-		assert.deepStrictEqual(actual, expected.map(label => ({ label, textEdit: { range, text: label } })));
-		assert.deepStrictEqual(presentations.map(p => p.label), labels);
+		assert.strictEqual(actual, presentations);
 	});
 
 	test('Preserves default and explicitly disabled output', async () => {
-		const presentations = [{ label: 'hsla(0, 100%, 50%, 0.55)', textEdit: { range, text: 'hsla(0, 100%, 50%, 0.55)' } }];
-		const provider = providerFor(presentations);
+		const presentations = ['rgba(255, 0, 0, 0.55)', 'hsla(0, 100%, 50%, 0.55)', '#ff00008c']
+			.map(label => ({ label, textEdit: { range, text: label } }));
+		const provider = new DefaultDocumentColorProvider(null!);
 		assert.deepStrictEqual([
 			await getColorPresentations(null!, colorInfo, provider, CancellationToken.None),
 			await getColorPresentations(null!, colorInfo, provider, CancellationToken.None, false)
 		], [presentations, presentations]);
-	});
-
-	test('Handles opaque, transparent, percentage, and already modern colors', async () => {
-		const labels = ['rgb(255, 0, 0)', 'hsl(120, 50%, 75%)', 'rgba(0, 0, 0, 0)', 'rgb(100%, 0%, 0%, 55%)', 'hsl(0deg 100% 50% / 55%)', 'hsl(.5turn 100% 50%)'];
-		const actual = await getColorPresentations(null!, colorInfo, providerFor(labels.map(label => ({ label }))), CancellationToken.None, true);
-		assert.deepStrictEqual(actual?.map(p => p.label), ['rgb(255 0 0)', 'hsl(120deg 50% 75%)', 'rgb(0 0 0 / 0%)', 'rgb(100% 0% 0% / 55%)', labels[4], labels[5]]);
 	});
 
 	test('Preserves custom presentations and additional edits', async () => {
@@ -69,7 +57,7 @@ suite('Color picker presentations', () => {
 			{ label: 'rgb(1, 2, 3)', textEdit: { range, text: 'rgb(1, 2, 3)' }, additionalTextEdits }
 		];
 		const actual = await getColorPresentations(null!, colorInfo, providerFor(presentations), CancellationToken.None, true);
-		assert.deepStrictEqual(actual, [...presentations.slice(0, 4), { label: 'rgb(1 2 3)', textEdit: { range, text: 'rgb(1 2 3)' }, additionalTextEdits }]);
+		assert.strictEqual(actual, presentations);
 	});
 
 	test('Preserves absent provider results', async () => {

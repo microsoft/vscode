@@ -3575,7 +3575,7 @@ declare namespace monaco.editor {
 		 */
 		colorDecoratorsLimit?: number;
 		/**
-		 * Use modern CSS syntax for color picker presentations. Defaults to false.
+		 * Use modern CSS syntax for built-in color picker presentations. Extension-provided presentations are unchanged. Defaults to false.
 		 */
 		colorPickerUseModernSyntax?: boolean;
 		/**

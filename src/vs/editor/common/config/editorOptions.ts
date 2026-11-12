@@ -420,7 +420,7 @@ export interface IEditorOptions {
 	 */
 	colorDecoratorsLimit?: number;
 	/**
-	 * Use modern CSS syntax for color picker presentations. Defaults to false.
+	 * Use modern CSS syntax for built-in color picker presentations. Extension-provided presentations are unchanged. Defaults to false.
 	 */
 	colorPickerUseModernSyntax?: boolean;
 	/**
@@ -6246,7 +6246,7 @@ export const EditorOptions = {
 	)),
 	colorPickerUseModernSyntax: register(new EditorBooleanOption(
 		EditorOption.colorPickerUseModernSyntax, 'colorPickerUseModernSyntax', false,
-		{ markdownDescription: nls.localize('colorPickerUseModernSyntax', "Controls whether the color picker uses modern CSS color syntax, with space-separated channels, percentage alpha values after a slash, and explicit hue units (for example, `rgb(255 0 0 / 50%)` and `hsl(0deg 100% 50%)`). Applies to CSS color presentations in all languages, including embedded CSS. Hex colors and custom non-CSS presentations are unchanged.") }
+		{ markdownDescription: nls.localize('colorPickerUseModernSyntax', "Controls whether the built-in color provider uses modern CSS color syntax, with space-separated channels, percentage alpha values after a slash, and explicit hue units (for example, `rgb(255 0 0 / 50%)` and `hsl(0deg 100% 50%)`). Hex colors and extension-provided color presentations are unchanged.") }
 	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
