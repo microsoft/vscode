@@ -43,7 +43,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { extractIssueData } from '../../browser/issueFormService.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
-import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
+import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IIssueReporterTitleRequest, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { RecordingState } from '../../browser/recordingService.js';
 import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
 import { createTestScreenshotToolService, TestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
@@ -1311,7 +1311,7 @@ suite('IssueReporterOverlay', () => {
 			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
 			const requests: string[] = [];
 			const submitted: string[] = [];
-			store.add(overlay.onDidRequestGenerateTitle(description => requests.push(description)));
+			store.add(overlay.onDidRequestGenerateTitle(({ description }) => requests.push(description)));
 			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
 			const title = container.querySelector<HTMLInputElement>('.wizard-title-field input')!;
 			setText('Tabs flicker\nwhen they are dragged');
@@ -1332,6 +1332,22 @@ suite('IssueReporterOverlay', () => {
 				title: 'Tabs flicker',
 			});
 		});
+
+		test('the simple layout stops waiting for a generated title that takes too long, and can generate one again', () => runWithFakedTimers({}, async () => {
+			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
+			const requests: IIssueReporterTitleRequest[] = [];
+			const submitted: string[] = [];
+			store.add(overlay.onDidRequestGenerateTitle(request => requests.push(request)));
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			setText('Tabs flicker\nwhen they are dragged');
+			preview.click();
+			await timeout(10_000);
+			container.querySelector<HTMLElement>('.wizard-ai-title-btn')!.click();
+			assert.deepStrictEqual({ submitted, cancelled: requests.map(request => request.token.isCancellationRequested) }, {
+				submitted: ['Tabs flicker'],
+				cancelled: [true, false],
+			});
+		}));
 
 		test('the simple layout includes or leaves out all diagnostics with one checkbox, and asks for no category', () => {
 			const { overlay, container, preview } = createReporter({ issueType: undefined }, { layout: 'simple' });

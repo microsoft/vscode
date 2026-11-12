@@ -19,7 +19,7 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -65,6 +65,14 @@ export interface IIssueReporterScreenshotRequest {
 	readonly id: string;
 	/** Whether the request follows a countdown, after which the whole window is captured. */
 	readonly delayed: boolean;
+}
+
+/** A request for a title generated from the report's description. */
+export interface IIssueReporterTitleRequest {
+	/** The description to generate a title from. */
+	readonly description: string;
+	/** Cancelled when the reporter stops waiting for the title, which must then not be set. */
+	readonly token: CancellationToken;
 }
 
 type PendingAttachment = { readonly id: string; readonly kind: 'pending'; readonly source: 'import' | 'screenshot' | 'recording' };
@@ -164,10 +172,10 @@ export class IssueReporterOverlay {
 	private titleInput!: InputBox;
 	private titleError!: HTMLElement;
 	private generateTitleBtn!: Button;
-	private titleGeneration: DeferredPromise<string | undefined> | undefined;
+	private titleGeneration: { readonly title: DeferredPromise<string | undefined>; readonly cancellation: CancellationTokenSource } | undefined;
 	private generatingTitleForPreview = false;
-	private readonly _onDidRequestGenerateTitle = new Emitter<string>();
-	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
+	private readonly _onDidRequestGenerateTitle = new Emitter<IIssueReporterTitleRequest>();
+	readonly onDidRequestGenerateTitle: Event<IIssueReporterTitleRequest> = this._onDidRequestGenerateTitle.event;
 
 	private screenshotContainer!: HTMLElement;
 	private addFilesCard: HTMLElement | undefined;
@@ -1832,12 +1840,13 @@ export class IssueReporterOverlay {
 		this._onDidSubmit.fire({ title, body });
 	}
 
-	/** Generates a title from the description, or takes its first line when none can be generated. */
+	/** Generates a title from the description, or takes its first line when none is generated in time. */
 	private async generateTitleForPreview(description: string): Promise<string> {
 		this.generatingTitleForPreview = true;
 		this.updatePreviewButton();
 		try {
-			const generated = await raceTimeout(this.requestGeneratedTitle(description), TITLE_GENERATION_TIMEOUT);
+			// A title that comes too late is cancelled, so that it doesn't replace the previewed title and a title can be generated again.
+			const generated = await raceTimeout(this.requestGeneratedTitle(description), TITLE_GENERATION_TIMEOUT, () => this.cancelTitleGeneration());
 			const title = generated?.trim() || getFallbackIssueTitle(description);
 			if (!this.disposed) {
 				this.titleInput.value = title;
@@ -1853,17 +1862,24 @@ export class IssueReporterOverlay {
 
 	/** Asks for a title generated from the description, unless one is already being generated. */
 	private requestGeneratedTitle(description: string): Promise<string | undefined> {
-		if (!this.titleGeneration) {
-			this.titleGeneration = new DeferredPromise<string | undefined>();
+		let generation = this.titleGeneration;
+		if (!generation) {
+			generation = this.titleGeneration = { title: new DeferredPromise<string | undefined>(), cancellation: new CancellationTokenSource() };
 			const button = this.generateTitleBtn;
 			// Lock width to prevent layout shift during loading
 			button.element.style.minWidth = `${button.element.offsetWidth}px`;
 			button.enabled = false;
 			button.label = `$(loading~spin) ${localize('generatingTitle', "Generating...")}`;
 			button.element.classList.add('loading');
-			this._onDidRequestGenerateTitle.fire(description);
+			this._onDidRequestGenerateTitle.fire({ description, token: generation.cancellation.token });
 		}
-		return this.titleGeneration.p;
+		return generation.title.p;
+	}
+
+	/** Stops waiting for a generated title, which must then not be set. */
+	private cancelTitleGeneration(): void {
+		this.titleGeneration?.cancellation.cancel();
+		this.resetGenerateButton();
 	}
 
 	show(): void {
@@ -2703,7 +2719,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.generateTitleBtn.enabled = this.hasDescriptionContent();
 		const generation = this.titleGeneration;
 		this.titleGeneration = undefined;
-		void generation?.complete(title);
+		generation?.cancellation.dispose();
+		void generation?.title.complete(title);
 	}
 
 	/** Show a "Close" button next to the submit button after successful submission */
@@ -2837,7 +2854,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	dispose(): void {
 		this.disposed = true;
-		void this.titleGeneration?.complete(undefined);
+		this.titleGeneration?.cancellation.dispose(true);
+		void this.titleGeneration?.title.complete(undefined);
 		this.input.saveDescriptionScrollPosition(this.descriptionContainer);
 		this.attachments.splice(0, this.attachments.length, ...this.getAttachments());
 		this.attachmentCards.clear();
