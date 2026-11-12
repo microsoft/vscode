@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
+import { scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -588,6 +589,12 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		(session.chats as ISettableObservable<readonly IChat[]>).set(chats, undefined);
 	}
 
+	async function nextFrame(): Promise<void> {
+		await new Promise<void>(resolve => {
+			disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve(), -1000));
+		});
+	}
+
 	/**
 	 * Renders the sessions list with moving chats on, recording the moves it makes and any dialog it shows. With
 	 * `realListModel`, the list keeps its state in the real list model service, recording the storage keys it writes.
@@ -742,7 +749,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 				drop: async () => {
 					targetElement.dispatchEvent(event('drop'));
 					sourceRow.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
-					await timeout(0);
+					await nextFrame();
 				},
 				end: () => sourceRow.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer })),
 			};
@@ -946,7 +953,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const keys = { a: focus(a), fixed: focus(fixed), c: focus(c) };
 		const movedFixed = list.list.moveChat(new SessionChatItem(own, fixed), 'up');
 		const movedC = list.list.moveChat(new SessionChatItem(own, c), 'up');
-		await timeout(0);
+		await nextFrame();
 		const movedFirst = list.list.moveChat(new SessionChatItem(own, a), 'up');
 
 		assert.deepStrictEqual({
@@ -1030,7 +1037,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const c = own.chats.get()[3];
 
 		list.list.moveChat(new SessionChatItem(own, c), 'up');
-		await timeout(0);
+		await nextFrame();
 
 		assert.deepStrictEqual({ moves: list.moves, moved: list.chatRows(), focused: list.rendered().focused, selected: list.rendered().selected }, {
 			moves: ['c -> Own after a'],

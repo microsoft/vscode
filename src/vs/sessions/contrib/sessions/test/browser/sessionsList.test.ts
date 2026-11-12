@@ -313,7 +313,7 @@ suite('Sessions - SessionsList', () => {
 				providers.fire({ added: [], removed: [] });
 			};
 			return {
-				harness, list, management, original, changes, invalidateCatalogue,
+				harness, list, management, original, changes, invalidateCatalogue, container,
 				counts: () => ({ reads, updates }),
 				titles: () => [...container.querySelectorAll('.session-title')].map(element => element.textContent),
 			};
@@ -343,7 +343,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		for (const operation of ['added', 'removed', 'changed'] as const) {
+		for (const operation of ['added', 'removed'] as const) {
 			test(`keeps concrete session ${operation} synchronous and cancels a redundant queued refresh`, async () => {
 				const fixture = await createFixture();
 				fixture.invalidateCatalogue();
@@ -352,7 +352,7 @@ suite('Sessions - SessionsList', () => {
 				fixture.changes.fire({
 					added: operation === 'added' ? [replacement] : [],
 					removed: operation === 'removed' ? [fixture.original] : [],
-					changed: operation === 'changed' ? [replacement] : [],
+					changed: [],
 				});
 				const immediate = { ...fixture.counts(), titles: fixture.titles() };
 				await nextFrame();
@@ -363,6 +363,21 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('coalesces concrete metadata changes without losing the latest catalogue', async () => {
+			const fixture = await createFixture();
+			const replacement = createTestSession('Replacement').session;
+			fixture.management.sessions = [replacement];
+			fixture.changes.fire({ added: [], removed: [], changed: [replacement] });
+			fixture.changes.fire({ added: [], removed: [], changed: [replacement] });
+			const immediate = { ...fixture.counts(), titles: fixture.titles() };
+			await nextFrame();
+
+			assert.deepStrictEqual({ immediate, settled: { ...fixture.counts(), titles: fixture.titles() } }, {
+				immediate: { reads: 0, updates: 0, titles: ['Original'] },
+				settled: { reads: 1, updates: 1, titles: ['Replacement'] },
+			});
+		});
 
 		for (const explicit of ['refresh', 'update'] as const) {
 			test(`an explicit ${explicit} reads the latest pending catalogue synchronously`, async () => {
@@ -442,6 +457,52 @@ suite('Sessions - SessionsList', () => {
 				reads: 2, updates: 2, titles: ['Latest'],
 			});
 		});
+
+		for (const trigger of ['refresh', 'reveal'] as const) {
+			test(`defers metadata changes raised while ${trigger} renders a lazy row`, async () => {
+				const fixture = await createFixture();
+				fixture.list.layout(trigger === 'refresh' ? 400 : 90, 400);
+				const base = createTestSession('Lazy', { createdAt: trigger === 'reveal' ? new Date(0) : new Date() }).session;
+				let subscribed = false;
+				const onDidResolveTimestamp: Event<void> = () => {
+					if (!subscribed) {
+						subscribed = true;
+						fixture.changes.fire({ added: [], removed: [], changed: [lazy] });
+					}
+					return toDisposable(() => { });
+				};
+				const lazy: ISession = {
+					...base,
+					mainChat: constObservable({
+						...base.mainChat.get(),
+						updatedAt: observableFromEvent(disposables, onDidResolveTimestamp, () => undefined),
+					}),
+				};
+				fixture.management.sessions = [
+					...Array.from({ length: 4 }, (_, index) => createTestSession(`Session ${index}`).session),
+					lazy,
+				];
+				fixture.list.refresh();
+				if (trigger === 'reveal') {
+					assert.strictEqual(subscribed, false);
+					fixture.list.revealItem({ session: lazy.resource });
+				}
+				const immediate = fixture.counts();
+				await nextFrame();
+				const rows = [...fixture.container.querySelectorAll<HTMLElement>('.monaco-list-rows > .monaco-list-row')]
+					.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+					.map(row => row.getBoundingClientRect());
+
+				assert.deepStrictEqual({
+					subscribed, immediate, settled: fixture.counts(),
+					title: fixture.list.getItemRow({ session: lazy.resource })?.querySelector('.session-title')?.textContent,
+					disjoint: rows.every((row, index) => index === 0 || rows[index - 1].bottom <= row.top),
+				}, {
+					subscribed: true, immediate: { reads: 1, updates: 1 }, settled: { reads: 2, updates: 2 },
+					title: 'Lazy', disjoint: true,
+				});
+			});
+		}
 	});
 
 	test('uses the large radius token for list hovers even when pointer styles load later', () => {
