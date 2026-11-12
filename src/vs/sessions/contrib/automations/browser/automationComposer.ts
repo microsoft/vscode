@@ -7,7 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -32,9 +32,11 @@ import { WorkspacePicker } from '../../../../workbench/contrib/sessions/browser/
 import { IPreferredSessionType } from '../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AutomationComposerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions, ISessionsManagementService, INewSessionDraftSlot } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { URI } from '../../../../base/common/uri.js';
 import { canSelectAutomationWorkspace } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
@@ -65,6 +67,9 @@ export class AutomationComposer extends Disposable {
 	private readonly message = DOM.$('.automation-authoring-message', { role: 'alert', 'aria-atomic': 'true' });
 	private readonly sending = observableValue(this, false);
 	private submitted = false;
+	private telemetry: AutomationDialogTelemetry | undefined;
+	/** Holds this composer's draft apart from the New Session draft, which opening Automations must not replace. */
+	private readonly slot: INewSessionDraftSlot & IDisposable;
 	private readonly token = cancelOnDispose(this._store);
 
 	constructor(
@@ -81,8 +86,10 @@ export class AutomationComposer extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+		this.slot = sessionsManagementService.createNewSessionSlot();
 		AutomationComposer.instances.set(root, this);
 		this._register(toDisposable(() => AutomationComposer.instances.delete(root)));
 		const enabledChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
@@ -164,6 +171,11 @@ export class AutomationComposer extends Disposable {
 		this.message.hidden = true;
 		const pickChanged = observableSignalFromEvent(this, this.input.sessionTypePicker.onDidChangeSelectedPick);
 		const typesChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessionTypes);
+		// This composer has no environment picker, so a Dev Container choice from the workspace picker is applied to its draft directly.
+		let devContainerFolder: URI | undefined;
+		this._register(this.workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
+			devContainerFolder = preferDevContainer ? folderUri : undefined;
+		}));
 		let creatingDraft = false;
 		this._register(autorun(reader => {
 			pickChanged.read(reader);
@@ -175,7 +187,7 @@ export class AutomationComposer extends Disposable {
 			if (!enabled.read(reader) || !pick?.providerId || !allowed.includes(pick.providerId) || this.sending.read(reader) || this.submitted) {
 				return;
 			}
-			const currentDraft = sessionsManagementService.newSession.read(reader);
+			const currentDraft = this.slot.newSession.read(reader);
 			if (creatingDraft) {
 				return;
 			}
@@ -188,8 +200,14 @@ export class AutomationComposer extends Disposable {
 			try {
 				transaction(tx => {
 					const session = selectedFolder
-						? sessionsManagementService.createNewSession(selectedFolder, pick)
-						: sessionsManagementService.createQuickChat(pick);
+						? this.slot.createNewSession(selectedFolder, pick)
+						: this.slot.createQuickChat(pick);
+					if (selectedFolder && isEqual(devContainerFolder, selectedFolder)) {
+						const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+						if (provider && isAgentHostProvider(provider)) {
+							provider.preferDevContainer?.(session.sessionId);
+						}
+					}
 					this.target = { folder: selectedFolder, pick };
 					this.session.set(session, tx);
 					this.targetReady.set(true, tx);
@@ -200,12 +218,8 @@ export class AutomationComposer extends Disposable {
 				creatingDraft = false;
 			}
 		}));
-		this._register(toDisposable(() => {
-			const session = this.session.get();
-			if (session && !isSessionCreated(session)) {
-				sessionsManagementService.discardNewSession(session);
-			}
-		}));
+		// Last, so the draft autorun is gone before the slot discards its draft.
+		this._register(this.slot);
 	}
 
 	focus(): void {
@@ -228,7 +242,8 @@ export class AutomationComposer extends Disposable {
 		}
 		this.sending.set(true, undefined);
 		this.message.hidden = true;
-		const telemetry = new AutomationDialogTelemetry(this.telemetryService, 'create');
+		// One authoring flow, whose retries share its initiation and outcomes.
+		const telemetry = this.telemetry ??= new AutomationDialogTelemetry(this.telemetryService, 'create');
 		try {
 			// Resolved on send, not on import, so environments without module URIs, such as component fixtures, can load the view.
 			const skillUri = FileAccess.asFileUri('vs/sessions/skills/automate/SKILL.md');
@@ -242,10 +257,18 @@ export class AutomationComposer extends Disposable {
 				return false;
 			}
 			const goal = request.query.replace(/^\s*\/automate(?=\s|$)\s*/, '');
+			const instruction = localize('automation.composer.authoringInstruction', "Follow only the attached automate SKILL.md to help me create an automation. Use this session's workspace as the default automation workspace unless I choose another.");
+			const query = `${instruction}\n\n${goal}`;
+			// Inline references are ranged in the typed input: move them into the sent query, and drop the ranges in the removed /automate.
+			const removed = request.query.length - goal.length;
+			const shift = query.length - goal.length - removed;
+			const attachments = (request.attachments ?? []).map(entry => !entry.range ? entry : entry.range.start < removed
+				? { ...entry, range: undefined }
+				: { ...entry, range: { start: entry.range.start + shift, endExclusive: entry.range.endExclusive + shift } });
 			request.userInteraction?.handoff(session, session.mainChat.get());
 			const options: ISendRequestOptions = {
-				query: localize('automation.composer.authoringPrompt', "Follow only the attached automate SKILL.md to help me create an automation. Use this session's workspace as the default automation workspace unless I choose another.\n\n{0}", goal),
-				attachedContext: [...(request.attachments ?? []), toPromptFileVariableEntry(skillUri, PromptFileVariableKind.PromptFile)],
+				query,
+				attachedContext: [...attachments, toPromptFileVariableEntry(skillUri, PromptFileVariableKind.PromptFile)],
 				...(request.userInteraction ? { onDidCreateResponse: request.userInteraction.onDidCreateResponse } : {}),
 			};
 			let startedSession: ISession | undefined;

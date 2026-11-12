@@ -31,7 +31,10 @@ import { ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService 
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
-import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -76,19 +79,32 @@ suite('Automation composer', () => {
 		let sendFailure: Error | undefined;
 		let openFailure: Error | undefined;
 		let replacement: ISession | undefined;
-		const createDraft = (folder: URI | undefined) => {
-			const session = Object.assign(createTestActiveSession(`draft-${drafts.length}`, false), { providerId: 'host', sessionType: 'copilotcli' });
+		const createDraft = (folder: URI | undefined, providerId = 'host') => {
+			const session = Object.assign(createTestActiveSession(`draft-${drafts.length}`, false), { providerId, sessionType: 'copilotcli' });
 			drafts.push({ folder, session });
 			currentDraft.set(session, undefined);
 			return session;
 		};
+		const defaultSlotCalls: string[] = [];
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessionTypes: Event.None,
 			onDidSendRequest: sent.event,
-			newSession: currentDraft,
-			createQuickChat: () => createDraft(undefined),
-			createNewSession: folder => createDraft(folder),
-			discardNewSession: session => { if (session) { discarded.push(session); } },
+			createQuickChat: () => { defaultSlotCalls.push('createQuickChat'); return createDraft(undefined); },
+			createNewSession: folder => { defaultSlotCalls.push('createNewSession'); return createDraft(folder); },
+			discardNewSession: () => { defaultSlotCalls.push('discardNewSession'); },
+			createNewSessionSlot: () => ({
+				id: 'automation',
+				newSession: currentDraft,
+				createQuickChat: options => createDraft(undefined, options?.providerId),
+				createNewSession: (folder, options) => createDraft(folder, options?.providerId),
+				discardNewSession: session => { if (session) { discarded.push(session); } },
+				dispose: () => {
+					const draft = currentDraft.get();
+					if (draft) {
+						discarded.push(draft);
+					}
+				},
+			}),
 			isQuickChatTargetAvailable: () => true,
 			isNewSessionTargetAvailable: () => true,
 			sendNewChatRequest: async (session, options) => {
@@ -109,10 +125,19 @@ suite('Automation composer', () => {
 			}
 		});
 		instantiationService.stub(INotificationService, { error: message => notifications.push(String(message)) });
+		const preferredDevContainers: string[] = [];
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>(providerId: string) => upcastPartial<IAgentHostSessionsProvider>({
+				id: providerId,
+				preferDevContainer: sessionId => { preferredDevContainers.push(sessionId); },
+			}) as unknown as T,
+		}));
 		const workspaceChanged = store.add(new Emitter<void>());
+		const workspaceMode = store.add(new Emitter<{ readonly folderUri: URI; readonly preferDevContainer: boolean }>());
 		let selectedFolder: URI | undefined;
 		instantiationService.stubInstance(WorkspacePicker, {
 			onDidChangeSelection: workspaceChanged.event,
+			onDidSelectWorkspaceMode: workspaceMode.event,
 			get selectedFolderUri() { return selectedFolder; },
 			validateSelectedWorkspace: async () => true,
 			render: container => DOM.append(container, DOM.$('button', { 'aria-label': 'Select Workspace' }, 'Select workspace')),
@@ -151,8 +176,14 @@ suite('Automation composer', () => {
 		const options = creations.flatMap(creation => creation.getCalls()).find(call => call.args[0] === SharedChatInputComposer)!.args[1] as INewChatComposerInputOptions;
 		root.appendChild(composer.element);
 		return {
-			composer, root, input, providers, prompts, disabledSkills, drafts, requests, discarded, telemetry, configuration, options, opened, notifications, currentDraft,
-			selectFolder: (folder: URI | undefined) => { selectedFolder = folder; workspaceChanged.fire(); },
+			composer, root, input, providers, prompts, disabledSkills, drafts, requests, discarded, telemetry, configuration, options, opened, notifications, currentDraft, defaultSlotCalls, preferredDevContainers,
+			selectFolder: (folder: URI | undefined, preferDevContainer = false) => {
+				if (folder) {
+					workspaceMode.fire({ folderUri: folder, preferDevContainer });
+				}
+				selectedFolder = folder;
+				workspaceChanged.fire();
+			},
 			selectHarness: (value: IPreferredSessionType) => { pick = value; pickChanged.fire(value); },
 			setSendFailure: (error: Error | undefined) => { sendFailure = error; },
 			setOpenFailure: (error: Error) => { openFailure = error; },
@@ -248,15 +279,47 @@ suite('Automation composer', () => {
 		assert.deepStrictEqual({ sent: await sending, requests }, { sent: false, requests: [] });
 	});
 
-	test('send failure keeps configuration and allows retry without creating another draft', async () => {
-		const { composer, options, drafts, requests, setSendFailure } = setup();
+	test('send failure keeps configuration and allows retry without creating another draft or authoring flow', async () => {
+		const { composer, options, drafts, requests, telemetry, setSendFailure } = setup();
 		setSendFailure(new Error('Provider disconnected'));
 		const failed = await options.sendRequest({ query: 'Review changes' });
 		setSendFailure(undefined);
 		const retried = await options.sendRequest({ query: 'Review changes' });
-		assert.deepStrictEqual({ failed, retried, drafts: drafts.length, sessions: requests.map(request => request.session === drafts[0].session), staleError: composer.getAccessibleContent().includes('Provider disconnected') }, {
+		assert.deepStrictEqual({
+			failed, retried, drafts: drafts.length, sessions: requests.map(request => request.session === drafts[0].session), staleError: composer.getAccessibleContent().includes('Provider disconnected'),
+			initiated: telemetry.events.filter(event => event.name === 'automation.newInitiated').length,
+			outcomes: telemetry.events.filter(event => event.name === 'automation.dialogOutcome').map(event => event.data.outcome),
+		}, {
 			failed: false, retried: true, drafts: 1, sessions: [true, true], staleError: false,
+			initiated: 1, outcomes: ['sessionStartFailed', 'sessionStarted'],
 		});
+	});
+
+	test('holds its draft apart from the New Session draft and discards only its own', () => {
+		const { composer, drafts, discarded, defaultSlotCalls } = setup();
+		const draft = drafts.at(-1)!.session;
+		composer.dispose();
+		assert.deepStrictEqual({ defaultSlotCalls, discarded: discarded.map(session => session === draft) }, { defaultSlotCalls: [], discarded: [true] });
+	});
+
+	test('applies a Dev Container workspace choice to the draft for that folder only', () => {
+		const { providers, drafts, preferredDevContainers, selectFolder, selectHarness } = setup();
+		providers.set([{ id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'Local' }], undefined);
+		selectHarness({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' });
+		selectFolder(folder, true);
+		const containerDraft = drafts.at(-1)!.session.sessionId;
+		selectFolder(URI.file('/other'));
+		assert.deepStrictEqual({ preferredDevContainers, drafts: drafts.map(draft => draft.folder?.path) }, {
+			preferredDevContainers: [containerDraft], drafts: [undefined, undefined, '/workspace', '/other'],
+		});
+	});
+
+	test('moves inline reference ranges into the sent query and drops ranges in the removed /automate', async () => {
+		const { options, requests } = setup();
+		const reference = (id: string, start: number, endExclusive: number) => upcastPartial<IChatRequestVariableEntry>({ kind: 'file', id, name: id, value: URI.file(`/${id}`), range: { start, endExclusive } });
+		await options.sendRequest({ query: '/automate Review #file:a.ts', attachments: [reference('command', 0, 9), reference('a.ts', 17, 27)] });
+		const sent = requests[0].options;
+		assert.deepStrictEqual(sent.attachedContext!.slice(0, 2).map(entry => entry.range && sent.query.slice(entry.range.start, entry.range.endExclusive)), [undefined, '#file:a.ts']);
 	});
 
 	test('a workspace restored during skill lookup retargets the draft before a retry', async () => {
