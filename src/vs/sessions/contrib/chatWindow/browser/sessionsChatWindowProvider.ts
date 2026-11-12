@@ -595,14 +595,20 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			return resolved;
 		}
 		// What it would resolve as now, from what is known: a stored composer as the session its send started, once that is
-		// known and created, a session as its main chat.
+		// known and created, a session as its main chat, a chat by a previous identity of its session as its current resource.
 		if (isChatWindowComposerResource(original)) {
 			const sent = this._composers.storedAttemptSessionOf(original);
 			const session = sent && this._sessionsManagementService.getSession(sent);
 			return session && isSessionCreated(session) ? session.mainChat.get().resource : undefined;
 		}
-		const chat = resolveSessionChat(this._sessionsManagementService, original);
-		return chat && !chat.chat ? chat.session.mainChat.get().resource : undefined;
+		const known = resolveSessionChat(this._sessionsManagementService, original);
+		if (!known) {
+			return undefined;
+		}
+		if (!known.chat) {
+			return known.session.mainChat.get().resource;
+		}
+		return isEqual(known.chat, original) ? undefined : known.chat;
 	}
 
 	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openNewChat} does. */
