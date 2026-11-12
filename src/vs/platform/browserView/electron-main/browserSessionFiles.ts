@@ -15,7 +15,7 @@ import { IBrowserViewWindowConfiguration } from '../common/browserView.js';
 export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
 	readonly roots: TRoots;
 	readonly trustAll: boolean;
-	/** Whether the remote's file system ignores path case, as on a Windows remote. */
+	/** Whether the remote's file system ignores path case, as reported by a window connected to it. */
 	readonly ignoreCase: boolean;
 	/** The windows that contributed to this remote, in order. The first one that is still open reads its files. */
 	readonly windowIds: readonly number[];
@@ -24,7 +24,7 @@ export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
 }
 
 /** The trust a window contributes, and the remote it is connected to, if any. */
-export interface IWindowFileTrust extends Pick<IBrowserViewWindowConfiguration, 'trustAllFiles' | 'trustedFileRoots'> {
+export interface IWindowFileTrust extends Pick<IBrowserViewWindowConfiguration, 'trustAllFiles' | 'trustedFileRoots' | 'caseInsensitiveRemoteAuthorities'> {
 	readonly windowId: number;
 	readonly remoteAuthority: string | undefined;
 }
@@ -44,7 +44,8 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 	const localRoots = new Set<string>();
 	let localTrustAll = false;
 	const remotes = new Map<string, Mutable<IRemoteFileTrust<Set<string>>>>();
-	for (const { windowId, remoteAuthority, trustAllFiles, trustedFileRoots } of windows) {
+	for (const { windowId, remoteAuthority, trustAllFiles, trustedFileRoots, caseInsensitiveRemoteAuthorities } of windows) {
+		const caseInsensitive = new Set(caseInsensitiveRemoteAuthorities.map(authority => authority.toLowerCase()));
 		const remoteKey = remoteAuthority?.toLowerCase();
 		const remote = remoteKey ? getOrSet(remotes, remoteKey, newRemote(Schemas.vscodeRemote)) : undefined;
 		if (remote) {
@@ -69,6 +70,12 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 				}
 			}
 		}
+		for (const authority of caseInsensitive) {
+			const known = remotes.get(authority);
+			if (known) {
+				known.ignoreCase = true;
+			}
+		}
 	}
 	return { local: { roots: localRoots, trustAll: localTrustAll }, remotes };
 }
@@ -83,14 +90,10 @@ function addWindow(remote: Mutable<IRemoteFileTrust<Set<string>>>, windowId: num
 	}
 }
 
-/**
- * Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories.
- * A root starting with a drive letter (`/c:/repo`) means a Windows remote, whose paths ignore case.
- */
+/** Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories. */
 function addRemoteRoot(remote: Mutable<IRemoteFileTrust<Set<string>>>, path: string): void {
 	if (!path.includes('\\')) {
 		remote.roots.add(path);
-		remote.ignoreCase ||= /^\/[a-z]:(\/|$)/i.test(path);
 	}
 }
 
