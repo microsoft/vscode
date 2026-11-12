@@ -259,19 +259,19 @@ export class BrowserSession {
 		}
 	}
 
-	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
-	private static _trustAllFiles = false;
+	private static readonly _trustedLocalFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
+	private static _trustAllLocalFiles = false;
 	private static _trustedRemoteFileRoots = new Map<string, IRemoteFileTrust<TernarySearchTree<string, true>>>();
 
 	/**
-	 * Set trusted file roots for all browser sessions.
+	 * Set trusted file roots for sessions on the local network. Remote sessions use {@link setTrustedRemoteFileRoots}.
 	 */
-	static setTrustedFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
-		BrowserSession._trustAllFiles = trustAllFiles;
-		BrowserSession._trustedFileRoots.clear();
+	static setTrustedLocalFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
+		BrowserSession._trustAllLocalFiles = trustAllFiles;
+		BrowserSession._trustedLocalFileRoots.clear();
 		for (const root of roots) {
 			if (root) {
-				BrowserSession._trustedFileRoots.set(normalize(root), true);
+				BrowserSession._trustedLocalFileRoots.set(normalize(root), true);
 			}
 		}
 	}
@@ -439,7 +439,7 @@ export class BrowserSession {
 				return this.handleRemoteFileRequest(this._network.authority, URI.parse(request.url));
 			}
 			const filePath = normalize(URI.parse(request.url).fsPath);
-			if (!BrowserSession._trustAllFiles && !BrowserSession._trustedFileRoots.findSubstr(filePath)) {
+			if (!BrowserSession._trustAllLocalFiles && !BrowserSession._trustedLocalFileRoots.findSubstr(filePath)) {
 				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 			}
 			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });

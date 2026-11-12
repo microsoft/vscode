@@ -411,7 +411,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			windowId,
 			remoteAuthority: this.windowsMainService.getWindowById(windowId)?.remoteAuthority,
 		})));
-		BrowserSession.setTrustedFileRoots([...local.roots], local.trustAll);
+		BrowserSession.setTrustedLocalFileRoots([...local.roots], local.trustAll);
 		BrowserSession.setTrustedRemoteFileRoots(remotes);
 	}
 

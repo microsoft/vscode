@@ -7,6 +7,8 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -25,8 +27,8 @@ suite('Browser Auto Reload Features', () => {
 		const fileService = new TestFileService();
 		const emptyModel = disposables.add(new TestBrowserViewModel(''));
 		const httpModel = disposables.add(new TestBrowserViewModel('https://example.com'));
-		disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(emptyModel).input, true, fileService.service));
-		disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(httpModel).input, true, fileService.service));
+		disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(emptyModel).input, true, fileService.service, undefined));
+		disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(httpModel).input, true, fileService.service, undefined));
 
 		assert.deepStrictEqual(fileService.snapshot(), {
 			resources: [],
@@ -42,10 +44,23 @@ suite('Browser Auto Reload Features', () => {
 		});
 	});
 
+	test('watches remote files by the window remote authority or agent host', () => {
+		const fileService = new TestFileService();
+		const remoteModel = disposables.add(new TestBrowserViewModel('file:///workspace/a.html', { authority: 'ssh-remote+host' }));
+		const agentHostModel = disposables.add(new TestBrowserViewModel('file:///workspace/b.html', { authority: 'other' }));
+		disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(remoteModel).input, true, fileService.service, 'ssh-remote+host'));
+		disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(agentHostModel).input, true, fileService.service, 'ssh-remote+host'));
+
+		assert.deepStrictEqual(fileService.snapshot().resources, [
+			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/workspace/a.html' }).toString(),
+			toAgentHostUri(URI.file('/workspace/b.html'), 'other').toString(),
+		]);
+	});
+
 	test('watches file URLs and replaces the watcher on navigation', () => {
 		const fileService = new TestFileService();
 		const model = disposables.add(new TestBrowserViewModel('file:///workspace/index.html?theme=dark#section'));
-		const watcher = disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service));
+		const watcher = disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service, undefined));
 
 		assert.deepStrictEqual(fileService.snapshot(), {
 			resources: ['file:///workspace/index.html'],
@@ -79,7 +94,7 @@ suite('Browser Auto Reload Features', () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const fileService = new TestFileService();
 			const model = disposables.add(new TestBrowserViewModel('file:///workspace/index.html'));
-			disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service));
+			disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service, undefined));
 
 			fileService.fire(URI.file('/workspace/unrelated.html'));
 			fileService.fire(URI.file('/workspace/index.html'), FileChangeType.DELETED);
@@ -97,7 +112,7 @@ suite('Browser Auto Reload Features', () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const fileService = new TestFileService();
 			const model = disposables.add(new TestBrowserViewModel('file:///workspace/index.html'));
-			disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service));
+			disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service, undefined));
 
 			model.setVisible(false);
 			fileService.fire(URI.file('/workspace/index.html'));
@@ -120,7 +135,7 @@ suite('Browser Auto Reload Features', () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const fileService = new TestFileService();
 			const model = disposables.add(new TestBrowserViewModel('file:///workspace/index.html'));
-			const watcher = disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service));
+			const watcher = disposables.add(new BrowserAutoReloadWatcher(new TestBrowserEditorInput(model).input, true, fileService.service, undefined));
 
 			model.setVisible(false);
 			fileService.fire(URI.file('/workspace/index.html'));
@@ -145,7 +160,7 @@ suite('Browser Auto Reload Features', () => {
 		const firstModel = disposables.add(new TestBrowserViewModel('file:///workspace/first.html'));
 		const firstInput = new TestBrowserEditorInput(firstModel);
 		browserViewService.set('first', firstInput.input);
-		const service = disposables.add(new BrowserAutoReloadService(browserViewService.service, configurationService.service, fileService.service));
+		const service = disposables.add(new BrowserAutoReloadService(browserViewService.service, configurationService.service, fileService.service, { remoteAuthority: undefined } as IWorkbenchEnvironmentService));
 		const changes: Array<{ browserId: string; enabled: boolean }> = [];
 		disposables.add(service.onDidChangeState(e => changes.push(e)));
 
@@ -206,12 +221,13 @@ class TestBrowserViewModel extends Disposable {
 
 	readonly model: IBrowserViewModel;
 
-	constructor(url: string) {
+	constructor(url: string, network?: { authority: string }) {
 		super();
 		this._url = url;
 		const thisTest = this;
 		this.model = {
 			id: url,
+			network: network as IBrowserViewModel['network'],
 			get url() { return thisTest._url; },
 			get visible() { return thisTest._visible; },
 			onDidNavigate: this._onDidNavigate.event,

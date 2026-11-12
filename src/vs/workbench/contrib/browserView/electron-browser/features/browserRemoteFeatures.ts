@@ -88,6 +88,10 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 				const fallback = this.getLocalFallback(model, network);
 				isWarning = fallback.isWarning;
 				statusMessage = fallback.message;
+				if (model.url.startsWith('file://')) {
+					isWarning = true;
+					statusMessage = localize('browser.connectedLocally.file', "File URLs are served locally, not over the remote connection.");
+				}
 			}
 		}
 

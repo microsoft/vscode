@@ -16,8 +16,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { BROWSER_FILE_SCHEMES, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -104,41 +103,43 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const [scheme, extension] of [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME].flatMap(scheme => ['html', 'htm', 'mhtml', 'mht'].map(extension => [scheme, extension] as const))) {
-			editorResolverService.registerEditor(
-				`${scheme}:/**/*.${extension}`,
-				{
-					id: BrowserEditorInput.EDITOR_ID,
-					label: localize('browser.htmlEditorLabel', "Integrated Browser"),
-					priority: RegisteredEditorPriority.option
-				},
-				{
-					canSupportResource: resource => resource.scheme === scheme,
-					singlePerResource: true
-				},
-				{
-					createEditorInput: ({ resource, options }) => {
-						logBrowserOpen(telemetryService, 'fileResource');
+		for (const scheme of BROWSER_FILE_SCHEMES) {
+			for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
+				editorResolverService.registerEditor(
+					`${scheme}:/**/*.${extension}`,
+					{
+						id: BrowserEditorInput.EDITOR_ID,
+						label: localize('browser.htmlEditorLabel', "Integrated Browser"),
+						priority: RegisteredEditorPriority.option
+					},
+					{
+						canSupportResource: resource => resource.scheme === scheme,
+						singlePerResource: true
+					},
+					{
+						createEditorInput: ({ resource, options }) => {
+							logBrowserOpen(telemetryService, 'fileResource');
 
-						const viewState = reviveBrowserEditorViewState(options?.viewState);
-						const browserInput = browserViewWorkbenchService.getOrCreateLazy({
-							id: generateUuid(),
-							associatedResource: resource,
-							...viewState,
-							url: viewState.url ?? resource.toString()
-						});
-						void browserInput.resolve();
+							const viewState = reviveBrowserEditorViewState(options?.viewState);
+							const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+								id: generateUuid(),
+								associatedResource: resource,
+								...viewState,
+								url: viewState.url ?? resource.toString()
+							});
+							void browserInput.resolve();
 
-						return {
-							editor: browserInput,
-							options: {
-								pinned: true,
-								...options
-							}
-						};
+							return {
+								editor: browserInput,
+								options: {
+									pinned: true,
+									...options
+								}
+							};
+						}
 					}
-				}
-			);
+				);
+			}
 		}
 	}
 }

@@ -28,6 +28,7 @@ import { workbenchConfigurationNodeBase } from '../../../../common/configuration
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
 
 const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
@@ -42,13 +43,15 @@ function getFileUri(url: string): URI | undefined {
 }
 
 /** Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI. */
-function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, fileService: IFileService): URI {
+function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, remoteAuthority: string | undefined): URI {
 	if (!network) {
 		return fileUri;
 	}
-	const remoteUri = fileUri.with({ scheme: Schemas.vscodeRemote, authority: network.authority });
+	if (network.authority === remoteAuthority) {
+		return fileUri.with({ scheme: Schemas.vscodeRemote, authority: network.authority });
+	}
 	// eslint-disable-next-line local/code-agent-host-uri-mapping -- an Agent Host filesystem URI read by this window, not a connection resource
-	return fileService.hasProvider(remoteUri) ? remoteUri : toAgentHostUri(fileUri, network.authority);
+	return toAgentHostUri(fileUri, network.authority);
 }
 
 interface IBrowserAutoReloadStateChangeEvent {
@@ -76,6 +79,7 @@ export class BrowserAutoReloadWatcher extends Disposable {
 		input: BrowserEditorInput,
 		enabled: boolean,
 		private readonly _fileService: IFileService,
+		private readonly _remoteAuthority: string | undefined,
 	) {
 		super();
 		this._enabled = enabled;
@@ -123,7 +127,7 @@ export class BrowserAutoReloadWatcher extends Disposable {
 		if (!fileUri) {
 			return;
 		}
-		const uri = toWatchUri(fileUri, model.network, this._fileService);
+		const uri = toWatchUri(fileUri, model.network, this._remoteAuthority);
 
 		const store = new DisposableStore();
 		const scheduler = store.add(new RunOnceScheduler(() => {
@@ -162,6 +166,7 @@ export class BrowserAutoReloadService extends Disposable implements IBrowserAuto
 		@IBrowserViewWorkbenchService private readonly _browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._register(this._browserViewWorkbenchService.onDidChangeBrowserViews(() => this._updateBrowserViews()));
@@ -203,7 +208,7 @@ export class BrowserAutoReloadService extends Disposable implements IBrowserAuto
 
 		for (const [browserId, input] of browserViews) {
 			if (!this._watchers.has(browserId)) {
-				const watcher = new BrowserAutoReloadWatcher(input, this.isEnabled(browserId), this._fileService);
+				const watcher = new BrowserAutoReloadWatcher(input, this.isEnabled(browserId), this._fileService, this._environmentService.remoteAuthority);
 				this._watchers.set(browserId, { input, watcher });
 			}
 		}
