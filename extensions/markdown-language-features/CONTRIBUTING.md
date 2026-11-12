@@ -89,6 +89,16 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `pnpm run build-markdown-editor` and `pnpm run watch-markdown-editor` regenerate them while preserving manual entries. Run `pnpm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Keyboard input ordering
+
+The Markdown editor must resolve host-owned shortcuts through VS Code's keybinding service rather than hardcoding their default actions. The webview's `prepareKeybinding(event, localCommands)` bridge captures a keyboard event while it is being dispatched and returns a one-use function that can be invoked later. Both keydown and keyup belong to the ordered stream, since single-modifier chords resolve on keyup. It preserves user overrides, removals, keyboard-layout resolution, and chord state. Resolved Markdown commands return to the editor; other commands continue through the workbench command service.
+
+`OrderedInput` sequences those decisions with native text updates. Its native EditContext is a speculative input buffer, not the document model: queued replacements are relative to the selection, and model-to-native synchronization waits for the queue and composition to finish. Do not replay saved absolute EditContext offsets after an asynchronous editing command.
+
+Locally handled editing keys, such as Tab, must use the Markdown package's `scheduleInput` hook to join the same queue. This prototype requires that upstream hook; the currently pinned package does not yet include it. Do not merge or ship the integration without updating to a package release that does. Development verification must use the patched package source and a source-built workbench with the bridge.
+
+Run the input transport regression test from this extension directory with `node --test ./scripts/orderedInput.browser.test.mts`. The keybinding service, webview element, and webview shell have separate unit tests for command dispatch, authentication, and one-use event capture.
+
 ### Embedded code-block editor presentation
 
 `markdown.codeBlockEditorProviders` contributions and export-API resolve results

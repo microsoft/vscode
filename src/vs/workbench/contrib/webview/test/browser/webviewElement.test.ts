@@ -31,6 +31,7 @@ import { FileSystemProviderCapabilities, IFileReadStreamOptions, IFileService } 
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
@@ -82,6 +83,8 @@ suite('WebviewElement', () => {
 			getEnvironment: async () => null,
 		});
 		instantiationService.stub(ITunnelService, {});
+		const dispatchEvent = sinon.stub<Parameters<IKeybindingService['dispatchEvent']>, boolean>().returns(false);
+		instantiationService.stub(IKeybindingService, { dispatchEvent });
 		instantiationService.stub(IAccessibilityService, {
 			onDidChangeReducedMotion: Event.None,
 			onDidChangeScreenReaderOptimized: Event.None,
@@ -128,7 +131,7 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent,
+			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent, dispatchEvent,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
 				webview.reinitializeAfterDismount();
@@ -328,6 +331,44 @@ suite('WebviewElement', () => {
 			});
 		}
 	}
+
+	test('ordered keyboard dispatch returns only accepted local commands and rejects forged events', async () => {
+		const { webview, port, frame, createReadyEvent, dispatchEvent } = await createWebview();
+		frame.contentWindow!.focus();
+		const replies: ToWebviewMessage['did-dispatch-key-event'][] = [];
+		const done = new DeferredPromise<void>();
+		store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
+			if (event.data.channel === 'did-dispatch-key-event') {
+				replies.push(event.data.args);
+				if (replies.length === 3) {
+					done.complete();
+				}
+			}
+		}));
+		const local: boolean[] = [];
+		dispatchEvent.callsFake((_event, target, handler) => {
+			assert.strictEqual(target, frame);
+			local.push(handler!('markdown.editor.deleteWordLeft', { count: 2 }));
+			return true;
+		});
+		const event = {
+			key: 'Backspace', keyCode: 8, code: 'Backspace',
+			ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, repeat: false,
+			isTrusted: true, keyEventToken: createReadyEvent().data.data.keyEventToken,
+		};
+		await sendWebviewMessage(webview, port, 'dispatch-key-event', { id: 1, type: 'keydown', event, localCommands: ['markdown.editor.deleteWordLeft'] });
+		await sendWebviewMessage(webview, port, 'dispatch-key-event', { id: 2, type: 'keyup', event, localCommands: [] });
+		await sendWebviewMessage(webview, port, 'dispatch-key-event', { id: 3, type: 'keydown', event: { ...event, keyEventToken: 'forged' }, localCommands: ['markdown.editor.deleteWordLeft'] });
+		await done.p;
+		assert.deepStrictEqual({ local, replies }, {
+			local: [true, false],
+			replies: [
+				{ id: 1, result: { handled: true, command: { id: 'markdown.editor.deleteWordLeft', args: { count: 2 } } } },
+				{ id: 2, result: { handled: true, command: undefined } },
+				{ id: 3, error: 'Cannot dispatch a key event from an inactive or unauthenticated webview' },
+			],
+		});
+	});
 
 	test('remount rejects the old handshake and key token', async () => {
 		const { webview, frame, createReadyEvent, remount } = await createWebview();

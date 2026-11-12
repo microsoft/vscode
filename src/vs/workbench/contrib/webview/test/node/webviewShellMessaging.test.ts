@@ -199,4 +199,58 @@ suite('Webview shell messaging', () => {
 		const hash = createHash('sha256').update(script.replace(/\r\n/g, '\n')).digest('base64');
 		assert.ok(html.includes(`'sha256-${hash}'`));
 	});
+
+	test('prepared keybindings capture the event once and dispatch only when the input queue is ready', async () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const start = html.indexOf('\t\tfunction serializeKeyEvent(');
+		const end = html.indexOf('\n\t\t/**', html.indexOf('hostMessaging.onMessage(\'did-dispatch-key-event\'', start));
+		assert.ok(start !== -1 && end > start);
+		type DispatchResult = { handled: boolean; command?: { id: string; args: unknown } };
+		type DispatchRequest = { id: number; event: { key: string }; localCommands: readonly string[] };
+		const sent: DispatchRequest[] = [];
+		let reply!: (event: undefined, data: { id: number; result: DispatchResult } | { id: number; error: string }) => void;
+		let document = {};
+		const api: {
+			captureKeyEvent(event: KeyboardEvent): void;
+			prepareKeybinding(event: KeyboardEvent, commands: readonly string[]): () => Promise<DispatchResult>;
+		} = new Function('hostMessaging', 'keyEventToken', 'getActiveFrame', 'suppressNativeKeydown',
+			`${html.slice(start, end)}\nreturn { captureKeyEvent, prepareKeybinding };`)(
+				{
+					postMessage: (_channel: string, data: DispatchRequest) => sent.push(data),
+					onMessage: (_channel: string, handler: typeof reply) => { reply = handler; },
+				},
+				'shell-token',
+				() => ({ contentDocument: document }),
+				() => true,
+			);
+		const event = upcastPartial<KeyboardEvent>({
+			key: 'Backspace', code: 'Backspace', keyCode: 8, eventPhase: 2,
+			ctrlKey: false, altKey: false, shiftKey: false, metaKey: false,
+			repeat: false, isComposing: false, isTrusted: true,
+			getModifierState: () => false,
+			view: upcastPartial<Window>({ document: upcastPartial<Document>(document) }),
+		});
+		assert.throws(() => api.prepareKeybinding(event, []), /current, undispatched/);
+		api.captureKeyEvent(event);
+		const dispatch = api.prepareKeybinding(event, ['deleteLeft']);
+		assert.strictEqual(sent.length, 0);
+		Object.defineProperty(event, 'key', { value: 'Delete' });
+		const result = dispatch();
+		reply(undefined, { id: sent[0].id, result: { handled: true, command: { id: 'deleteLeft', args: undefined } } });
+		assert.deepStrictEqual({ result: await result, key: sent[0].event.key, commands: sent[0].localCommands }, {
+			result: { handled: true, command: { id: 'deleteLeft', args: undefined } },
+			key: 'Backspace',
+			commands: ['deleteLeft'],
+		});
+		await assert.rejects(dispatch(), /no longer available/);
+		assert.throws(() => api.prepareKeybinding(event, []), /current, undispatched/);
+
+		const nextEvent = upcastPartial<KeyboardEvent>({ ...event });
+		api.captureKeyEvent(nextEvent);
+		const stale = api.prepareKeybinding(nextEvent, []);
+		document = {};
+		await assert.rejects(stale(), /no longer available/);
+	});
 });

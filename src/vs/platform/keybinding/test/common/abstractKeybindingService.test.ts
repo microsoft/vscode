@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ICommandService } from '../../../commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContext, IContextKeyService, IContextKeyServiceTarget } from '../../../contextkey/common/contextkey.js';
 import { AbstractKeybindingService } from '../../common/abstractKeybindingService.js';
-import { IKeyboardEvent } from '../../common/keybinding.js';
+import { IKeyboardEvent, KeybindingCommandHandler } from '../../common/keybinding.js';
 import { KeybindingResolver, ResolutionResult, ResultKind } from '../../common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
@@ -71,8 +71,8 @@ suite('AbstractKeybindingService', () => {
 			return [];
 		}
 
-		public testDispatch(kb: number, isComposing: boolean = false): boolean {
-			return this._dispatch(this._toKeyboardEvent(kb, isComposing), null!);
+		public testDispatch(kb: number, isComposing: boolean = false, handler?: KeybindingCommandHandler, type: 'keydown' | 'keyup' = 'keydown'): boolean {
+			return this.dispatchEvent(this._toKeyboardEvent(kb, isComposing), null!, handler, type);
 		}
 
 		public testSoftDispatch(kb: number, isComposing: boolean = false): ResolutionResult {
@@ -241,6 +241,62 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	suite('simple tests: single- and multi-chord keybindings are dispatched', () => {
+
+		test('target command handler receives single-modifier chords in keyup order', () => {
+			const kbService = createTestKeybindingService([kbItem([KeyCode.Shift, KeyCode.Shift], 'deleteWordLeft')]);
+			const local: string[] = [];
+			const handler: KeybindingCommandHandler = id => { local.push(id); return true; };
+			try {
+				currentContextValue = createContext({});
+				const handled = [
+					kbService.testDispatch(KeyCode.Shift, false, handler, 'keyup'),
+					kbService.testDispatch(KeyCode.Shift, false, handler, 'keyup'),
+				];
+				assert.deepStrictEqual({ handled, local, host: executeCommandCalls }, {
+					handled: [false, true], local: ['deleteWordLeft'], host: [],
+				});
+			} finally {
+				kbService.dispose();
+			}
+		});
+
+		test('target command handler observes resolved overrides and completed chords, not raw keys', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyCode.Backspace, 'deleteLeft'),
+				kbItem(KeyCode.Backspace, 'deleteWordLeft', ContextKeyExpr.has('wordDelete')),
+				kbItem([KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Backspace], 'deleteLineLeft'),
+				kbItem(KeyCode.F1, 'hostCommand'),
+				kbItem(KeyCode.F2, ''),
+			]);
+			const local: { id: string; args: unknown }[] = [];
+			const handler: KeybindingCommandHandler = (id, args) => {
+				if (id === 'hostCommand') {
+					return false;
+				}
+				local.push({ id, args });
+				return true;
+			};
+			try {
+				currentContextValue = createContext({ wordDelete: true });
+				const handled = [
+					kbService.testDispatch(KeyCode.Backspace, false, handler),
+					kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK, false, handler),
+					kbService.testDispatch(KeyCode.Backspace, false, handler),
+					kbService.testDispatch(KeyCode.F1, false, handler),
+					kbService.testDispatch(KeyCode.F2, false, handler),
+					kbService.testDispatch(KeyCode.KeyA, false, handler),
+					kbService.testDispatch(KeyCode.Backspace, true, handler),
+				];
+				assert.deepStrictEqual({ handled, local, host: executeCommandCalls, inChordMode: kbService.inChordMode }, {
+					handled: [true, true, true, true, false, false, false],
+					local: [{ id: 'deleteWordLeft', args: null }, { id: 'deleteLineLeft', args: null }],
+					host: [{ commandId: 'hostCommand', args: [null] }],
+					inChordMode: false,
+				});
+			} finally {
+				kbService.dispose();
+			}
+		});
 
 		test('a single-chord keybinding is dispatched correctly; this test makes sure the dispatch in general works before we test empty-string/null command ID', () => {
 

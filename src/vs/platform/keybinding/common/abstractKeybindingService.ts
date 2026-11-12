@@ -16,7 +16,7 @@ import * as nls from '../../../nls.js';
 
 import { ICommandService } from '../../commands/common/commands.js';
 import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from './keybinding.js';
+import { IKeybindingService, IKeyboardEvent, KeybindingCommandHandler, KeybindingsSchemaContribution } from './keybinding.js';
 import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from './keybindingResolver.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 import { ILogService } from '../../log/common/log.js';
@@ -140,8 +140,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return result.resolvedKeybinding;
 	}
 
-	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		return this._dispatch(e, target);
+	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget, commandHandler?: KeybindingCommandHandler, type: 'keydown' | 'keyup' = 'keydown'): boolean {
+		return type === 'keyup'
+			? this._singleModifierDispatch(e, target, commandHandler)
+			: this._dispatch(e, target, commandHandler);
 	}
 
 	// TODO@ulugbekna: update namings to align with `_doDispatch`
@@ -234,7 +236,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 	}
 
-	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget, commandHandler?: KeybindingCommandHandler): boolean {
 		if (isKeyInComposition(e)) {
 			// The keystroke belongs to the IME, which owns Enter (commit), Space and the arrows
 			// (candidate selection) and Escape (cancel) for the duration of the composition.
@@ -243,10 +245,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			this._log(`+ Ignoring keybinding dispatch because an IME composition is in progress.`);
 			return false;
 		}
-		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false);
+		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false, commandHandler);
 	}
 
-	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget, commandHandler?: KeybindingCommandHandler): boolean {
 		if (isKeyInComposition(e)) {
 			return false;
 		}
@@ -281,7 +283,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 				this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
 				this._currentSingleModifierClearTimeout.cancel();
 				this._currentSingleModifier = null;
-				return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
+				return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true, commandHandler);
 			}
 
 			this._log(`+ Clearing single modifier due to modifier mismatch: ${this._currentSingleModifier} ${singleModifier}`);
@@ -303,7 +305,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return false;
 	}
 
-	private _doDispatch(userKeypress: ResolvedKeybinding, target: IContextKeyServiceTarget, isSingleModiferChord = false): boolean {
+	private _doDispatch(userKeypress: ResolvedKeybinding, target: IContextKeyServiceTarget, isSingleModiferChord = false, commandHandler?: KeybindingCommandHandler): boolean {
 		let shouldPreventDefault = false;
 
 		if (userKeypress.hasMultipleChords()) { // warn - because user can press a single chord at a time
@@ -390,10 +392,12 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 					this._log(`+ Invoking command ${resolveResult.commandId}.`);
 					this._currentlyDispatchingCommandId = resolveResult.commandId;
 					try {
-						if (typeof resolveResult.commandArgs === 'undefined') {
-							this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
-						} else {
-							this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+						if (!commandHandler?.(resolveResult.commandId, resolveResult.commandArgs)) {
+							if (typeof resolveResult.commandArgs === 'undefined') {
+								this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
+							} else {
+								this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+							}
 						}
 					} finally {
 						this._currentlyDispatchingCommandId = null;

@@ -38,6 +38,9 @@ export interface IKeyboardEvent {
 	readonly code: string;
 }
 
+/** Returns true when the target handles the resolved command instead of the command service. */
+export type KeybindingCommandHandler = (commandId: string, commandArgs: unknown) => boolean;
+
 export interface KeybindingsSchemaContribution {
 	readonly onDidChange?: Event<void>;
 
@@ -63,9 +66,10 @@ export interface IKeybindingService {
 	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 
 	/**
-	 * Resolve and dispatch `keyboardEvent` and invoke the command.
+	 * Resolve and dispatch `keyboardEvent`. A target handler may claim the resolved command;
+	 * otherwise the command service executes it.
 	 */
-	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
+	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget, commandHandler?: KeybindingCommandHandler, type?: 'keydown' | 'keyup'): boolean;
 
 	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.

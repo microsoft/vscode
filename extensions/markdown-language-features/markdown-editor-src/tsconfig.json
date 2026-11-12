@@ -26,6 +26,7 @@
 		"noEmit": true
 	},
 	"include": [
-		"./**/*.ts"
+		"./**/*.ts",
+		"../../../src/typings/editContext.d.ts"
 	]
 }
