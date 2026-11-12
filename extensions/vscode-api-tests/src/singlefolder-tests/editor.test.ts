@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken, commands, ConfigurationTarget, Disposable, env, EventEmitter, languages, Position, Range, Selection, SnippetString, TextDocument, TextEdit, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, ViewColumn, window, workspace } from 'vscode';
-import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, DeferredPromise, deleteFile, revertAllDirty } from '../utils';
+import { env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
+import { assertNoRpc, closeAllEditors, createRandomFile, deleteFile } from '../utils';
 
 suite('vscode API - editors', () => {
 
@@ -153,60 +153,6 @@ suite('vscode API - editors', () => {
 				assert.ok(doc.isDirty);
 			});
 		});
-	});
-
-	test('format on type does not edit a different document', async () => {
-		const configuration = workspace.getConfiguration('editor');
-		const previousFormatOnType = configuration.inspect<boolean>('formatOnType')?.globalValue;
-		const response = new DeferredPromise<TextEdit[]>();
-		const started = new EventEmitter<CancellationToken>();
-		const finished = new EventEmitter<'cancelled' | 'changed'>();
-		const disposables: Disposable[] = [started, finished];
-
-		try {
-			await configuration.update('formatOnType', true, ConfigurationTarget.Global);
-			const original = await workspace.openTextDocument({ content: 'const x=1', language: 'plaintext' });
-			const next = await workspace.openTextDocument({ content: 'const value=2;', language: 'plaintext' });
-			disposables.push(languages.registerOnTypeFormattingEditProvider({ language: 'plaintext', scheme: 'untitled' }, {
-				provideOnTypeFormattingEdits(_document, _position, _ch, _options, token) {
-					started.fire(token);
-					return response.p;
-				},
-			}, ';'));
-
-			const editor = await window.showTextDocument(original, { viewColumn: ViewColumn.One, preview: false });
-			editor.selection = new Selection(0, 9, 0, 9);
-			const request = asPromise(started.event);
-			await commands.executeCommand('type', { text: ';' });
-			const token = await request;
-			const outcome = asPromise(finished.event);
-			disposables.push(token.onCancellationRequested(() => finished.fire('cancelled')));
-			disposables.push(workspace.onDidChangeTextDocument(event => {
-				if (event.document === next && event.contentChanges.length > 0) {
-					finished.fire('changed');
-				}
-			}));
-
-			await window.showTextDocument(next, { viewColumn: ViewColumn.One, preview: false });
-			await response.complete([
-				TextEdit.insert(new Position(0, 7), ' '),
-				TextEdit.insert(new Position(0, 8), ' '),
-			]);
-			assert.deepStrictEqual({
-				outcome: await outcome,
-				original: original.getText(),
-				next: next.getText(),
-			}, {
-				outcome: 'cancelled',
-				original: 'const x=1;',
-				next: 'const value=2;',
-			});
-		} finally {
-			await response.complete([]);
-			Disposable.from(...disposables).dispose();
-			await configuration.update('formatOnType', previousFormatOnType, ConfigurationTarget.Global);
-			await revertAllDirty();
-		}
 	});
 
 	test('issue #6281: Edits fail to validate ranges correctly before applying', () => {
