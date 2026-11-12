@@ -312,6 +312,8 @@ export interface ArtifactActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/** Describes a prompt action while it runs in its chat, such as "Fixing CI". Defaults to {@link label}. */
+	readonly activityLabel?: string;
 	readonly kind: 'code' | 'prompt';
 	/** Change this when an existing action's effects or required permissions expand. */
 	readonly consentVersion?: string;
@@ -369,7 +371,7 @@ export interface ArtifactRequestPresentation {
 	readonly version: 1;
 	readonly integrationLabel: string;
 	readonly source: 'manual' | 'automation';
-	readonly action: { readonly label: string; readonly iconId: string };
+	readonly action: { readonly label: string; readonly iconId: string; readonly activityLabel?: string };
 	readonly artifact: {
 		readonly resource: string;
 		readonly label: string;
