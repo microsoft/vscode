@@ -15,6 +15,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { IChatDraft } from '../attachments/chatDraft.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
@@ -268,9 +269,12 @@ export interface IChatResponseViewModel {
 
 export interface IChatScheduledRequestEditing {
 	text: string;
+	input?: IChatDraft;
+	readonly retainedAttachments?: readonly string[];
+	readonly isSaving?: IObservable<boolean>;
 	runAt: string;
 	description: string;
-	selectTime(anchor?: HTMLElement): Promise<void>;
+	readonly selectTime: IAction;
 	save(): Promise<void>;
 	cancel(): void;
 }
@@ -301,7 +305,7 @@ export interface IChatPendingDividerViewModel {
 	readonly id: string; // e.g., 'pending-divider-steering' or 'pending-divider-queued'
 	readonly sessionResource: URI;
 	readonly isComplete: true;
-	readonly dividerKind: ChatRequestQueueKind;
+	readonly dividerKind: ChatRequestQueueKind | 'scheduled';
 	readonly isSystemInitiated?: boolean;
 	currentRenderedHeight: number | undefined;
 }
@@ -522,6 +526,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		if (this._scheduledRequests.length > 0) {
+			items.push({ kind: 'pendingDivider', id: 'pending-divider-scheduled', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: 'scheduled', currentRenderedHeight: undefined });
 			items.push(...this._scheduledRequests);
 		}
 		return items;

@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { parse } from '../../../../../base/common/marshalling.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -51,7 +52,7 @@ suite('Scheduled chat handoffs', () => {
 		override readonly sessionType = 'copilot';
 	};
 
-	function create(sendLater = true, savedDrafts = true) {
+	function create(sendLater = true, savedDrafts = true, pickerWait?: Promise<void>) {
 		const storage = disposables.add(new InMemoryStorageService());
 		const config = new TestConfigurationService({
 			[SESSIONS_SEND_LATER_ENABLED_SETTING]: sendLater,
@@ -147,6 +148,7 @@ suite('Scheduled chat handoffs', () => {
 			override async pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: IPickOptions<T>): Promise<T | T[] | undefined> {
 				picks++;
 				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
+				await pickerWait;
 				const choices = (await items).filter((item): item is T => item.type !== 'separator');
 				const item = customTime ? choices.at(-1) : choices[0];
 				return options?.canPickMany ? item && [item] : item;
@@ -265,6 +267,20 @@ suite('Scheduled chat handoffs', () => {
 		});
 	}
 
+	test('opening the time picker retains dropdown availability but prevents duplicate scheduling', async () => {
+		const picker = new DeferredPromise<void>();
+		const fixture = create(true, true, picker.p);
+		const source = registerInput(fixture.service);
+		const scheduling = fixture.service.scheduleChatInput(source.widget);
+		const during = { available: source.context.getContextKeyValue(ChatInputCanScheduleContext.key), inputEnabled: source.enabled };
+		await assert.rejects(() => fixture.service.scheduleChatInput(source.widget), /not available/);
+		picker.complete();
+		await scheduling;
+		assert.deepStrictEqual({ during, picks: fixture.picks, inputEnabled: source.enabled }, {
+			during: { available: true, inputEnabled: false }, picks: 1, inputEnabled: true,
+		});
+	});
+
 	test('rescheduling anchors both time pickers above the scheduled message', async () => {
 		const fixture = create();
 		const source = registerInput(fixture.service);
@@ -333,7 +349,7 @@ suite('Scheduled chat handoffs', () => {
 		editing.text = 'Changed scheduled message';
 		fixture.customTime = true;
 		const anchor = $('button');
-		await editing.selectTime(anchor);
+		await editing.selectTime.run(anchor);
 		await editing.save();
 		const updated = fixture.automations.get()[0];
 		assert.deepStrictEqual({
@@ -396,6 +412,58 @@ suite('Scheduled chat handoffs', () => {
 				durableRequest: { text, origin: { kind: 'user' }, attachments: [{ type: 'resource', label: 'notes.txt', uri: resource.toString(), displayKind: 'document' }] },
 			});
 		}
+	});
+
+	test('scheduled edits add and remove context without recapturing retained snapshots', async () => {
+		const fixture = create();
+		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
+		const attached: IChatDraft = {
+			inputText: 'Review context',
+			attachments: [
+				{ kind: 'string', id: 'keep', name: 'Snapshot', value: 'captured content', uri: URI.file('/workspace/snapshot'), handle: 1 },
+				{ kind: 'string', id: 'remove', name: 'Removed', value: 'remove this', uri: URI.file('/workspace/removed'), handle: 2 },
+			],
+		};
+		await fixture.service.schedule(attached, target, session, 'composition', conversation);
+		await fixture.service.items.get()[0].editAction!.run();
+		const editing = fixture.service.items.get()[0].editing!;
+		editing.input = {
+			inputText: attached.inputText,
+			attachments: [
+				{ kind: 'string', id: 'keep', name: 'Snapshot', value: 'changed since scheduling', uri: URI.file('/workspace/snapshot'), handle: 1 },
+				{ kind: 'string', id: 'new', name: 'Added', value: 'new content', uri: URI.file('/workspace/added'), handle: 3 },
+			],
+		};
+		await editing.save();
+		assert.deepStrictEqual({
+			attachments: fixture.automations.get()[0].request?.attachments,
+			recoveryIds: parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].input.attachments.map((entry: { id: string }) => entry.id),
+			saving: editing.isSaving?.get(),
+		}, {
+			attachments: [
+				{ type: 'simple', label: 'Snapshot', modelRepresentation: 'captured content' },
+				{ type: 'simple', label: 'Added', modelRepresentation: 'new content' },
+			],
+			recoveryIds: ['keep', 'new'], saving: false,
+		});
+	});
+
+	test('scheduled edits without a local recovery copy keep captured context when adding attachments', async () => {
+		const fixture = create();
+		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
+		await fixture.service.schedule({
+			inputText: 'Review',
+			attachments: [{ kind: 'string', id: 'original', name: 'Snapshot', value: 'original content', uri: URI.file('/workspace/snapshot'), handle: 1 }],
+		}, target, session, 'composition', conversation);
+		fixture.storage.remove('sessions.scheduledChatHandoffs', StorageScope.PROFILE);
+		await fixture.service.items.get()[0].editAction!.run();
+		const editing = fixture.service.items.get()[0].editing!;
+		editing.input = { inputText: 'Review', attachments: [{ kind: 'string', id: 'new', name: 'Added', value: 'new content', uri: URI.file('/workspace/added'), handle: 2 }] };
+		await editing.save();
+		assert.deepStrictEqual(fixture.automations.get()[0].request?.attachments, [
+			{ type: 'simple', label: 'Snapshot', modelRepresentation: 'original content' },
+			{ type: 'simple', label: 'Added', modelRepresentation: 'new content' },
+		]);
 	});
 
 	test('expired scheduled conversation edits retain unsaved text without changing the schedule', async () => {

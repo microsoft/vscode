@@ -190,7 +190,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						editing: requestEditing,
 						actions: requestEditing ? [
 							toAction({ id: 'sessions.scheduled.save', label: localize('scheduledChat.save', "Save"), class: ThemeIcon.asClassName(Codicon.check), run: () => requestEditing.save() }),
-							toAction({ id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: (anchor?: HTMLElement) => requestEditing.selectTime(isHTMLElement(anchor) ? anchor : undefined) }),
+							requestEditing.selectTime,
 							toAction({ id: 'sessions.scheduled.cancelEdit', label: localize('scheduledChat.cancelEdit', "Cancel Edit"), class: ThemeIcon.asClassName(Codicon.closeSmall), run: () => requestEditing.cancel() }),
 						] : [
 							...(conversation ? [editAction] : [toAction({ id: 'sessions.scheduled.preview', label: localize('scheduledChat.preview', "Preview"), run: () => this.preview(automation) })]),
@@ -251,7 +251,8 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			const currentSession = session.read(reader);
 			const resource = chatResource.read(reader);
 			const chat = currentSession?.chats.read(reader).find(chat => isEqual(chat.resource, resource));
-			return !!currentSession && !!chat && canSend.read(reader) && !busy.read(reader)
+			return !!currentSession && !!chat && canSend.read(reader)
+				&& !this.items.read(reader).some(item => item.editing && isEqual(item.conversation?.chatResource, resource))
 				&& currentSession.status.read(reader) !== SessionStatus.Untitled
 				&& !currentSession.isArchived.read(reader) && !chat.isArchived.read(reader)
 				&& chat.interactivity.read(reader) === ChatInteractivity.Full
@@ -264,7 +265,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 				const currentSession = session.get();
 				const resource = chatResource.get();
 				const model = widget.viewModel?.model;
-				if (!available.get() || !currentSession || !resource || !model || widget.viewModel?.editing) {
+				if (busy.get() || !available.get() || !currentSession || !resource || !model || widget.viewModel?.editing) {
 					throw new Error(localize('sendLater.chatUnavailable', "Send Later is not available for this conversation."));
 				}
 				const input = captureChatInput(widget);
@@ -416,14 +417,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		}
 		const configuration = conversation ? undefined : { ...target.configuration, ...capturedConfiguration };
 		const capturedInput = fromStoredChatDraft(parse(stringify(toStoredChatDraft(input))));
-		const request = await captureScheduledChatRequest(capturedInput, async (uri, range) => {
-			const reference = await this.textModelService.createModelReference(uri);
-			try {
-				return range ? reference.object.textEditorModel.getValueInRange(range) : reference.object.textEditorModel.getValue();
-			} finally {
-				reference.dispose();
-			}
-		}, async uri => (await this.fileService.readFile(uri)).value, uri => this.workingCopyService.isDirty(uri));
+		const request = await this.captureRequest(capturedInput);
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: date.toISOString(), scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		const automationTarget: AutomationTarget = target.folderUri
 			? {
@@ -437,6 +431,17 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		this.writeHandoff(handoff);
 		await this.submitHandoff(handoff, false);
 		return true;
+	}
+
+	private captureRequest(input: IChatDraft): Promise<Message> {
+		return captureScheduledChatRequest(input, async (uri, range) => {
+			const reference = await this.textModelService.createModelReference(uri);
+			try {
+				return range ? reference.object.textEditorModel.getValueInRange(range) : reference.object.textEditorModel.getValue();
+			} finally {
+				reference.dispose();
+			}
+		}, async uri => (await this.fileService.readFile(uri)).value, uri => this.workingCopyService.isDirty(uri));
 	}
 
 	private async retryHandoff(handoff: IScheduledChatHandoff): Promise<void> {
@@ -545,75 +550,107 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		if (automation.oneTimeRunId) {
 			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
 		}
+		if ([...this.chatInputs.keys()].some(widget => widget.viewModel?.editing && isEqual(widget.viewModel.sessionResource, automation.conversation?.chatResource))) {
+			throw new Error(localize('scheduledChat.finishRequestEditing', "Save or cancel your other message edit first."));
+		}
+		const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
+		const saving = observableValue(this, false);
 		const state: IChatScheduledRequestEditing = {
+			isSaving: saving,
 			text: automation.request?.text ?? automation.prompt,
+			input: handoff && fromStoredChatDraft(parse(stringify(toStoredChatDraft(handoff.input)))),
+			retainedAttachments: handoff ? [] : automation.request?.attachments?.map(attachment => attachment.label),
 			runAt: automation.schedule.runAt ?? '',
 			description: formatTime(automation.schedule.runAt),
-			selectTime: async anchor => {
-				const date = await this.pickTime(anchor);
+			selectTime: toAction({ id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: async (anchor?: HTMLElement) => {
+				const date = await this.pickTime(isHTMLElement(anchor) ? anchor : undefined);
 				if (date && this.editingRequest.get()?.state === state) {
 					state.runAt = date.toISOString();
 					state.description = formatTime(state.runAt);
 					this.editingRequest.set({ id: automation.id, state }, undefined);
 				}
-			},
+			} }),
 			save: async () => {
-				this.assertEnabled();
-				this.assertWritable(automation);
-				if (this.editingRequest.get()?.state !== state) {
-					throw new Error(localize('scheduledChat.editClosed', "This scheduled-message edit is no longer open."));
+				if (saving.get()) {
+					return;
 				}
-				if (!(Date.parse(state.runAt) > Date.now())) {
-					throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
+				saving.set(true, undefined);
+				try {
+					await this.saveEditedRequest(automation, state);
+				} finally {
+					saving.set(false, undefined);
 				}
-				const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
-				const original = automation.request ?? handoff?.request;
-				if (!original) {
-					throw new Error(localize('scheduledChat.editUnavailable', "The saved request content is unavailable. Manage this request in Automations."));
-				}
-				if (!state.text.trim() && !original.attachments?.length) {
-					throw new Error(localize('scheduledChat.emptyEdit', "Enter a message or keep an attachment before saving."));
-				}
-				const textChanged = state.text !== original.text;
-				const request = {
-					...original, text: state.text,
-					attachments: textChanged ? original.attachments?.map(attachment => ({ ...attachment, range: undefined })) : original.attachments,
-				};
-				const schedule = { ...automation.schedule, runAt: state.runAt };
-				const result = await this.automationService.updateAutomationIfUnchanged(automation.id, {
-					name: state.text.trim().split('\n')[0].slice(0, 100) || automation.name,
-					prompt: request.text, request, schedule,
-				}, automation, () => {
-					this.assertEnabled();
-					if (!(Date.parse(schedule.runAt) > Date.now())) {
-						throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
-					}
-				});
-				if (result.kind !== 'updated') {
-					throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
-				}
-				if (handoff) {
-					this.writeHandoff({
-						...handoff, request, schedule,
-						input: {
-							...handoff.input, inputText: request.text,
-							attachments: textChanged ? handoff.input.attachments.map(attachment => ({ ...attachment, range: undefined })) : handoff.input.attachments,
-							references: textChanged ? [] : handoff.input.references,
-						},
-					});
-				}
-				if (this.editingRequest.get()?.state === state) {
-					this.editingRequest.set(undefined, undefined);
-				}
-				status(localize('scheduledChat.edited', "Scheduled message saved for {0}", formatTime(schedule.runAt)));
 			},
 			cancel: () => {
-				if (this.editingRequest.get()?.state === state) {
+				if (!saving.get() && this.editingRequest.get()?.state === state) {
 					this.editingRequest.set(undefined, undefined);
 				}
 			},
 		};
 		this.editingRequest.set({ id: automation.id, state }, undefined);
+	}
+
+	private async saveEditedRequest(automation: IAutomationDescriptor, state: IChatScheduledRequestEditing): Promise<void> {
+		this.assertEnabled();
+		this.assertWritable(automation);
+		if (this.editingRequest.get()?.state !== state) {
+			throw new Error(localize('scheduledChat.editClosed', "This scheduled-message edit is no longer open."));
+		}
+		const text = state.text;
+		const schedule = { ...automation.schedule, runAt: state.runAt };
+		if (!(Date.parse(schedule.runAt) > Date.now())) {
+			throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
+		}
+		const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
+		const original = automation.request ?? handoff?.request;
+		if (!original) {
+			throw new Error(localize('scheduledChat.editUnavailable', "The saved request content is unavailable. Manage this request in Automations."));
+		}
+		const textChanged = text !== original.text;
+		const input = state.input && fromStoredChatDraft(parse(stringify(toStoredChatDraft(state.input))));
+		const retained = original.attachments?.map(attachment => textChanged ? { ...attachment, range: undefined } : attachment);
+		const attachments = input ? [
+			...(!handoff ? retained ?? [] : []),
+			...await Promise.all(input.attachments.map(async entry => {
+				const originalIndex = handoff?.input.attachments.findIndex(attachment => attachment.id === entry.id) ?? -1;
+				if (originalIndex >= 0 && retained?.[originalIndex]) {
+					return retained[originalIndex];
+				}
+				const captured = await this.captureRequest({ ...input, inputText: text, attachments: [entry] });
+				return captured.attachments![0];
+			})),
+		] : retained;
+		if (!text.trim() && !attachments?.length) {
+			throw new Error(localize('scheduledChat.emptyEdit', "Enter a message or keep an attachment before saving."));
+		}
+		const request = { ...original, text, attachments };
+		const result = await this.automationService.updateAutomationIfUnchanged(automation.id, {
+			name: text.trim().split('\n')[0].slice(0, 100) || automation.name,
+			prompt: text, request, schedule,
+		}, automation, () => {
+			this.assertEnabled();
+			if (this.editingRequest.get()?.state !== state || !(Date.parse(schedule.runAt) > Date.now())) {
+				throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
+			}
+		});
+		if (result.kind !== 'updated') {
+			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
+		}
+		if (handoff) {
+			const recovery = input ?? handoff.input;
+			this.writeHandoff({
+				...handoff, request, schedule,
+				input: {
+					...recovery, inputText: text,
+					attachments: textChanged ? recovery.attachments.map(attachment => ({ ...attachment, range: undefined })) : recovery.attachments,
+					references: textChanged ? [] : recovery.references,
+				},
+			});
+		}
+		if (this.editingRequest.get()?.state === state) {
+			this.editingRequest.set(undefined, undefined);
+		}
+		status(localize('scheduledChat.edited', "Scheduled message saved for {0}", formatTime(schedule.runAt)));
 	}
 
 	private async cancel(automation: IAutomationDescriptor, edit: boolean): Promise<void> {

@@ -5263,6 +5263,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container.scheduled-request {
 	&.scheduled-request-editing {
 		opacity: 1;
+
+		.chat-request-timestamp-container {
+			height: auto;
+			margin-top: var(--vscode-spacing-size40);
+			pointer-events: auto;
+		}
 	}
 
 	.scheduled-request-editor {
@@ -5270,8 +5276,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		flex-direction: column;
 		gap: var(--vscode-spacing-size80);
 		width: 100%;
-		max-width: 480px;
-		margin-left: auto;
 	}
 
 	.scheduled-request-editor-actions {
@@ -5285,7 +5289,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0;
 
 		&.scheduled-request-edit-time {
-			flex: 1;
+			flex: 0 1 auto;
+			margin-right: auto;
 			min-width: 0;
 
 			> span:not(.codicon) {

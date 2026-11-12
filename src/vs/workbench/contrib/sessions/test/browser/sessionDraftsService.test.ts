@@ -20,6 +20,7 @@ import { INotificationService, NotificationMessage } from '../../../../../platfo
 import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { SessionDraftsService } from '../../browser/sessionDraftsService.js';
 import { getPendingSessionAriaLabel } from '../../browser/views/pendingSessions.js';
@@ -38,6 +39,9 @@ suite('Saved session draft lifecycle', () => {
 		const navigation: (string | undefined)[] = [];
 		const notifications: string[] = [];
 		const infoNotifications: NotificationMessage[] = [];
+		const lifecycle = new class extends mock<ILifecycleService>() {
+			override willShutdown = false;
+		};
 		let openSavedDraft: ((id: string, token: CancellationToken) => Promise<boolean>) | undefined;
 		const view = new class extends mock<ISessionsService>() {
 			override registerSavedDraftOpener(opener: (id: string, token: CancellationToken) => Promise<boolean>) { openSavedDraft = opener; return Disposable.None; }
@@ -61,8 +65,8 @@ suite('Saved session draft lifecycle', () => {
 			new TestDialogService({ confirmed: true }), new class extends mock<INotificationService>() {
 				override error(message: Parameters<INotificationService['error']>[0]) { notifications.push(String(message)); }
 				override info(message: NotificationMessage | NotificationMessage[]) { infoNotifications.push(...Array.isArray(message) ? message : [message]); }
-			}, new NullLogService(), groups, entitlement));
-		return { service, storage, config, sent, navigation, view, notifications, infoNotifications, openSavedDraft: (id: string, token: CancellationToken) => openSavedDraft!(id, token) };
+			}, new NullLogService(), groups, entitlement, lifecycle));
+		return { service, storage, config, sent, navigation, view, notifications, infoNotifications, lifecycle, openSavedDraft: (id: string, token: CancellationToken) => openSavedDraft!(id, token) };
 	}
 
 	test('default-off preserves the singleton behavior without creating a collection or draft history', () => {
@@ -95,7 +99,7 @@ suite('Saved session draft lifecycle', () => {
 		const composer = service.createComposer();
 		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		composer.updateInput({ inputText: 'Keep this draft', attachments: [] });
-		const saved = service.stow(composer, { notifyCreated: true })!;
+		const saved = service.stowAndClear(composer)!;
 		registration.dispose();
 		const message = infoNotifications[0];
 		assert.ok(message instanceof NotificationText);
@@ -134,11 +138,47 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual(results, ['disabled', 'empty', 'scheduling', 'restoring', 'background'].map(reason => ({ reason, count: 0 })));
 	});
 
+	test('repeated navigation and disposal do not duplicate the creation notification', () => {
+		const { service, infoNotifications } = create();
+		const composer = service.createComposer();
+		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
+		composer.updateInput({ inputText: 'Unsent', attachments: [] });
+		service.stowAndClear(composer);
+		service.stowAndClear(composer);
+		registration.dispose();
+		assert.deepStrictEqual(infoNotifications.map(message => message.toString()), ['Created draft. Open Draft']);
+	});
+
+	test('typing, autosave, reload, and disposal never create drafts or restore one automatically', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const first = create(true, storage);
+		const composer = first.service.createComposer();
+		const registration = disposables.add(first.service.registerComposer(composer, async () => { }, () => { }));
+		composer.updateInput({ inputText: 'Keep across reload', attachments: [] });
+		await storage.flush();
+		const afterAutosave = first.service.sections.get();
+		first.lifecycle.willShutdown = true;
+		first.service.stowAndClear(composer);
+		registration.dispose();
+		first.service.dispose();
+
+		const next = create(true, storage);
+		const nextComposer = next.service.createComposer();
+		const nextRegistration = disposables.add(next.service.registerComposer(nextComposer, async () => assert.fail('Reload must not restore a saved draft'), () => { }));
+		nextComposer.updateInput({ inputText: 'Unsent after reload', attachments: [] });
+		nextRegistration.dispose();
+		assert.deepStrictEqual({
+			afterAutosave, afterReload: next.service.sections.get(),
+			notifications: [...first.infoNotifications, ...next.infoNotifications],
+		}, { afterAutosave: [], afterReload: [], notifications: [] });
+	});
+
 	test('saves several compositions, resumes the same identity, and retains them on live disable', async () => {
 		const { service, config } = create();
 		const first = service.createComposer();
 		const registration = disposables.add(service.registerComposer(first, async () => { }, () => { }));
 		first.updateInput({ inputText: 'first', attachments: [] });
+		const firstDraft = service.stowAndClear(first)!;
 		registration.dispose();
 		const second = service.createComposer();
 		let restored: ISavedSessionDraft | undefined;
@@ -147,13 +187,13 @@ suite('Saved session draft lifecycle', () => {
 			second.updateInput(draft.input);
 		}, () => { }));
 		second.updateInput({ inputText: 'second', attachments: [] });
-		await service.open(first.id);
+		await service.open(firstDraft.id);
 		const titles = service.sections.get().flatMap(section => section.items.map(item => item.title)).sort();
 		await config.setUserConfiguration(SESSIONS_DRAFTS_ENABLED_SETTING, false);
 		config.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === SESSIONS_DRAFTS_ENABLED_SETTING, affectedKeys: new Set([SESSIONS_DRAFTS_ENABLED_SETTING]), source: 1, change: { keys: [SESSIONS_DRAFTS_ENABLED_SETTING], overrides: [] } });
 		const hidden = service.sections.get();
 		assert.deepStrictEqual({ titles, restoredId: restored?.id, composerId: second.id, hidden }, {
-			titles: ['first', 'second'], restoredId: first.id, composerId: first.id, hidden: [],
+			titles: ['first', 'second'], restoredId: firstDraft.id, composerId: firstDraft.id, hidden: [],
 		});
 	});
 
@@ -217,6 +257,7 @@ suite('Saved session draft lifecycle', () => {
 			input: composer.input, target: composer.target, id: composer.id,
 			saved: service.sections.get().flatMap(section => section.items.map(item => item.title)),
 		};
+		service.stowAndClear(composer);
 		registration.dispose();
 		assert.deepStrictEqual({
 			opened,
@@ -337,34 +378,30 @@ suite('Saved session draft lifecycle', () => {
 		});
 	});
 
-	test('opening a draft waits for automatic restoration to finish', async () => {
-		const { service } = create();
+	test('registering a composer does not automatically restore an existing draft', async () => {
+		const { service, storage } = create();
 		const previous = service.save({ inputText: 'previous draft', attachments: [] }, {});
 		const requested = service.save({ inputText: 'requested draft', attachments: [] }, {});
+		storage.store('sessions.savedDrafts.active', previous.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		const composer = service.createComposer();
+		const originalId = composer.id;
 		composer.id = previous.id;
-		const started = new DeferredPromise<void>();
-		const resume = new DeferredPromise<void>();
 		const restored: string[] = [];
 		disposables.add(service.registerComposer(composer, async draft => {
-			if (draft.id === previous.id) {
-				started.complete();
-				await resume.p;
-			}
 			restored.push(draft.id);
 			composer.updateInput(draft.input);
 		}, () => { }));
 
-		await started.p;
-		const opening = service.open(requested.id);
-		resume.complete();
-		await opening;
+		await Promise.resolve();
+		assert.deepStrictEqual(restored, []);
+		composer.id = originalId;
+		await service.open(requested.id);
 
 		assert.deepStrictEqual({
 			restored, input: composer.input, id: composer.id,
 			titles: service.sections.get()[0].items.map(item => item.title).sort(),
 		}, {
-			restored: [previous.id, requested.id], input: requested.input, id: requested.id,
+			restored: [requested.id], input: requested.input, id: requested.id,
 			titles: ['previous draft', 'requested draft'],
 		});
 	});
@@ -394,6 +431,7 @@ suite('Saved session draft lifecycle', () => {
 		disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		const input = { inputText: 'sent input', attachments: [] };
 		composer.updateInput(input);
+		service.stow(composer);
 		composer.willSend(input);
 		const options = { query: input.inputText, background: true };
 		composer.trackSend(options, 'first');
@@ -412,6 +450,7 @@ suite('Saved session draft lifecycle', () => {
 		composer.updateInput({ inputText: 'old input', attachments: [] });
 		service.stow(composer);
 		composer.updateInput({ inputText: '  ', attachments: [] });
+		service.stowAndClear(composer);
 		registration.dispose();
 		assert.deepStrictEqual(service.sections.get(), []);
 	});
@@ -447,7 +486,7 @@ suite('Saved session draft lifecycle', () => {
 		assert.notStrictEqual(service.createComposer().id, 'scheduled-composition');
 	});
 
-	test('unreadable draft storage reports the snapshot failure without blocking a send', () => {
+	test('unreadable draft storage reports the read failure without blocking a send', () => {
 		const { service, storage, notifications } = create();
 		const raw = '{"version":99,"drafts":[]}';
 		storage.store('sessions.savedDrafts', raw, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -456,7 +495,7 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual({
 			sending: composer.isSending, input: composer.input.inputText,
 			stored: storage.get('sessions.savedDrafts', StorageScope.PROFILE),
-			notified: notifications.some(message => message.includes('Could not save this draft')),
+			notified: notifications.some(message => message.includes('Could not read saved drafts')),
 		}, { sending: true, input: 'send this', stored: raw, notified: true });
 		composer.didSend(false);
 	});
@@ -465,6 +504,8 @@ suite('Saved session draft lifecycle', () => {
 		const results = [true, false].map(accepted => {
 			const { service } = create();
 			const composer = service.createComposer();
+			composer.updateInput({ inputText: 'compare this', attachments: [] });
+			service.stow(composer);
 			composer.willSend({ inputText: 'compare this', attachments: [] });
 			composer.didSend(accepted);
 			return service.sections.get().flatMap(section => section.items.map(item => item.title));
@@ -506,10 +547,33 @@ suite('Saved session draft lifecycle', () => {
 		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		const input = { inputText: 'recover me', attachments: [] };
 		composer.updateInput(input);
+		service.stow(composer);
 		composer.willSend(input);
 		composer.updateInput({ inputText: '', attachments: [] });
 		registration.dispose();
 		composer.didSend(false);
 		assert.deepStrictEqual(service.sections.get().flatMap(section => section.items.map(item => item.title)), ['recover me']);
+	});
+
+	test('sending a new composition does not create a saved draft', () => {
+		const { service, infoNotifications } = create();
+		const composer = service.createComposer();
+		composer.willSend({ inputText: 'Send without drafting', attachments: [] });
+		composer.dispose();
+		composer.didSend(false);
+		assert.deepStrictEqual({ drafts: service.sections.get(), notifications: infoNotifications }, { drafts: [], notifications: [] });
+	});
+
+	test('navigating away with attachments only creates a draft and its notification', () => {
+		const { service, infoNotifications } = create();
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async () => { }, () => { }));
+		const input = { inputText: '', attachments: [{ kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') }] };
+		composer.updateInput(input);
+		const saved = service.stowAndClear(composer);
+		assert.deepStrictEqual({
+			savedInput: saved?.input, titles: service.sections.get()[0].items.map(item => item.title),
+			notifications: infoNotifications.map(message => message.toString()), currentInput: composer.input,
+		}, { savedInput: { ...input, references: undefined }, titles: ['Attached Context'], notifications: ['Created draft. Open Draft'], currentInput: { inputText: '', attachments: [] } });
 	});
 });

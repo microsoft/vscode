@@ -576,25 +576,28 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('saved draft navigation notifies when the input or its host hides, but not during send', () => {
+	test('saved draft navigation captures only when the shown input hides, not on host disposal or send', () => {
 		const hostVisible = observableValue('hostVisible', true);
-		const inputVisible = observableValue('inputVisible', true);
+		const inputVisible = observableValue('inputVisible', false);
 		const composer = { isSending: false };
 		let captures = 0;
-		const stowed: { sameComposer: boolean; notifyCreated?: boolean }[] = [];
+		const stowed: boolean[] = [];
 		const harness = {
 			options: { hostVisible, inputVisible },
 			_savedDraftComposer: composer,
 			_captureSavedDraftTarget: () => { captures++; },
 			sessionDraftsService: {
-				stow: (value: typeof composer, options?: { notifyCreated?: boolean }) => {
-					stowed.push({ sameComposer: value === composer, notifyCreated: options?.notifyCreated });
+				stowAndClear: (value: typeof composer) => {
+					stowed.push(value === composer);
 				},
 			},
 			notificationService: { error: (error: Error) => { throw error; } },
 		};
 		const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftVisibility') as (this: typeof harness) => IDisposable;
 		disposables.add(track.call(harness));
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		inputVisible.set(true, undefined);
 		inputVisible.set(false, undefined);
 		hostVisible.set(false, undefined);
 		inputVisible.set(true, undefined);
@@ -604,13 +607,15 @@ suite('NewChatWidget', () => {
 		composer.isSending = true;
 		inputVisible.set(false, undefined);
 		assert.deepStrictEqual({ captures, stowed }, {
-			captures: 2, stowed: [{ sameComposer: true, notifyCreated: true }, { sameComposer: true, notifyCreated: true }],
+			captures: 1, stowed: [true],
 		});
 	});
 
 	suite('saved draft restoration', () => {
 		function createHarness(session: ISession) {
 			let input: IChatDraft = { inputText: 'previous input', attachments: [] };
+			let inputEnabled = true;
+			const focusStates: boolean[] = [];
 			const configured: ISession[] = [];
 			const harness = {
 				_store: disposables.add(new DisposableStore()),
@@ -621,9 +626,9 @@ suite('NewChatWidget', () => {
 				_pendingWorkspaceCreation: Promise.resolve(),
 				_savedDraftComposer: { id: 'previous', target: {} as ISavedSessionDraftTarget },
 				_newChatInput: {
-					setInputEnabled: () => { },
+					setInputEnabled: (enabled: boolean) => { inputEnabled = enabled; },
 					setDraft: (draft: IChatDraft) => { input = draft; },
-					focus: () => { },
+					focus: () => { focusStates.push(inputEnabled); },
 				},
 				storageService: disposables.add(new InMemoryStorageService()),
 				sessionsProvidersService: { getProvider: () => ({ sessionTypes: [{ id: 'agent' }] }) },
@@ -634,10 +639,16 @@ suite('NewChatWidget', () => {
 					openNewSession: async () => ({ session }),
 					openQuickChat: () => session,
 				},
-				sessionsManagementService: { configureNewSessionDraft: async (value: ISession) => { configured.push(value); } },
+				sessionsManagementService: {
+					configureNewSessionDraft: async (value: ISession) => { configured.push(value); },
+				},
 			};
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>;
-			return { harness, configured, input: () => input, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => restore.call(harness, draft, token) };
+			return {
+				harness, configured, focusStates,
+				input: () => input,
+				restore: (draft: ISavedSessionDraft, token?: CancellationToken) => restore.call(harness, draft, token),
+			};
 		}
 
 		const requested = URI.file('/requested');
@@ -668,9 +679,11 @@ suite('NewChatWidget', () => {
 						configured: fixture.configured.length,
 						unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
 						input: fixture.input(),
-					}, { configured: matches ? 1 : 0, unavailable: !matches, input: draft.input });
+						focusStates: fixture.focusStates,
+					}, { configured: matches ? 1 : 0, unavailable: !matches, input: draft.input, focusStates: matches ? [true] : [] });
 				});
 			}
+
 		}
 
 		test('cancelling before target restoration preserves the previous input and Send availability', async () => {

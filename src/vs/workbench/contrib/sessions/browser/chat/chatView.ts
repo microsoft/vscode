@@ -193,7 +193,7 @@ export class NewChatView extends AbstractChatView {
 	override readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
-	private readonly _isVisibleObs = observableValue(this, true);
+	private readonly _isVisibleObs = observableValue(this, false);
 
 	constructor(
 		isNewChatInSession: boolean,

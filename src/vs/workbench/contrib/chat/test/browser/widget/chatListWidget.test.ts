@@ -65,7 +65,7 @@ import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -243,7 +243,7 @@ suite('ChatListWidget', () => {
 		}
 	});
 
-	test('scheduled message editing retains text and focus across time changes and cancellation', async () => {
+	test('scheduled message editing retains the edit state across time changes and cancellation', async () => {
 		const { viewModel, container, widget } = createWidget({}, undefined, true);
 		const request = { id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [] };
 		const finish = () => {
@@ -252,11 +252,11 @@ suite('ChatListWidget', () => {
 		};
 		const editing = {
 			text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
-			selectTime: async () => {
+			selectTime: toAction({ id: 'time', label: 'Time', run: async () => {
 				editing.description = 'Next week';
 				viewModel.setScheduledRequests([{ ...request, editing }]);
 				widget.refresh();
-			},
+			} }),
 			save: async () => finish(),
 			cancel: finish,
 		};
@@ -264,21 +264,17 @@ suite('ChatListWidget', () => {
 		widget.refresh();
 		widget.layout(300, 500);
 		await waitForStableLayout(widget);
-		const input = container.querySelector<HTMLTextAreaElement>('.scheduled-request-editor textarea')!;
-		input.value = 'Unsaved change';
-		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		editing.text = 'Unsaved change';
 		const time = container.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
 		time.focus();
 		time.click();
 		await waitForStableLayout(widget);
-		const updatedInput = container.querySelector<HTMLTextAreaElement>('.scheduled-request-editor textarea')!;
-		const retained = { text: updatedInput.value, focused: mainWindow.document.activeElement === updatedInput };
-		updatedInput.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		const retained = viewModel.getItems().find(isScheduledRequestVM)?.editing === editing;
+		[...container.querySelectorAll<HTMLElement>('.scheduled-request-editing .monaco-button')].find(button => button.textContent === 'Cancel')!.click();
 		await waitForStableLayout(widget);
 		assert.deepStrictEqual({
-			retained, editing: !!container.querySelector('.scheduled-request-editor'),
-			focused: mainWindow.document.activeElement === container.querySelector('.scheduled-request .rendered-markdown'),
-		}, { retained: { text: 'Unsaved change', focused: true }, editing: false, focused: true });
+			retained, text: editing.text, description: editing.description, editing: !!container.querySelector('.scheduled-request-editing'),
+		}, { retained: true, text: 'Unsaved change', description: 'Next week', editing: false });
 	});
 
 	test('provides registered menu commands with the link context', async () => {

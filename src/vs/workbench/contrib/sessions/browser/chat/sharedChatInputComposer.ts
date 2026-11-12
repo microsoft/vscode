@@ -365,7 +365,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this._register(toDisposable(() => SharedChatInputComposer._backgroundComposers.delete(widget)));
 		}
 		const canScheduleKey = ChatInputCanScheduleContext.bindTo(widget.scopedContextKeyService);
-		this._register(autorun(reader => canScheduleKey.set(!!this.options.canSchedule?.read(reader) && !this._sending.read(reader))));
+		this._register(autorun(reader => canScheduleKey.set(!!this.options.canSchedule?.read(reader))));
 		this._register(toDisposable(() => canScheduleKey.reset()));
 		if (this.options.inputVisible) {
 			const inputVisible = this.options.inputVisible;

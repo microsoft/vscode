@@ -1291,14 +1291,14 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _trackSavedDraftVisibility(): IDisposable {
-		let wasVisible = true;
+		let wasVisible = false;
 		return autorun(reader => {
-			const visible = (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+			const visible = this.options.inputVisible?.read(reader) ?? true;
 			const composer = this._savedDraftComposer;
-			if (wasVisible && !visible && composer && !composer.isSending) {
+			if (wasVisible && !visible && composer && !composer.isSending && !composer.isScheduling && !composer.isRestoring) {
 				this._captureSavedDraftTarget();
 				try {
-					this.sessionDraftsService.stow(composer, { notifyCreated: true });
+					this.sessionDraftsService.stowAndClear(composer);
 				} catch (error) {
 					this.notificationService.error(error);
 				}
@@ -1389,11 +1389,11 @@ export class NewChatWidget extends Disposable {
 			}
 			this._newChatInput.setDraft(draft.input);
 			this._savedDraftTargetUnavailable.set(false, undefined);
-			this._newChatInput.focus();
 		} finally {
 			this._restoringSavedDraft.set(false, undefined);
 			this._newChatInput.setInputEnabled(true);
 		}
+		this._newChatInput.focus();
 	}
 
 	private _seedRequestedTarget(target: INewSessionTarget): void {

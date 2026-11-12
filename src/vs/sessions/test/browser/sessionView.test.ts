@@ -41,6 +41,8 @@ suite('Sessions - Session View', () => {
 
 	class TestNewSessionView extends AbstractChatView {
 		disposed = false;
+		visible = false;
+		visibleAtDispose: boolean | undefined;
 		retainOnClear = false;
 
 		override get preserveOnSessionClear(): boolean {
@@ -52,12 +54,14 @@ suite('Sessions - Session View', () => {
 		}
 
 		protected override doLayout(): void { }
+		override setVisible(visible: boolean): void { this.visible = visible; }
 		override toJSON(): object { return {}; }
 		override focus(): void {
 			this.element.tabIndex = -1;
 			this.element.focus();
 		}
 		override dispose(): void {
+			this.visibleAtDispose = this.visible;
 			this.disposed = true;
 			super.dispose();
 		}
@@ -752,6 +756,7 @@ suite('Sessions - Session View', () => {
 			afterCancellation,
 			preparationViewsDisposed: preparationViews.every(view => view.disposed),
 			disposedAfterCreation: createdViews[0].disposed,
+			visibleAtDispose: createdViews[0].visibleAtDispose,
 			finalElement: contentContainer.firstElementChild,
 			focusedAfterCreation: mainWindow.document.activeElement === groupsInput,
 			shownSessions,
@@ -766,6 +771,7 @@ suite('Sessions - Session View', () => {
 			afterCancellation: { restoredComposer: true, progressDisposed: true, focused: true },
 			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
+			visibleAtDispose: false,
 			finalElement: groupsElement,
 			focusedAfterCreation: true,
 			shownSessions: [undefined, undefined, undefined, undefined, session],

@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -1178,6 +1178,7 @@ suite('ChatListRenderer', () => {
 		disposables.add(toDisposable(() => selection.removeAllRanges()));
 		const range = mainWindow.document.createRange();
 		range.selectNodeContents(content);
+		selection.removeAllRanges();
 		selection.addRange(range);
 		content.click();
 		const afterSelection = edits;
@@ -1197,64 +1198,86 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('scheduled message editor changes text and time, saves with Enter, and cancels with Escape', async () => {
+	test('scheduled editing delegates the input to the widget and retains time, save, and cancel controls', async () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 		const saved: string[] = [];
 		let cancelled = 0;
 		let timeAnchor: HTMLElement | undefined;
+		let inlineInputRequested = false;
+		disposables.add(renderer.onDidRerender(item => { inlineInputRequested = item === template; }));
 		const editing = {
 			text: 'Original', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
-			selectTime: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; },
+			selectTime: toAction({ id: 'time', label: 'Time', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; } }),
 			save: async () => { saved.push(editing.text, editing.runAt); },
 			cancel: () => { cancelled++; },
 		};
 		viewModel.setScheduledRequests([{ id: 'later', text: 'Original', description: 'Tomorrow', attachments: ['notes.txt'], actions: [], editing }]);
 		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
-		const input = template.value.querySelector<HTMLTextAreaElement>('textarea')!;
-		input.value = 'Edited\nmessage';
-		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		const timeButton = template.value.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+		editing.text = 'Edited\nmessage';
+		const timeButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
 		timeButton.click();
 		await timeout(0);
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, shiftKey: true, bubbles: true }));
-		const savedAfterShiftEnter = saved.length;
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const buttons = template.requestTimestampContainer.querySelectorAll<HTMLElement>('.monaco-button');
+		buttons[1].click();
 		await timeout(0);
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		buttons[2].click();
 		assert.deepStrictEqual({
-			text: editing.text, timeAnchored: timeAnchor === timeButton, savedAfterShiftEnter, saved, cancelled,
-			attachments: template.value.querySelector('.scheduled-request-attachments')?.textContent,
+			text: editing.text, timeAnchored: timeAnchor === timeButton, inlineInputRequested, saved, cancelled,
+			hasCustomTextArea: !!template.rowContainer.querySelector('textarea'),
+			attachments: template.requestTimestampContainer.querySelector('.scheduled-request-attachments')?.textContent,
 			hoverToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
 		}, {
-			text: 'Edited\nmessage', timeAnchored: true, savedAfterShiftEnter: 0,
+			text: 'Edited\nmessage', timeAnchored: true, inlineInputRequested: true, hasCustomTextArea: false,
 			saved: ['Edited\nmessage', '2099-01-16T10:00:00Z'], cancelled: 1,
 			attachments: 'Attachments: notes.txt', hoverToolbar: false,
 		});
 		disposables.dispose();
 	});
 
-	test('scheduled message editor stays compact with all footer controls on one row', () => {
+	test('leaving scheduled editing restores the visible message on the reused row', () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const request = { id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions: [] };
+		viewModel.setScheduledRequests([{
+			...request,
+			editing: {
+				text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
+				save: async () => { }, cancel: () => { },
+			},
+		}]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		viewModel.setScheduledRequests([request]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+		assert.deepStrictEqual({
+			text: content.textContent, visible: mainWindow.getComputedStyle(content).display !== 'none',
+		}, { text: 'TomorrowScheduled message', visible: true });
+		disposables.dispose();
+	});
+
+	test('scheduled editor footer fits the shared inline composer at narrow and wide widths', () => {
 		const { disposables, viewModel, container, renderer, template, node } = createPersistentProgressRenderer();
 		viewModel.setScheduledRequests([{
 			id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [],
 			editing: {
 				text: 'Edited message', runAt: '2099-01-15T10:00:00Z', description: '11/12/2099, 6:44:11 PM EST',
-				selectTime: async () => { }, save: async () => { }, cancel: () => { },
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
 			},
 		}]);
 		for (const width of [900, 300, 900]) {
 			container.style.width = `${width}px`;
 			renderer.layout(width);
 			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
-			const editor = template.value.querySelector<HTMLElement>('.scheduled-request-editor')!;
+			const editor = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-editor')!;
 			const bounds = editor.getBoundingClientRect();
-			const controls = [...editor.querySelectorAll<HTMLElement>('.monaco-button')].map(button => button.getBoundingClientRect());
+			const buttons = [...editor.querySelectorAll<HTMLElement>('.monaco-button')];
+			const controls = buttons.map(button => button.getBoundingClientRect());
 			assert.deepStrictEqual({
-				width, compact: bounds.width > 0 && bounds.width <= 480,
-				rightAligned: bounds.right === template.value.getBoundingClientRect().right,
+				width, visible: bounds.width > 0,
+				interactive: buttons.every(button => mainWindow.getComputedStyle(button).pointerEvents === 'auto'),
 				sameRow: controls.every(control => control.top === controls[0].top),
 				fits: controls.every(control => control.left >= bounds.left && control.right <= bounds.right),
-			}, { width, compact: true, rightAligned: true, sameRow: true, fits: true });
+			}, { width, visible: true, interactive: true, sameRow: true, fits: true });
 		}
 		disposables.dispose();
 	});
@@ -1629,7 +1652,7 @@ suite('ChatListRenderer', () => {
 		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
 		renderer.renderElement({ element: requestViewModel, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined }, 0, template);
 
-		const widget = {
+		const widget: ChatWidget = Object.setPrototypeOf({
 			viewModel,
 			configurationService,
 			recentlyRestoredCheckpoint: false,
@@ -1675,7 +1698,7 @@ suite('ChatListRenderer', () => {
 			_onDidChangeActiveInputEditor: { fire: () => { } },
 			_register: <T extends { dispose(): void }>(disposable: T) => disposables.add(disposable),
 			telemetryService: { publicLog2: () => { } },
-		} as unknown as ChatWidget;
+		}, ChatWidget.prototype);
 		(ChatWidget.prototype as unknown as { clickedRequest(this: ChatWidget, item: IChatListItemTemplate): void }).clickedRequest.call(widget, template);
 
 		assert.deepStrictEqual({

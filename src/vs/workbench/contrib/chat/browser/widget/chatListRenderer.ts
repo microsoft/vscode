@@ -11,7 +11,6 @@ import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverStyle, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
-import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
@@ -50,7 +49,7 @@ import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/mark
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
@@ -2322,7 +2321,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(false);
 		ChatContextKeys.isFirstRequest.bindTo(templateData.contextKeyService).set(false);
 		templateData.rowContainer.classList.add('pending-item');
-		templateData.rowContainer.classList.remove('interactive-request', 'interactive-response', 'pending-request');
+		templateData.rowContainer.classList.remove('interactive-request', 'interactive-response', 'pending-request', 'editing');
 
 		// Hide header elements not applicable to pending divider
 		templateData.avatarContainer.classList.add('hidden');
@@ -2345,8 +2344,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const store = templateData.scheduledRequestDisposables;
 		templateData.rowContainer.classList.add('scheduled-request', 'interactive-request', 'pending-request');
 		if (element.editing) {
-			templateData.rowContainer.classList.add('scheduled-request-editing');
-			this.renderScheduledRequestEditor(element, templateData, focus);
+			templateData.scheduledRequestHadFocus = focus;
+			templateData.rowContainer.classList.add('scheduled-request-editing', 'editing');
+			this.renderScheduledRequestEditor(element, templateData);
 			return;
 		}
 		const content = dom.append(templateData.value, dom.$('.rendered-markdown'));
@@ -2403,30 +2403,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderScheduledRequestEditor(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate, focus: boolean): void {
+	private renderScheduledRequestEditor(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate): void {
 		const editing = element.editing!;
 		const store = templateData.scheduledRequestDisposables;
-		const container = dom.append(templateData.value, dom.$('.scheduled-request-editor'));
+		const container = dom.append(templateData.requestTimestampContainer, dom.$('.scheduled-request-editor'));
 		templateData.scheduledRequestAnchor = container;
-		const input = store.add(new InputBox(container, undefined, {
-			ariaLabel: localize('scheduledRequestEditText', "Scheduled message"),
-			flexibleHeight: true, flexibleMaxHeight: 200, inputBoxStyles: defaultInputBoxStyles,
-		}));
-		input.value = editing.text;
-		store.add(input.onDidChange(value => { editing.text = value; }));
-		store.add(input.onDidHeightChange(() => this.fireItemHeightChange(templateData)));
-		let inputWidth = 0;
-		const resizeObserver = store.add(new dom.DisposableResizeObserver('ChatListItemRenderer.scheduledInput', entries => {
-			const width = entries[0]?.contentRect.width;
-			if (width !== undefined && width !== inputWidth) {
-				inputWidth = width;
-				input.layout();
-			}
-		}, dom.getWindow(container)));
-		store.add(resizeObserver.observe(input.element));
-		if (element.attachments.length) {
+		const retainedAttachments = editing.retainedAttachments ?? (editing.input ? [] : element.attachments);
+		if (retainedAttachments.length) {
 			dom.append(container, dom.$('.scheduled-request-attachments', undefined,
-				localize('scheduledRequestAttachments', "Attachments: {0}", element.attachments.join(', '))));
+				localize('scheduledRequestAttachments', "Attachments: {0}", retainedAttachments.join(', '))));
 		}
 		const buttons = store.add(new ButtonBar(dom.append(container, dom.$('.scheduled-request-editor-actions'))));
 		const time = buttons.addButton({ ...defaultButtonStyles, secondary: true, supportIcons: true, title: editing.description });
@@ -2445,39 +2430,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					return;
 				}
 				busy = true;
-				input.inputElement.readOnly = true;
 				save.enabled = cancel.enabled = time.enabled = false;
 				try {
 					await editing.save();
 				} finally {
 					busy = false;
-					input.inputElement.readOnly = false;
 					save.enabled = cancel.enabled = time.enabled = true;
 				}
 			},
 		});
-		const selectTime = toAction({ id: 'scheduledRequest.time', label: time.label, run: () => editing.selectTime(time.element) });
-		store.add(time.onDidClick(() => { void this.scheduledRequestActionRunner.run(selectTime); }));
+		store.add(time.onDidClick(() => { void this.scheduledRequestActionRunner.run(editing.selectTime, time.element); }));
 		store.add(save.onDidClick(() => { void this.scheduledRequestActionRunner.run(saveAction); }));
 		store.add(cancel.onDidClick(() => editing.cancel()));
-		store.add(dom.addDisposableListener(input.inputElement, dom.EventType.KEY_DOWN, event => {
-			if (event.isComposing || busy) {
-				return;
-			}
-			const key = new StandardKeyboardEvent(event);
-			if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Escape)) {
-				event.preventDefault();
-				event.stopPropagation();
-				if (key.equals(KeyCode.Escape)) {
-					editing.cancel();
-				} else {
-					void this.scheduledRequestActionRunner.run(saveAction);
-				}
-			}
+		store.add(autorun(reader => {
+			save.enabled = cancel.enabled = time.enabled = !editing.isSaving?.read(reader);
 		}));
-		if (focus) {
-			this.focusScheduledRequest(templateData, input.inputElement);
-		}
+		this._onDidRerender.fire(templateData);
 	}
 
 	private focusScheduledRequest(templateData: IChatListItemTemplate, element: HTMLElement): void {
@@ -2496,7 +2464,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const dividerContent = dom.$('.pending-divider-content');
 		const label = dom.append(dividerContent, dom.$('span.pending-divider-label'));
 
-		if (element.dividerKind === ChatRequestQueueKind.Steering) {
+		if (element.dividerKind === 'scheduled') {
+			label.textContent = localize('scheduledDivider', "Scheduled");
+		} else if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
 				label.textContent = localize('systemNotificationDivider', "System notification");
 				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");

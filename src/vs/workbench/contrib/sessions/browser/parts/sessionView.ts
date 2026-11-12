@@ -360,6 +360,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	private _showSessionGroups(content: ISessionPaneContent, options: ISessionViewOptions): void {
+		this._standaloneView.get()?.setVisible(false);
 		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
 		this._groupsView.setSession(content, options);
