@@ -358,6 +358,38 @@ suite('Editor Parts', () => {
 		assert.deepStrictEqual({ preserved: await applyWith(true), notPreserved: await applyWith(false) }, { preserved: true, notPreserved: false });
 	});
 
+	test('applying a working set with preserved focus moves the focus of an editor to the new active editor and leaves other focus alone', async () => {
+		const { parts } = await createServices();
+		const mainPart = parts.testMainPart;
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+		disposables.add({ dispose: () => outside.remove() });
+
+		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
+		await mainPart.activeGroup.openEditor(first, { pinned: true });
+		const workingSet = parts.saveWorkingSet('with-editor');
+
+		const focusAfterApply = async () => {
+			await parts.applyWorkingSet('empty', { preserveFocus: true });
+			return {
+				inEditorPart: mainPart.getContainer()!.contains(mainWindow.document.activeElement),
+				onBody: mainWindow.document.activeElement === mainWindow.document.body,
+				onOutside: mainWindow.document.activeElement === outside
+			};
+		};
+
+		focusIn(mainPart.activeGroup.element.querySelector<HTMLElement>('.editor-container')!.firstElementChild as HTMLElement);
+		const editorFocused = await focusAfterApply();
+		await parts.applyWorkingSet(workingSet, { preserveFocus: true });
+		outside.focus();
+		const outsideFocused = await focusAfterApply();
+
+		assert.deepStrictEqual({ editorFocused, outsideFocused }, {
+			editorFocused: { inEditorPart: true, onBody: false, onOutside: false },
+			outsideFocused: { inEditorPart: false, onBody: false, onOutside: true }
+		});
+		parts.deleteWorkingSet(workingSet);
+	});
+
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
 		const { instantiationService, parts } = await createServices();
 		const partA = createOwnedPart(instantiationService, parts);
