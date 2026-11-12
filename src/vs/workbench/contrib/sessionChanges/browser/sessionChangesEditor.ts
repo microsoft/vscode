@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionChangesEditor.css';
-import { $, append, Dimension } from '../../../../base/browser/dom.js';
+import { $, append, Dimension, setVisibility } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -23,6 +23,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { bindContextKey, observableContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -229,6 +230,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private _desktop = false;
 	/** Whether the editor shows its header row itself, above its diffs, instead of the editor part hosting it. */
 	private _ownHeader = false;
+	/** Whether its own header row shows: hosts that need its own header may hide it, such as while AI features are disabled. */
+	private _headerShown = true;
+	private _lastDimension: Dimension | undefined;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
 	/** Session, and chat if it names one, whose changes this editor is currently showing (from its input). */
@@ -386,7 +390,23 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));
 			const right = append(header, $('.session-changes-editor-header-right'));
-			this._register(this._buildHeaderToolbars(left, right, scopedInstantiationService));
+			if (this.hostLayoutService.sessionEditorsShowOwnHeader) {
+				// Its actions, the picker and the operations on the changes, are AI features in such hosts: none while they are disabled
+				const aiEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, scopedContextKeyService).map(this, enabled => !!enabled);
+				this._register(autorun(reader => {
+					const shown = aiEnabled.read(reader);
+					setVisibility(shown, header);
+					this._headerShown = shown;
+					if (shown) {
+						reader.store.add(this._buildHeaderToolbars(left, right, scopedInstantiationService));
+					}
+					if (this._lastDimension) {
+						this.layout(this._lastDimension);
+					}
+				}));
+			} else {
+				this._register(this._buildHeaderToolbars(left, right, scopedInstantiationService));
+			}
 		}
 
 		this.bodyContainer = append(root, $('.session-changes-editor-body'));
@@ -847,7 +867,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	override layout(dimension: Dimension): void {
 		// With an external header (the editor part reserves a top inset) the diff
 		// fills the full dimension; otherwise reserve the internal header.
-		const bodyHeight = this._ownHeader ? Math.max(0, dimension.height - HEADER_HEIGHT) : dimension.height;
+		this._lastDimension = dimension;
+		const bodyHeight = this._ownHeader && this._headerShown ? Math.max(0, dimension.height - HEADER_HEIGHT) : dimension.height;
 		this.fileListWidget?.layout(new Dimension(dimension.width, bodyHeight));
 		this.emptyState?.layout();
 	}
