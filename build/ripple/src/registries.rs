@@ -114,12 +114,61 @@ fn registration_target(
 
 /// What a registration call registers.
 enum Registered {
-	/// Keys, with the refinement of them (see `Registration::refine`) when the call has one.
-	Keys(Vec<Key>, Option<Key>),
+	/// Keys, each with its refinement (see `Registration::refine`) when the call has one.
+	Keys(Vec<(Key, Option<Key>)>),
 	/// Entries whose keys the analysis cannot tell, which may be any key.
 	Unknown,
 	/// No entry: the call has none of the keys and the registration does not require one.
 	Nothing,
+}
+
+/// The indexes of the array elements along a path, such as `[1, 0]` for `menu[1].items[0].id`.
+fn indexes(path: &str) -> Vec<&str> {
+	path.split('[')
+		.skip(1)
+		.filter_map(|part| part.split_once(']').map(|(index, _)| index))
+		.collect()
+}
+
+/// Whether a path of the analysis (`menu[1].id`) matches a path of the configuration, which names
+/// the elements of an array as `[]` (`menu[].id`).
+fn matches_path(path: &str, pattern: &str) -> bool {
+	let mut rest = path;
+	for (i, part) in pattern.split("[]").enumerate() {
+		if i > 0 {
+			let Some(after) = rest
+				.strip_prefix('[')
+				.and_then(|r| r.split_once(']'))
+				.filter(|(index, _)| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
+				.map(|(_, after)| after)
+			else {
+				return false;
+			};
+			rest = after;
+		}
+		let Some(after) = rest.strip_prefix(part) else {
+			return false;
+		};
+		rest = after;
+	}
+	rest.is_empty()
+}
+
+/// The path of a pattern in the array elements of `indexes`: the refinement of a key in the same
+/// element as the key (`[1].item.command.id` for the key at `[1].id`).
+fn in_element(pattern: &str, indexes: &[&str]) -> String {
+	let mut out = String::new();
+	for (i, part) in pattern.split("[]").enumerate() {
+		if i > 0 {
+			out.push_str(&format!("[{}]", indexes.get(i - 1).copied().unwrap_or("")));
+		}
+		out.push_str(part);
+	}
+	out
+}
+
+fn is_resolved(key: &Key) -> bool {
+	!matches!(key, Key::Nodes { nodes, .. } if nodes.is_empty())
 }
 
 /// `fixed` is the resolved `registers` key of the registration.
@@ -134,32 +183,27 @@ fn registered(call: &RegistryCall, registration: &Registration, fixed: Option<&K
 	};
 	let mut found = Vec::new();
 	for (path, key) in keys {
-		if !registration.keys.iter().any(|p| **p == **path) {
+		if !registration.keys.iter().any(|p| matches_path(path, p)) {
 			continue;
 		}
-		match (key, fixed) {
-			(Some(Key::Literal(flag)), Some(fixed)) if &**flag == "true" => {
-				found.push(fixed.clone())
-			}
-			(Some(k), None) if !matches!(k, Key::Nodes { nodes, .. } if nodes.is_empty()) => {
-				found.push(k.clone())
-			}
+		let key = match (key, fixed) {
+			(Some(Key::Literal(flag)), Some(fixed)) if &**flag == "true" => fixed.clone(),
+			(Some(k), None) if is_resolved(k) => k.clone(),
 			_ => return Registered::Unknown,
-		}
+		};
+		// The refinement in the same array element as the key, such as the command of the same
+		// item of `appendMenuItems`, so that one call's items keep their own pairs.
+		let refine = registration.refine.as_deref().and_then(|refine| {
+			let refine = in_element(refine, &indexes(path));
+			keys.iter().find_map(|(p, k)| match k {
+				Some(k) if **p == *refine && is_resolved(k) => Some(k.clone()),
+				_ => None,
+			})
+		});
+		found.push((key, refine));
 	}
-	let refine = registration.refine.as_deref().and_then(|refine| {
-		keys.iter().find_map(|(path, key)| match key {
-			Some(k)
-				if **path == *refine
-					&& !matches!(k, Key::Nodes { nodes, .. } if nodes.is_empty()) =>
-			{
-				Some(k.clone())
-			}
-			_ => None,
-		})
-	});
 	match (found.is_empty(), registration.required) {
-		(false, _) => Registered::Keys(found, refine),
+		(false, _) => Registered::Keys(found),
 		(true, true) => Registered::Unknown,
 		(true, false) => Registered::Nothing,
 	}
@@ -249,9 +293,9 @@ pub fn check(snap: &Snapshot, graph: &Graph, config: &Config) -> Result<(Vec<Fin
 					continue;
 				}
 				match registered(call, registration, fixed.as_ref()) {
-					Registered::Keys(keys, refine) => registrations
+					Registered::Keys(keys) => registrations
 						.known
-						.extend(keys.into_iter().map(|k| (k, refine.clone(), call.node))),
+						.extend(keys.into_iter().map(|(k, refine)| (k, refine, call.node))),
 					// A registration helper of the infrastructure, whose caller passes the key.
 					Registered::Unknown
 						if call.forwarded && infrastructure.contains(&call.file) => {}
@@ -428,7 +472,7 @@ mod tests {
 		(
 			"src/actions.ts",
 			"export class MenuId { static readonly CommandPalette = new MenuId(); static readonly Title = new MenuId(); }\n\
-			export const Menus = { appendMenuItem(menu: any, item: any) {}, getMenuItems(menu: any) { return []; } };\n\
+			export const Menus = { appendMenuItem(menu: any, item: any) {}, appendMenuItems(items: any) {}, getMenuItems(menu: any) { return []; } };\n\
 			export class Action { constructor(desc: any) {} }\n\
 			export function registerAction(ctor: any) {}",
 		),
@@ -645,5 +689,96 @@ mod tests {
 			("src/test/other.test.ts", other),
 		]);
 		assert_eq!(summary(&found), vec![]);
+	}
+
+	#[test]
+	fn module_scope_aliases_of_a_registry_are_that_registry() {
+		let aliased = "import { Registry, Extensions } from './registry.js';\n\
+			import { VIEW_ID } from './view.js';\n\
+			const views = Registry.as(Extensions.Views);\n\
+			views.register({ id: VIEW_ID });";
+		let missing = "import { Registry, Extensions } from '../registry.js';\n\
+			import { VIEW_ID } from '../view.js';\n\
+			const views = Registry.as(Extensions.Views);\n\
+			test('view', () => { views.get(VIEW_ID); });";
+		let loads = "import { Registry, Extensions } from '../registry.js';\n\
+			import { VIEW_ID } from '../view.js';\n\
+			import '../aliased.js';\n\
+			const views = Registry.as(Extensions.Views);\n\
+			test('view', () => { views.get(VIEW_ID); });";
+		let found = findings(&[
+			("src/view.ts", VIEW),
+			("src/aliased.ts", aliased),
+			("src/test/missing.test.ts", missing),
+			("src/test/loads.test.ts", loads),
+		]);
+		assert_eq!(
+			summary(&found),
+			vec![(
+				"src/test/missing.test.ts",
+				4,
+				"'my.view'",
+				vec!["src/aliased.ts"]
+			)]
+		);
+	}
+
+	#[test]
+	fn a_double_negation_requires_the_entry() {
+		let test = "import { Commands } from '../commands.js';\n\
+			import { OpenAction } from '../feature.js';\n\
+			test('exists', () => { assert.ok(!!Commands.getCommand(OpenAction.ID)); });\n\
+			test('missing', () => { assert.ok(!Commands.getCommand(OpenAction.ID)); });";
+		let found = findings(&[
+			("src/feature.ts", FEATURE),
+			("src/feature.contribution.ts", FEATURE_CONTRIBUTION),
+			("src/test/feature.test.ts", test),
+		]);
+		assert_eq!(
+			summary(&found),
+			vec![(
+				"src/test/feature.test.ts",
+				3,
+				"'feature.open'",
+				vec!["src/feature.contribution.ts"]
+			)]
+		);
+	}
+
+	#[test]
+	fn the_items_of_append_menu_items_keep_their_menu_and_command() {
+		let batch = "import { Menus, MenuId } from './actions.js';\n\
+			Menus.appendMenuItems([\n\
+				{ id: MenuId.Title, item: { command: { id: 'batch.a' } } },\n\
+				{ id: MenuId.CommandPalette, item: { command: { id: 'batch.b' } } },\n\
+			]);";
+		// Reads the Title item of `batch.a`, which only `batch.ts` adds, and the Title item of
+		// `batch.b`, which nothing adds: `batch.ts` adds `batch.b` to the Command Palette.
+		let reads = "import { Menus, MenuId } from '../actions.js';\n\
+			test('a', () => { Menus.getMenuItems(MenuId.Title).filter(item => item.command.id === 'batch.a'); });\n\
+			test('b', () => { Menus.getMenuItems(MenuId.Title).filter(item => item.command.id === 'batch.b'); });";
+		// Adds its own item, which a module that the test does not load also adds.
+		let single = "import { Menus, MenuId } from './actions.js';\n\
+			Menus.appendMenuItem(MenuId.Title, { command: { id: 'self.c' } });";
+		let registers = "import { Menus, MenuId } from '../actions.js';\n\
+			test('self', () => {\n\
+				Menus.appendMenuItems([{ id: MenuId.Title, item: { command: { id: 'self.c' } } }]);\n\
+				Menus.getMenuItems(MenuId.Title).filter(item => item.command.id === 'self.c');\n\
+			});";
+		let found = findings(&[
+			("src/batch.ts", batch),
+			("src/single.ts", single),
+			("src/test/reads.test.ts", reads),
+			("src/test/registers.test.ts", registers),
+		]);
+		assert_eq!(
+			summary(&found),
+			vec![(
+				"src/test/reads.test.ts",
+				2,
+				"src/actions.ts :: MenuId.Title for 'batch.a'",
+				vec!["src/batch.ts"]
+			)]
+		);
 	}
 }

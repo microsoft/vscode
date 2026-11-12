@@ -224,7 +224,7 @@
 		// expression); without `required`, a call that has none of the keys registers nothing;
 		// `registers` is a fixed key that the call registers when one of the keys is `true`; and
 		// `refine` is where the arguments hold what `readFilter` filters by (`@1` is the second
-		// argument). With `unique`, every key is registered once, so a read of a key that a
+		// argument; in an array, the refinement in the same element as the key). With `unique`, every key is registered once, so a read of a key that a
 		// registration names must reach that registration, and not just any registration whose key
 		// cannot be resolved.
 		"keyed": {
@@ -250,7 +250,7 @@
 				"readFilter": "command.id",
 				"register": [
 					{ "method": "appendMenuItem", "keys": [""], "refine": "@1.command.id" },
-					{ "method": "appendMenuItems", "keys": ["[].id"] },
+					{ "method": "appendMenuItems", "keys": ["[].id"], "refine": "[].item.command.id" },
 					{ "call": "src/vs/platform/actions/common/actions.ts#registerAction2", "keys": ["menu.id", "menu[].id"], "class": true, "required": false, "refine": "id" },
 					{ "call": "src/vs/platform/actions/common/actions.ts#registerAction2", "keys": ["f1"], "class": true, "required": false, "refine": "id", "registers": "src/vs/platform/actions/common/actions.ts#MenuId.CommandPalette" },
 					{ "call": "src/vs/editor/browser/editorExtensions.ts#registerEditorAction", "keys": ["contextMenuOpts.menuId", "contextMenuOpts[].menuId"], "class": true, "required": false, "refine": "id" }

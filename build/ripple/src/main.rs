@@ -33,7 +33,7 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\twhy --test PATH --base REV [--head REV]: how a change reaches a test that it selects\n\
-	\tregistrations [--rev REV] [--base REV]: unit tests that read a registry entry that nothing they load registers; with --base, only those that are new since then\n\
+	\tregistrations [--rev REV] [--base REV]: unit tests that read a registry entry that nothing they load registers, exiting with 2 if there are any; with --base, only those that are new since then\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
 
 /// The commands of `USAGE`.
@@ -170,8 +170,14 @@ fn main() -> Result<()> {
 	}
 }
 
+/// The exit status of `ripple registrations` when it reports findings, unlike the 1 of an error,
+/// such as a registry of the configuration that the analysis cannot find, so that CI tells them
+/// apart.
+const REGISTRATION_FINDINGS_EXIT_CODE: i32 = 2;
+
 /// Reports the unit tests that read a registry entry that nothing they load registers (see
-/// registries.rs), and fails if there are any. With `base`, only those that are new since then.
+/// registries.rs), and exits with `REGISTRATION_FINDINGS_EXIT_CODE` if there are any. With
+/// `base`, only those that are new since then.
 fn registrations(config: &Config, repo: PathBuf, rev: &str, base: Option<&str>) -> Result<()> {
 	let t = Instant::now();
 	let mut engine = Engine::new(repo, config);
@@ -229,7 +235,7 @@ fn registrations(config: &Config, repo: PathBuf, rev: &str, base: Option<&str>) 
 	if findings.is_empty() {
 		Ok(())
 	} else {
-		std::process::exit(1)
+		std::process::exit(REGISTRATION_FINDINGS_EXIT_CODE)
 	}
 }
 

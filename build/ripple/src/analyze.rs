@@ -2710,8 +2710,9 @@ impl<'c, 'a> KeyResolver<'c, 'a> {
 
 	/// Collects the keys of a registration or read argument by their path in it: `""` for the
 	/// value itself, `id` for a property of an object literal, `menu.id` for a property of a
-	/// property and `[]` for the elements of an array literal (`menu[].id`), also as the result
-	/// of mapping one (`[A, B].map(id => ({ id }))`). A value that may be a key but that cannot
+	/// property and `[i]` for the element at index `i` of an array literal (`menu[0].id`), also
+	/// as the result of mapping one (`[A, B].map(id => ({ id }))`). The configuration names
+	/// elements as `[]` (see `registries::matches_path`). A value that may be a key but that cannot
 	/// be resolved, such as a variable or a call, is collected as `None`, and `true` as the
 	/// string `true`.
 	fn descriptor_keys(
@@ -2758,11 +2759,11 @@ impl<'c, 'a> KeyResolver<'c, 'a> {
 				}
 			}
 			Expression::ArrayExpression(a) if depth < 4 => {
-				for element in &a.elements {
+				for (i, element) in a.elements.iter().enumerate() {
 					if let Some(e) = element.as_expression() {
 						self.descriptor_keys(
 							e,
-							format!("{path}[]"),
+							format!("{path}[{i}]"),
 							depth + 1,
 							is_forwarded,
 							out,
@@ -2800,11 +2801,11 @@ impl<'c, 'a> KeyResolver<'c, 'a> {
 				};
 				match mapped {
 					Some((array, sym, body)) => {
-						for element in &array.elements {
+						for (i, element) in array.elements.iter().enumerate() {
 							if let Some(element) = element.as_expression() {
 								self.with(sym, element).descriptor_keys(
 									body,
-									format!("{path}[]"),
+									format!("{path}[{i}]"),
 									depth + 1,
 									is_forwarded,
 									out,
@@ -2972,20 +2973,21 @@ fn registry_calls<'a>(
 		let Expression::Identifier(id) = e.get_inner_expression() else {
 			return None;
 		};
-		if let Some(r) = object_at.get(&id.span.start) {
-			return Some(RegistryKey::Ref(r.clone(), None));
+		// A `const` that holds `accessor(<id>)`, at module scope too, is that registry rather than
+		// the declaration that holds it.
+		if let Some((sym, AstKind::VariableDeclarator(v))) = declaration(id) {
+			if scoping
+				.symbol_flags(sym)
+				.contains(SymbolFlags::ConstVariable)
+			{
+				if let Some(r) = v.init.as_ref().and_then(registry_id) {
+					return Some(r);
+				}
+			}
 		}
-		let (sym, kind) = declaration(id)?;
-		if !scoping
-			.symbol_flags(sym)
-			.contains(SymbolFlags::ConstVariable)
-		{
-			return None;
-		}
-		match kind {
-			AstKind::VariableDeclarator(v) => registry_id(v.init.as_ref()?),
-			_ => None,
-		}
+		object_at
+			.get(&id.span.start)
+			.map(|r| RegistryKey::Ref(r.clone(), None))
 	};
 	// What a class or `new` expression constructs from: see `RegistryCall::constructed`.
 	let constructed =
@@ -3195,7 +3197,7 @@ fn result_use(
 			AstKind::TSNonNullExpression(e) => (current, current_span) = (parent, e.span),
 			AstKind::ParenthesizedExpression(e) => (current, current_span) = (parent, e.span),
 			AstKind::UnaryExpression(u) if u.operator == UnaryOperator::LogicalNot => {
-				negated = true;
+				negated = !negated;
 				(current, current_span) = (parent, u.span);
 			}
 			AstKind::CallExpression(c) if c.callee.span() != current_span => {

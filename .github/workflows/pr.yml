@@ -160,7 +160,8 @@ jobs:
           set +e
           build/ripple/target/release/ripple registrations --config build/ripple/vscode.jsonc --base HEAD^1 --rev HEAD
           code=$?
-          if [ "$code" = 1 ]; then
+          # 2 reports findings; any other failure is a broken ripple, which must not block the pull request.
+          if [ "$code" = 2 ]; then
             echo "findings=true" >> "$GITHUB_OUTPUT"
           elif [ "$code" != 0 ]; then
             exit "$code"

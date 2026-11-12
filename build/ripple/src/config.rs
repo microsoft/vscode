@@ -508,6 +508,7 @@ pub fn for_tests() -> &'static Config {
 							"readFilter": "command.id",
 							"register": [
 								{ "method": "appendMenuItem", "keys": [""], "refine": "@1.command.id" },
+								{ "method": "appendMenuItems", "keys": ["[].id"], "refine": "[].item.command.id" },
 								{ "call": "src/actions.ts#registerAction", "keys": ["menu.id", "menu[].id"], "class": true, "required": false, "refine": "id" },
 								{ "call": "src/actions.ts#registerAction", "keys": ["f1"], "class": true, "required": false, "refine": "id", "registers": "src/actions.ts#MenuId.CommandPalette" },
 							],
