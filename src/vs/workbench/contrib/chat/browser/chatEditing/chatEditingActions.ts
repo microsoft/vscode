@@ -695,7 +695,7 @@ registerAction2(class EditAction extends Action2 {
 			icon: Codicon.edit,
 			keybinding: {
 				primary: KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), EditorContextKeys.hoverFocused.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
