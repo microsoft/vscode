@@ -5308,7 +5308,7 @@ declare namespace monaco.editor {
 		doubleClickSelectsBlock = 177,
 		fullwidthCharacterWidth = 178,
 		effectiveFullwidthCharacterWidth = 179,
-		colorPickerUseModernSyntax = 179
+		colorPickerUseModernSyntax = 180
 	}
 
 	export const EditorOptions: {
