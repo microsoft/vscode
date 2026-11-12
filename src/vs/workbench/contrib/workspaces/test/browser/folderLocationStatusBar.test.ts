@@ -331,26 +331,33 @@ suite('FolderLocationStatusBarContribution', () => {
 			}
 		});
 
-		test('invoked from the status entry the list is anchored there, marks the current location and an early select keeps it', async () => {
+		test('invoked from the status entry the list is anchored there, starts on the current location and selecting it works', async () => {
 			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 			anchor.id = 'status.workspace.folderLocation';
+			const label = anchor.appendChild(mainWindow.document.createElement('a'));
+			label.className = 'statusbar-item-label';
+			label.tabIndex = -1;
 			try {
+				type Entry = { id: string; label: string; description?: string; checked: boolean };
+				type ListItem = { item: Entry; labelIcon: { id: string }; group: { icon: { id: string } } };
 				const calls: (string | undefined)[] = [];
-				let shown: { anchor: unknown; items: { label?: string; description?: string; checked: boolean; icon: string | undefined }[] } | undefined;
-				let updated: string[] | undefined;
-				let focused: string | undefined;
+				let shownAnchor: unknown;
+				let shownItems: ListItem[] = [];
+				let initiallyFocused: string | undefined;
+				let aria: ((item: ListItem) => string) | undefined;
+				let delegate!: { onSelect(item: Entry): void; onHide(): void };
 				let release!: () => void;
 				const lookup = new Promise<void>(resolve => release = resolve);
-				const describe = (items: readonly { label?: string; description?: string; labelIcon?: { id: string }; group?: { icon?: { id: string } } }[]) => items.map(item => ({ label: item.label, description: item.description, checked: item.group?.icon?.id === Codicon.check.id, icon: item.labelIcon?.id }));
 				const widget = {
-					show: (_user: string, _preview: boolean, items: readonly never[], delegate: { onSelect(item: unknown): void }, shownAnchor: unknown) => {
-						shown = { anchor: shownAnchor, items: describe(items) };
-						// select the focused current item before the lookup resolves
-						queueMicrotask(() => delegate.onSelect((items[1] as { item: unknown }).item));
+					show: (_user: string, _preview: boolean, items: ListItem[], shownDelegate: typeof delegate, anchorElement: unknown, _container: unknown, _actions: unknown, accessibility: { getAriaLabel(item: ListItem): string }) => {
+						shownAnchor = anchorElement; shownItems = items; delegate = shownDelegate; aria = accessibility.getAriaLabel;
+						initiallyFocused = items.find(item => item.item.checked)?.item.id;
+						// like the real widget, selecting an item is followed by a hide that reports it synchronously
+						queueMicrotask(() => delegate.onSelect(items.find(item => item.item.id === initiallyFocused)!.item));
 					},
-					focusItemById: (id: string) => { focused = id; },
-					updateItems: (items: readonly { label?: string }[]) => { updated = items.map(item => item.label ?? ''); },
-					hide: () => { }
+					focusItemById: () => { },
+					updateItems: () => { },
+					hide: () => delegate.onHide()
 				};
 				const accessor = {
 					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false) }
@@ -361,15 +368,21 @@ suite('FolderLocationStatusBarContribution', () => {
 				} as unknown as ServicesAccessor;
 				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
 				release();
-				assert.deepStrictEqual({ anchored: shown?.anchor === anchor, items: shown?.items, focused, calls, updated }, {
+				assert.deepStrictEqual({
+					anchored: shownAnchor === anchor,
+					items: shownItems.map(item => ({ id: item.item.id, aria: aria!(item), icon: item.labelIcon.id, check: item.group.icon.id })),
+					initiallyFocused,
+					calls,
+					focusReturnedToLabel: mainWindow.document.activeElement === label
+				}, {
 					anchored: true,
 					items: [
-						{ label: 'project', description: 'Primary Location', checked: false, icon: 'folder' },
-						{ label: 'Alternate', description: 'feature/x', checked: true, icon: 'worktree' }
+						{ id: extUri.getComparisonKey(primary), aria: 'project, Primary Location', icon: 'folder', check: 'blank' },
+						{ id: extUri.getComparisonKey(alternate), aria: 'Alternate, feature/x, Current', icon: 'worktree', check: 'check' }
 					],
-					focused: alternate.toString(),
+					initiallyFocused: extUri.getComparisonKey(alternate),
 					calls: [alternate.toString()],
-					updated: undefined
+					focusReturnedToLabel: true
 				});
 			} finally {
 				anchor.remove();
