@@ -10,7 +10,8 @@ type VisitorKeys = Context['sourceCode']['visitorKeys'];
 /** A method, getter or function-valued field that a field initializer can run. */
 interface Member {
 	readonly runsOn: 'call' | 'access';
-	readonly body: ESTree.Node;
+	/** What runs: the parameters, whose default values run when the arguments are left out, and the body. */
+	readonly roots: readonly ESTree.Node[];
 }
 
 /** How running a member reads a parameter property: its name, and the path to it, such as `['this.update()', 'this.service']`. */
@@ -47,46 +48,94 @@ export default new class NoParameterPropertyBeforeInit implements CreateRule {
 				}
 
 				const members = getMembers(body);
-				const reads = new Map<string, Read | null>();
 
-				/** Calls `onRead` for each parameter property that running `root` reads, until it returns `true`. */
-				const forEachRead = (root: ESTree.Node, onRead: (node: ESTree.MemberExpression, read: Read) => boolean) => {
+				/** Calls `onRead` for each parameter property that `root` reads, and `onRun` for each member that it runs, until either returns `true`. */
+				const forEachUse = (root: ESTree.Node, onRead: (node: ESTree.MemberExpression, name: string) => boolean, onRun: (node: ESTree.MemberExpression, name: string) => boolean) => {
 					walk(root, visitorKeys, node => {
 						const name = getThisMemberName(node);
-						if (name === undefined) {
+						if (name === undefined || isAssignmentTarget(node as ESTree.MemberExpression)) {
 							return false;
 						}
 						const memberExpression = node as ESTree.MemberExpression;
 						if (parameterProperties.has(name)) {
-							return onRead(memberExpression, { name, path: [formatThisMember(memberExpression, name)] });
+							return onRead(memberExpression, name);
 						}
 						const member = members.get(name);
-						const read = member && (member.runsOn === 'access' || isCallee(memberExpression)) ? getRead(name) : null;
-						return read ? onRead(memberExpression, { name: read.name, path: [formatThisMember(memberExpression, name), ...read.path] }) : false;
+						return member && (member.runsOn === 'access' || isInvoked(memberExpression)) ? onRun(memberExpression, name) : false;
 					});
 				};
 
+				/** What running each member reads directly, and the members that it runs, in order. */
+				const summaries = new Map<string, { readonly read: Read | null; readonly runs: readonly { readonly name: string; readonly label: string }[] }>();
+				const summarize = (memberName: string) => {
+					let summary = summaries.get(memberName);
+					if (!summary) {
+						let read: Read | null = null;
+						const runs: { name: string; label: string }[] = [];
+						for (const root of members.get(memberName)!.roots) {
+							forEachUse(root, (node, name) => {
+								read = { name, path: [formatThisMember(node, name)] };
+								return true;
+							}, (node, name) => {
+								runs.push({ name, label: formatThisMember(node, name) });
+								return false;
+							});
+							if (read) {
+								break;
+							}
+						}
+						summary = { read, runs };
+						summaries.set(memberName, summary);
+					}
+					return summary;
+				};
+
+				/** How running each member reads a parameter property, directly or through the members that it runs. */
+				const reads = new Map<string, Read | null>();
 				const getRead = (memberName: string): Read | null => {
 					if (!reads.has(memberName)) {
-						// A recursive call of the member reads nothing that the member doesn't.
-						reads.set(memberName, null);
-						let result: Read | null = null;
-						forEachRead(members.get(memberName)!.body, (_node, read) => {
-							result = read;
-							return true;
-						});
-						reads.set(memberName, result);
+						// Summarize the members that the member can run, then propagate their reads until nothing changes,
+						// which handles members that run each other.
+						const reachable = [memberName];
+						for (let i = 0; i < reachable.length; i++) {
+							for (const { name } of summarize(reachable[i]).runs) {
+								if (!reads.has(name) && !reachable.includes(name)) {
+									reachable.push(name);
+								}
+							}
+						}
+						const found = new Map(reachable.map(name => [name, summarize(name).read]));
+						for (let changed = true; changed;) {
+							changed = false;
+							for (const name of reachable) {
+								if (!found.get(name)) {
+									for (const run of summarize(name).runs) {
+										const read = reads.get(run.name) ?? found.get(run.name);
+										if (read) {
+											found.set(name, { name: read.name, path: [run.label, ...read.path] });
+											changed = true;
+											break;
+										}
+									}
+								}
+							}
+						}
+						for (const [name, read] of found) {
+							reads.set(name, read);
+						}
 					}
 					return reads.get(memberName)!;
 				};
 
 				for (const element of body.body) {
 					if ((element.type === 'PropertyDefinition' || element.type === 'AccessorProperty') && !element.static && element.value) {
-						forEachRead(element.value, (node, { name, path }) => {
-							if (path.length === 1) {
-								context.report({ node, messageId: 'direct', data: { name } });
-							} else {
-								context.report({ node, messageId: 'indirect', data: { name, path: path.join(' -> ') } });
+						forEachUse(element.value, (node, name) => {
+							context.report({ node, messageId: 'direct', data: { name } });
+							return false;
+						}, (node, memberName) => {
+							const read = getRead(memberName);
+							if (read) {
+								context.report({ node, messageId: 'indirect', data: { name: read.name, path: [formatThisMember(node, memberName), ...read.path].join(' -> ') } });
 							}
 							return false;
 						});
@@ -117,15 +166,16 @@ function getParameterProperties(body: ESTree.ClassBody): Set<string> {
 function getMembers(body: ESTree.ClassBody): Map<string, Member> {
 	const members = new Map<string, Member>();
 	for (const element of body.body) {
-		if (element.type === 'MethodDefinition' && !element.static && (element.kind === 'method' || element.kind === 'get') && element.value.body) {
+		// Calling a generator only creates an iterator, which doesn't run its body.
+		if (element.type === 'MethodDefinition' && !element.static && (element.kind === 'method' || element.kind === 'get') && element.value.body && !element.value.generator) {
 			const name = getKeyName(element.key, element.computed);
 			if (name !== undefined) {
-				members.set(name, { runsOn: element.kind === 'get' ? 'access' : 'call', body: element.value.body });
+				members.set(name, { runsOn: element.kind === 'get' ? 'access' : 'call', roots: [...element.value.params, element.value.body] });
 			}
-		} else if (element.type === 'PropertyDefinition' && !element.static && (element.value?.type === 'ArrowFunctionExpression' || element.value?.type === 'FunctionExpression') && element.value.body) {
+		} else if (element.type === 'PropertyDefinition' && !element.static && (element.value?.type === 'ArrowFunctionExpression' || element.value?.type === 'FunctionExpression') && element.value.body && !element.value.generator) {
 			const name = getKeyName(element.key, element.computed);
 			if (name !== undefined) {
-				members.set(name, { runsOn: 'call', body: element.value.body });
+				members.set(name, { runsOn: 'call', roots: [...element.value.params, element.value.body] });
 			}
 		}
 	}
@@ -153,12 +203,22 @@ function getThisMemberName(node: ESTree.Node): string | undefined {
 	return getKeyName(node.property, node.computed);
 }
 
-function isCallee(node: ESTree.MemberExpression): boolean {
-	return node.parent.type === 'CallExpression' && node.parent.callee === node;
+/** Whether `node` is called, as in `this.m()`, or used as the tag of a template, as in ``this.m`text` ``. */
+function isInvoked(node: ESTree.MemberExpression): boolean {
+	return node.parent.type === 'CallExpression' && node.parent.callee === node
+		|| node.parent.type === 'TaggedTemplateExpression' && node.parent.tag === node;
+}
+
+/** Whether `node` is only written, as in `this.s = value`. */
+function isAssignmentTarget(node: ESTree.MemberExpression): boolean {
+	return node.parent.type === 'AssignmentExpression' && node.parent.operator === '=' && node.parent.left === node;
 }
 
 function formatThisMember(node: ESTree.MemberExpression, name: string): string {
-	return `this.${name}${isCallee(node) ? '()' : ''}`;
+	if (node.parent.type === 'TaggedTemplateExpression' && node.parent.tag === node) {
+		return `this.${name}\`\``;
+	}
+	return `this.${name}${isInvoked(node) ? '()' : ''}`;
 }
 
 /** Functions and classes don't run when they are created, and have their own `this`. */

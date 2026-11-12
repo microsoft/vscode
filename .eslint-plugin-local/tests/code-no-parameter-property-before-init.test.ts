@@ -30,6 +30,10 @@ new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang:
 		`class C { x = new class { s = 1; y = this.s; }; y = { s: 1, m() { return this.s; } }.m(); constructor(private readonly s: S) { } }`,
 		// Parameters that aren't properties, and members that the class doesn't declare.
 		`class C extends B { x = this.s; y = this.inherited(); constructor(s: S) { super(); } }`,
+		// Assignments that only write the parameter property.
+		`class C { x = (this.s = 1); constructor(public s: number) { } }`,
+		// Calling a generator only creates an iterator.
+		`class C { x = this.values(); y = this.g(); g = function* (this: C) { yield this.s; }; constructor(private readonly s: S) { } *values() { yield this.s; } }`,
 	],
 	invalid: [
 		{ code: `class C { x = this.s.value; constructor(private readonly s: S) { } }`, errors: [direct('s')] },
@@ -39,5 +43,12 @@ new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang:
 		{ code: `class C { x = this.g; constructor(private readonly s: S) { } get g() { return this.s; } }`, errors: [indirect('s', 'this.g -> this.s')] },
 		{ code: `class C { x = this.#m(); f = () => this.s; constructor(private readonly s: S) { } #m() { return this.f(); } }`, errors: [indirect('s', 'this.#m() -> this.f() -> this.s')] },
 		{ code: `class C { x = [this.a, this.m()]; constructor(private a: A, private b: B) { } m() { return this.b!; } }`, errors: [direct('a'), indirect('b', 'this.m() -> this.b')] },
+		{ code: `class C { x = (this.s += 1); constructor(public s: number) { } }`, errors: [direct('s')] },
+		// Default values of parameters run when the call leaves out the arguments.
+		{ code: `class C { x = this.m(); y = this.f(); f = (value = this.s) => value; constructor(private readonly s: S) { } m(value = this.s.value) { return value; } }`, errors: [indirect('s', 'this.m() -> this.s'), indirect('s', 'this.f() -> this.s')] },
+		{ code: 'class C { x = this.tag`text`; constructor(private readonly s: S) { } tag(parts: TemplateStringsArray) { return this.s; } }', errors: [indirect('s', 'this.tag`` -> this.s')] },
+		// Members that run each other.
+		{ code: `class C { x = this.a(false); y = this.b(); constructor(private readonly s: S) { } a(recur: boolean) { if (recur) { this.b(); } return this.s; } b() { return this.a(false); } }`, errors: [indirect('s', 'this.a() -> this.s'), indirect('s', 'this.b() -> this.a() -> this.s')] },
+		{ code: `class C { x = this.b(); constructor(private readonly s: S) { } a(): S { return this.b() ?? this.s; } b(): S { return this.a(); } }`, errors: [indirect('s', 'this.b() -> this.a() -> this.s')] },
 	],
 });
