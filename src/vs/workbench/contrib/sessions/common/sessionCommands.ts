@@ -97,9 +97,6 @@ export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
 
 export const SEND_IN_BACKGROUND_COMMAND_ID = 'sessions.sendInBackground';
 
-/** Inserts `/automate ` into the input of the Agents window's focused chat composer. */
-export const INSERT_AUTOMATE_COMMAND_ID = 'sessions.insertAutomateCommand';
-
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 
 export const FOCUS_NEXT_CHAT_GROUP_COMMAND_ID = 'sessions.focusNextChatGroup';

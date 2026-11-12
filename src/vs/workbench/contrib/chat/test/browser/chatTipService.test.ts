@@ -48,7 +48,7 @@ import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
-import { INSERT_AUTOMATE_COMMAND_ID, SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -664,23 +664,8 @@ suite('ChatTipService', () => {
 				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
 				experimentalTipMessages: new Map(),
 			}).value,
-			'Use [/automate](command:sessions.insertAutomateCommand "Run /automate") to have the agent walk you through turning a task into a recurring automation.',
+			'Use `/automate` to have the agent walk you through turning a task into a recurring automation.',
 		);
-	});
-
-	test('removes the automate tip after its insert command is used', () => {
-		testDisposables.add(CommandsRegistry.registerCommand(INSERT_AUTOMATE_COMMAND_ID, () => { }));
-		contextKeyService.createKey(IsSessionsWindowContext.key, true);
-		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
-		contextKeyService.createKey('chatAutomationsEnabled', true);
-		const service = createService();
-		assert.ok(findTipById(service, 'tip.automate'));
-		// Hide the tip first so firing the command below cannot also trigger the
-		// generic "tip command link clicked" session-wide dismissal, isolating the
-		// tip's own `excludeWhenCommandsExecuted` tracking as the cause.
-		service.hideTip();
-		commandExecutedEmitter.fire({ commandId: INSERT_AUTOMATE_COMMAND_ID, args: [] });
-		assertTipNeverShown(service, 'tip.automate');
 	});
 
 	test('records # file reference usage for attach files tip eligibility', () => {
