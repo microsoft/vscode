@@ -34,6 +34,7 @@ interface ITreeNodeOutput {
 	readonly title?: string;
 	readonly collapsed?: boolean;
 	readonly current?: boolean;
+	readonly hidden?: boolean;
 	readonly children?: readonly ITreeNodeOutput[];
 }
 
@@ -197,6 +198,67 @@ suite('Sessions - Sessions list tools', () => {
 			nested: ['group:comparison'],
 			results: [{ action: 'setCollapsed', ok: true }],
 			comparison: [{ 'Comparison+': ['Attempt'] }],
+		});
+	});
+
+	test('reports capped relocated comparison attempts only beneath their comparison', async () => {
+		const source = session('Source', 1, 'Source project');
+		const attempts = Array.from({ length: 8 }, (_, index) => session(`Attempt ${index}`, index + 2, 'Attempts'));
+		const ordinary = Array.from({ length: 8 }, (_, index) => session(`Ordinary ${index}`, index + 2, 'Attempts'));
+		const { read, list, harness } = setup([source, ...attempts, ...ordinary], {
+			groups: [{ id: 'source-group', name: 'Source group', createdAt: 1 }, { id: 'comparison', name: 'Comparison', createdAt: 2 }],
+			memberships: Object.fromEntries([[source.sessionId, 'source-group'], ...attempts.map(attempt => [attempt.sessionId, 'comparison'])]),
+			comparisons: [{
+				id: 'comparison', groupId: 'comparison', title: 'Comparison', prompt: 'Review', createdAt: 2,
+				workspace: URI.file('/workspace'),
+				originatingChatResource: source.mainChat.get().resource,
+				participants: attempts.map((attempt, index) => ({
+					id: `attempt-${index}`, role: SessionComparisonParticipantRole.Attempt, sessionResource: attempt.resource,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				})),
+			}],
+		});
+		harness.instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify({ 'group:comparison': false }), StorageScope.PROFILE, StorageTarget.USER);
+		list.update();
+		const cappedAttempt = attempts.at(-1)!;
+		const findPaths = (nodes: readonly ITreeNodeOutput[], parent: readonly string[] = []): { path: readonly string[]; hidden?: boolean }[] =>
+			nodes.flatMap(node => [
+				...(node.id === cappedAttempt.sessionId ? [{ path: [...parent, node.id], hidden: node.hidden }] : []),
+				...findPaths(node.children ?? [], [...parent, node.id]),
+			]);
+		assert.deepStrictEqual(findPaths((await read()).tree), [{
+			path: ['group:source-group', source.sessionId, 'group:comparison', cappedAttempt.sessionId], hidden: true,
+		}]);
+	});
+
+	test('reorders attached comparisons through the list tool without adopting the source custom group', async () => {
+		const source = session('Source', 1);
+		const attempts = [session('First', 2), session('Second', 3)];
+		const comparisons: ISessionComparison[] = attempts.map((attempt, index) => ({
+			id: `comparison-${index}`, groupId: `comparison-${index}`, title: attempt.title.get(), prompt: 'Review',
+			createdAt: attempt.createdAt.getTime(), originatingChatResource: source.mainChat.get().resource,
+			participants: [{
+				id: `attempt-${index}`, role: SessionComparisonParticipantRole.Attempt, sessionResource: attempt.resource,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+			}],
+		}));
+		const { read, organize, harness } = setup([source, ...attempts], {
+			groups: [{ id: 'source-group', name: 'Source group', createdAt: 1 }, ...comparisons.map(comparison => ({
+				id: comparison.groupId, name: comparison.title, createdAt: comparison.createdAt,
+			}))],
+			memberships: { Source: 'source-group', First: 'comparison-0', Second: 'comparison-1' },
+			comparisons,
+		});
+		const { results } = await organize({ action: 'moveHeader', id: 'group:comparison-1', before: 'group:comparison-0' });
+		const sourceNode = (await read()).tree.flatMap(node => node.children ?? []).find(node => node.id === source.sessionId);
+		assert.deepStrictEqual({
+			results,
+			order: sourceNode?.children?.map(node => node.id),
+			parents: comparisons.map(comparison => harness.instantiationService.get(ISessionGroupsService).getGroup(comparison.groupId)?.parentId),
+		}, {
+			results: [{ action: 'moveHeader', ok: true }],
+			order: ['group:comparison-1', 'group:comparison-0'],
+			parents: [undefined, undefined],
 		});
 	});
 

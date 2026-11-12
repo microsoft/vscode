@@ -606,7 +606,7 @@ function findHeaderParent(nodes: readonly SessionsListSnapshotNode[], headerId: 
 		if (node.type !== 'session' && node.id === headerId) {
 			return parentId;
 		}
-		const match = findHeaderParent(node.children ?? [], headerId, node.type === 'session' ? parentId : node.id);
+		const match = findHeaderParent(node.children ?? [], headerId, node.type === 'session' ? undefined : node.id);
 		if (match !== undefined) {
 			return match;
 		}

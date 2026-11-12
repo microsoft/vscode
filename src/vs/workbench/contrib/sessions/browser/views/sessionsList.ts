@@ -3973,7 +3973,7 @@ interface IDraggedHeader {
 type SessionHeaderDrop =
 	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after' }
 	| { readonly kind: 'subgroup'; readonly parentId: string; readonly depth: number; readonly placement: ISessionGroupPlacement }
-	| { readonly kind: 'comparison'; readonly parent: ISessionSection | ISessionGroupItem; readonly anchor?: ISession | ISessionGroupItem; readonly position: 'before' | 'after'; readonly depth: number }
+	| { readonly kind: 'comparison'; readonly parent: ISessionSection | ISessionGroupItem | ISession; readonly anchor?: ISession | ISessionGroupItem; readonly position: 'before' | 'after'; readonly depth: number }
 	| { readonly kind: 'into'; readonly groupId: string };
 
 /** A resolved drop: its hover feedback and what dropping does. */
@@ -4729,6 +4729,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
 	private readonly comparisonParentSessionIds = new Set<string>();
+	private readonly attachedComparisonSessionIds = new Set<string>();
 	private expandedMoreFolders = false;
 	/** The grouping sections that capping currently hides behind the "+N more" row. */
 	private hiddenGroupingSections: readonly ISessionSection[] = [];
@@ -5599,7 +5600,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.searchFilter.pattern = pattern;
 			const wasSearching = this.hasFindPattern;
 			updateFindPatternState(!new SessionsListSearchQuery(pattern).isEmpty);
-			if (this.isInboxLayout() && wasSearching === this.hasFindPattern) {
+			if (wasSearching === this.hasFindPattern && (this.isInboxLayout()
+				|| this.sessionComparisonService.comparisons.get().some(comparison => comparison.originatingChatResource))) {
 				this.update();
 			}
 		}));
@@ -6466,7 +6468,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== this.isInboxLayout();
 		this.listContainer.classList.toggle('inbox-layout', this.isInboxLayout());
 		this.tree.getHTMLElement().setAttribute('aria-label', this.isInboxLayout() ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
-		const attachedChildren = this.attachComparisonsToOriginatingSessions(children, inbox);
+		const attachedChildren = this.attachComparisonsToOriginatingSessions(children, inbox, renderSection);
 		for (const session of this.sessions) {
 			if (this.comparisonParentSessionIds.has(session.sessionId)) {
 				nextNestedSessionResources.add(session.resource.toString());
@@ -6564,8 +6566,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get());
 	}
 
-	private attachComparisonsToOriginatingSessions(children: IObjectTreeElement<SessionListItem>[], inbox: boolean): IObjectTreeElement<SessionListItem>[] {
+	private attachComparisonsToOriginatingSessions(children: IObjectTreeElement<SessionListItem>[], inbox: boolean, renderSection: (section: ISessionSection) => IObjectTreeElement<SessionListItem>): IObjectTreeElement<SessionListItem>[] {
 		this.comparisonParentSessionIds.clear();
+		this.attachedComparisonSessionIds.clear();
 		// Inbox keeps comparisons in their own attention category, independently of their caller.
 		if (inbox || !this.sessionComparisonService.comparisons.get().some(comparison => comparison.originatingChatResource)) {
 			return children;
@@ -6590,7 +6593,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const caller = comparison.originatingChatResource && this._sessionsManagementService.getSessionForChatResource(comparison.originatingChatResource)?.session;
 			const parent = caller && sessions.get(caller.sessionId);
 			if (!group || !isSessionGroupItem(group.element) || group.element.group.parentId !== undefined
-				|| !caller || parent === undefined || caller.isArchived.get() || this.sessionComparisonService.getComparisonForSession(caller.resource)) {
+				|| !caller || parent === undefined || caller.isArchived.get() || this.sessionComparisonService.getComparisonForSession(caller.resource)
+				|| this.hasFindPattern && !this.searchFilter.getMatch(caller)) {
 				continue;
 			}
 			const siblings = attachments.get(caller.sessionId) ?? [];
@@ -6598,6 +6602,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			attachments.set(caller.sessionId, siblings);
 			attachedGroupIds.add(comparison.groupId);
 			this.comparisonParentSessionIds.add(caller.sessionId);
+			for (const session of group.element.sessions) {
+				this.attachedComparisonSessionIds.add(session.sessionId);
+			}
 			this.groupDepths.set(comparison.groupId, parent);
 		}
 		if (attachedGroupIds.size === 0) {
@@ -6616,6 +6623,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 				if (isSessionSection(node.element) && nested.length === 0
 					&& [...(node.children ?? [])].some(child => isSessionGroupItem(child.element) && attachedGroupIds.has(child.element.group.id))) {
+					if (node.element.id === QUICK_CHATS_SECTION_ID
+						&& this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING)
+						&& this._someProviderSupportsQuickChats()) {
+						result.push(renderSection({ ...node.element, sessions: [] }));
+					}
 					continue;
 				}
 				result.push({ ...node, ...(comparisons ? { collapsible: true } : {}), children: nested });
@@ -7917,10 +7929,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return undefined;
 		}
 		const parent = anchor ? this.tree.getParentElement(anchor) : target;
-		if (!parent || (!isSessionSection(parent) && !isSessionGroupItem(parent))) {
+		if (!parent || (!isSessionSection(parent) && !isSessionGroupItem(parent) && !isSessionItem(parent))) {
 			return undefined;
 		}
-		if (isSessionGroupItem(parent)) {
+		if (isSessionItem(parent)) {
+			if (!anchor || !isSessionGroupItem(anchor) || !anchor.comparison || this.tree.getParentElement(group) !== parent) {
+				return undefined;
+			}
+		} else if (isSessionGroupItem(parent)) {
 			if (!this.canNestGroup(group.group.id, parent.group.id)) {
 				return undefined;
 			}
@@ -7931,7 +7947,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const drop: Extract<SessionHeaderDrop, { kind: 'comparison' }> = {
 			kind: 'comparison', parent, anchor,
 			position: sector === ListViewTargetSector.TOP ? 'before' : 'after',
-			depth: isSessionGroupItem(parent) ? parent.depth + 1 : (sectionParentId ? this._sessionGroupsService.getTree().getPath(sectionParentId).length + 1 : 1),
+			depth: isSessionItem(parent) ? group.depth : isSessionGroupItem(parent) ? parent.depth + 1 : (sectionParentId ? this._sessionGroupsService.getTree().getPath(sectionParentId).length + 1 : 1),
 		};
 		return isSessionSection(parent) && DATE_SECTION_IDS.includes(parent.id)
 			&& !this.canPlaceInDateSection([this.getComparisonSortEntry(group.group.id)], parent.id, this.computeComparisonReorder(group.group.id, drop))
@@ -7942,12 +7958,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const mode = sortingToMode(this.options.sorting());
 		const entry = this.getComparisonSortEntry(groupId);
 		const parent = drop.parent;
-		const siblings = this._sessionGroupsService.getGroups().filter(group => group.id !== groupId && this.isComparisonGroup(group.id)
-			&& (isSessionGroupItem(parent) ? group.parentId === parent.group.id : group.parentId === undefined && this.comparisonSectionIds.get(group.id) === parent.id));
+		const siblings = isSessionItem(parent)
+			? this.tree.getNode(parent).children.flatMap(node => node.element && isSessionGroupItem(node.element) && node.element.comparison && node.element.group.id !== groupId
+				? [this.getComparisonSortEntry(node.element.group.id)] : [])
+			: this._sessionGroupsService.getGroups().filter(group => group.id !== groupId && this.isComparisonGroup(group.id)
+				&& (isSessionGroupItem(parent) ? group.parentId === parent.group.id : group.parentId === undefined && this.comparisonSectionIds.get(group.id) === parent.id))
+				.map(group => this.getComparisonSortEntry(group.id));
 		const getKey = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, mode);
 		const remaining: SessionSortEntry[] = [
-			...parent.sessions.filter(session => !this.isActiveComparisonSession(session)),
-			...siblings.map(group => this.getComparisonSortEntry(group.id)),
+			...(isSessionItem(parent) ? [] : parent.sessions.filter(session => !this.isActiveComparisonSession(session))),
+			...siblings,
 		].sort((a, b) => getKey(b) - getKey(a));
 		const anchorId = drop.anchor && this.getListSortEntry(drop.anchor).sessionId;
 		const anchorIndex = remaining.findIndex(entry => entry.sessionId === anchorId);
@@ -8038,7 +8058,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const mode = sortingToMode(this.options.sorting());
 				const changes = this.computeComparisonReorder(groupId, drop);
 				this._sessionsListModelService.applySortChanges(mode, changes.set, changes.clear);
-				this._sessionGroupsService.moveGroup(groupId, isSessionGroupItem(drop.parent) ? drop.parent.group.id : undefined);
+				if (!isSessionItem(drop.parent)) {
+					this._sessionGroupsService.moveGroup(groupId, isSessionGroupItem(drop.parent) ? drop.parent.group.id : undefined);
+				}
 			}
 			return;
 		}
@@ -8153,7 +8175,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const rows = visit(node.children);
 			if (node.children.some(child => child.element && isSessionShowMore(child.element) && child.element.kind === 'sessions' && child.element.mode === 'more')) {
 				const shown = collectSessionIds(rows, new Set());
-				rows.push(...toSessionNodes(sessions.filter(session => !shown.has(session.sessionId) && !this.tree.hasElement(session)), true));
+				const ownComparison = node.element && isSessionGroupItem(node.element) && node.element.comparison;
+				rows.push(...toSessionNodes(sessions.filter(session => !shown.has(session.sessionId) && !this.tree.hasElement(session)
+					&& (ownComparison || !this.attachedComparisonSessionIds.has(session.sessionId))), true));
 			}
 			return rows;
 		};
@@ -8177,7 +8201,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (isSessionShowMore(element)) {
 				return element.kind !== 'sessions' && element.mode === 'more'
-					? this.hiddenGroupingSections.map(section => ({ type: 'section', id: section.id, label: section.label, collapsed: true, hidden: true, children: toSessionNodes(section.sessions, true) }))
+					? this.hiddenGroupingSections.map(section => ({ type: 'section', id: section.id, label: section.label, collapsed: true, hidden: true, children: toSessionNodes(section.sessions.filter(session => !this.attachedComparisonSessionIds.has(session.sessionId)), true) }))
 					: [];
 			}
 			if (isSessionItem(element)) {
