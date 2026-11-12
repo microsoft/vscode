@@ -2475,6 +2475,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		if (item.extensionId) {
+			// The Agents window has no Extensions view, so it shows the extension in its Extensions section instead.
+			const extensionsSection = this.sections.some(section => section.id === AICustomizationManagementSection.Extensions)
+				? this.ensureContributedSectionWidget(AICustomizationManagementSection.Extensions)
+				: undefined;
+			if (extensionsSection?.showExtension) {
+				this.selectSection(AICustomizationManagementSection.Extensions);
+				extensionsSection.showExtension(item.extensionId);
+				return;
+			}
 			await this.commandService.executeCommand(showExtensionsWithIdsCommandId, [item.extensionId]);
 		}
 	}
