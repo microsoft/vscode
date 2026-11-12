@@ -129,6 +129,33 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		]);
 	});
 
+	test('forwards safe slash-command metadata and drops restricted names and arguments', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+		for (const properties of [
+			{ command_name: '/security-review' },
+			{ command_name: '/session', subcommand: 'info' },
+			{ command_name: 'custom' },
+		]) {
+			forwarder.forward({
+				sessionId: 'sdk-session', restricted: false,
+				event: { kind: 'slash_command_invoked', properties, metrics: {} },
+			});
+		}
+		forwarder.forward({
+			sessionId: 'sdk-session', restricted: true,
+			event: { kind: 'slash_command_invoked', properties: { command_name: '/private-command', args: 'private instructions' }, metrics: {} },
+		});
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName, command: data?.command_name, subcommand: data?.subcommand,
+			args: data?.args, restricted: data?.restricted,
+		})), [
+			{ eventName: 'copilotSdk/slash_command_invoked', command: '/security-review', subcommand: undefined, args: undefined, restricted: false },
+			{ eventName: 'copilotSdk/slash_command_invoked', command: '/session', subcommand: 'info', args: undefined, restricted: false },
+			{ eventName: 'copilotSdk/slash_command_invoked', command: 'custom', subcommand: undefined, args: undefined, restricted: false },
+		]);
+	});
+
 	test('forwards standard extension startup measurements without response attribution', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
