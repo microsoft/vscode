@@ -6,7 +6,7 @@ import type tt from 'typescript/lib/tsserverlibrary';
 import TS from './typescript';
 const ts = TS();
 
-import { StructuralDiffClassification, StructuralDiffSymbolKind, StructuralDiffTag, type StructuralDiffEntity, type StructuralDiffNode, type StructuralDiffRequestArgs, type StructuralDiffResult, type StructuralDiffTextChange } from './protocol';
+import { StructuralDiffClassification, StructuralDiffSymbolKind, StructuralDiffTag, type StructuralDiffItem, type StructuralDiffNode, type StructuralDiffRequestArgs, type StructuralDiffResult, type StructuralDiffTextChange } from './protocol';
 import tss from './typescripts';
 
 interface Span {
@@ -30,7 +30,7 @@ interface EntityInfo {
 }
 
 interface Entity {
-	readonly value: StructuralDiffEntity;
+	readonly value: StructuralDiffItem;
 	readonly node: tt.Node;
 	readonly span: Span;
 	readonly groupedSpans?: readonly Span[];

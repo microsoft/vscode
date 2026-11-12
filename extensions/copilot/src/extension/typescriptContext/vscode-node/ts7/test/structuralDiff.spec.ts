@@ -75,7 +75,7 @@ suite('TypeScript 7 structural diff', () => {
 		const modified = 'function stagedOnly() { return 2; }';
 		const result = await compute(original, modified, undefined, toGitUri(uri, '', { replaceFileExtension: true }), 'typescript', toGitUri(uri, 'HEAD'));
 		assert.deepStrictEqual({
-			names: result.root.children.map(node => node.modified?.name),
+			names: result.root.children.map(node => node.modifiedItem?.name),
 			requests: native.requests,
 		}, {
 			names: ['stagedOnly'],
@@ -150,7 +150,7 @@ suite('TypeScript 7 structural diff', () => {
 			compute('function second() { return "before"; }', 'function second() { return "after"; }'),
 		]);
 		assert.deepStrictEqual({
-			names: results.map(result => result.root.children[0].modified?.name),
+			names: results.map(result => result.root.children[0].modifiedItem?.name),
 			open: native.requests.filter(request => request?.openFiles !== undefined).length,
 			close: native.requests.filter(request => request?.closeFiles !== undefined).length,
 			disposed: native.snapshots.every(snapshot => snapshot.isDisposed()),

@@ -89,7 +89,7 @@ suite('TypeScript 6 structural diff', () => {
 			createTextDocumentData(toGitUri(uri, ''), modified, 'typescript').document,
 			{ changes: [{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') }] },
 			CancellationToken.None);
-		assert.deepStrictEqual({ opened: opened?.toString(), texts, names: result?.root.children.map(node => node.modified?.name) }, {
+		assert.deepStrictEqual({ opened: opened?.toString(), texts, names: result?.root.children.map(node => node.modifiedItem?.name) }, {
 			opened: uri.toString(),
 			texts: [[original, modified], [original, modified]],
 			names: ['staged'],

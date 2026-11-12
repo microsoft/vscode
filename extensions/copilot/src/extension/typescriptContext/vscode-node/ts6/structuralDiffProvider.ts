@@ -88,7 +88,7 @@ export class TS6StructuralDiffProvider implements vscode.StructuralDiffProvider,
 
 function toStructuralDiff(result: protocol.StructuralDiffResult, originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument): vscode.StructuralDiff {
 	const toRange = (document: vscode.TextDocument, range: protocol.OffsetRange) => new vscode.Range(document.positionAt(range.start), document.positionAt(range.end));
-	const toEntity = (document: vscode.TextDocument, entity: protocol.StructuralDiffEntity | undefined): vscode.StructuralDiffEntity | undefined => entity && {
+	const toEntity = (document: vscode.TextDocument, entity: protocol.StructuralDiffItem | undefined): vscode.StructuralDiffItem | undefined => entity && {
 		name: getName(entity),
 		kind: toSymbolKind(entity.kind),
 		range: toRange(document, entity.range),
@@ -102,8 +102,8 @@ function toStructuralDiff(result: protocol.StructuralDiffResult, originalDocumen
 	});
 	const toNode = (node: protocol.StructuralDiffNode): vscode.StructuralDiffNode => ({
 		id: node.id,
-		original: toEntity(originalDocument, node.original),
-		modified: toEntity(modifiedDocument, node.modified),
+		originalItem: toEntity(originalDocument, node.original),
+		modifiedItem: toEntity(modifiedDocument, node.modified),
 		originalChanges: node.originalChanges.map(coverage => toCoverage(originalDocument, coverage)),
 		modifiedChanges: node.modifiedChanges.map(coverage => toCoverage(modifiedDocument, coverage)),
 		children: node.children.map(toNode),
@@ -111,7 +111,7 @@ function toStructuralDiff(result: protocol.StructuralDiffResult, originalDocumen
 	return { root: toNode(result.root), isIncomplete: result.isIncomplete };
 }
 
-function getName(entity: protocol.StructuralDiffEntity): string {
+function getName(entity: protocol.StructuralDiffItem): string {
 	switch (entity.languageKind) {
 		case 'imports':
 			return vscode.l10n.t('Imports');
