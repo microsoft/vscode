@@ -25,6 +25,7 @@ import { ICustomizationItem } from '../../../common/customizationHarnessService.
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('pluginListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -205,7 +206,7 @@ suite('pluginListWidget', () => {
 				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace() {
 						const uri = URI.file('/workspace');
-						return { id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] };
+						return testIWorkspace({ id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] });
 					}
 				}(),
 			});
@@ -299,7 +300,7 @@ suite('pluginListWidget', () => {
 			updateToolbarActions: () => { },
 			updatePluginTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
-				override getWorkspace() { return { id: 'test', folders }; }
+				override getWorkspace() { return testIWorkspace({ id: 'test', folders }); }
 				override getWorkspaceFolder(resource: URI) {
 					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
 				}

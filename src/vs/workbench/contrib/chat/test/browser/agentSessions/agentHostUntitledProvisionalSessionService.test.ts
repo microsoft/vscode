@@ -45,6 +45,7 @@ import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } f
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { getLocalAgentHostSessionProvider } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -345,12 +346,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
 			override getWorkspace(): IWorkspace {
-				return {
+				return testIWorkspace({
 					id: 'workspace',
 					folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)),
 					configuration: workspaceConfiguration,
 					name: workspaceName,
-				};
+				});
 			}
 			override getWorkbenchState(): WorkbenchState { return workbenchState; }
 		});

@@ -179,10 +179,13 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
 
-	return arg0.identity ?? deriveWorkspaceIdentifier(arg0);
+	return arg0.identity;
 }
 
-function deriveWorkspaceIdentifier(workspace: IWorkspace): IAnyWorkspaceIdentifier {
+/**
+ * Derives the identifier of a workspace from its configuration and folders.
+ */
+export function deriveWorkspaceIdentifier(workspace: Omit<IWorkspace, 'identity'>): IAnyWorkspaceIdentifier {
 	if (workspace.configuration) {
 		return { id: workspace.id, configPath: workspace.configuration };
 	}
@@ -286,9 +289,8 @@ export interface IWorkspace {
 	 * The identifier of the workspace: `{ id, uri }` with the folder's own location for a
 	 * single-folder workspace (unchanged while the folder is at an alternate location),
 	 * `{ id, configPath }` for a multi-root workspace and `{ id }` for an empty workspace.
-	 * When absent, it is derived from the folders and configuration.
 	 */
-	readonly identity?: IAnyWorkspaceIdentifier;
+	readonly identity: IAnyWorkspaceIdentifier;
 
 }
 
@@ -411,7 +413,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration, name: this.name };
+		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration, name: this.name, identity: this.identity };
 	}
 }
 

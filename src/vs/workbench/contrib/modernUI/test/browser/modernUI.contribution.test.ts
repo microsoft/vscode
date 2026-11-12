@@ -54,6 +54,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class ModernUITestPane extends Pane {
 
@@ -852,7 +853,7 @@ suite('ModernUIContribution', () => {
 		root.className = 'monaco-workbench modern-ui';
 
 		function createExplorerTitles(workbenchState: WorkbenchState, configuration: URI | null) {
-			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, { id: 'test', folders: [], configuration }, TestEnvironmentService);
+			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, testIWorkspace({ id: 'test', folders: [], configuration }), TestEnvironmentService);
 			const part = appendElement(root, preserveCase ? `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}` : 'part');
 			const mergedTitle = document.createElement('h2');
 			appendElement(appendElement(part, 'title'), 'title-label').appendChild(mergedTitle);

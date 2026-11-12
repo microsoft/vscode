@@ -17,7 +17,7 @@ import { getRemoteAuthority } from '../../../../platform/remote/common/remoteHos
 import { isVirtualResource } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService, ResourceTrustRequestOptions } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { Memento } from '../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -70,6 +70,10 @@ export class CanonicalWorkspace implements IWorkspace {
 
 	get id(): string {
 		return this.originalWorkspace.id;
+	}
+
+	get identity(): IAnyWorkspaceIdentifier {
+		return this.originalWorkspace.identity;
 	}
 }
 

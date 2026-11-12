@@ -34,6 +34,7 @@ import { IEditorResolverService } from '../../../../services/editor/common/edito
 import { IExplorerService } from '../../browser/files.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestExplorerView extends ExplorerView {
 	renderForTesting(container: HTMLElement): void {
@@ -456,7 +457,7 @@ suite('Files - ExplorerView', () => {
 	test('preserves workspace name case only for user named workspaces', async function () {
 		const untitledWorkspacesHome = TestEnvironmentService.untitledWorkspacesHome;
 		function workspace(configuration: URI | null): IWorkspace {
-			return { id: 'test', folders: [], configuration };
+			return testIWorkspace({ id: 'test', folders: [], configuration });
 		}
 
 		assert.deepStrictEqual({

@@ -55,7 +55,7 @@ suite('Workspace', () => {
 
 		assert.deepStrictEqual(
 			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), updated: updated.identity, json: JSON.stringify(alternate.toJSON()).includes('identity') },
-			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, updated: { id: 'id', uri: mainFolderUri }, json: false });
+			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, updated: { id: 'id', uri: mainFolderUri }, json: true });
 	});
 
 	test('identity is derived per state when not passed', () => {

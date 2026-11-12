@@ -102,6 +102,7 @@ import { ContributionEnablementState, IEnablementModel } from '../../../common/e
 import { AgentHostMcpServerDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -1120,7 +1121,7 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IConfigurationService, configService);
 			instantiationService.stub(IOutputService, { getChannel: () => undefined });
-			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
+			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: '', folders: [] })), getWorkspaceFolder: () => null });
 			instantiationService.stub(IChatEditingService, {
 				registerEditingSessionProvider: () => toDisposable(() => { }),
 			});

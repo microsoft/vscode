@@ -760,7 +760,7 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: StandaloneWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: STANDALONE_EDITOR_WORKSPACE_ID, folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
+		this.workspace = { id: STANDALONE_EDITOR_WORKSPACE_ID, folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], identity: { id: STANDALONE_EDITOR_WORKSPACE_ID, uri: resource } };
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {

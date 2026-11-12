@@ -115,6 +115,7 @@ import { IAgentHostPolicyContinuationService } from '../../../../contrib/chat/br
 import { IChatSlashCommandService } from '../../../../contrib/chat/common/participants/chatSlashCommands.js';
 import { IChatGoalSummaryService } from '../../../../contrib/chat/browser/chatGoalSummaryService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
 	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
@@ -224,7 +225,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IPathService, new TestPathService());
 	reg.defineInstance(IRemoteAgentService, new TestRemoteAgentService());
 	reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
-	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 	// `getContainer` stands in for the workbench container that widgets use to host
 	// overflow nodes (suggest widget, post-paste selector); the fixture document body
 	// is the closest equivalent.
