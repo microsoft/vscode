@@ -37,7 +37,9 @@ import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
 	computeSSHConnectionKey,
+	isSSHAuthenticationFailedError,
 	isSSHHostKeyDeniedError,
+	SSHAuthenticationFailedError,
 	SSH_HOST_KEY_DENIED_ERROR_NAME,
 	SSHAuthMethod,
 	type ISSHAgentHostConfig,
@@ -55,6 +57,12 @@ import {
 } from '../common/sshRemoteAgentHost.js';
 import { ISSHHostKeyTrustService } from '../common/sshHostKeyTrust.js';
 import { decideHostKeyTrust, type SSHHostKeyDenial } from '../common/sshHostKeyPolicy.js';
+
+function reviveSSHAuthenticationError(error: unknown): unknown {
+	return error instanceof Error && isSSHAuthenticationFailedError(error)
+		? new SSHAuthenticationFailedError(error.message)
+		: error;
+}
 
 /**
  * Human-readable name for a host key algorithm, matching how OpenSSH labels
@@ -133,7 +141,7 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 				if (isSSHHostKeyDeniedError(error)) {
 					throw new NonReconnectableTransportError(error.message);
 				}
-				throw error;
+				throw reviveSSHAuthenticationError(error);
 			}
 		};
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, () => {
@@ -256,7 +264,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				denied.name = SSH_HOST_KEY_DENIED_ERROR_NAME;
 				throw denied;
 			}
-			throw error;
+			throw reviveSSHAuthenticationError(error);
 		}
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
 
