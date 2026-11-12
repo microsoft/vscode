@@ -9,12 +9,12 @@ import { ArtifactRequestPresentation } from '../../../artifactIntegrations/commo
 import { createTestArtifactRequestPresentation } from '../../../artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { AgentMergePromptContext, AgentMergeRepairAction } from '../../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../../common/agentMergePrompt.js';
-import { getAutopilotTurnActivity } from '../../common/autopilotActivity.js';
 import { AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { MessageKind, type Message } from '../../common/state/sessionState.js';
+import { getSystemTurnActivity } from '../../common/systemTurnActivity.js';
 
-suite('Autopilot activity', () => {
+suite('System turn activity', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const context: AgentMergePromptContext = {
@@ -44,26 +44,28 @@ suite('Autopilot activity', () => {
 		};
 	}
 
-	test('describes turns Autopilot started and nothing else', () => {
+	test('describes turns the host sent for Agent Merge or an artifact action, and nothing else', () => {
 		assert.deepStrictEqual({
-			agentMergeFixCI: getAutopilotTurnActivity(agentMerge(['fixCI'])),
-			agentMergeAddressReviews: getAutopilotTurnActivity(agentMerge(['addressReviews'])),
-			agentMergeResolveConflicts: getAutopilotTurnActivity(agentMerge(['resolveConflicts'])),
-			agentMergeSeveralActions: getAutopilotTurnActivity(agentMerge(['addressReviews', 'fixCI'])),
-			agentMergeMarkerOnUserMessage: getAutopilotTurnActivity(agentMerge(['fixCI'], MessageKind.User)),
-			builtInRule: getAutopilotTurnActivity(artifactRun({ action: { label: 'Fix Checks', iconId: 'github-action', activityLabel: 'Fixing CI' } })),
-			extensionRule: getAutopilotTurnActivity(artifactRun({ action: { label: 'Analyse Scorecard', iconId: 'graph' } })),
-			manualArtifactAction: getAutopilotTurnActivity(artifactRun({ source: 'manual', action: { label: 'Fix Checks', iconId: 'github-action', activityLabel: 'Fixing CI' } })),
-			hostNotification: getAutopilotTurnActivity({ text: 'Fix the checks', origin: { kind: MessageKind.SystemNotification } }),
+			agentMergeFixCI: getSystemTurnActivity(agentMerge(['fixCI'])),
+			agentMergeAddressReviews: getSystemTurnActivity(agentMerge(['addressReviews'])),
+			agentMergeResolveConflicts: getSystemTurnActivity(agentMerge(['resolveConflicts'])),
+			agentMergeSeveralActions: getSystemTurnActivity(agentMerge(['addressReviews', 'fixCI'])),
+			agentMergeMarkerOnUserMessage: getSystemTurnActivity(agentMerge(['fixCI'], MessageKind.User)),
+			builtInRule: getSystemTurnActivity(artifactRun({ action: { label: 'Fix Checks', iconId: 'github-action', activityLabel: 'Fixing CI' } })),
+			extensionRule: getSystemTurnActivity(artifactRun({ action: { label: 'Analyse Scorecard', iconId: 'graph' } })),
+			builtInAction: getSystemTurnActivity(artifactRun({ source: 'manual', action: { label: 'Fix Checks', iconId: 'github-action', activityLabel: 'Fixing CI' } })),
+			extensionAction: getSystemTurnActivity(artifactRun({ source: 'manual', action: { label: 'Analyse Scorecard', iconId: 'graph' } })),
+			hostNotification: getSystemTurnActivity({ text: 'Fix the checks', origin: { kind: MessageKind.SystemNotification } }),
 		}, {
-			agentMergeFixCI: 'Autopilot: Fixing CI...',
-			agentMergeAddressReviews: 'Autopilot: Addressing Comments...',
-			agentMergeResolveConflicts: 'Autopilot: Updating Branch...',
-			agentMergeSeveralActions: 'Autopilot: Fixing Pull Request...',
+			agentMergeFixCI: 'Agent Merge: Fixing CI...',
+			agentMergeAddressReviews: 'Agent Merge: Addressing Comments...',
+			agentMergeResolveConflicts: 'Agent Merge: Updating Branch...',
+			agentMergeSeveralActions: 'Agent Merge: Fixing Pull Request...',
 			agentMergeMarkerOnUserMessage: undefined,
 			builtInRule: 'Autopilot: Fixing CI...',
 			extensionRule: 'Autopilot: Analyse Scorecard...',
-			manualArtifactAction: undefined,
+			builtInAction: 'Fixing CI...',
+			extensionAction: 'Analyse Scorecard...',
 			hostNotification: undefined,
 		});
 	});

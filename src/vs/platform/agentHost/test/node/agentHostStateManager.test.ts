@@ -2499,7 +2499,7 @@ suite('AgentHostStateManager', () => {
 			});
 		}
 
-		test('session aggregation describes a running Autopilot turn while its chat reports no activity of its own', () => {
+		test('session aggregation describes a running Agent Merge turn while its chat reports no activity of its own', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const snapshot = () => ({
@@ -2532,9 +2532,9 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, chatTurnComplete('repair', 1000));
 
 			assert.deepStrictEqual({ whileRunning, withOwnActivity, afterOwnActivity, whileWaiting, afterComplete: snapshot() }, {
-				whileRunning: { summary: 'Autopilot: Fixing CI...', catalog: undefined },
+				whileRunning: { summary: 'Agent Merge: Fixing CI...', catalog: undefined },
 				withOwnActivity: { summary: 'Running tests', catalog: 'Running tests' },
-				afterOwnActivity: { summary: 'Autopilot: Fixing CI...', catalog: undefined },
+				afterOwnActivity: { summary: 'Agent Merge: Fixing CI...', catalog: undefined },
 				whileWaiting: { summary: undefined, catalog: undefined },
 				afterComplete: { summary: undefined, catalog: undefined },
 			});
