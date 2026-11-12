@@ -208,6 +208,36 @@ suite('Configuration Resolver Service', () => {
 		assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile:invalidLocation} xyz'));
 	});
 
+	// #278130: the active file must be captured at the moment the user triggers
+	// debugging, not re-read whenever variable resolution runs. If the active
+	// editor changes between the F5 keystroke and the call to the resolver, the
+	// override should still produce the originally-captured path so the correct
+	// program is launched.
+	test('withActiveFileOverride pins ${file} to the captured resource even if activeEditor changes', async () => {
+		let currentResource = URI.parse('file:///VSCode/workspaceLocation/originalFile');
+		const editorService: any = {
+			get activeEditor() { return { get resource() { return currentResource; } }; },
+			get activeTextEditorControl() { return undefined; },
+		};
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
+
+		const captured = currentResource;
+		// Simulate focus moving to a different editor after F5 was pressed but
+		// before variables are resolved (the exact race described in #278130).
+		currentResource = URI.parse('file:///VSCode/workspaceLocation/otherFile');
+
+		const resolved = await service.withActiveFileOverride(captured, () =>
+			service.resolveAsync(workspace, '${file}'));
+
+		const expected = normalize(captured.fsPath);
+		assert.strictEqual(resolved, expected);
+
+		// Without the override, the live active editor wins, proving the race
+		// we are guarding against is real in this test setup.
+		const withoutOverride = await service.resolveAsync(workspace, '${file}');
+		assert.strictEqual(withoutOverride, normalize(currentResource.fsPath));
+	});
+
 	test('substitute many', async () => {
 		if (platform.isWindows) {
 			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
