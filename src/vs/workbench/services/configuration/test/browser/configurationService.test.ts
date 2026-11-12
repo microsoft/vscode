@@ -1891,6 +1891,20 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
 
+	test('setFolderLocation() keeps memory settings', async () => {
+		const folder = testObject.getWorkspace().folders[0].uri;
+		const resource = joinPath(folder, 'a.txt');
+		await testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
+		await testObject.updateValue('configurationService.folder.testSetting', 'memoryResourceValue', { resource }, ConfigurationTarget.MEMORY);
+
+		await testObject.setFolderLocation(joinPath(ROOT, 'alternate'));
+		await testObject.setFolderLocation(folder);
+
+		assert.deepStrictEqual(
+			{ global: testObject.getValue('configurationService.folder.testSetting'), resource: testObject.getValue('configurationService.folder.testSetting', { resource }) },
+			{ global: 'memoryValue', resource: 'memoryResourceValue' });
+	});
+
 	test('defaults', () => {
 		assert.deepStrictEqual(testObject.getValue('configurationService'),
 			{

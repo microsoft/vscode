@@ -246,7 +246,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			undefined,
 			this.workspace.uri);
 		workspace.initialized = true;
-		await this.updateWorkspaceAndInitializeConfiguration(workspace, true);
+		// Keep session (memory) settings: the workspace is the same, only its folder location changed
+		await this.updateWorkspaceAndInitializeConfiguration(workspace, true, true);
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
@@ -593,7 +594,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private async updateWorkspaceAndInitializeConfiguration(workspace: Workspace, trigger: boolean): Promise<void> {
+	private async updateWorkspaceAndInitializeConfiguration(workspace: Workspace, trigger: boolean, preserveMemory: boolean = false): Promise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
 		let previousState: WorkbenchState | undefined;
 		let previousWorkspacePath: string | undefined;
@@ -608,7 +609,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.workspace = workspace;
 		}
 
-		await this.initializeConfiguration(trigger);
+		await this.initializeConfiguration(trigger, preserveMemory);
 
 		// Trigger changes after configuration initialization so that configuration is up to date.
 		if (hasWorkspaceBefore) {
@@ -653,7 +654,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return result;
 	}
 
-	private async initializeConfiguration(trigger: boolean): Promise<void> {
+	private async initializeConfiguration(trigger: boolean, preserveMemory: boolean = false): Promise<void> {
 		await this.defaultConfiguration.initialize();
 
 		const initPolicyConfigurationPromise = this.policyConfiguration.initialize();
@@ -676,7 +677,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		]);
 
 		mark('code/willInitWorkspaceConfiguration');
-		await this.loadConfiguration(application, local, remote, trigger);
+		await this.loadConfiguration(application, local, remote, trigger, preserveMemory);
 		mark('code/didInitWorkspaceConfiguration');
 	}
 
@@ -733,7 +734,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.onWorkspaceFolderConfigurationChanged(folder);
 	}
 
-	private async loadConfiguration(applicationConfigurationModel: ConfigurationModel, userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel, trigger: boolean): Promise<void> {
+	private async loadConfiguration(applicationConfigurationModel: ConfigurationModel, userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel, trigger: boolean, preserveMemory: boolean = false): Promise<void> {
 		// reset caches
 		this.cachedFolderConfigs.clearAndDisposeAll();
 
@@ -745,7 +746,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
 		const currentConfiguration = this._configuration;
-		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, ConfigurationModel.createEmptyModel(this.logService), new ResourceMap<ConfigurationModel>(), this.workspace, this.logService);
+		const memoryConfiguration = preserveMemory ? currentConfiguration.memoryConfiguration : ConfigurationModel.createEmptyModel(this.logService);
+		const memoryConfigurationByResource = preserveMemory ? currentConfiguration.memoryConfigurationByResource : new ResourceMap<ConfigurationModel>();
+		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, memoryConfiguration, memoryConfigurationByResource, this.workspace, this.logService);
 
 		this.initialized = true;
 
