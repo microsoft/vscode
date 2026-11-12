@@ -1200,6 +1200,24 @@
     ],
     "keybindings": [
       {
+        "command": "git.stage",
+        "key": "ctrl+shift+s",
+        "mac": "cmd+shift+s",
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && scmActiveResourceHasChanges"
+      },
+      {
+        "command": "git.unstage",
+        "key": "ctrl+shift+u",
+        "mac": "cmd+shift+u",
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && scmActiveResourceHasChanges"
+      },
+      {
+        "command": "git.stageAll",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+      },
+      {
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
