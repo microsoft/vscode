@@ -483,44 +483,14 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 ## Troubleshooting
 
-Use these checks only after the matching failure occurs; they are not additional prerequisites for a successful launch.
-
+- **pnpm bootstrap fails on Windows** - check the actual Node/pnpm paths (`Get-Command node, pnpm -All`): stale shims can bypass fnm, and Corepack's bootstrap registry can differ from npm's configured registry. Select the Node version from `.nvmrc`; if Corepack remains blocked, install the pinned pnpm through the existing registry as described in [Contributing Fixes](../../../CONTRIBUTING.md#contributing-fixes). Do not disable TLS or signature verification.
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(node -p 'JSON.parse(process.argv[1]).userDataDir' "$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
 - **`missing config value GIT_CONFIG_VALUE_*` from Git** - indexed Git configuration inherited from an agent runtime lost an empty value while the app processes were launched. The launcher unsets `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS` so host-only Git overrides do not affect Code OSS; do the same when invoking `code.sh` directly from such a runtime.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `pnpm run compile` (one-shot, also rebuilds all built-in extensions) or `pnpm run watch` (incremental). A common cause: you built only client output for unit tests (`pnpm run build-fast --client-only`), which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
-- **Built-in extension download fails with GitHub 401/403** - this is separate from pnpm bootstrap. Check the failed public release URL with and without the inherited `GITHUB_TOKEN` before assuming a rate limit. If that token is the cause, remove only the failing process-local override (`Remove-Item Env:GITHUB_TOKEN` in PowerShell) and retry pre-launch. A working `gh` login does not fix a token inherited by the Node downloader. Do not print tokens, delete stored credentials, or change global authentication as a generic workaround. A sign-in failure inside the running app instead follows the [missing sign-in flow](#handle-a-missing-sign-in).
+- **Built-in extension download fails with GitHub 401/403** - check for an invalid inherited `GITHUB_TOKEN` before assuming a rate limit; compare the failed request without that process-local override. This is separate from app sign-in.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
 - **Auth missing in the launched window** - use the [missing sign-in flow](#handle-a-missing-sign-in) so the user can either finish signing into the current isolated window or choose to bootstrap the persistent source profile. **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't.
-
-### Windows Node or pnpm bootstrap failures
-
-If dependency setup or pre-launch fails before pnpm can run, inspect the executables and versions from the repository root:
-
-```powershell
-Get-Command node, pnpm -All | Select-Object Name, Source
-node --version
-pnpm --version
-npm config get registry
-```
-
-Compare Node with `.nvmrc` and pnpm with `package.json`'s `packageManager`. If using fnm, initialize it as shown in [Prerequisites](#prerequisites). Recheck both commands afterward: an older `pnpm.ps1` shim can explicitly invoke its adjacent Node/Corepack even when `node` on `PATH` is now correct.
-
-Corepack's bootstrap registry is separate from npm's configured registry. A TLS failure against public npm does not prove that the configured feed or pnpm itself is broken. Corepack supports `COREPACK_NPM_REGISTRY`, but a feed can serve full package metadata while rejecting Corepack's version-specific metadata lookup with 404. Do not disable TLS or signature verification to get past either error.
-
-If the existing configured npm registry can supply the pinned pnpm package but Corepack cannot bootstrap it, install only the package-manager tool locally, as permitted by the repository's [contributing guidance](../../../CONTRIBUTING.md#contributing-fixes):
-
-```powershell
-$packageManager = (Get-Content .\package.json -Raw | ConvertFrom-Json).packageManager
-npm install --prefix .build\tools\pnpm --no-save --package-lock=false $packageManager
-if ($LASTEXITCODE -ne 0) { throw 'Local pnpm installation failed.' }
-$env:PATH = "$(Join-Path $PWD '.build\tools\pnpm\node_modules\.bin');$env:PATH"
-pnpm --version
-```
-
-Confirm the reported pnpm version matches the pin before continuing. This uses npm only to install the tool, never the repository dependencies; it does not change global registry settings or repair the old shim. In each new shell, select the required Node version and prepend the local pnpm directory again.
-
-Resume dependency installation with pnpm, setting `$env:PNPM_CONFIG_FROZEN_LOCKFILE = 'true'` before `pnpm install --frozen-lockfile` so separate install roots also remain frozen. If outputs are missing or incomplete, run `pnpm run build-fast` for the full client, extensions, and Copilot outputs, not `--client-only`, then retry the normal launcher. Stop at any failed command: partially created `node_modules` or `out` directories do not prove setup succeeded, and `--skip-prelaunch` is not a recovery for incomplete setup. Keep the existing dependency/build approval rules intact and never share another worktree's `node_modules`.
