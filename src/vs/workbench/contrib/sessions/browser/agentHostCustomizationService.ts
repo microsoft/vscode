@@ -91,6 +91,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
+			withholdsCredentials: provider.withholdsCredentials?.(),
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => provider.authenticate(request),
 			handleMcpRequest: provider.handleMcpRequest ? (channel, method, params) => provider.handleMcpRequest!(channel, method, params) : undefined,

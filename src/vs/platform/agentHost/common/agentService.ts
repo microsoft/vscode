@@ -1375,6 +1375,8 @@ export interface IAgentConnection {
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;
 	readonly clientId: string;
+	/** The host is untrusted: it never receives the user's credentials, so callers must not resolve or prompt for them. */
+	readonly withholdsCredentials?: boolean;
 	/** Client-owned connection classification, independent of host identities and provider names. */
 	readonly clientConnectionKind?: AgentHostClientConnectionKind;
 	readonly resourceUris: IAgentHostResourceUriMapper;

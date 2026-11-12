@@ -4815,6 +4815,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private async _autoAuthenticateMcpServer(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): Promise<boolean> {
+		if (this._config.connection.withholdsCredentials) {
+			return false;
+		}
 		if (this._customizationService.getMcpServers(sessionResource).some(candidate => candidate.name === server.name && candidate.connectorName !== undefined)) {
 			// Connector-owned servers use the session credential; only an explicit Connector authorization helps.
 			return false;

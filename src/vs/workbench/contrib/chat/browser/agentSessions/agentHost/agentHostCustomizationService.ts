@@ -202,6 +202,8 @@ export interface IAgentHostCustomizationTarget {
 	/** Client-space roots, including provisional roots. */
 	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
+	/** The host never receives the user's credentials, so MCP authentication must not resolve or prompt for them. */
+	readonly withholdsCredentials?: boolean;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown>;
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
@@ -381,6 +383,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			// Connector-owned servers use the session credential; only an explicit Connector authorization helps.
 			return false;
 		}
+		if (target.withholdsCredentials) {
+			return false;
+		}
 		const challenge = this._mcpAuthenticationChallenge(state);
 		if (!entry || entry.challenge !== challenge) {
 			entry = { sessionResource, serverId: server.id, challenge, tokenForwarded: undefined, restarted: false, rejected: false };
@@ -534,6 +539,11 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		}
 		const displayName = readMcpServerDisplayName(server);
 		const label = getMcpServerDisplayLabel({ name: server.name, displayName });
+		if (target.withholdsCredentials) {
+			this._logService.info(`[AgentHost] Not authenticating MCP server '${server.name}': its agent host is untrusted and never receives credentials`);
+			status(localize('agentHost.mcpAuthenticationUntrustedHost', "{0} can't be authenticated because its agent host is untrusted.", label));
+			return false;
+		}
 		const challenge = this._mcpAuthenticationChallenge(server.state);
 		status(localize('agentHost.mcpAuthenticating', "Authenticating {0}...", label));
 		if (isCopilotConnectorMcpServer(server)) {
@@ -1117,6 +1127,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			workingDirectories,
 			clientWorkingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
+			withholdsCredentials: target.connection.withholdsCredentials,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
 			handleMcpRequest: (channel, method, params) => target.connection.handleMcpRequest(channel, method, params),

@@ -20,7 +20,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, parseWebSocketRemoteAgentHostEntries, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
@@ -417,6 +417,49 @@ suite('RemoteAgentHostService', () => {
 			const config = getEntryTypeConfig(entry.connection.type);
 			return config.fromRaw!(config.toRaw!(entry, entry.connection));
 		}), entries);
+	});
+
+	test('parses the trust of WebSocket entries and drops malformed values', () => {
+		assert.deepStrictEqual(parseWebSocketRemoteAgentHostEntries([
+			{ address: 'host1:8080', name: 'Untrusted', trusted: false },
+			{ address: 'host2:8080', name: 'Trusted', trusted: true },
+			{ address: 'host3:8080', name: 'Default' },
+			{ address: 'host4:8080', name: 'Malformed', trusted: 'false' },
+		]), [
+			{ name: 'Untrusted', connectionToken: undefined, trusted: false, connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } },
+			{ name: 'Trusted', connectionToken: undefined, trusted: true, connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host2:8080' } },
+			{ name: 'Default', connectionToken: undefined, connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host3:8080' } },
+		]);
+	});
+
+	test('untrusted WebSocket hosts get no credential resolver and redial when their trust changes', async () => {
+		const entry: IRemoteAgentHostEntry = { name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } };
+		configService.setEntries([{ ...entry, trusted: false }]);
+		await waitForCreatedClients(1);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+
+		configService.setEntries([entry]);
+		await waitForCreatedClients(2);
+
+		assert.deepStrictEqual(createdClientOptions.map(options => ({
+			withholdCredentials: options?.withholdCredentials,
+			resolvesCredentials: !!options?.resolveAdvertisedAuthentication,
+		})), [
+			{ withholdCredentials: true, resolvesCredentials: false },
+			{ withholdCredentials: undefined, resolvesCredentials: true },
+		]);
+	});
+
+	test('re-adding an untrusted host keeps it untrusted', async () => {
+		configService.setEnabled(false);
+		configService.setRawEntries([{ address: 'host1:8080', name: 'Host', trusted: false }]);
+		await addWebSocketRemoteAgentHostEntry(configService as unknown as IConfigurationService, {
+			name: 'Renamed',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' },
+		});
+
+		assert.deepStrictEqual(configService.entries, [{ address: 'host1:8080', name: 'Renamed', connectionToken: undefined, trusted: false }]);
 	});
 
 

@@ -7296,6 +7296,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return connection.authenticate(params);
 	}
 
+	withholdsCredentials(): boolean {
+		return this.connection?.withholdsCredentials === true;
+	}
+
 	async setRootConfigValue(property: string, value: unknown): Promise<void> {
 		const current = this._rootConfig;
 		const connection = this.connection;

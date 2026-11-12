@@ -286,6 +286,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Resolves existing credentials for advertised resources before protected requests are released. */
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	/** Never sends `authenticate` requests, so an untrusted host cannot receive the user's credentials. */
+	readonly withholdCredentials?: boolean;
 	/** Serves client trust roots on demand only for remotes sharing the client's network. */
 	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	/** Serves proxy resolution and proxy Kerberos tickets only for remotes sharing the client's network. */
@@ -553,6 +555,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
+	readonly withholdsCredentials: boolean;
+	private _didLogWithheldCredentials = false;
 	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
 	private readonly _clientProxy: IAgentHostProtocolClientOptions['clientProxy'];
 	private readonly _onDispose: (() => void) | undefined;
@@ -656,6 +660,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
+		this.withholdsCredentials = options?.withholdCredentials ?? false;
 		this._clientCertificates = options?.clientCertificates;
 		this._clientProxy = options?.clientProxy;
 		if (this._clientProxy) {
@@ -3889,6 +3894,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		params: unknown,
 		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number; readonly acceptResult?: (result: unknown) => void; readonly authenticationToken?: CancellationToken } = {},
 	): Promise<TResult> {
+		if (method === 'authenticate' && this.withholdsCredentials) {
+			if (!this._didLogWithheldCredentials) {
+				this._didLogWithheldCredentials = true;
+				this._logService.warn(`[RemoteAgentHostProtocol] Not sending credentials to untrusted agent host ${this._address}`);
+			}
+			throw new Error(`Credentials are withheld from untrusted agent host ${this._address}.`);
+		}
 		if (options.authenticationToken?.isCancellationRequested) {
 			throw new CancellationError();
 		}

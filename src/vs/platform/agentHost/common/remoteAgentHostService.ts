@@ -256,6 +256,8 @@ export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IR
 export interface IRemoteAgentHostEntry {
 	readonly name: string;
 	readonly connectionToken?: string;
+	/** Whether the host may receive the user's credentials. Defaults to `true`; `false` withholds them. */
+	readonly trusted?: boolean;
 	readonly connection: RemoteAgentHostConnection;
 }
 
@@ -350,6 +352,7 @@ export interface IRawRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;
 	readonly connectionToken?: string;
+	readonly trusted?: boolean;
 	readonly sshConfigHost?: string;
 	readonly sshHostName?: string;
 	readonly sshUser?: string;
@@ -373,6 +376,7 @@ export function isRawRemoteAgentHostEntry(value: unknown): value is IRawRemoteAg
 	return typeof candidate.address === 'string'
 		&& typeof candidate.name === 'string'
 		&& (candidate.connectionToken === undefined || typeof candidate.connectionToken === 'string')
+		&& (candidate.trusted === undefined || typeof candidate.trusted === 'boolean')
 		&& (candidate.sshConfigHost === undefined || typeof candidate.sshConfigHost === 'string')
 		&& (candidate.sshHostName === undefined || typeof candidate.sshHostName === 'string')
 		&& (candidate.sshUser === undefined || typeof candidate.sshUser === 'string')
@@ -452,8 +456,13 @@ export const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgent
 	address: connection => connection.address,
 	toRaw: (entry, connection) => ({
 		address: connection.address, name: entry.name, connectionToken: entry.connectionToken,
+		...(entry.trusted !== undefined ? { trusted: entry.trusted } : undefined),
 	}),
-	fromRaw: raw => ({ name: raw.name, connectionToken: raw.connectionToken, connection: { type: RemoteAgentHostEntryType.WebSocket, address: raw.address } }),
+	fromRaw: raw => ({
+		name: raw.name, connectionToken: raw.connectionToken,
+		...(raw.trusted !== undefined ? { trusted: raw.trusted } : undefined),
+		connection: { type: RemoteAgentHostEntryType.WebSocket, address: raw.address },
+	}),
 };
 
 export const SSH_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostSSHConnection> = {
@@ -572,7 +581,11 @@ export async function addWebSocketRemoteAgentHostEntry(configurationService: ICo
 		...entry,
 		connection: { ...entry.connection, address: normalizeRemoteAgentHostAddress(entry.connection.address) },
 	};
-	await storeWebSocketRemoteAgentHostEntries(configurationService, upsertRemoteAgentHostEntry(readWebSocketRemoteAgentHostEntries(configurationService, true), normalizedEntry));
+	const entries = readWebSocketRemoteAgentHostEntries(configurationService, true);
+	// Re-adding a host must not silently grant credentials to a host the user marked untrusted.
+	const existingTrust = entries.find(candidate => entryAddressKey(candidate) === entryAddressKey(normalizedEntry))?.trusted;
+	const entryToStore = normalizedEntry.trusted === undefined && existingTrust !== undefined ? { ...normalizedEntry, trusted: existingTrust } : normalizedEntry;
+	await storeWebSocketRemoteAgentHostEntries(configurationService, upsertRemoteAgentHostEntry(entries, entryToStore));
 }
 
 /** Removes a WebSocket entry from its configuration store. */
