@@ -671,7 +671,7 @@ export type OffsetRange = {
 /**
  * A textual change between the original and the modified text of a structural diff request.
  */
-export type StructuralDiffTextChange = {
+export type DiffTextChange = {
 	original: OffsetRange;
 	modified: OffsetRange;
 };
@@ -684,7 +684,7 @@ export interface StructuralDiffRequestArgs {
 	fileName: FilePath;
 	originalText: string;
 	modifiedText: string;
-	changes: readonly StructuralDiffTextChange[];
+	changes: readonly DiffTextChange[];
 }
 
 export interface StructuralDiffRequest extends tt.server.protocol.Request {
