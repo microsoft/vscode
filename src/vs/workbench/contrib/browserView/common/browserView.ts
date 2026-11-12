@@ -321,7 +321,12 @@ export interface IBrowserViewNetworkResolver {
 	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
 	/** Roots of the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
 	getTrustedFileRoots?(): readonly URI[];
-	/** Fires when {@link getTrustedFileRoots} may have changed. */
+	/**
+	 * Whether the file system of a network distinguishes paths by case, or `undefined` if unknown.
+	 * Only asked for networks that are not the window's own remote.
+	 */
+	isPathCaseSensitive?(network: IBrowserViewNetwork): boolean | undefined;
+	/** Fires when {@link getTrustedFileRoots} or {@link isPathCaseSensitive} may have changed. */
 	readonly onDidChangeTrustedFileRoots?: Event<void>;
 	/** The status of a network this resolver resolves views to. */
 	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;

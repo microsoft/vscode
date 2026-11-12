@@ -20,7 +20,7 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
-import { normalizeRemoteFilePath, type IRemoteFileTrust } from './browserSessionFiles.js';
+import { createRemoteRootTree, normalizeRemoteFilePath, type IRemoteFileTrust } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
@@ -284,12 +284,7 @@ export class BrowserSession {
 	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
 		BrowserSession._trustedRemoteFileRoots = new Map();
 		for (const [authority, remote] of remotes) {
-			const roots = TernarySearchTree.forPaths<true>();
-			for (const root of remote.roots) {
-				if (root) {
-					roots.set(posix.normalize(root), true);
-				}
-			}
+			const roots = createRemoteRootTree(remote.roots, remote.caseSensitive);
 			BrowserSession._trustedRemoteFileRoots.set(authority.toLowerCase(), { ...remote, roots });
 		}
 	}

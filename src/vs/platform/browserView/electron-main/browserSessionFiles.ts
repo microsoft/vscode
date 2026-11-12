@@ -4,77 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { posix } from '../../../base/common/path.js';
-import { getOrSet } from '../../../base/common/map.js';
-import { Schemas } from '../../../base/common/network.js';
-import { Mutable } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
-import { IBrowserViewWindowConfiguration } from '../common/browserView.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { IBrowserViewRemoteNetwork } from '../common/browserView.js';
 
-/** What a window contributes to the `file:` requests of sessions on a remote network. */
+/** What sessions on a remote network may read from the remote's file system. */
 export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
 	readonly roots: TRoots;
 	readonly trustAll: boolean;
 	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
 	readonly scheme: string;
-}
-
-/** The trust a window contributes, and the remote it is connected to, if any. */
-export interface IWindowFileTrust extends Pick<IBrowserViewWindowConfiguration, 'trustAllFiles' | 'trustedFileRoots'> {
-	readonly remoteAuthority: string | undefined;
-}
-
-/** The trusted roots of the local file system and of each remote file system (keyed by lowercase authority). */
-export interface IFileTrust {
-	readonly local: { readonly roots: ReadonlySet<string>; readonly trustAll: boolean };
-	readonly remotes: ReadonlyMap<string, IRemoteFileTrust>;
+	readonly caseSensitive: boolean;
 }
 
 /**
- * Splits the trusted roots of all windows by file system. A remote window's roots and trust-all
- * apply only to its own remote, and agent host roots only to that host. Only `file:` roots apply to the local file system.
+ * Merges what every window contributes for each remote network, keyed by lowercase authority.
+ * A window only contributes to the networks it is connected to.
  */
-export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrust {
-	const localRoots = new Set<string>();
-	let localTrustAll = false;
-	const remotes = new Map<string, Mutable<IRemoteFileTrust<Set<string>>>>();
-	for (const { remoteAuthority, trustAllFiles, trustedFileRoots } of windows) {
-		const remoteKey = remoteAuthority?.toLowerCase();
-		const remote = remoteKey ? getOrSet(remotes, remoteKey, newRemote(Schemas.vscodeRemote)) : undefined;
-		if (remote) {
-			remote.trustAll ||= trustAllFiles;
-		} else {
-			localTrustAll ||= trustAllFiles;
-		}
-		for (const components of trustedFileRoots) {
-			const root = URI.revive(components);
-			if (root.scheme === Schemas.file) {
-				localRoots.add(root.fsPath);
-			} else if (remote && root.scheme === Schemas.vscodeRemote && root.authority.toLowerCase() === remoteKey) {
-				addRemoteRoot(remote, root.path);
-			} else if (root.scheme === AGENT_HOST_SCHEME) {
-				const original = fromAgentHostUri(root);
-				// A root with an authority (`file://server/share`) is not a path on the host's own file system.
-				if (original.scheme === Schemas.file && !original.authority) {
-					const hostRemote = getOrSet(remotes, root.authority.toLowerCase(), newRemote(AGENT_HOST_SCHEME));
-					addRemoteRoot(hostRemote, original.path);
-				}
+export function computeRemoteFileTrust(windows: Iterable<{ readonly [authority: string]: IBrowserViewRemoteNetwork } | undefined>): Map<string, IRemoteFileTrust<Set<string>>> {
+	const remotes = new Map<string, IRemoteFileTrust<Set<string>> & { trustAll: boolean; caseSensitive: boolean }>();
+	for (const networks of windows) {
+		for (const [authority, network] of Object.entries(networks ?? {})) {
+			const key = authority.toLowerCase();
+			let remote = remotes.get(key);
+			if (!remote) {
+				remote = { roots: new Set<string>(), trustAll: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
+				remotes.set(key, remote);
+			}
+			remote.trustAll ||= network.trustAllFiles;
+			remote.caseSensitive &&= network.caseSensitive;
+			for (const root of network.trustedRoots) {
+				addRemoteRoot(remote.roots, root);
 			}
 		}
 	}
-	return { local: { roots: localRoots, trustAll: localTrustAll }, remotes };
+	return remotes;
 }
 
-function newRemote(scheme: string): Mutable<IRemoteFileTrust<Set<string>>> {
-	return { roots: new Set<string>(), trustAll: false, scheme };
+/** The tree that decides whether a normalized remote path is inside one of the trusted roots. */
+export function createRemoteRootTree(roots: Iterable<string>, caseSensitive: boolean): TernarySearchTree<string, true> {
+	const tree = TernarySearchTree.forPaths<true>(!caseSensitive);
+	for (const root of roots) {
+		if (root) {
+			tree.set(posix.normalize(root), true);
+		}
+	}
+	return tree;
 }
 
 /**
  * Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories.
  */
-function addRemoteRoot(remote: Mutable<IRemoteFileTrust<Set<string>>>, path: string): void {
+function addRemoteRoot(roots: Set<string>, path: string): void {
 	if (!path.includes('\\')) {
-		remote.roots.add(path);
+		roots.add(path);
 	}
 }
 

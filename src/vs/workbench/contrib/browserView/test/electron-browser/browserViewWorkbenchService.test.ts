@@ -44,6 +44,10 @@ suite('BrowserViewWorkbenchService', () => {
 		};
 	}
 
+	function proxiesOf(config: IBrowserViewWindowConfiguration | undefined) {
+		return Object.fromEntries(Object.entries(config?.remoteNetworks ?? {}).map(([authority, network]) => [authority, network.proxy]));
+	}
+
 	function createService(remoteAuthority?: string, editorGroupsService?: IEditorGroupsService) {
 		const disposables = store.add(new DisposableStore());
 		const events = store.add(new Emitter<BrowserViewEvent>());
@@ -418,7 +422,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const local = store.add(service.getOrCreateLazy({ id: 'local', session: {} }));
 		const [remoteModel, , fallbackModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), fallback.resolve(), local.resolve()]);
 		const automationHold = await service.acquireNetwork({ authority: 'legacy' });
-		const networkProxies = windowConfigurations.at(-1)?.networkProxies;
+		const networkProxies = proxiesOf(windowConfigurations.at(-1));
 		remote.dispose();
 		workspaceless.dispose();
 		automationHold.dispose();
@@ -689,7 +693,7 @@ suite('BrowserViewWorkbenchService', () => {
 				void acquired.complete(proxy(1));
 			}
 			await model;
-			results[phase] = { createdBeforeReplacement, networkProxies: windowConfigurations.at(-1)?.networkProxies };
+			results[phase] = { createdBeforeReplacement, networkProxies: proxiesOf(windowConfigurations.at(-1)) };
 		}
 
 		const expected = { createdBeforeReplacement: 0, networkProxies: { 'ssh-remote+host': proxy(2) } };
@@ -719,7 +723,7 @@ suite('BrowserViewWorkbenchService', () => {
 		store.add(service.registerNetworkProxyProvider({ acquire: async () => proxy(2), release: () => { } }));
 		await timeout(0);
 
-		assert.deepStrictEqual(windowConfigurations.at(-1)?.networkProxies, { 'ssh-remote+host': proxy(2) });
+		assert.deepStrictEqual(proxiesOf(windowConfigurations.at(-1)), { 'ssh-remote+host': proxy(2) });
 	});
 
 	test('releases a proxy whose last view closed while it was published', async () => {
@@ -738,9 +742,28 @@ suite('BrowserViewWorkbenchService', () => {
 		published.complete();
 		await assert.rejects(model);
 
-		assert.deepStrictEqual({ calls, networkProxies: windowConfigurations.at(-1)?.networkProxies }, {
+		assert.deepStrictEqual({ calls, networkProxies: proxiesOf(windowConfigurations.at(-1)) }, {
 			calls: ['acquire ssh-remote+host', 'release ssh-remote+host'],
 			networkProxies: {},
+		});
+	});
+
+	test('publishes the trusted roots of each remote with its network', async () => {
+		const { service, events, windowConfigurations, instantiationService } = createService('ssh-remote+host');
+		instantiationService.stub(IWorkspaceTrustManagementService, 'getTrustedUris', () => [
+			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/repo' }),
+			URI.file('/local'),
+		]);
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		store.add(service.registerNetworkProxyProvider({ acquire: async () => proxy(1), release: () => { } }));
+		const input = store.add(service.getOrCreateLazy({ id: 'page', url: 'http://page/' }));
+		await input.resolve();
+
+		const { remoteNetworks, trustedFileRoots, trustAllFiles } = windowConfigurations.at(-1)!;
+		assert.deepStrictEqual({ remoteNetworks, trustedFileRoots: trustedFileRoots.map(root => URI.revive(root).fsPath), trustAllFiles }, {
+			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
+			trustedFileRoots: ['/home/test/.copilot', '/testWorkspace', '/local'].map(path => URI.file(path).fsPath),
+			trustAllFiles: false,
 		});
 	});
 });

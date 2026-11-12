@@ -165,32 +165,56 @@ export interface IBrowserViewWindowConfiguration {
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
-	 * Tunnel-proxy credentials for each {@link IBrowserViewNetwork} the
-	 * window's views use, keyed by {@link IBrowserViewNetwork.authority}.
-	 * Produced by the window's local extension host, which hosts the proxy
-	 * servers. Applied to the Electron sessions of views whose storage is bound
-	 * to that network; other views always use the local network.
+	 * The remote networks the window's views use, keyed by {@link IBrowserViewNetwork.authority}.
+	 * Applied to the Electron sessions of views whose storage is bound to that network;
+	 * other views always use the local network. Sessions on a network read `file:` requests
+	 * from the remote's file system, within the trusted roots of the network.
 	 */
-	readonly networkProxies?: { readonly [authority: string]: ITunnelProxyInfo };
+	readonly remoteNetworks?: { readonly [authority: string]: IBrowserViewRemoteNetwork };
 	/**
-	 * The window's contribution to the `file://` allowlist used by integrated
-	 * browser sessions, as URIs of any scheme. Main unions every window's
-	 * contribution; `file:` roots apply to local sessions, and `vscode-remote:`
-	 * roots of the window's own authority to sessions bound to that remote.
-	 * Entries are dropped when the window is destroyed. Usually
-	 * `getTrustedUris()` plus, when the workspace itself is trusted, its
-	 * workspace folders.
+	 * The window's contribution to the allowlist of `file:` requests of sessions on the local network,
+	 * as `file:` URIs. Main unions every window's contribution. Entries are dropped when the window is destroyed.
+	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its workspace folders.
 	 */
 	readonly trustedFileRoots: readonly UriComponents[];
 	/**
-	 * Whether Workspace Trust is disabled entirely
-	 * (`security.workspace.trust.enabled: false`) for this window. When
-	 * `true`, every `file://` request is allowed regardless of
-	 * {@link trustedFileRoots}, since there is no meaningful notion of an
-	 * untrusted folder to enforce. In a window connected to a remote this
-	 * applies to that remote only, never to local files.
+	 * Whether Workspace Trust is disabled entirely (`security.workspace.trust.enabled: false`) in a
+	 * window that is not connected to a remote. When `true`, every local `file://` request is allowed,
+	 * since there is no meaningful notion of an untrusted folder to enforce.
 	 */
 	readonly trustAllFiles: boolean;
+}
+
+/** A remote network a window's views use, with what is needed to serve the remote's files. */
+export interface IBrowserViewRemoteNetwork {
+	/** Tunnel-proxy credentials, produced by the window's local extension host, which hosts the proxy servers. */
+	readonly proxy: ITunnelProxyInfo;
+	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
+	readonly scheme: string;
+	/** Trusted folders, as paths on the remote's file system. */
+	readonly trustedRoots: readonly string[];
+	/** Whether every file on the remote is allowed, because Workspace Trust is disabled. */
+	readonly trustAllFiles: boolean;
+	/** Whether the remote's file system distinguishes paths by case, which depends on its operating system. */
+	readonly caseSensitive: boolean;
+}
+
+/**
+ * The remote and path a trusted root refers to when it is a folder on the file system of a remote
+ * that browser sessions can read from, or `undefined` otherwise.
+ */
+export function getBrowserViewRemoteRoot(root: URI): { readonly scheme: string; readonly authority: string; readonly path: string } | undefined {
+	if (root.scheme === Schemas.vscodeRemote) {
+		return { scheme: root.scheme, authority: root.authority, path: root.path };
+	}
+	if (root.scheme === AGENT_HOST_SCHEME) {
+		const original = fromAgentHostUri(root);
+		// A root with an authority (`file://server/share`) is not a path on the host's own file system.
+		if (original.scheme === Schemas.file && !original.authority) {
+			return { scheme: root.scheme, authority: root.authority, path: original.path };
+		}
+	}
+	return undefined;
 }
 
 export interface IBrowserViewBounds {

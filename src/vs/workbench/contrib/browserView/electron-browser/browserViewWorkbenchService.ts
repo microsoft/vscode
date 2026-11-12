@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteRoot, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
 import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -36,13 +36,15 @@ import { findGroup, handOffFromSelfTitledEditor } from '../../../services/editor
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/environment/common/copilotHome.js';
 import { ICopilotHomeService } from '../../../services/environment/common/copilotHomeService.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
@@ -163,6 +165,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService,
 		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
@@ -185,6 +188,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this._updateWindowConfiguration()));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.scheme === Schemas.vscodeRemote) {
+				void this._updateWindowConfiguration();
+			}
+		}));
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => {
+			if (e.scheme === Schemas.vscodeRemote) {
+				void this._updateWindowConfiguration();
+			}
+		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
 				void this._updateWindowConfiguration();
@@ -937,20 +950,52 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-			networkProxies: this._getNetworkProxies(),
-			trustedFileRoots: this._getTrustedFileRoots(),
-			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
+			remoteNetworks: this._getRemoteNetworks(),
+			trustedFileRoots: this._getTrustedFileRoots().filter(root => root.scheme === Schemas.file),
+			// A remote window's trust applies to its own remote's files, not to the local disk.
+			trustAllFiles: !this.environmentService.remoteAuthority && !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
 
-	private _getNetworkProxies(): { [authority: string]: ITunnelProxyInfo } {
-		const networkProxies: { [authority: string]: ITunnelProxyInfo } = {};
-		for (const [authority, entry] of this._networkProxies) {
-			if (entry.info) {
-				networkProxies[authority] = entry.info;
+	/** The remote networks with a published proxy, each with the trusted folders on its file system. */
+	private _getRemoteNetworks(): { [authority: string]: IBrowserViewRemoteNetwork } {
+		const rootsByAuthority = new Map<string, { scheme: string; paths: string[] }>();
+		for (const root of this._getTrustedFileRoots()) {
+			const remoteRoot = getBrowserViewRemoteRoot(root);
+			if (remoteRoot) {
+				const key = remoteRoot.authority.toLowerCase();
+				const entry = rootsByAuthority.get(key) ?? { scheme: remoteRoot.scheme, paths: [] };
+				if (entry.scheme === remoteRoot.scheme) {
+					entry.paths.push(remoteRoot.path);
+				}
+				rootsByAuthority.set(key, entry);
 			}
 		}
-		return networkProxies;
+		const ownAuthority = this.environmentService.remoteAuthority;
+		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
+		const remoteNetworks: { [authority: string]: IBrowserViewRemoteNetwork } = {};
+		for (const [authority, entry] of this._networkProxies) {
+			if (!entry.info) {
+				continue;
+			}
+			const isOwn = authority.toLowerCase() === ownAuthority?.toLowerCase();
+			const scheme = isOwn ? Schemas.vscodeRemote : AGENT_HOST_SCHEME;
+			const roots = rootsByAuthority.get(authority.toLowerCase());
+			remoteNetworks[authority] = {
+				proxy: entry.info,
+				scheme,
+				trustedRoots: roots?.scheme === scheme ? roots.paths : [],
+				trustAllFiles: isOwn && trustAllFiles,
+				caseSensitive: isOwn ? this._isRemotePathCaseSensitive(authority) : this._networkResolver?.isPathCaseSensitive?.({ authority }) ?? true,
+			};
+		}
+		return remoteNetworks;
+	}
+
+	/** Defaults to case-sensitive, which is the strict choice, until the remote's file system is registered. */
+	private _isRemotePathCaseSensitive(authority: string): boolean {
+		const root = URI.from({ scheme: Schemas.vscodeRemote, authority, path: '/' });
+		return !this.fileService.hasProvider(root) || this.fileService.hasCapability(root, FileSystemProviderCapabilities.PathCaseSensitive);
 	}
 
 	private _getKeybindings(): { [commandId: string]: string } {
@@ -984,8 +1029,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		};
 	}
 
-	/** Main decides which roots apply to which sessions based on their scheme. */
-	private _getTrustedFileRoots(): UriComponents[] {
+	/** The candidate trusted roots on any file system. Local ones go to the window configuration as is; remote ones are grouped by network. */
+	private _getTrustedFileRoots(): URI[] {
 		// Trust Copilot roots so agents can create HTML files and open them in the browser.
 		const roots = getCopilotRootPaths(this.environmentService.userHome.fsPath, this.copilotHomeService.home.fsPath).map(path => URI.file(path));
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {

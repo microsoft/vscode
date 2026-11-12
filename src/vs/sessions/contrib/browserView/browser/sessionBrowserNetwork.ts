@@ -8,10 +8,12 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IReader, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
+import { getAgentHostOperatingSystem } from '../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewStorageScope, getBrowserViewSessionAffinity, IBrowserViewNetwork, IBrowserViewOwner, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -67,7 +69,9 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
 	/** The folders of the sessions on remote agent hosts that are trusted, for {@link IBrowserViewNetworkResolver.getTrustedFileRoots}. */
 	private _trustedFileRoots: URI[] = [];
-	/** Identifies {@link _trustedFileRoots}, so changes are only reported when the set changes. */
+	/** Whether the file system of each host (keyed by authority) with trusted roots distinguishes paths by case, once its operating system is known. */
+	private _caseSensitiveHosts = new Map<string, boolean>();
+	/** Identifies {@link _trustedFileRoots} and {@link _caseSensitiveHosts}, so changes are only reported when they change. */
 	private _trustedFileRootsKey = '[]';
 	/** Recomputes of the trusted roots run one at a time, so the latest one wins. */
 	private readonly _trustedFileRootsUpdates = new Sequencer();
@@ -101,10 +105,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		const onDidChangeTrustedFileRoots = this._register(new Emitter<void>());
 		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
 			const roots = await this._computeTrustedFileRoots();
-			const key = JSON.stringify(roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort());
+			const caseSensitiveHosts = await this._computeCaseSensitiveHosts(roots);
+			const key = JSON.stringify([roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort(), [...caseSensitiveHosts].sort()]);
 			if (key !== this._trustedFileRootsKey) {
 				this._trustedFileRootsKey = key;
 				this._trustedFileRoots = roots;
+				this._caseSensitiveHosts = caseSensitiveHosts;
 				onDidChangeTrustedFileRoots.fire();
 			}
 		});
@@ -121,6 +127,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			},
 			resolveStorageAffinity: owner => this._getStorageAffinity(this._resolveHost(owner)),
 			getTrustedFileRoots: () => this._trustedFileRoots,
+			isPathCaseSensitive: network => this._caseSensitiveHosts.get(network.authority),
 			onDidChangeTrustedFileRoots: onDidChangeTrustedFileRoots.event,
 			getNetworkStatus: network => this._getNetworkStatus(network.authority, undefined),
 			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
@@ -210,6 +217,22 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		}
 		const trusted = await Promise.all(candidates.map(async ({ folder, requiresTrust }) => !requiresTrust || (await this._workspaceTrustManagementService.getUriTrustInfo(folder)).trusted));
 		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
+	}
+
+	/** Looks up the operating system of the hosts the roots are on. Hosts whose lookup fails are left out and treated as case-sensitive. */
+	private async _computeCaseSensitiveHosts(roots: readonly URI[]): Promise<Map<string, boolean>> {
+		const hosts = new Map<string, boolean>();
+		await Promise.all([...new Set(roots.map(root => root.authority))].map(async authority => {
+			const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
+			if (connection) {
+				try {
+					hosts.set(authority, (await getAgentHostOperatingSystem(connection)) === OperatingSystem.Linux);
+				} catch {
+					// Without a known operating system the host keeps strict, case-sensitive matching.
+				}
+			}
+		}));
+		return hosts;
 	}
 
 	private _getNetworkStatus(authority: string, reader: IReader | undefined): IBrowserViewNetworkStatus {
