@@ -1821,6 +1821,50 @@ suite('AgentHostChatContributions', () => {
 		}, { waiting: ['pending'], before: 0, admitted: 1, captured: 'principal-token' });
 	});
 
+	for (const outcome of ['cancelled', 'error'] as const) {
+		for (const previouslyWaiting of [false, true]) {
+			test(`queue drain does not retry ${previouslyWaiting ? 'waiting' : 'unstarted'} messages on credential events after ${outcome}`, async () => {
+				const queue = createQueueDrainContributions(disposables);
+				const resource = 'https://api.github.com';
+				queue.agent.getProtectedResources = () => [{ resource }];
+				const changed = disposables.add(new Emitter<void>());
+				let current: IAgentHostCredentialSource | undefined = undefined;
+				const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined,
+					() => ({ onDidChange: changed.event, resolve: () => current })));
+				await source.authenticate({ resource, token: 'live' }, [resource]);
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+				const action = queuedMessage('pending', 'pending work');
+				queue.stateManager.dispatchServerAction(queue.chat, action);
+				queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials: source });
+				if (previouslyWaiting) {
+					queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+					queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+					queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'new user request', '2025-01-01T00:00:01.000Z'));
+				}
+				const error = { errorType: 'requestFailed', message: 'failed' };
+				queue.stateManager.dispatchServerAction(queue.chat, outcome === 'cancelled'
+					? { type: ActionType.ChatTurnCancelled, turnId: 'active', duration: 1 }
+					: { type: ActionType.ChatError, turnId: 'active', duration: 1, part: { kind: ResponsePartKind.Error, error, resumable: false } });
+				queue.service.turnEnd({
+					session: queue.session, channel: queue.chat, turnId: 'active',
+					reason: outcome === 'cancelled' ? { kind: 'cancelled' } : { kind: 'error', error, resumable: false },
+				});
+				current = source;
+				changed.fire();
+				const paused = {
+					admitted: queue.admitted.length,
+					pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
+				};
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('retry', 'new user request', '2025-01-01T00:00:02.000Z'));
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('retry', 1));
+				queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'retry', reason: { kind: 'success' } });
+				assert.deepStrictEqual({ paused, admittedAfterUserRequest: queue.admitted.length }, {
+					paused: { admitted: 0, pending: ['pending'] }, admittedAfterUserRequest: 1,
+				});
+			});
+		}
+	}
+
 	for (const cleanup of ['message', 'chat'] as const) {
 		test(`queue drain releases pending credential listeners when the ${cleanup} is removed`, async () => {
 			const queue = createQueueDrainContributions(disposables);

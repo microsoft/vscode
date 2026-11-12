@@ -61,6 +61,15 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
+		if (turn.reason.kind !== 'success' && turn.reason.kind !== 'localCommand') {
+			const state = this._stateManager.getChatState(turn.channel);
+			for (const message of [...(state?.queuedMessages ?? []), ...(state ? getPendingSteeringMessages(state) : [])]) {
+				const sender = this._context.memento(PendingSender, turn.channel, message.id).get();
+				if (sender) {
+					sender.waitingForCredentials = false;
+				}
+			}
+		}
 		if (turn.reason.kind === 'cancelled') {
 			const state = this._stateManager.getChatState(turn.channel);
 			if (state) {
@@ -169,7 +178,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				listeners = new DisposableMap();
 				this._credentialListeners.set(channel, listeners);
 			}
-			listeners.set(id, queuedCredentials.onDidChange(() => this._tryConsumeNextQueuedMessage(channel)));
+			listeners.set(id, queuedCredentials.onDidChange(() => this._tryConsumeNextQueuedMessage(channel, id)));
 		}
 	}
 
@@ -273,7 +282,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 	}
 
-	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
+	private _tryConsumeNextQueuedMessage(channel: ProtocolURI, retryMessageId?: string): void {
 		if (this._conversionService.isPending(channel) || this._stateManager.isChatAdmissionHeld(channel)) {
 			return;
 		}
@@ -296,7 +305,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 		// Steering that arrived too late to steer a turn runs next, ahead of queued messages.
 		const message = steering[0] ?? state.queuedMessages?.find(message => message.kind !== PendingMessageKind.Steering);
-		if (!message) {
+		if (!message || (retryMessageId !== undefined && message.id !== retryMessageId)) {
 			return;
 		}
 		const host = this._getHost();
@@ -310,6 +319,9 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				hostLaunchKind: host.hostLaunchKind,
 			},
 		};
+		if (retryMessageId !== undefined && !sender.waitingForCredentials) {
+			return;
+		}
 		let credentials = sender.credentials;
 		if (sender.queuedCredentials) {
 			try {
