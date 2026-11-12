@@ -5,11 +5,12 @@
 
 import { IJSONSchema, TypeFromJsonSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, IReader, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { isSessionArtifactMode, SessionArtifactMode } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IChatPillEntry, IChatPillSection } from '../../../../browser/chatPills.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
@@ -28,6 +29,8 @@ export interface IChatResourceContribution {
 	readonly icon: ThemeIcon | undefined;
 	/** A URI template; see {@link resolveChatResourceTemplate}. */
 	readonly resource: string;
+	/** How each chat shows the resource once it exists, applied once like an agent's request; without it, it is only listed. */
+	readonly mode: SessionArtifactMode | undefined;
 }
 
 /** The identifiers of a chat that a {@link IChatResourceContribution.resource} template can use. */
@@ -76,6 +79,15 @@ const chatResourceSchema = {
 			type: 'string',
 			description: nls.localize('chatResources.icon', "Codicon of the resource, such as {0}.", '`$(checklist)`'),
 		},
+		mode: {
+			type: 'string',
+			enum: ['pinned', 'aboveInput'],
+			enumDescriptions: [
+				nls.localize('chatResources.mode.pinned', "Pins the resource into a pill of its own."),
+				nls.localize('chatResources.mode.aboveInput', "Pins the resource and shows it above the chat input."),
+			],
+			description: nls.localize('chatResources.mode', "How each chat shows the resource once it exists. Applied once per chat; users can change it afterwards. Without it, the resource is only listed in the Artifacts pill."),
+		},
 		resource: {
 			type: 'string',
 			description: nls.localize('chatResources.resource', "URI of the resource for a chat, such as `chat-todos:/${agentSessionId}.todo.json`. `${chatSessionId}` is the agent host's identifier of the chat, `${agentSessionId}` the agent host's identifier of the session, which agents get from the `get_current_session` tool. The chat lists the resource while it exists."),
@@ -98,9 +110,10 @@ function isRawChatResourceContribution(value: unknown): value is IRawChatResourc
 	if (!value || typeof value !== 'object') {
 		return false;
 	}
-	const raw = value as { readonly id?: unknown; readonly label?: unknown; readonly resource?: unknown; readonly icon?: unknown };
+	const raw = value as { readonly id?: unknown; readonly label?: unknown; readonly resource?: unknown; readonly icon?: unknown; readonly mode?: unknown };
 	return typeof raw.id === 'string' && typeof raw.label === 'string' && typeof raw.resource === 'string'
-		&& (raw.icon === undefined || typeof raw.icon === 'string');
+		&& (raw.icon === undefined || typeof raw.icon === 'string')
+		&& (raw.mode === undefined || isSessionArtifactMode(raw.mode));
 }
 
 const contributions = observableValue<readonly IChatResourceContribution[]>('chatResourceContributions', []);
@@ -118,7 +131,7 @@ chatResourcesExtensionPoint.setHandler(extensions => {
 		}
 		for (const raw of extension.value as unknown[]) {
 			if (!isRawChatResourceContribution(raw)) {
-				extension.collector.error(`A chat resource needs an 'id', a 'label', and a 'resource', and its 'icon' must be a string.`);
+				extension.collector.error(`A chat resource needs an 'id', a 'label', and a 'resource'; its 'icon' must be a string, and its 'mode' 'pinned' or 'aboveInput'.`);
 				continue;
 			}
 			result.push({
@@ -127,6 +140,7 @@ chatResourcesExtensionPoint.setHandler(extensions => {
 				label: raw.label,
 				icon: raw.icon !== undefined ? ThemeIcon.fromString(raw.icon) : undefined,
 				resource: raw.resource,
+				mode: raw.mode,
 			});
 		}
 	}
@@ -145,6 +159,7 @@ export function getContributedChatResourceEntryId(contribution: IChatResourceCon
 export class ChatResourceContributionEntries extends Disposable {
 
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	private readonly _existing: IObservable<readonly { readonly contribution: IChatResourceContribution; readonly resource: URI }[]>;
 
 	/**
 	 * @param ids The identifiers of the chat, or `undefined` while it has none, such as in a subagent chat.
@@ -169,8 +184,9 @@ export class ChatResourceContributionEntries extends Disposable {
 			...candidate,
 			exists: observeChatResourceExists(fileService, candidate.resource, store, false),
 		}), candidate => `${getContributedChatResourceEntryId(candidate.contribution)}\u0000${candidate.resource.toString()}`);
+		this._existing = derived(this, reader => withExistence.read(reader).filter(candidate => candidate.exists.read(reader)));
 		this.sections = derived(this, reader => {
-			const entries = withExistence.read(reader).filter(candidate => candidate.exists.read(reader)).map(({ contribution, resource }): IChatPillEntry => ({
+			const entries = this._existing.read(reader).map(({ contribution, resource }): IChatPillEntry => ({
 				id: getContributedChatResourceEntryId(contribution),
 				label: contribution.label,
 				icon: contribution.icon,
@@ -179,5 +195,10 @@ export class ChatResourceContributionEntries extends Disposable {
 			}));
 			return entries.length ? [{ title: nls.localize('chatResources.contributedSection', "Extensions"), entries }] : [];
 		});
+	}
+
+	/** The modes the contributions ask for, by the ID of the pill entry of their existing resources. */
+	getModes(reader: IReader | undefined): ReadonlyMap<string, SessionArtifactMode> {
+		return new Map(this._existing.read(reader).flatMap(({ contribution }) => contribution.mode ? [[getContributedChatResourceEntryId(contribution), contribution.mode] as const] : []));
 	}
 }

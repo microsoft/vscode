@@ -32,10 +32,13 @@ suite('ChatResources', () => {
 	test('lists a contributed resource while its file exists for the chat', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('chat-status', store.add(new InMemoryFileSystemProvider())));
-		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${agentSessionId}.md' };
+		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${agentSessionId}.md', mode: 'aboveInput' };
 		const ids = observableValue<IChatResourceSessionIds | undefined>('ids', { chatSessionId: 'chat-1', agentSessionId: 'cli-42' });
 		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), ids, () => { }, fileService));
-		const listed = () => entries.sections.get().flatMap(section => section.entries.map(entry => `${entry.id} ${entry.label} ${entry.resource?.toString()}`));
+		const listed = () => [
+			...entries.sections.get().flatMap(section => section.entries.map(entry => `${entry.id} ${entry.label} ${entry.resource?.toString()}`)),
+			...[...entries.getModes(undefined)].map(([id, mode]) => `${id} asks ${mode}`),
+		];
 		// Like the pill that reads them, an observer keeps the entries and their file watchers alive.
 		store.add(autorun(reader => entries.sections.read(reader)));
 
@@ -48,14 +51,14 @@ suite('ChatResources', () => {
 
 		assert.deepStrictEqual({ before, created, deleted: listed() }, {
 			before: [],
-			created: ['contributed:pub.ext/status Status chat-status:/cli-42.md'],
+			created: ['contributed:pub.ext/status Status chat-status:/cli-42.md', 'contributed:pub.ext/status asks aboveInput'],
 			deleted: [],
 		});
 	});
 
 	test('watches a resource whose file system provider registers later', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
-		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${chatSessionId}.md' };
+		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${chatSessionId}.md', mode: undefined };
 		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), observableValue('ids', { chatSessionId: 'chat-1', agentSessionId: undefined }), () => { }, fileService));
 		store.add(autorun(reader => entries.sections.read(reader)));
 		const provider = store.add(new InMemoryFileSystemProvider());
