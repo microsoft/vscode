@@ -7,23 +7,35 @@ import { IChatWindow, IChatWindowService } from '../../chatWindow/browser/chatWi
 import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 
-/** The chat window that `host` is in, if it is in one. */
-export function getChatWindowOfHost(chatWindowService: IChatWindowService, host: ISessionHost | undefined): IChatWindow | undefined {
+/** Where the editors of a chat are shown: the main window, or the chat window the chat is in. */
+export type EditorTarget = IChatWindow | 'main';
+
+/**
+ * The window that shows the editors of the chat in `host`. Returns `undefined` for a host in a chat window that is not
+ * registered (being created or torn down): nothing may fall back to the main window then.
+ */
+export function getEditorTarget(chatWindowService: IChatWindowService, host: ISessionHost | undefined): EditorTarget | undefined {
 	const windowHost = host && getWindowHost(host);
-	const windowId = windowHost?.kind === SessionHostKind.ChatWindow ? windowHost.windowId.get() : undefined;
+	if (windowHost?.kind !== SessionHostKind.ChatWindow) {
+		return 'main';
+	}
+	const windowId = windowHost.windowId.get();
 	return windowId === undefined ? undefined : chatWindowService.getWindow(windowId);
 }
 
-/**
- * Reveals the editors where the user asked for them: in the chat window that `host` is in, else in the main window. Returns
- * the chat window, whose main part is where an editor opens, or `undefined` for the main window.
- */
-export function revealEditorsOfHost(layoutService: ISessionsHostLayoutService, chatWindowService: IChatWindowService, host: ISessionHost | undefined): IChatWindow | undefined {
-	const chatWindow = getChatWindowOfHost(chatWindowService, host);
-	if (chatWindow) {
-		chatWindow.showEditor();
-	} else {
+/** Reveals the editor area of `target`. */
+export function revealEditorTarget(layoutService: ISessionsHostLayoutService, target: EditorTarget): void {
+	if (target === 'main') {
 		layoutService.revealEditorPartExplicitly();
+	} else {
+		target.showEditor();
 	}
-	return chatWindow;
+}
+
+/** The group an editor opens in: the main part's active group of a chat window, or the preferred group of the main window. */
+export function getEditorTargetGroup(target: EditorTarget, existingGroupId?: number): number | undefined {
+	if (target === 'main') {
+		return existingGroupId;
+	}
+	return existingGroupId !== undefined && target.mainPart.getGroup(existingGroupId) ? existingGroupId : target.mainPart.activeGroup.id;
 }

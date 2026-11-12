@@ -17,7 +17,8 @@ import { IFocusedSessionHostService, ISessionHostService } from '../../../../wor
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
-import { getChatWindowOfHost, revealEditorsOfHost } from '../../../../workbench/contrib/sessionChanges/browser/chatWindowEditorTarget.js';
+import { getEditorTarget, revealEditorTarget } from '../../../../workbench/contrib/sessionChanges/browser/chatWindowEditorTarget.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
@@ -44,6 +45,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -198,8 +200,13 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 
 	private async _openSessionTurnChanges(session: ISession, chat: IChat, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
 		const chatHost = this._sessionHostService.getHostOfChat(chat.resource);
+		const target = getEditorTarget(this._chatWindowService, chatHost);
+		if (!target) {
+			this._logService.trace('[SessionsChatResponseFileChangesService] The chat window of the chat is not available, not opening its changes');
+			return;
+		}
 		// A chat a chat window shows is already shown there; the main window, which may be the focused host, stays as it is.
-		const inChatWindow = !!getChatWindowOfHost(this._chatWindowService, chatHost);
+		const inChatWindow = target !== 'main';
 		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (inChatWindow) {
 			// Nothing to activate.
@@ -208,7 +215,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		} else if (!isEqual(activeSession?.resource, session.resource)) {
 			this._sessionsService.showSession(session.resource, { preserveFocus: true });
 		}
-		const chatWindow = revealEditorsOfHost(this._layoutService, this._chatWindowService, chatHost);
+		revealEditorTarget(this._layoutService, target);
 		const changesetSelection: ISessionChangesEditorOptions['changesetSelection'] = transientTurn
 			? {
 				kind: 'transient',
@@ -231,7 +238,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID };
 		await this._sessionChangesService.openChangesEditor(session.resource, {
 			changesetSelection,
-			chatResource: chatWindow ? chat.resource : undefined,
-		}, chatWindow?.mainPart.activeGroup);
+			chatResource: inChatWindow ? chat.resource : undefined,
+		}, inChatWindow ? target.mainPart.activeGroup : undefined);
 	}
 }

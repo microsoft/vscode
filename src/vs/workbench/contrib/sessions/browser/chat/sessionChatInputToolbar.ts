@@ -61,7 +61,7 @@ import { activateHostPane, IActionTarget, SessionActivatingActionRunner } from '
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
-import { revealEditorsOfHost } from '../../../sessionChanges/browser/chatWindowEditorTarget.js';
+import { getEditorTarget, getEditorTargetGroup, revealEditorTarget } from '../../../sessionChanges/browser/chatWindowEditorTarget.js';
 import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -707,8 +707,13 @@ export class SessionChatInputToolbar extends Disposable {
 						const existing = editors.find(({ editor }) => editor === editorService.activeEditor && matchesEditor(editor, entries))
 							?? editors.find(({ editor }) => matchesEditor(editor, entries));
 						if (existing) {
-							revealEditorsOfHost(hostLayoutService, chatWindowService, this._sessionHost);
-							await editorService.openEditor(existing.editor, { revealIfOpened: true }, existing.groupId);
+							const target = getEditorTarget(chatWindowService, this._sessionHost);
+							if (!target) {
+								logService.trace('[SessionChatInputToolbar] The chat window of the chat is not available, not revealing its editor');
+								return;
+							}
+							revealEditorTarget(hostLayoutService, target);
+							await editorService.openEditor(existing.editor, { revealIfOpened: true }, getEditorTargetGroup(target, existing.groupId));
 							return;
 						}
 						entries[0].open();
@@ -772,14 +777,19 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 					const chat = this._chat.get();
 					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					const chatWindow = revealEditorsOfHost(hostLayoutService, chatWindowService, this._sessionHost);
+					const target = getEditorTarget(chatWindowService, this._sessionHost);
+					if (!target) {
+						logService.trace('[SessionChatInputToolbar] The chat window of the chat is not available, not opening its changes');
+						return;
+					}
+					revealEditorTarget(hostLayoutService, target);
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
 							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
 						},
-						chatResource: chatWindow ? chat?.resource : undefined,
-					}, chatWindow?.mainPart.activeGroup);
+						chatResource: target !== 'main' ? chat?.resource : undefined,
+					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 				},
 			},
 			pullRequests: pullRequestData,

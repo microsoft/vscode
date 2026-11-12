@@ -121,14 +121,14 @@ suite('SessionChatInputToolbar', () => {
 		return { instantiationService, visibility, configuration };
 	}
 
-	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener'], inChatWindow = false) {
+	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener'], inChatWindow = false, chatWindowRegistered = true) {
 		const services = createServices();
 		const { instantiationService } = services;
 		const reveals: string[] = [];
 		if (inChatWindow) {
 			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) }));
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
-				getWindow: windowId => windowId === 7 ? upcastPartial<IChatWindow>({ showEditor: () => { reveals.push('chatWindow.showEditor'); } }) : undefined,
+				getWindow: windowId => windowId === 7 && chatWindowRegistered ? upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: upcastPartial<IChatWindow['mainPart']['activeGroup']>({ id: 99 }), getGroup: id => id === 50 ? upcastPartial<IChatWindow['mainPart']['activeGroup']>({ id }) : undefined }), showEditor: () => { reveals.push('chatWindow.showEditor'); } }) : undefined,
 			}));
 		}
 		const extensionsChanged = store.add(new Emitter<{ added: []; removed: [] }>());
@@ -288,16 +288,17 @@ suite('SessionChatInputToolbar', () => {
 			assert.deepStrictEqual({ before, after: toolbar.activityBarActions.get()[0].checked, opened }, { before: false, after: true, opened: [] });
 		});
 
-		for (const inChatWindow of [false, true]) {
-			test(`activity bar reveals an open ${kind} editor in ${inChatWindow ? 'the chat window that hosts the chat' : 'the main window'}`, async () => {
-				const { toolbar, setEditor, artifact, main, reveals, revealed } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID, undefined, inChatWindow);
-				const editor = store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor'));
-				setEditor(editor);
+		for (const { name, inChatWindow, registered, editorGroupId, expected } of [
+			{ name: 'the main window', inChatWindow: false, registered: true, editorGroupId: 1, expected: { reveals: ['main.revealEditorPartExplicitly'], revealed: [1] } },
+			{ name: 'the chat window that hosts the chat, from the group of another window', inChatWindow: true, registered: true, editorGroupId: 1, expected: { reveals: ['chatWindow.showEditor'], revealed: [99] } },
+			{ name: 'the chat window that hosts the chat, from its own group', inChatWindow: true, registered: true, editorGroupId: 50, expected: { reveals: ['chatWindow.showEditor'], revealed: [50] } },
+			{ name: 'no window when the chat window of the chat is not available', inChatWindow: true, registered: false, editorGroupId: 1, expected: { reveals: [], revealed: [] } },
+		]) {
+			test(`activity bar reveals an open ${kind} editor in ${name}`, async () => {
+				const { toolbar, setEditors, artifact, main, reveals, revealed } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID, undefined, inChatWindow, registered);
+				setEditors([{ editor: store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor')), groupId: editorGroupId }]);
 				await toolbar.activityBarActions.get()[0].run();
-				assert.deepStrictEqual({ reveals, revealed: revealed.map(entry => entry.groupId) }, {
-					reveals: [inChatWindow ? 'chatWindow.showEditor' : 'main.revealEditorPartExplicitly'],
-					revealed: [1],
-				});
+				assert.deepStrictEqual({ reveals, revealed: revealed.map(entry => entry.groupId) }, expected);
 			});
 		}
 
