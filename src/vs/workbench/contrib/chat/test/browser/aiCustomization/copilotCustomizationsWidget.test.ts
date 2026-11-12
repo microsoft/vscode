@@ -563,6 +563,11 @@ suite('CopilotCanvasesWidget', () => {
 				name: 'never-run',
 				source: 'user',
 				status: 'disabled',
+			}, {
+				id: 'user:broken',
+				name: 'broken',
+				source: 'user',
+				status: 'failed',
 			}],
 		};
 		const harness = createHarness({ definitions: [], extensionInventory });
@@ -570,6 +575,7 @@ suite('CopilotCanvasesWidget', () => {
 		harness.widget.fireItemCount();
 		const detail = (name: string) => harness.container.querySelector(`.monaco-list-row[aria-label^="${name}."] .copilot-customization-tree-detail`)?.textContent;
 		const enabledPluginDetail = detail('microsoft-foundry');
+		const failedDetail = detail('broken');
 		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'never-run\'"]');
 		assert.ok(enable);
 		const neverRunEnableable = enable.checkVisibility() && enable.getAttribute('aria-disabled') !== 'true';
@@ -595,6 +601,7 @@ suite('CopilotCanvasesWidget', () => {
 			canvasRows: harness.container.querySelectorAll('.copilot-canvas-tree-item').length,
 			emptyVisible: harness.container.querySelector<HTMLElement>('.list-empty-state')?.style.display,
 			enabledPluginDetail,
+			failedDetail,
 			disabledPluginDetail: detail('microsoft-foundry'),
 			neverRunEnableable,
 			searchedRows,
@@ -602,10 +609,11 @@ suite('CopilotCanvasesWidget', () => {
 			itemCounts: harness.itemCounts,
 		}, {
 			accessible: true,
-			extensionRows: ['never-run', 'microsoft-foundry'],
+			extensionRows: ['broken', 'never-run', 'microsoft-foundry'],
 			canvasRows: 0,
 			emptyVisible: 'none',
 			enabledPluginDetail: 'Plugin: microsoft-foundry·No Canvases Reported',
+			failedDetail: 'Extension: broken·Failed',
 			disabledPluginDetail: 'Plugin: microsoft-foundry',
 			neverRunEnableable: true,
 			searchedRows: ['microsoft-foundry'],

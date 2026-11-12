@@ -1646,6 +1646,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (refreshMessage) {
 			return refreshMessage;
 		}
+		if (item.extension?.status === 'failed') {
+			return this.getExtensionStateLabel(item);
+		}
 		return item.canvases.length === 0 && this.isExtensionEnabled(item)
 			? localize('copilotCanvases.noCanvasesReported', "No Canvases Reported")
 			: '';
