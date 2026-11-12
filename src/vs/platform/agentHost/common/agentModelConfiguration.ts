@@ -5,6 +5,7 @@
 
 import { formatTokenCount } from '../../../base/common/numbers.js';
 import { localize } from '../../../nls.js';
+import type { IByokLmContextSizeOptions } from './agentHostByokLm.js';
 import { hasLongContextSurcharge, type ICAPIModelBilling } from './meta/agentModelMeta.js';
 import type { ConfigPropertySchema, JsonPrimitive, ModelSelection } from './state/protocol/state.js';
 import { isObject } from '../../../base/common/types.js';
@@ -155,6 +156,66 @@ export function createContextSizeConfigSchemaPropertyFromLimits(defaultMax: numb
 			localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
 		],
 	};
+}
+
+/**
+ * Synthesizes the context-size picker property for a BYOK model from the sizes
+ * its renderer provider advertises (see {@link IByokLmContextSizeOptions}). The
+ * provider's labels, descriptions and default win; a missing label falls back to
+ * the formatted token count, and a missing default to the largest size, which is
+ * what the model runs against when nothing is selected.
+ */
+export function createByokContextSizeConfigSchemaProperty(options: IByokLmContextSizeOptions | undefined): ConfigPropertySchema | undefined {
+	const values = normalizeByokContextSizes(options);
+	// Same threshold as `resolveByokContextSize`: a picker and an applied size go together.
+	if (!options || values.length < 2) {
+		return undefined;
+	}
+	// Labels and descriptions are parallel to the advertised values, not the normalized ones.
+	const { labels, descriptions } = options;
+	const indexOf = (value: number) => options.values.indexOf(value);
+	return {
+		type: 'number',
+		title: localize('copilot.modelContextSize.title', "Context Size"),
+		description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
+		default: resolveByokContextSize(options, undefined),
+		enum: values,
+		enumLabels: values.map(value => labels?.[indexOf(value)] || formatTokenCount(value)),
+		...(descriptions ? { enumDescriptions: values.map(value => descriptions[indexOf(value)] ?? '') } : {}),
+	};
+}
+
+/**
+ * Resolves the prompt-token budget a session runs a BYOK model against:
+ * `selected` when the model still offers it, else the provider's default, else
+ * the largest size offered. `undefined` when the model offers fewer than two
+ * sizes — no choice means no picker, and a budget the user cannot see or change
+ * must not be applied — so a stale selection never reaches the runtime as an
+ * arbitrary number either.
+ */
+export function resolveByokContextSize(options: IByokLmContextSizeOptions | undefined, selected: number | undefined): number | undefined {
+	const values = normalizeByokContextSizes(options);
+	if (!options || values.length < 2) {
+		return undefined;
+	}
+	if (selected !== undefined && values.includes(selected)) {
+		return selected;
+	}
+	if (options.default !== undefined && values.includes(options.default)) {
+		return options.default;
+	}
+	return Math.max(...values);
+}
+
+/** The distinct, finite, positive sizes of {@link IByokLmContextSizeOptions.values}, in advertised order. */
+function normalizeByokContextSizes(options: IByokLmContextSizeOptions | undefined): number[] {
+	const values: number[] = [];
+	for (const value of options?.values ?? []) {
+		if (typeof value === 'number' && Number.isFinite(value) && value > 0 && !values.includes(value)) {
+			values.push(value);
+		}
+	}
+	return values;
 }
 
 /** Reads a finite, positive context-window selection from a model config. */

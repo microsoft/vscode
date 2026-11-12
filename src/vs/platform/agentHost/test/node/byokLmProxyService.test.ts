@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { ByokLmProxyService, type IByokLmProxyHandle, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
+import { byokContextSizeHeaders, ByokLmProxyService, type IByokLmProxyHandle, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { BYOK_MAX_TOOLS } from '../../node/copilot/byokResponsesTranslation.js';
 
 /**
@@ -40,9 +40,10 @@ suite('ByokLmProxyService', () => {
 	async function withProxy(
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
 		run: (handle: IByokLmProxyHandle, service: ByokLmProxyService) => Promise<void>,
+		models?: IByokLmModelInfo[],
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', servingConnection(chat));
+		const registration = registry.register('client-1', servingConnection(chat, models));
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
@@ -197,6 +198,33 @@ suite('ByokLmProxyService', () => {
 			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: sessionId },
 			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: 'sess-2' },
 		]);
+	});
+
+	test('tells the provider the context size the session runs the model at', async () => {
+		const sized = (id: string, values: number[], defaultSize: number): IByokLmModelInfo => ({ vendor: 'acme', id, contextSizeOptions: { values, default: defaultSize } });
+		const captured: [string, number | undefined][] = [];
+		await withProxy(
+			async request => {
+				captured.push([request.modelId, request.contextSize]);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			async handle => {
+				const post = async (model: string, selected?: Record<string, string>) => {
+					const response = await fetch(responsesUrl(handle, 'acme'), { method: 'POST', headers: { ...authHeaders(handle), ...selected }, body: JSON.stringify({ model, input: 'hi' }) });
+					await response.text();
+				};
+				const opusSmall = byokContextSizeHeaders('opus', 200_000);
+				await post('opus', opusSmall);
+				// Without a selection for the model, the session runs it at its default.
+				await post('opus');
+				await post('haiku', opusSmall);
+				// A size the model does not offer is not passed on.
+				await post('opus', byokContextSizeHeaders('opus', 500_000));
+				await post('plain', byokContextSizeHeaders('plain', 200_000));
+			},
+			[sized('opus', [200_000, 968_000], 968_000), sized('haiku', [100_000, 968_000], 100_000), { vendor: 'acme', id: 'plain' }],
+		);
+		assert.deepStrictEqual(captured, [['opus', 200_000], ['opus', 968_000], ['haiku', 100_000], ['opus', 968_000], ['plain', undefined]]);
 	});
 
 	test('forwards image input on the initial and subsequent turns', async () => {

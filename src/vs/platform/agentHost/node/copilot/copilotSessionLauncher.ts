@@ -24,7 +24,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
-import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
@@ -39,14 +39,14 @@ import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { defaultAutoModeTier, getAdvertisedAutoModeTierSupport, getSupportedAutoModeTiers, isAutoAdvertisedAsFusion, isSupportedAutoModeTier, normalizeAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { AgentCustomization, ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
-import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
+import { ContextSizeConfigKey, getModelContextSize, resolveByokContextSize } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
-import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
+import { byokContextSizeHeaders, IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
@@ -430,9 +430,10 @@ export interface ICopilotSessionLauncher {
 	/**
 	 * Resolves the BYOK providers and models that a session launched now would
 	 * register (see {@link synthesizeByokSessionConfig}). Empty when BYOK is gated
-	 * off or the renderer reports no BYOK models.
+	 * off or the renderer reports no BYOK models. `model` is the session's current
+	 * selection, whose context size sizes the selected BYOK model's limits.
 	 */
-	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
+	resolveByokSessionConfig(sessionId: string, model: ModelSelection | undefined): Promise<ICopilotByokSessionConfig>;
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
@@ -883,6 +884,11 @@ function toSdkCapiSessionOptions(autoTier: string | undefined): Pick<SessionConf
  * provider-qualified selection id `vendor/[group/]id`, matching what the renderer's
  * `AgentHostByokLmHandler` resolves.
  *
+ * The config is per session, so it is also where a model's selected context size
+ * is applied: see {@link getByokSessionModelLimits}. A size other than the model's
+ * default is also recorded in its provider's `headers`, which is how the proxy
+ * knows what to tell the extension.
+ *
  * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
  * unit-testable without instantiating the launcher; the launcher passes a
  * `startProxy` thunk that memoizes the single shared proxy handle.
@@ -892,6 +898,7 @@ export async function synthesizeByokSessionConfig(
 	bridgeRegistry: IByokLmBridgeRegistry,
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
+	model?: ModelSelection,
 ): Promise<ICopilotByokSessionConfig> {
 	// Surface the serving window's BYOK models. The registry does not union
 	// windows' model sets — all serving windows expose the same set, so it picks
@@ -930,27 +937,71 @@ export async function synthesizeByokSessionConfig(
 		logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
 		return {};
 	}
+	// The proxy assumes a model runs at its default size, so only another selection is recorded for it.
+	const selected = byokModels.find(m => getByokLmAgentModelId(m) === model?.id);
+	const selectedContextSize = resolveByokContextSize(selected?.contextSizeOptions, getModelContextSize(model));
+	const headers = selected && selectedContextSize !== undefined && selectedContextSize !== resolveByokContextSize(selected.contextSizeOptions, undefined)
+		? byokContextSizeHeaders(getByokLmSelectionModelId(selected), selectedContextSize)
+		: undefined;
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',
 		wireApi: 'responses',
 		baseUrl: handle.providerBaseUrl(vendor),
 		bearerToken: `${handle.nonce}.${sessionId}`,
+		...(headers && selected?.vendor === vendor ? { headers } : {}),
 	}));
-	const models: ProviderModelConfig[] = byokModels.map(m => ({
-		id: getByokLmSelectionModelId(m),
-		provider: m.vendor,
-		// Tool/prompt policy uses the canonical model, not the provider group's routing id.
-		modelId: m.id,
-		...(m.name !== undefined ? { name: m.name } : {}),
-		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
-		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
-		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
-		// Without this the runtime treats the model as text-only and replaces
-		// tool-result images (e.g. from the `view` tool) with a text receipt.
-		...(m.supportsVision !== undefined ? { capabilities: { supports: { vision: m.supportsVision } } } : {}),
-	}));
+	const models: ProviderModelConfig[] = byokModels.map(m => {
+		const limits = getByokSessionModelLimits(m, model);
+		if (limits.maxPromptTokens !== m.maxPromptTokens) {
+			logService.info(`[Copilot:${sessionId}] Registering BYOK model ${getByokLmAgentModelId(m)} at context size ${limits.maxPromptTokens} (advertised: ${m.maxPromptTokens ?? 'unknown'})`);
+		}
+		return {
+			id: getByokLmSelectionModelId(m),
+			provider: m.vendor,
+			// Tool/prompt policy uses the canonical model, not the provider group's routing id.
+			modelId: m.id,
+			...(m.name !== undefined ? { name: m.name } : {}),
+			...(limits.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: limits.maxContextWindowTokens } : {}),
+			...(limits.maxPromptTokens !== undefined ? { maxPromptTokens: limits.maxPromptTokens } : {}),
+			...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
+			// Without this the runtime treats the model as text-only and replaces
+			// tool-result images (e.g. from the `view` tool) with a text receipt.
+			...(m.supportsVision !== undefined ? { capabilities: { supports: { vision: m.supportsVision } } } : {}),
+		};
+	});
 	return { providers, models };
+}
+
+/**
+ * The token limits a BYOK model is registered with on a session. A model that
+ * offers context sizes is registered at the size the session selected for it —
+ * or at its default when the session selected none, or one it no longer offers
+ * (see {@link resolveByokContextSize}) — so the runtime compacts against that
+ * budget rather than the model's full window. The window shrinks with the
+ * budget the same way the renderer's context meter computes it
+ * (`getModelContextWindowTotal`). A model without sizes, or one whose resolved
+ * size is not below its advertised prompt limit, keeps its advertised limits.
+ *
+ * Applied here rather than through the SDK's session-level `modelCapabilities`
+ * override because that override is not scoped to a model: it persists across
+ * `setModel` calls that omit it, so a budget chosen for one model would cap the
+ * next one. A registered model's limits are its own, and the runtime re-reads
+ * them when `provider.sync` replaces the registration.
+ */
+export function getByokSessionModelLimits(m: IByokLmModelInfo, model: ModelSelection | undefined): Pick<ProviderModelConfig, 'maxPromptTokens' | 'maxContextWindowTokens'> {
+	const advertised = { maxPromptTokens: m.maxPromptTokens, maxContextWindowTokens: m.maxContextWindowTokens };
+	const selected = model?.id === getByokLmAgentModelId(m) ? getModelContextSize(model) : undefined;
+	const contextSize = resolveByokContextSize(m.contextSizeOptions, selected);
+	if (contextSize === undefined || (m.maxPromptTokens !== undefined && contextSize >= m.maxPromptTokens)) {
+		return advertised;
+	}
+	return {
+		maxPromptTokens: contextSize,
+		maxContextWindowTokens: m.maxContextWindowTokens === undefined
+			? undefined
+			: Math.min(m.maxContextWindowTokens, contextSize + (m.maxOutputTokens ?? 0)),
+	};
 }
 
 /**
@@ -1415,7 +1466,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * active bridge registry and a `startProxy` thunk that memoizes the single
 	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
-	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig> {
+	resolveByokSessionConfig(sessionId: string, model: ModelSelection | undefined): Promise<ICopilotByokSessionConfig> {
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration ${trace}`);
@@ -1427,7 +1478,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._byokProxyHandle = this._byokLmProxyService.start();
 			}
 			return this._byokProxyHandle;
-		}, this._logService);
+		}, this._logService, model);
 	}
 
 	/**
@@ -1519,7 +1570,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Custom agents run on the model they name, without routing, so a router is never one of their models.
 		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
-		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
+		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
+		const byokPromise = this.resolveByokSessionConfig(plan.sessionId, model);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
@@ -1539,7 +1591,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...plugins.flatMap(p => p.instructions),
 			...plan.snapshot.additionalRootInstructions,
 		]);
-		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
 		// A resumed session keeps its journaled Auto tier unless a tier takes precedence over the picker.
 		const resumeAutoTier = plan.kind === 'resume' ? resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true, plan.autoTierSupport?.() ?? getAdvertisedAutoModeTierSupport()) : undefined;
 		// Keyed by the real, un-aliased model id; a model-less "Auto" session

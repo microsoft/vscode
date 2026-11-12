@@ -117,6 +117,12 @@ export interface IByokLmChatRequest {
 	readonly tools?: IByokLmTool[];
 	readonly previousResponseId?: string;
 	readonly reasoningEffort?: string;
+	/**
+	 * The context size the session runs the model at, one of its
+	 * {@link IByokLmContextSizeOptions.values}. Absent when the model offers no
+	 * choice, and from an agent host that predates this field.
+	 */
+	readonly contextSize?: number;
 	readonly modelOptions?: Record<string, unknown>;
 }
 
@@ -141,6 +147,23 @@ export interface IByokLmChatResult {
 		readonly reasoningTokens?: number;
 	};
 	readonly error?: string;
+}
+
+/**
+ * The context-window sizes a renderer BYOK model offers through the
+ * `contextSize` property of its LM API configuration schema. Each value is a
+ * prompt-token budget; the agent host surfaces them as the model's "Context
+ * Size" picker and compacts the session against the selected one.
+ */
+export interface IByokLmContextSizeOptions {
+	/** Prompt-token budgets, in the order the provider advertises them. */
+	readonly values: readonly number[];
+	/** Display label per value (parallel to {@link values}), when the provider supplies them. */
+	readonly labels?: readonly string[];
+	/** Description per value (parallel to {@link values}), when the provider supplies them. */
+	readonly descriptions?: readonly string[];
+	/** The provider's default budget, when it names one of {@link values}. */
+	readonly default?: number;
 }
 
 /**
@@ -173,6 +196,12 @@ export interface IByokLmModelInfo {
 	readonly supportedReasoningEfforts?: readonly string[];
 	/** Default reasoning effort advertised by the renderer model, when known. */
 	readonly defaultReasoningEffort?: string;
+	/**
+	 * Context-window sizes advertised by the renderer model, when it offers a
+	 * choice. Absent from snapshots pushed by a renderer that predates this
+	 * field, in which case the model runs against its full window.
+	 */
+	readonly contextSizeOptions?: IByokLmContextSizeOptions;
 }
 
 /**
