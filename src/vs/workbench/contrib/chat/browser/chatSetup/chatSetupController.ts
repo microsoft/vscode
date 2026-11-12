@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation, raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceCancellationError, raceTimeout, Sequencer } from '../../../../../base/common/async.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -41,7 +41,8 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AuthRequiredReason, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ROOT_STATE_URI, RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -54,6 +55,12 @@ const defaultChat = {
 	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? 'github-enterprise.uri',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
+
+class MicrosoftSetupError extends Error {
+	constructor(readonly resource: ProtectedResourceMetadata, readonly rootState: IAgentHostService['rootState'], cause: unknown) {
+		super(toErrorMessage(cause), { cause });
+	}
+}
 
 export interface IChatSetupControllerOptions {
 	readonly forceSignIn?: boolean;
@@ -112,18 +119,22 @@ export class ChatSetupController extends Disposable {
 	async setup(options: IChatSetupControllerOptions = {}): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting chat ready...");
-		const badge = this.activityService.showViewContainerActivity(ChatViewContainerId, {
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(options.cancellationToken));
+		const microsoftSetup = options.useSocialProvider === 'microsoft' && this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true;
+		store.add(this.activityService.showViewContainerActivity(ChatViewContainerId, {
 			badge: new ProgressBadge(() => title),
-		});
+		}));
 
 		try {
 			return await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				command: CHAT_OPEN_ACTION_ID,
+				command: microsoftSetup ? undefined : CHAT_OPEN_ACTION_ID,
+				cancellable: microsoftSetup,
 				title,
-			}, () => this.doSetup(options, watch));
+			}, () => this.doSetup({ ...options, cancellationToken: cancellation.token }, watch), () => cancellation.cancel());
 		} finally {
-			badge.dispose();
+			store.dispose();
 		}
 	}
 
@@ -196,10 +207,12 @@ export class ChatSetupController extends Disposable {
 					return await this.doMicrosoftAccountSetup(token);
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
+						await this.clearMicrosoftSetup(error);
 						return undefined;
 					}
 					this.logService.error('[chat setup] Microsoft Copilot setup failed', error);
 					if (!await this.retryMicrosoftSetup(error)) {
+						await this.clearMicrosoftSetup(error);
 						throw new ChatSetupError(error instanceof Error ? error : new Error(toErrorMessage(error)), true);
 					}
 				}
@@ -207,6 +220,20 @@ export class ChatSetupController extends Disposable {
 			return undefined;
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
+		}
+	}
+
+	private async clearMicrosoftSetup(error: unknown): Promise<void> {
+		if (!(error instanceof MicrosoftSetupError)) {
+			return;
+		}
+		if (this.agentHostService.connectionAvailable?.get() === false || this.agentHostService.rootState !== error.rootState) {
+			this.logService.debug('[chat setup] The original Microsoft setup connection is no longer available to clear');
+			return;
+		}
+		const result = await this.agentHostService.authenticate({ resource: error.resource.resource, scopes: error.resource.scopes_supported, token: '' });
+		if (result.authenticated === false) {
+			throw new Error(localize('copilotMicrosoftResetRejected', "The agent host could not clear the incomplete Microsoft Copilot setup."));
 		}
 	}
 
@@ -229,6 +256,7 @@ export class ChatSetupController extends Disposable {
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		store.add(this.agentHostService.onAgentHostExit(() => cancellation.cancel()));
+		let started: { resource: ProtectedResourceMetadata; rootState: IAgentHostService['rootState'] } | undefined;
 		try {
 			this.agentHostService.startAgentHost();
 			await waitForState(this.agentHostService.connectionAvailable ?? constObservable(true), available => available, undefined, cancellation.token);
@@ -252,32 +280,96 @@ export class ChatSetupController extends Disposable {
 				}
 				return state?.agents.find(candidate => candidate.provider === agent.provider)?.protectedResources ?? [];
 			};
-			await this.authenticateMicrosoftResource(discovery, identity, currentResources(), cancellation.token);
 			const targets = new Set(copilotEntraResources.values());
-			const updated = await raceTimeout(waitForState(root,
-				state => !!state && !(state instanceof Error) && state.agents.some(candidate => candidate.provider === agent.provider && candidate.protectedResources?.some(resource => targets.has(resource.resource))),
-				state => state instanceof Error ? state : undefined, cancellation.token), 30_000);
-			if (!updated) {
-				throw new Error(localize('copilotDiscoveryIncomplete', "Copilot service availability could not be confirmed. Your Microsoft sign-in has been retained."));
-			}
-			const offered = currentResources().filter(resource => targets.has(resource.resource));
-			const choice = offered.length === 1 ? offered[0] : await this.chooseCopilotService(offered, cancellation.token);
-			if (!choice) {
-				return undefined;
-			}
-			this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
-			const credential = await this.getMicrosoftCredential(choice, identity.account, cancellation.token);
-			await this.authenticateMicrosoftResource(choice, credential, currentResources(), cancellation.token);
-			this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
-			this.setStep(ChatSetupStep.Installing);
-			await this.doInstall();
-			this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
-			return true;
+			const failed = new DeferredPromise<never>();
+			const prompts = new Sequencer();
+			const credentials = new Map<string, { resource: ProtectedResourceMetadata; credential: DeferredPromise<AuthenticationSession> }>();
+			const fail = (error: unknown) => {
+				if (!cancellation.token.isCancellationRequested) {
+					void failed.error(isCancellationError(error)
+						? new Error(localize('copilotConsentCancelled', "Microsoft consent was cancelled. Copilot setup is incomplete."), { cause: error })
+						: error);
+				}
+			};
+			const identityCredential = new DeferredPromise<AuthenticationSession>();
+			await identityCredential.complete(identity);
+			credentials.set(discovery.resource, { resource: discovery, credential: identityCredential });
+			store.add(this.agentHostService.onDidNotification(notification => {
+				if (notification.type !== NotificationType.AuthRequired || notification.channel !== ROOT_STATE_URI || cancellation.token.isCancellationRequested || failed.isSettled) {
+					return;
+				}
+				try {
+					const resource = currentResources().find(resource => equals(resource, notification.resource));
+					if (!resource || resource.resource !== discovery.resource && !targets.has(resource.resource)) {
+						return;
+					}
+					const previous = credentials.get(resource.resource);
+					if (previous) {
+						if (previous.credential.isSettled) {
+							fail(new Error(localize('copilotRepeatedChallenge', "The agent host requested Microsoft authentication again after it was already answered. Try setup again.")));
+						}
+						return;
+					}
+					const credential = new DeferredPromise<AuthenticationSession>();
+					credentials.set(resource.resource, { resource, credential });
+					void credential.p.catch(fail);
+					void prompts.queue(async () => {
+						try {
+							this.requireMicrosoftResource(resource, currentResources(), cancellation.token);
+							const session = await this.getMicrosoftCredential(resource, identity.account, cancellation.token, notification.reason === AuthRequiredReason.Expired);
+							await credential.complete(session);
+							await this.authenticateMicrosoftResource(resource, session, currentResources(), cancellation.token);
+						} catch (error) {
+							if (!credential.isSettled) {
+								await credential.error(error);
+							} else {
+								fail(error);
+							}
+						}
+					});
+				} catch (error) {
+					fail(error);
+				}
+			}));
+			const setup = (async () => {
+				this.requireMicrosoftResource(discovery, currentResources(), cancellation.token);
+				started = { resource: discovery, rootState: subscription };
+				await this.authenticateMicrosoftResource(discovery, identity, currentResources(), cancellation.token);
+				const updated = await raceTimeout(waitForState(root,
+					state => !!state && !(state instanceof Error) && state.agents.some(candidate => candidate.provider === agent.provider && candidate.protectedResources?.some(resource => targets.has(resource.resource))),
+					state => state instanceof Error ? state : undefined, cancellation.token), 30_000);
+				if (!updated) {
+					throw new Error(localize('copilotDiscoveryIncomplete', "Copilot service availability could not be confirmed. Your Microsoft sign-in has been retained."));
+				}
+				const offered = currentResources().filter(resource => targets.has(resource.resource));
+				const choice = offered.length === 1 ? offered[0] : await this.chooseCopilotService(offered, cancellation.token);
+				if (!choice) {
+					return undefined;
+				}
+				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				const challenged = credentials.get(choice.resource);
+				const credential = challenged ? await challenged.credential.p : await this.getMicrosoftCredential(choice, identity.account, cancellation.token);
+				if (challenged && (!equals(challenged.resource.authorization_servers, choice.authorization_servers) || !choice.scopes_supported?.every(scope => credential.scopes.includes(scope)))) {
+					throw new Error(localize('copilotConsentChanged', "The Microsoft authentication requirements changed during setup. Try setup again."));
+				}
+				if (!challenged) {
+					const answered = new DeferredPromise<AuthenticationSession>();
+					await answered.complete(credential);
+					credentials.set(choice.resource, { resource: choice, credential: answered });
+				}
+				await this.authenticateMicrosoftResource(choice, credential, currentResources(), cancellation.token);
+				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				this.setStep(ChatSetupStep.Installing);
+				await this.doInstall();
+				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				return true;
+			})();
+			return await Promise.race([setup, failed.p]);
 		} catch (error) {
 			if (isCancellationError(error) && cancellation.token.isCancellationRequested && !token.isCancellationRequested) {
-				throw new Error(localize('copilotHostDisconnected', "The agent host disconnected during Copilot setup."));
+				error = new Error(localize('copilotHostDisconnected', "The agent host disconnected during Copilot setup."));
 			}
-			throw error;
+			throw started ? new MicrosoftSetupError(started.resource, started.rootState, error) : error;
 		} finally {
 			cancellation.cancel();
 			store.dispose();
@@ -315,7 +407,7 @@ export class ChatSetupController extends Disposable {
 		return this.getMicrosoftCredential(resource, sessions.length === 1 ? sessions[0].account : undefined, token);
 	}
 
-	private async getMicrosoftCredential(resource: ProtectedResourceMetadata, account: AuthenticationSession['account'] | undefined, token: CancellationToken): Promise<AuthenticationSession> {
+	private async getMicrosoftCredential(resource: ProtectedResourceMetadata, account: AuthenticationSession['account'] | undefined, token: CancellationToken, refresh = false): Promise<AuthenticationSession> {
 		const server = resource.authorization_servers?.[0];
 		const scopes = resource.scopes_supported;
 		if (!server || !scopes?.length) {
@@ -323,7 +415,7 @@ export class ChatSetupController extends Disposable {
 		}
 		const authOptions = { clientId: copilotEntraClientId, authorizationServer: URI.parse(server), account };
 		let credential: AuthenticationSession | undefined;
-		if (account) {
+		if (account && !refresh) {
 			const credentials = await raceCancellationError(this.authenticationService.getSessions('microsoft', scopes, { ...authOptions, silent: true }, true), token);
 			credential = credentials?.find(session => session.account.id === account.id);
 		}
