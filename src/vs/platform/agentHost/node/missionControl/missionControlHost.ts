@@ -26,6 +26,8 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { isAhpChatChannel, readSessionExternal } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
+import { BANG_COMMAND_PREFIX } from '../agentHostBangCommand.js';
+import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -296,6 +298,7 @@ export class MissionControlHost extends Disposable {
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
+		@IAgentHostCompletions private readonly _completions: IAgentHostCompletions,
 	) {
 		super();
 		this._ahpLogDirectory = URI.joinPath(environmentService.logsHome, 'ahp');
@@ -445,6 +448,8 @@ export class MissionControlHost extends Disposable {
 				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
+				completionTriggerCharacters: this._completions.triggerCharacters,
+				terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			},
 			this._options.clientFileSystemProvider,
 		);
@@ -522,7 +527,7 @@ export class MissionControlHost extends Disposable {
 			_meta: {
 				...this._stateManager.getSessionState(summary.resource)?._meta,
 				[event.type === 'session.plan_changed' ? 'copilot.planHint' : 'copilot.todosHint']:
-					{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
+				{ eventId: event.id, ...(event.type === 'session.plan_changed' ? { operation } : {}) },
 			},
 		});
 	}

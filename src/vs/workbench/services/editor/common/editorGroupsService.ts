@@ -735,6 +735,25 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export interface IResolvedEditorWorkingSet extends IDisposable {
+
+	/**
+	 * The editors of the main part's groups, in group and editor order, with an editor shown in several groups listed once.
+	 */
+	readonly editors: readonly EditorInput[];
+
+	/**
+	 * The editor that was active in the main part's active group.
+	 */
+	readonly activeEditor: EditorInput | undefined;
+
+	/**
+	 * Disposes the editors that no group shows, as the editors are not needed: editors that are shown, such as
+	 * an editor of a file that another group has open as well, stay open.
+	 */
+	dispose(): void;
+}
+
 export interface IEditorWorkingSetOptions {
 	readonly preserveFocus?: boolean;
 }
@@ -850,6 +869,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @returns `true` when the working set as applied.
 	 */
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
+
+	/**
+	 * Resolves the editors of the main part of a working set without applying it or
+	 * changing any part. The returned editors are the caller's to show or to dispose.
+	 *
+	 * @returns `undefined` when the working set does not exist, or when it has editors that cannot be restored.
+	 */
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined;
 
 	/**
 	 * Deletes a working set.

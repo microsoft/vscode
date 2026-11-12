@@ -182,6 +182,7 @@ class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupServic
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
 
 	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async prepareSessionWorktreeCleanup(): Promise<void> { }
 	async sessionWorktreeCleanup() { return { state: 'unknown' } as const; }
 	async listManagedWorktrees() { return []; }
 	async cleanupManagedWorktree(): Promise<void> { }
@@ -1924,6 +1925,30 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain hands steering to the agent with the provenance of its author', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handedToAgent: unknown[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message, _sender, provenance) => {
+			handedToAgent.push([message.id, provenance]);
+			return true;
+		};
+		startTurn(queue, 'active-turn');
+		sendSteering(queue, 'person', 'Also update the docs');
+		const delegated: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'coordinator',
+			message: { text: 'Check the tests', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/coordinator', sourceChat: 'copilot:/coordinator/chat' }) },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, delegated);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, delegated));
+
+		assert.deepStrictEqual(handedToAgent, [
+			['person', { kind: 'user' }],
+			['coordinator', { kind: 'agent', id: 'copilot:/coordinator/chat' }],
+		]);
+	});
+
 	test('queue drain runs steering the agent hands back unsent as the next turn instead of dropping it', async () => {
 		const queue = createQueueDrainContributions(disposables);
 		const handBack = new DeferredPromise<boolean>();
@@ -2288,6 +2313,51 @@ suite('AgentHostChatContributions', () => {
 			admitted: [],
 			provisionalTitles: ['Suggested title'],
 		});
+	});
+
+	test('does not handle bang commands from non-user messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const dispositions = [
+			MessageKind.Agent,
+			MessageKind.Tool,
+			MessageKind.Automation,
+			MessageKind.SystemNotification,
+		].map(origin => contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '!echo hi', origin: { kind: origin } },
+		}).kind);
+
+		assert.deepStrictEqual(dispositions, [
+			'accept',
+			'accept',
+			'accept',
+			'accept',
+		]);
+	});
+
+	test('continues to handle rename commands from agent messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const disposition = contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '/rename Agent title', origin: { kind: MessageKind.Agent } },
+		});
+
+		assert.deepStrictEqual(disposition, { kind: 'handled' });
+	});
+
+	test('queue drain forwards agent-originated bang messages', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const action = {
+			...queuedMessage('agent-bang', '!echo hi'),
+			message: { text: '!echo hi', origin: { kind: MessageKind.Agent } },
+		} satisfies PendingMessage & { type: ActionType.ChatPendingMessageSet };
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
+
+		assert.deepStrictEqual(queue.admitted.map(({ message }) => message), [{
+			text: '!echo hi',
+			origin: { kind: MessageKind.Agent },
+		}]);
 	});
 
 	test('queue drain reports queued telemetry source', () => {

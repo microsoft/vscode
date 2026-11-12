@@ -930,6 +930,17 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual(f.service.ledger.state.get().runs.map(run => [run.chat, run.state]), [['invoking-chat', 'completed']]);
 	}));
 
+	test('a manual run records whether it was requested through a general action', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const binding = f.bindings[0];
+		const state = await reference.object.invoke('test', 'act', 'chat', 'state');
+		await f.service.whenIdle();
+		binding.view.set({ ...binding.view.get(), stateActions: [], generalActions: [{ id: 'act', enabled: true }] }, undefined);
+		const general = await reference.object.invoke('test', 'act', 'chat', 'general');
+		assert.deepStrictEqual([state.generalAction, general.generalAction], [undefined, true]);
+	}));
+
 	test('changing one automation control does not revoke another control in the same binding', () => run(async store => {
 		const started = new DeferredPromise<void>();
 		const finish = new DeferredPromise<void>();

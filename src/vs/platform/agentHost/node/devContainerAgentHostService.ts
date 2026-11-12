@@ -34,13 +34,14 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
+import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
 	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
+	formatAgentHostUrlHost,
 	getRemoteCLIDataDir,
 	ISshExec,
 	resolveRemotePlatform,
@@ -372,21 +373,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			const sessionId = this._telemetryService.sessionId;
-			const ownedStandalones = await Promise.all(live
-				.filter(candidate => candidate.type === 'standalone')
-				.map(async candidate => ({
-					candidate,
-					sessionId: await this._readProcessSessionId(exec, candidate.pid),
-				})));
-			let endpoint = ownedStandalones
-				.filter(candidate => candidate.sessionId === sessionId)
-				.map(candidate => candidate.candidate)
-				.sort((a, b) => a.instanceId.localeCompare(b.instanceId))[0];
+			let endpoint = selectAgentHostEndpoint(live, this._productService.quality, undefined);
 			if (!endpoint) {
+				const sessionId = this._telemetryService.sessionId;
 				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
 					cliBin,
-					cliDataDir,
+					serverDataFolderName,
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 				)}`;
@@ -409,7 +401,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				);
 			}
 
-			const relayCommand = buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath);
+			const relayCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(this._telemetryService.sessionId)} ${buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath)}`;
 			store.delete(shell);
 			const relay = await this._createRelay(
 				config.connectionId,
@@ -772,7 +764,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		});
 		const duplex = Duplex.from({ readable: child.stdout, writable: child.stdin });
 		const WS = nativeRequire('ws') as typeof WebSocket;
-		const urlHost = endpoint.type === 'tcp' ? endpoint.host : '127.0.0.1';
+		const urlHost = endpoint.type === 'tcp' ? formatAgentHostUrlHost(endpoint.host) : '127.0.0.1';
 		const urlPort = endpoint.type === 'tcp' ? endpoint.port : 80;
 		let url = `ws://${urlHost}:${urlPort}`;
 		if (connectionToken) {
@@ -1006,11 +998,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			throw new Error(localize('devContainerAgentHost.containerSessionCheckFailed', "Unable to check active VS Code sessions in Dev Container '{0}' (exit {1}): {2}", containerId, result.code, result.stderr.trim()));
 		}
 		return [...new Set(result.stdout.split('\n').map(value => value.trim()).filter(value => value.length > 0))];
-	}
-
-	private async _readProcessSessionId(exec: ISshExec, pid: number): Promise<string | undefined> {
-		const result = await exec(`tr '\\0' '\\n' < /proc/${pid}/environ 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p' | head -n 1`, { ignoreExitCode: true });
-		return result.code === 0 ? result.stdout.trim() || undefined : undefined;
 	}
 
 	protected async _runDocker(args: readonly string[], token: CancellationToken = CancellationToken.None): Promise<{ stdout: string; stderr: string; code: number }> {

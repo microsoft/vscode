@@ -230,6 +230,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			agentHost: { key: ChatProvidersConfigKey.Enabled },
 		},
 		...chatMoveConfigurationProperties,
@@ -305,9 +306,8 @@ configurationRegistry.registerConfiguration({
 		[AgentHostMcpSkillsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.mcpSkills.enabled', "When enabled, Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMcpSkillsEnabledConfigKey },
 		},

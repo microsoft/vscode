@@ -23,6 +23,8 @@ import type { IChatUserInteractionTiming } from '../../../../platform/otel/commo
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { getSSHRemoteAuthorityConnectionKey } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -101,6 +103,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService requestService: IRequestService,
+		@IRemoteAgentHostLocationPreferenceService locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 	) {
 		super();
 
@@ -122,15 +125,19 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			undefined,
 			AgentHostClientConnectionKind.RemoteExtensionHost,
 			async () => {
+				const hostKey = getSSHRemoteAuthorityConnectionKey(connection.remoteAuthority);
+				const preferredAgentLocation = hostKey ? locationPreferenceService.getPreference(hostKey) : undefined;
+				const preference = preferredAgentLocation === undefined ? undefined : { preferredAgentLocation };
 				this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
 				let resolverResult: ResolverResult;
 				try {
 					resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
 				} catch {
 					this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
-					return undefined;
+					return preference;
 				}
 				return {
+					...preference,
 					env: resolverResult.options?.extensionHostEnv ?? {},
 					debugEnv: environmentService.debugExtensionHost.env,
 				};

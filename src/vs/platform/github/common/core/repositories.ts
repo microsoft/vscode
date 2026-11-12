@@ -5,7 +5,7 @@
 
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonObject, PageOptions, RepositoryRef } from '../client/types.js';
-import { Account, ChangedFile, RepositoryIdentity } from './core.js';
+import { Account, ChangedFile, Connection, CursorOptions, RepositoryIdentity } from './core.js';
 
 /** A repository's metadata, settings, and permissions. */
 export interface Repository extends RepositoryIdentity {
@@ -244,6 +244,67 @@ export interface BranchProtection {
 	};
 }
 
+/** Repository metadata used to interpret branch rules. */
+export interface RepositoryViewerInfo {
+	/** Default branch, or null when unavailable. */
+	readonly defaultBranchRef: { readonly name: string } | null;
+	/** The authenticated viewer's repository permission, or null when unavailable. */
+	readonly viewerPermission: 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ' | null;
+}
+
+/** A GraphQL ruleset's branch conditions and pull-request requirement. */
+export interface RepositoryRulesetNode {
+	/** Display name of the ruleset. */
+	readonly name: string;
+	/** GraphQL target category, such as BRANCH or TAG, or null when unavailable. */
+	readonly target: string | null;
+	/** GraphQL enforcement mode, such as ACTIVE, EVALUATE, or DISABLED. */
+	readonly enforcement: string;
+	/** Count of pull-request rules, or null when unavailable; other rule types are excluded by the query. */
+	readonly rules: { readonly totalCount: number } | null;
+	/** Conditions narrowing the ruleset's scope, or null when absent. */
+	readonly conditions: {
+		/** Ref-name conditions, or null when not specified. */
+		readonly refName: {
+			/** Included ref patterns and tokens such as ~ALL and ~DEFAULT_BRANCH. */
+			readonly include: readonly string[];
+			/** Excluded ref patterns. */
+			readonly exclude: readonly string[];
+		} | null;
+	} | null;
+}
+
+/** Public profile information for an assignable repository user. */
+export interface RepositoryAssignableUser {
+	/** GraphQL node ID, not the numeric REST user ID. */
+	readonly id: string;
+	/** GitHub account login. */
+	readonly login: string;
+	/** Public display name, or null when unset. */
+	readonly name: string | null;
+	/** Public profile email; empty when none is published. */
+	readonly email: string;
+	/** Public avatar image URL. */
+	readonly avatarUrl: string;
+}
+
+/** Git author information and its optional associated GitHub account. */
+export interface RepositoryCommitAuthor {
+	/** Name recorded on the Git commit, when available. */
+	readonly name: string | null;
+	/** Email recorded on the Git commit, when available. */
+	readonly email: string | null;
+	/** Avatar URL resolved for the Git author. */
+	readonly avatarUrl: string;
+	/** Associated GitHub account, or null when none is linked. */
+	readonly user: {
+		/** GraphQL node ID, not the numeric REST user ID. */
+		readonly id: string;
+		/** GitHub account login. */
+		readonly login: string;
+	} | null;
+}
+
 /** Operations for repositories, branches, protection rules, commits, and comparisons. */
 export interface IRepositoriesClient {
 
@@ -252,6 +313,18 @@ export interface IRepositoriesClient {
 
 	/** GET /repositories/{id}: resolve a stable numeric repository ID. */
 	getById(repositoryId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository>;
+
+	/** GraphQL: read the default branch and the viewer's repository permission. */
+	getViewerInfo(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryViewerInfo | null>;
+
+	/** GraphQL: list rulesets with inherited conditions and pull-request rule counts. */
+	listRulesetConnection(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryRulesetNode> | null>;
+
+	/** GraphQL: list users assignable to the repository, including their public email and avatar. */
+	listAssignableUsers(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryAssignableUser> | null>;
+
+	/** GraphQL: read the Git author and linked GitHub user for a commit expression. */
+	getCommitAuthor(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryCommitAuthor | null>;
 
 	/** GET /user/repos: list one page of repositories accessible to the authenticated user. */
 	listForAuthenticatedUser(signal: AbortSignal, options?: ListRepositoriesOptions): Promise<readonly Repository[]>;

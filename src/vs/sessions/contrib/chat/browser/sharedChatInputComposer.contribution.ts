@@ -30,8 +30,9 @@ import { getLabeledPickerResponsiveItems } from '../../../../workbench/contrib/s
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsViewGroupingContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
@@ -58,7 +59,7 @@ export class SendInBackgroundAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib,
 			}, {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals(`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`, true)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox)),
 				weight: KeybindingWeight.SessionsContrib,
 			}],
 		});
