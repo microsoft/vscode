@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
@@ -244,6 +243,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (e.id !== TERMINAL_VIEW_ID || !e.visible) {
 				return;
 			}
+			// Still waiting for the terminal the view created when it last opened
+			// empty: its cwd is not known yet, so let that wait finish.
+			if (this._pendingTerminalViewCreation.value) {
+				return;
+			}
 			if (this._terminalGroupService.groups.length > 0) {
 				this._onTerminalViewShown();
 				return;
@@ -252,17 +256,25 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			// cwd; adopt that one rather than creating a second terminal.
 			const store = new DisposableStore();
 			this._pendingTerminalViewCreation.value = store;
-			const done = () => {
-				if (this._pendingTerminalViewCreation.value === store) {
-					this._pendingTerminalViewCreation.clear();
-					this._onTerminalViewShown();
+			const done = async (viewInstance?: ITerminalInstance) => {
+				if (this._pendingTerminalViewCreation.value !== store) {
+					return;
+				}
+				this._pendingTerminalViewCreation.clear();
+				const session = await this._onTerminalViewShown();
+				if (viewInstance && session) {
+					await this._disposeUnadoptedViewTerminal(viewInstance, session);
 				}
 			};
-			const timeout = setTimeout(done, TERMINAL_VIEW_CREATION_TIMEOUT);
+			// The view may not create a terminal at all, for example when it hides on startup.
+			const timeout = setTimeout(() => done(), TERMINAL_VIEW_CREATION_TIMEOUT);
 			store.add(toDisposable(() => clearTimeout(timeout)));
 			store.add(Event.once(Event.filter(this._terminalService.onDidCreateInstance, instance => !instance.shellLaunchConfig.hideFromUser))(instance => {
 				clearTimeout(timeout);
-				raceTimeout(instance.processReady, TERMINAL_VIEW_CREATION_TIMEOUT).then(done, done);
+				// Its cwd is known once its process is ready, however long the shell takes to start.
+				const settled = () => done(instance);
+				store.add(Event.once(Event.any(Event.signal(instance.onDisposed), Event.signal(instance.onExit)))(settled));
+				instance.processReady.then(settled, settled);
 			}));
 		}));
 
@@ -394,15 +406,39 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * Gives the active session the terminal it skipped while the terminal view
 	 * was hidden, reusing a terminal in its cwd when there is one.
 	 */
-	private _onTerminalViewShown(): void {
+	private async _onTerminalViewShown(): Promise<ISession | undefined> {
 		const session = this._mainWindowHost.session.get();
 		if (!session || session.loading.get() || session.isArchived.get() || session.worktreePending?.get() || !this._isSessionRemoteHostAvailable(session)) {
-			return;
+			return undefined;
 		}
 		this._activeKey = undefined;
 		this._activeAgentHostAddress = undefined;
 		this._activeSessionId = undefined;
-		this._onActiveSessionChanged(session, this._mainWindowHost.chat.get());
+		await this._onActiveSessionChanged(session, this._mainWindowHost.chat.get());
+		return session;
+	}
+
+	/**
+	 * Disposes the terminal the terminal view created when it opened empty if
+	 * it started outside the active session's cwd, for example with a native
+	 * profile or `terminal.integrated.cwd`, and the session got its own
+	 * terminal instead, so that the view does not keep a second, unused shell.
+	 */
+	private async _disposeUnadoptedViewTerminal(viewInstance: ITerminalInstance, session: ISession): Promise<void> {
+		const activeKey = this._activeKey;
+		if (viewInstance.isDisposed
+			|| activeKey === undefined
+			|| this._activeSessionId !== session.sessionId
+			|| this._mainWindowHost.session.get() !== session
+			|| this._isTerminalTracked(viewInstance.instanceId)
+			|| this._standaloneTerminalIds.has(viewInstance.instanceId)
+			|| this._chatWindowTerminalIds.has(viewInstance.instanceId)
+			|| this._getTrackedTerminalsForSession(session.sessionId).length === 0
+			|| await this._terminalMatchesScope(viewInstance, activeKey, this._activeAgentHostAddress)) {
+			return;
+		}
+		this._logService.trace(`[SessionsTerminal] Disposing terminal ${viewInstance.instanceId} the terminal view created outside the cwd of session ${session.sessionId}`);
+		await this._terminalService.safeDisposeTerminal(viewInstance);
 	}
 
 	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false, location?: ITerminalLocationOptions, createIfMissing = true): Promise<ITerminalInstance[]> {
