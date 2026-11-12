@@ -457,14 +457,18 @@ suite('Artifact Server Tools', () => {
 		const disabled = { properties: advertisedProperties(), definitions: host.getDefinitionsForSession(sessionUri) };
 		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
 		const disabledMode = artifacts()[0].mode;
+		// Ignored like any unknown field, so even an invalid one does not reject the entry.
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { type: 'website', label: 'Other', isArtifact: false, link: 'https://example.org', mode: null });
+		const disabledInvalid = artifacts().map(artifact => artifact.label);
 		chatResources = true;
 		const enabledProperties = advertisedProperties();
 		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
 
-		assert.deepStrictEqual({ disabledProperties: disabled.properties, disabledDefinitions: disabled.definitions, disabledMode, enabledProperties, enabledMode: artifacts()[0].mode }, {
+		assert.deepStrictEqual({ disabledProperties: disabled.properties, disabledDefinitions: disabled.definitions, disabledMode, disabledInvalid, enabledProperties, enabledMode: artifacts()[0].mode }, {
 			disabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash'],
 			disabledDefinitions: artifactServerToolDefinitions,
 			disabledMode: undefined,
+			disabledInvalid: ['Docs', 'Other'],
 			enabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash', 'mode'],
 			enabledMode: 'aboveInput',
 		});

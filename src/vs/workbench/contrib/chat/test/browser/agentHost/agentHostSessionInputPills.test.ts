@@ -707,6 +707,7 @@ suite('AgentHostSessionInputPills', () => {
 		const state = () => ({
 			pinned: pinnedPills().map(pill => pill.textContent),
 			shown: [...harness.persistentContent.querySelectorAll('.chat-embedded-resource-title')].map(title => title.textContent),
+			planOpensInChat: !!harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.checked,
 		});
 		const requested = state();
 		// The user hides the plan: it stays hidden while the agent's request is unchanged.
@@ -719,12 +720,17 @@ suite('AgentHostSessionInputPills', () => {
 		const pinnedAgain = state();
 		harness.connection.setState(StateComponents.Session, session('aboveInput'));
 		await timeout(0);
+		const shownAgain = state();
+		// Asking to only pin it moves it out of the chat directly, without the user hiding it first.
+		harness.connection.setState(StateComponents.Session, session('pinned'));
+		await timeout(0);
 
-		assert.deepStrictEqual({ requested, userChoice, pinnedAgain, shownAgain: state() }, {
-			requested: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'] },
-			userChoice: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [] },
-			pinnedAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [] },
-			shownAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'] },
+		assert.deepStrictEqual({ requested, userChoice, pinnedAgain, shownAgain, pinnedFromAboveInput: state() }, {
+			requested: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'], planOpensInChat: true },
+			userChoice: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			pinnedAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			shownAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'], planOpensInChat: true },
+			pinnedFromAboveInput: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
 		});
 	});
 

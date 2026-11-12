@@ -215,9 +215,8 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			const artifacts = new SessionArtifacts(stateManager, context.sessionUri, context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
-					// Without chat resources the parameter is not offered, and a mode an agent sends anyway changes nothing.
-					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference)
-						.map(input => isChatResourcesEnabled() || input.mode === undefined ? input : { ...input, mode: undefined });
+					// Without chat resources the parameter is not offered, and a mode an agent sends anyway is ignored, even an invalid one.
+					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference, isChatResourcesEnabled());
 					for (const input of inputs) {
 						if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);

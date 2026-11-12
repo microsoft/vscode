@@ -94,6 +94,14 @@ suite('Session Artifacts', () => {
 		assert.throws(() => parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'sideways' }, TOOL), /mode must be one of/);
 	});
 
+	test('promoting a reference to an artifact keeps its mode unless the input replaces it', () => {
+		const reference = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: false, mode: 'aboveInput' }, TOOL), createId);
+		const promoted = new SessionArtifactCollection(reference.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true }, TOOL), createId);
+		const replaced = new SessionArtifactCollection(reference.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true, mode: 'pinned' }, TOOL), createId);
+
+		assert.deepStrictEqual({ promoted: promoted.artifact.mode, replaced: replaced.artifact.mode }, { promoted: 'aboveInput', replaced: 'pinned' });
+	});
+
 	test('stamps trusted origin, ignores agent-supplied origin, and preserves provenance on promotion', () => {
 		const input = { type: 'website', label: 'Example', link: 'https://example.com', isArtifact: false, origin: { chat: 'forged' } };
 		const first = new SessionArtifactCollection().add(parseSessionArtifactInput(input, TOOL), createId, { chat: 'original-chat', turnId: 'original-turn' });

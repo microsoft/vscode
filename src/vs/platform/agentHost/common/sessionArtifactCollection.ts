@@ -83,7 +83,8 @@ function requireUri(value: unknown, field: string, toolName: string): string {
 	return uri;
 }
 
-function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPrefix?: string): ISessionArtifactInput {
+/** @param acceptsMode Whether `mode` is read; otherwise it is ignored like any unknown field. */
+function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, acceptsMode: boolean, fieldPrefix?: string): ISessionArtifactInput {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
 		throw new Error(`Invalid ${toolName} input: ${fieldPrefix ? `${fieldPrefix} must be an object.` : 'expected an object.'}`);
 	}
@@ -98,7 +99,7 @@ function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPr
 	}
 
 	const artifactType = type as SessionArtifactType;
-	const mode = args['mode'];
+	const mode = acceptsMode ? args['mode'] : undefined;
 	if (mode !== undefined && !isSessionArtifactMode(mode)) {
 		throw new Error(`Invalid ${toolName} input: ${field('mode')} must be one of ${SESSION_ARTIFACT_MODES.join(', ')}.`);
 	}
@@ -122,23 +123,23 @@ function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPr
 }
 
 /** Validates and normalizes one `add_artifact_or_reference` entry. */
-export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
-	return parseSessionArtifactInputAt(rawArgs, toolName);
+export function parseSessionArtifactInput(rawArgs: unknown, toolName: string, acceptsMode = true): ISessionArtifactInput {
+	return parseSessionArtifactInputAt(rawArgs, toolName, acceptsMode);
 }
 
 /** Validates a batch while accepting the legacy single-entry shape. */
-export function parseSessionArtifactInputs(rawArgs: unknown, toolName: string): readonly ISessionArtifactInput[] {
+export function parseSessionArtifactInputs(rawArgs: unknown, toolName: string, acceptsMode = true): readonly ISessionArtifactInput[] {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
 		throw new Error(`Invalid ${toolName} input: expected an object.`);
 	}
 	const items = (rawArgs as Record<string, unknown>)['items'];
 	if (items === undefined) {
-		return [parseSessionArtifactInput(rawArgs, toolName)];
+		return [parseSessionArtifactInput(rawArgs, toolName, acceptsMode)];
 	}
 	if (!Array.isArray(items) || items.length === 0) {
 		throw new Error(`Invalid ${toolName} input: items must be a non-empty array.`);
 	}
-	return items.map((item, index) => parseSessionArtifactInputAt(item, toolName, `items[${index}]`));
+	return items.map((item, index) => parseSessionArtifactInputAt(item, toolName, acceptsMode, `items[${index}]`));
 }
 
 /**
@@ -179,7 +180,9 @@ export class SessionArtifactCollection {
 		if (result.added || result.artifact.isArtifact || !input.isArtifact) {
 			return result;
 		}
-		const artifact = this._create(input, () => result.artifact.id, result.artifact.origin);
+		// The reference's request for how to show it stays unless the input replaces it.
+		const mode = input.mode ?? result.artifact.mode;
+		const artifact = this._create(mode !== undefined ? { ...input, mode } : input, () => result.artifact.id, result.artifact.origin);
 		return {
 			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
 			artifact,

@@ -270,8 +270,9 @@ export class ChatResourcesControl extends Disposable {
 			if (!resource.requested || applied[resource.id] === resource.requested || !this._pin(resource)) {
 				continue;
 			}
+			// A pinned file opens in an editor; one shown above the input opens there.
+			this._setOpensInChat(resource.id, resource.requested === 'aboveInput');
 			if (resource.requested === 'aboveInput') {
-				this._setOpensInChat(resource.id, true);
 				this._select(resource.id);
 			}
 			applied[resource.id] = resource.requested;
