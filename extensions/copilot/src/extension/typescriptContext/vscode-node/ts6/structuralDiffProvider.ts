@@ -91,7 +91,6 @@ function toStructuralDiff(result: protocol.StructuralDiffResult, originalDocumen
 	const toEntity = (document: vscode.TextDocument, entity: protocol.StructuralDiffEntity | undefined): vscode.StructuralDiffEntity | undefined => entity && {
 		name: getName(entity),
 		kind: toSymbolKind(entity.kind),
-		languageKind: entity.languageKind,
 		range: toRange(document, entity.range),
 		selectionRange: entity.selectionRange && toRange(document, entity.selectionRange),
 	};
