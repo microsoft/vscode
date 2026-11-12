@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { autorun, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -11,13 +12,34 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/se
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ArtifactWorkspaceConfigurationSynchronizer } from './agentHostArtifactIntegrations.js';
 
+type WorkspaceSettings = { readonly chat: string; readonly workingDirectory: string; readonly ignoredChecks: unknown } | null;
+
+/**
+ * How long a changed value must stay unchanged before it is published. The workspace context derives from session
+ * state that the host rewrites after every configuration change, so publishing each transient value could feed a loop
+ * that floods the session's channel.
+ */
+export const gitHubPullRequestArtifactWorkspaceSettingsPublishDelay = 250;
+
 export function createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer(configurationService: IConfigurationService): ArtifactWorkspaceConfigurationSynchronizer {
-	return (store, connectionObservable, isHostSelected, session, artifactId, workspace, model) => {
+	return (store, connectionObservable, isHostSelected, session, artifactId, workspace, snapshot) => {
 		const settingsChanged = observableSignalFromEvent(store, configurationService.onDidChangeConfiguration);
-		let lastValue: { readonly chat: string; readonly workingDirectory: string; readonly ignoredChecks: unknown } | null | undefined;
+		let lastValue: WorkspaceSettings | undefined;
 		let lastConnection: IAgentConnection | undefined;
+		let pending: { readonly connection: IAgentConnection; readonly value: WorkspaceSettings } | undefined;
 		const settingsKey = gitHubPullRequestArtifactWorkspaceSettingsKey(artifactId);
 		const resync = observableSignal(store);
+		const publish = store.add(new RunOnceScheduler(() => {
+			const next = pending;
+			pending = undefined;
+			if (next && isHostSelected()) {
+				lastValue = next.value;
+				next.connection.dispatch(session, {
+					type: ActionType.SessionConfigChanged,
+					config: { [settingsKey]: next.value },
+				});
+			}
+		}, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay));
 		store.add(autorun(reader => {
 			const connection = connectionObservable.read(reader);
 			if (connection) {
@@ -35,9 +57,11 @@ export function createGitHubPullRequestArtifactWorkspaceConfigurationSynchronize
 			resync.read(reader);
 			const connection = connectionObservable.read(reader);
 			const context = workspace.read(reader);
-			const integrated = model.snapshot.read(reader).contributions.some(contribution => contribution.integrationId === gitHubPullRequestArtifactIntegrationId);
+			const integrated = snapshot.read(reader)?.contributions.some(contribution => contribution.integrationId === gitHubPullRequestArtifactIntegrationId) ?? false;
 			if (!isHostSelected() || connection?.connectionAvailable?.read(reader) !== true || !integrated) {
 				lastValue = undefined;
+				pending = undefined;
+				publish.cancel();
 				return;
 			}
 			if (connection !== lastConnection) {
@@ -46,13 +70,14 @@ export function createGitHubPullRequestArtifactWorkspaceConfigurationSynchronize
 			}
 			const inspected = context ? configurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting, { resource: context.resource }) : undefined;
 			const ignoredChecks = inspected?.workspaceFolderValue ?? inspected?.workspaceValue;
-			const value = context && ignoredChecks !== undefined ? { chat: context.chat, workingDirectory: context.workingDirectory, ignoredChecks } : null;
-			if (!structuralEquals(value, lastValue)) {
-				lastValue = value;
-				connection.dispatch(session, {
-					type: ActionType.SessionConfigChanged,
-					config: { [settingsKey]: value },
-				});
+			const value: WorkspaceSettings = context && ignoredChecks !== undefined ? { chat: context.chat, workingDirectory: context.workingDirectory, ignoredChecks } : null;
+			if (structuralEquals(value, lastValue)) {
+				pending = undefined;
+				publish.cancel();
+			} else if (pending?.connection !== connection || !structuralEquals(value, pending.value)) {
+				// Each distinct value restarts the delay, so a value that keeps alternating is never published.
+				pending = { connection, value };
+				publish.schedule();
 			}
 		}));
 	};
