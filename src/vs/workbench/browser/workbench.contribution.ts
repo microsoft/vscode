@@ -178,6 +178,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'text',
 				'markdownDescription': localize("workbench.editor.empty.hint", "Controls if the empty editor text hint should be visible in the editor.")
 			},
+			'workbench.editor.experimental.emptyEditorHintActions': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
+			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
 				default: true,
