@@ -23,11 +23,11 @@ suite('AgentsChatPartComposerFolders', () => {
 
 	const worktree = (path: string, branch: string): IFolderLocation => ({ uri: URI.file(path), label: path.split('/').pop()!, description: branch, icon: Codicon.gitBranchCheckout });
 
-	function create(options: { folders: { uri: string; primaryUri?: string }[]; remote?: boolean }) {
+	function create(options: { folders: { uri: string; primaryUri?: string }[]; remote?: boolean; currentLocation?: IFolderLocation; noLocations?: boolean }) {
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const onDidChangeProviders = store.add(new Emitter<void>());
 		let folders = options.folders;
-		let locations: IFolderLocation[] = [worktree('/work/vscode.worktrees/a', 'feature-a'), worktree('/work/vscode.worktrees/b', 'feature-b')];
+		let locations: IFolderLocation[] = options.noLocations ? [] : [worktree('/work/vscode.worktrees/a', 'feature-a'), worktree('/work/vscode.worktrees/b', 'feature-b')];
 		const asked: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -37,6 +37,8 @@ suite('AgentsChatPartComposerFolders', () => {
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: onDidChangeProviders.event,
+			onDidChangeCurrentLocation: Event.None,
+			currentLocation: options.currentLocation && { ...options.currentLocation, providerId: 'agentsView.linkedCheckouts', builtIn: true },
 			getLocations: async primary => { asked.push(primary.path); return locations; },
 		}));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: options.remote ? 'ssh-remote+host' : undefined }));
@@ -74,6 +76,29 @@ suite('AgentsChatPartComposerFolders', () => {
 		});
 	});
 
+	test('as the window\'s folder moves to another location, it offers it at once and tells where it moved from and to; not as it changes to another repository', async () => {
+		const { composerFolders, snapshot, moveTo } = create({ folders: [{ uri: '/work/vscode' }] });
+		const moves: string[] = [];
+		store.add(composerFolders.onDidMoveFolder(({ from, to }) => moves.push(`${from.path} -> ${to.path}`)));
+		await timeout(0);
+		moveTo([{ uri: '/work/vscode.worktrees/a', primaryUri: '/work/vscode' }]);
+		const atOnce = snapshot().folders;
+		await timeout(0);
+		moveTo([{ uri: '/work/other' }]);
+
+		assert.deepStrictEqual({ atOnce, moves }, {
+			atOnce: ['/work/vscode.worktrees/a', '/work/vscode', '/work/vscode.worktrees/b'],
+			moves: ['/work/vscode -> /work/vscode.worktrees/a'],
+		});
+	});
+
+	test('the location the window\'s folder is at shows as that worktree, by its branch, also where its provider lists none', async () => {
+		const { snapshot } = create({ folders: [{ uri: '/work/vscode.worktrees/a', primaryUri: '/work/vscode' }], currentLocation: worktree('/work/vscode.worktrees/a', 'feature-a'), noLocations: true });
+		await timeout(0);
+
+		assert.deepStrictEqual(snapshot(), { folders: ['/work/vscode.worktrees/a', '/work/vscode'], presentations: ['feature-a', null] });
+	});
+
 	test('offers only the window\'s folders where its folder cannot move: several folders, a remote window, no folder', async () => {
 		const multiRoot = create({ folders: [{ uri: '/work/vscode' }, { uri: '/work/tools' }] });
 		const remote = create({ folders: [{ uri: '/work/vscode' }], remote: true });
@@ -99,6 +124,7 @@ suite('AgentsChatPartComposerFolders', () => {
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: Event.None,
+			onDidChangeCurrentLocation: Event.None,
 			getLocations: (_primary, cancellation) => { token = cancellation; return read.p; },
 		}));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: undefined }));

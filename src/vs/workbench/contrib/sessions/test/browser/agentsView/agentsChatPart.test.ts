@@ -209,7 +209,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }), getWorkbenchState: () => WorkbenchState.EMPTY }));
-		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, getLocations: async () => [] }));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, onDidChangeCurrentLocation: Event.None, getLocations: async () => [] }));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		// The changes of the listed sessions, and of all sessions, also of those the providers' listing scope hides
@@ -263,6 +263,7 @@ suite('AgentsChatPartService', () => {
 		const name = (input: EditorInput | null) => input instanceof ChatEditorInput ? (isChatWindowComposerResource(input.chatResource) ? 'composer' : input.chatResource.path) : null;
 		return {
 			service,
+			host,
 			part,
 			hide: () => instantiationService.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART),
 			save: () => {
@@ -323,6 +324,18 @@ suite('AgentsChatPartService', () => {
 		status.set(SessionStatus.InProgress, undefined);
 
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
+	});
+
+	test('the window\'s session, as its agent knows it, is the draft of the composer its active tab shows; the chat part\'s active chat is none until the draft is sent', async () => {
+		const draft = upcastPartial<ISession>({ sessionId: 'draft', status: constObservable(SessionStatus.Untitled), mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace: constObservable(undefined) });
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const { service, host } = createService({ newSession });
+
+		await service.openComposer(undefined);
+		newSession.set(draft, undefined);
+
+		// As a host's chat follows its session, the host's chat is the draft's
+		assert.deepStrictEqual({ session: host.session.get() === draft, chat: host.chat.get()?.resource.path, activeChat: service.activeChat.get() }, { session: true, chat: '/a', activeChat: undefined });
 	});
 
 	test('opening a session or picking its tab moves the window\'s folder to where it works; tabs that open, close or restore do not', async () => {

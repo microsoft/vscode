@@ -185,6 +185,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _chats = this._register(new DisposableMap<EditorInput, AgentsChatPartChat>());
 	/** What follows the sends of each composer's tab ({@link _followComposerSends}). */
 	private readonly _composerSends = this._register(new DisposableMap<EditorInput>());
+	/** The composer of each composer's tab, which the tab disposes. */
+	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
 	/** Set while tabs change other than as the user picks one: as chats restore, open or close. Only a picked tab moves the window's folder. */
 	private _restoringChats = false;
 	/**
@@ -224,7 +226,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		});
 		// The window's host, as its service, shows the active tab's chat
 		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
-			this._register(this.mainWindowHost.bindShownChat(this.activeChat));
+			// A composer's draft is its session, as the Agents window's is: its agent then knows it is the one shown
+			this._register(this.mainWindowHost.bindShownChat(this.activeChat, derived(this, reader => {
+				const input = this._activeInput.read(reader);
+				return input ? this._chats.get(input)?.session.read(reader) : undefined;
+			})));
 		}
 		// The session of the active followed tab that comes to work elsewhere, such as in the new worktree its agent created,
 		// moves the window's folder there too, as opening it did: only of a tab the user opened, picked or sent, not restored
@@ -279,8 +285,14 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	 */
 	private get composerFolders(): AgentsChatPartComposerFolders {
 		if (!this._composerFolders) {
-			this._composerFolders = this._register(this._instantiationService.createInstance(AgentsChatPartComposerFolders));
-			this._composerFolders.refresh();
+			const folders = this._composerFolders = this._register(this._instantiationService.createInstance(AgentsChatPartComposerFolders));
+			// A composer that aims at where the window's folder was, as its host aimed it, aims at where the folder is now
+			this._register(folders.onDidMoveFolder(({ from, to }) => {
+				for (const composer of this._composerModels.values()) {
+					composer.retargetFolder(to, from);
+				}
+			}));
+			folders.refresh();
 		}
 		return this._composerFolders;
 	}
@@ -312,6 +324,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const active = this._activeInput.get();
 		const activeChat = active && this._chats.get(active);
 		if (activeChat?.isComposer && !options?.sideBySide && !options?.newComposer) {
+			// It aims at the new session's folder, such as where the window's folder is now, unless the user picked another
+			const composer = active && this._composerModels.get(active);
+			if (composer && target?.folderUri) {
+				composer.retargetFolder(target.folderUri);
+			}
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
@@ -493,6 +510,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const chat = this._instantiationService.createInstance(AgentsChatPartChat, resource, composer, constObservable(this._window), this._activeInput, (chat: AgentsChatPartChat) => this._closeChat(chat));
 		this._chats.set(chat.input, chat);
 		if (composer) {
+			this._composerModels.set(chat.input, composer);
 			this._composerSends.set(chat.input, this._followComposerSends(chat));
 		}
 		// It stays in the chat part: its editor shows there
@@ -505,6 +523,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	private _disposeChat(input: EditorInput): void {
+		this._composerModels.delete(input);
 		this._composerSends.deleteAndDispose(input);
 		const followed = this._followedTabs.get();
 		if (followed.has(input)) {
