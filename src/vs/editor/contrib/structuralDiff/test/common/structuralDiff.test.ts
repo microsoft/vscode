@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { Range } from '../../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffEntity, StructuralDiffNode, StructuralDiffResult, StructuralDiffTag, SymbolKind } from '../../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffItem, StructuralDiffNode, StructuralDiffResult, StructuralDiffTag, SymbolKind } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
@@ -74,8 +74,8 @@ suite('Structural diff', () => {
 		return {
 			root: {
 				id: 'file',
-				original: { name: 'file.ts', kind: SymbolKind.File, range: original.getFullModelRange() },
-				modified: { name: 'file.ts', kind: SymbolKind.File, range: modified.getFullModelRange() },
+				originalItem: { name: 'file.ts', kind: SymbolKind.File, range: original.getFullModelRange() },
+				modifiedItem: { name: 'file.ts', kind: SymbolKind.File, range: modified.getFullModelRange() },
 				originalChanges: context.changes.flatMap((change, textChangeIndex) => Range.isEmpty(change.originalRange) ? [] : [{
 					textChangeIndex, range: change.originalRange, classification: StructuralDiffClassification.Other,
 				}]),
@@ -192,25 +192,25 @@ suite('Structural diff', () => {
 	});
 
 	test('accepts valid results and describes the first violation of the provider contract', async () => {
-		const entity = (name: string, kind: SymbolKind, range: Range, selectionRange?: Range) => ({ name, kind, range, selectionRange });
+		const item = (name: string, kind: SymbolKind, range: Range, selectionRange?: Range) => ({ name, kind, range, selectionRange });
 		const coverage = { textChangeIndex: 0, range: new Range(1, 15, 1, 16), classification: StructuralDiffClassification.Implementation, tags: [StructuralDiffTag.Test] };
 		const inner: StructuralDiffNode = {
 			id: 'inner',
-			original: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 16), new Range(1, 7, 1, 12)),
-			modified: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 16), new Range(1, 7, 1, 12)),
+			originalItem: item('value', SymbolKind.Variable, new Range(1, 7, 1, 16), new Range(1, 7, 1, 12)),
+			modifiedItem: item('value', SymbolKind.Variable, new Range(1, 7, 1, 16), new Range(1, 7, 1, 12)),
 			originalChanges: [coverage], modifiedChanges: [coverage], children: [],
 		};
 		const outer: StructuralDiffNode = {
 			id: 'outer',
-			original: entity('statement', SymbolKind.Variable, new Range(1, 1, 1, 17)),
-			modified: entity('statement', SymbolKind.Variable, new Range(1, 1, 1, 17)),
+			originalItem: item('statement', SymbolKind.Variable, new Range(1, 1, 1, 17)),
+			modifiedItem: item('statement', SymbolKind.Variable, new Range(1, 1, 1, 17)),
 			originalChanges: [], modifiedChanges: [], children: [inner],
 		};
 		const valid: StructuralDiff = {
 			root: {
 				id: 'file',
-				original: entity('file.ts', SymbolKind.File, original.getFullModelRange()),
-				modified: entity('file.ts', SymbolKind.File, modified.getFullModelRange()),
+				originalItem: item('file.ts', SymbolKind.File, original.getFullModelRange()),
+				modifiedItem: item('file.ts', SymbolKind.File, modified.getFullModelRange()),
 				originalChanges: [], modifiedChanges: [], children: [outer],
 			},
 			isIncomplete: false,
@@ -225,27 +225,27 @@ suite('Structural diff', () => {
 			['complete result without coverage of a change', withInner({ modifiedChanges: [] }), 'Invalid structural diff: the modified side of text change 0 is not completely covered, although the result is not marked as incomplete'],
 			['incompleteness that is not a boolean', { ...withInner({ modifiedChanges: [] }), isIncomplete: 'false' as unknown as boolean }, 'Invalid structural diff: isIncomplete must be true or false'],
 			['duplicate id', withInner({ id: 'outer' }), problem('outer', 'must have an identifier that is unique within the result')],
-			['no entity', withInner({ original: undefined, modified: undefined, originalChanges: [], modifiedChanges: [] }), problem('inner', 'must have an original or a modified entity')],
-			['node without changed text', withOuter({ children: [inner, { id: 'unchanged', original: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 15)), modified: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 15)), originalChanges: [], modifiedChanges: [], children: [] }] }), problem('unchanged', 'contains no changed text, so it must be omitted')],
+			['no item', withInner({ originalItem: undefined, modifiedItem: undefined, originalChanges: [], modifiedChanges: [] }), problem('inner', 'must have an original or a modified item')],
+			['node without changed text', withOuter({ children: [inner, { id: 'unchanged', originalItem: item('value', SymbolKind.Variable, new Range(1, 7, 1, 15)), modifiedItem: item('value', SymbolKind.Variable, new Range(1, 7, 1, 15)), originalChanges: [], modifiedChanges: [], children: [] }] }), problem('unchanged', 'contains no changed text, so it must be omitted')],
 			['changed text whose changes an ancestor owns', withOuter({ originalChanges: [coverage], modifiedChanges: [coverage], children: [{ ...inner, originalChanges: [], modifiedChanges: [] }] }), 'valid'],
-			['changes without entity', withInner({ original: undefined }), problem('inner', 'has original changes but no original entity')],
-			['entity that is not an object', withInner({ original: null as unknown as StructuralDiffEntity, originalChanges: [] }), problem('inner', 'has an invalid original entity')],
-			['unknown kind', withInner({ modified: { ...inner.modified!, kind: 99 as SymbolKind } }), problem('inner', 'has an invalid modified entity name, detail or kind')],
-			['detail that is not a string', withInner({ original: { ...inner.original!, detail: 1 as unknown as string } }), problem('inner', 'has an invalid original entity name, detail or kind')],
-			['range outside the document', withInner({ original: { ...inner.original!, range: new Range(1, 7, 9, 1) } }), problem('inner', 'has a range outside the original document')],
-			['selection outside the entity', withInner({ modified: { ...inner.modified!, selectionRange: new Range(2, 1, 2, 1) } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the entity range')],
-			['selection that is not a range', withInner({ modified: { ...inner.modified!, selectionRange: null as unknown as Range } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the entity range')],
-			['entity outside its parent', withInner({ modified: { ...inner.modified!, range: new Range(2, 1, 2, 1), selectionRange: undefined } }), problem('inner', 'has an entity in the modified document that is not contained in its parent')],
-			['parent missing on a side', withOuter({ original: undefined }), problem('inner', 'has an entity in the original document that is not contained in its parent')],
+			['changes without item', withInner({ originalItem: undefined }), problem('inner', 'has original changes but no original item')],
+			['item that is not an object', withInner({ originalItem: null as unknown as StructuralDiffItem, originalChanges: [] }), problem('inner', 'has an invalid original item')],
+			['unknown kind', withInner({ modifiedItem: { ...inner.modifiedItem!, kind: 99 as SymbolKind } }), problem('inner', 'has an invalid modified item name, detail or kind')],
+			['detail that is not a string', withInner({ originalItem: { ...inner.originalItem!, detail: 1 as unknown as string } }), problem('inner', 'has an invalid original item name, detail or kind')],
+			['range outside the document', withInner({ originalItem: { ...inner.originalItem!, range: new Range(1, 7, 9, 1) } }), problem('inner', 'has a range outside the original document')],
+			['selection outside the item', withInner({ modifiedItem: { ...inner.modifiedItem!, selectionRange: new Range(2, 1, 2, 1) } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the item range')],
+			['selection that is not a range', withInner({ modifiedItem: { ...inner.modifiedItem!, selectionRange: null as unknown as Range } }), problem('inner', 'has a selection range in the modified document that is invalid or not contained in the item range')],
+			['item outside its parent', withInner({ modifiedItem: { ...inner.modifiedItem!, range: new Range(2, 1, 2, 1), selectionRange: undefined } }), problem('inner', 'has an item in the modified document that is not contained in its parent')],
+			['parent missing on a side', withOuter({ originalItem: undefined }), problem('inner', 'has an item in the original document that is not contained in its parent')],
 			['unknown text change', withInner({ modifiedChanges: [{ ...coverage, textChangeIndex: 1 }] }), problem('inner', 'has modified changes that refer to a text change that does not exist')],
 			['coverage outside its text change', withInner({ originalChanges: [{ ...coverage, range: new Range(1, 10, 1, 12) }] }), problem('inner', 'has original changes with a range that is empty, invalid or not contained in its text change')],
-			['coverage outside its entity', withInner({ original: { ...inner.original!, range: new Range(1, 7, 1, 12) } }), problem('inner', 'has original changes that are not contained in its original entity')],
+			['coverage outside its item', withInner({ originalItem: { ...inner.originalItem!, range: new Range(1, 7, 1, 12) } }), problem('inner', 'has original changes that are not contained in its original item')],
 			['empty coverage', withInner({ originalChanges: [{ ...coverage, range: new Range(1, 15, 1, 15) }] }), problem('inner', 'has original changes with a range that is empty, invalid or not contained in its text change')],
 			['unknown classification', withInner({ modifiedChanges: [{ ...coverage, classification: 99 as StructuralDiffClassification }] }), problem('inner', 'has modified changes with an invalid classification or tag')],
 			['unknown tag', withInner({ originalChanges: [{ ...coverage, tags: [99 as StructuralDiffTag] }] }), problem('inner', 'has original changes with an invalid classification or tag')],
 			['overlapping coverage of ancestor and descendant', withOuter({ modifiedChanges: [coverage] }), 'Invalid structural diff: modified changes [1,15 -> 1,16] and [1,15 -> 1,16] overlap'],
-			['root that is not a file', withRoot({ modified: { ...valid.root.modified!, kind: SymbolKind.Class } }), problem('file', 'must be a file on both sides')],
-			['root that does not cover its document', withRoot({ original: { ...valid.root.original!, range: new Range(1, 1, 1, 17) } }), problem('file', 'must cover the complete original document')],
+			['root that is not a file', withRoot({ modifiedItem: { ...valid.root.modifiedItem!, kind: SymbolKind.Class } }), problem('file', 'must be a file on both sides')],
+			['root that does not cover its document', withRoot({ originalItem: { ...valid.root.originalItem!, range: new Range(1, 1, 1, 17) } }), problem('file', 'must cover the complete original document')],
 		];
 
 		let reported: string[] = [];
@@ -355,8 +355,8 @@ suite('Structural diff', () => {
 		store.add(languageFeatures.structuralDiffProvider.register('*', {
 			provideStructuralDiff: (_original, _modified, context) => {
 				const { root } = createResult(context);
-				const entity = { name: 'b', kind: SymbolKind.Variable, range: new Range(2, 1, 2, 13) };
-				return { root: { ...root, children: [{ id: 'b', original: entity, modified: entity, originalChanges: [], modifiedChanges: [], children: [] }] }, isIncomplete: false };
+				const item = { name: 'b', kind: SymbolKind.Variable, range: new Range(2, 1, 2, 13) };
+				return { root: { ...root, children: [{ id: 'b', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [], children: [] }] }, isIncomplete: false };
 			},
 		}));
 		const result = await compute();
