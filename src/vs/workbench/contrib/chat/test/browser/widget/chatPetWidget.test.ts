@@ -2409,6 +2409,43 @@ suite('ChatPetWidget', () => {
 		assert.ok(second.offsetLeft + 24 <= first.offsetLeft || first.offsetLeft + 24 <= second.offsetLeft);
 	});
 
+	for (const petLeft of [0, 192]) {
+		for (const staggered of [false, true]) {
+			test(`mini pets land above the input without a resize (main pet at ${petLeft}, ${staggered ? 'staggered' : 'together'})`, () => {
+				const { widget, firstHost, button, overlay, firstParent } = createHostTransitionHarness(true);
+				firstParent.style.width = '240px';
+				button.style.left = `${petLeft}px`;
+				const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+				const tools: ChatToolInvocation[] = [];
+				widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+				const checkLanding = (count: number) => {
+					const input = firstParent.getBoundingClientRect();
+					const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')].map(pet => pet.getBoundingClientRect());
+					assert.deepStrictEqual({
+						count: pets.length,
+						aboveInput: pets.every(pet => pet.bottom <= input.top + 0.1),
+						withinWidth: pets.every(pet => pet.left >= input.left - 0.1 && pet.right <= input.right + 0.1),
+					}, { count, aboveInput: true, withinWidth: true });
+				};
+				for (let index = 0; index < 10; index++) {
+					const id = `subagent-${index}`;
+					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+					tool.toolSpecificData = { kind: 'subagent', isActive: true };
+					tools.push(tool);
+					if (staggered) {
+						changed.fire({ reason: 'other' });
+						checkLanding(index + 1);
+					}
+				}
+				changed.fire({ reason: 'other' });
+				checkLanding(10);
+				tools[0].toolSpecificData = { kind: 'subagent', isActive: false };
+				changed.fire({ reason: 'other' });
+				checkLanding(9);
+			});
+		}
+	}
+
 	for (const petLeft of [0, 300]) {
 		test(`mini pets stay in a bounded area with many subagents (main pet at ${petLeft})`, () => {
 			const { widget, firstHost, button, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
@@ -2434,7 +2471,7 @@ suite('ChatPetWidget', () => {
 					rect.left < other.right - 0.1 && rect.right > other.left + 0.1 && rect.top < other.bottom - 0.1 && rect.bottom > other.top + 0.1));
 				assert.deepStrictEqual({
 					count: rects.length,
-					withinChat: left >= input.left - 0.1 && right <= input.right + 0.1 && top >= movement.top - 0.1 && bottom <= movement.bottom + 0.1,
+					withinChat: left >= input.left - 0.1 && right <= input.right + 0.1 && top >= movement.top - 0.1 && bottom <= Math.min(input.top, movement.bottom) + 0.1,
 					bounded: right - left <= 288.1 && bottom - top <= 96.1,
 					visible: rects.every(rect => rect.width > 0 && rect.height > 0),
 					overlaps,

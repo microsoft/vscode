@@ -2916,7 +2916,8 @@ export class ChatPetWidget extends Disposable {
 			}
 			const left = getLeft();
 			const overlayBounds = this._overlay.getBoundingClientRect();
-			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, this._getPlatforms(), this.movementBounds.getBoundingClientRect().bottom);
+			const floor = Math.min(this.dragBounds.getBoundingClientRect().top, this.movementBounds.getBoundingClientRect().bottom);
+			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, this._getPlatforms(), floor);
 			element.style.left = `${left}px`;
 			element.style.top = `${landing.top - overlayBounds.top}px`;
 			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
@@ -3081,7 +3082,7 @@ export class ChatPetWidget extends Disposable {
 	private _settleSubagentPets(): void {
 		const overlay = this._overlay.getBoundingClientRect();
 		const platforms = this._getPlatforms();
-		const floor = this.movementBounds.getBoundingClientRect().bottom;
+		const floor = Math.min(this.dragBounds.getBoundingClientRect().top, this.movementBounds.getBoundingClientRect().bottom);
 		const pets = [...this._subagentPets.values()].map(pet => ({
 			pet,
 			left: Number.parseFloat(pet.element.style.left),
@@ -3115,7 +3116,8 @@ export class ChatPetWidget extends Disposable {
 		const minimumLeft = Math.max(input.left, movement.left) - overlay.left;
 		const maximumRight = Math.min(input.right, movement.right) - overlay.left;
 		const minimumTop = movement.top - overlay.top;
-		const maximumBottom = movement.bottom - overlay.top;
+		// The input's top edge is the floor; the movement bounds also include the input itself.
+		const maximumBottom = Math.min(input.top, movement.bottom) - overlay.top;
 		const width = Math.min(CHAT_PET_SUBAGENT_MAX_WIDTH, maximumRight - minimumLeft);
 		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, maximumBottom - minimumTop);
 		if (width <= 0 || height <= 0) {
