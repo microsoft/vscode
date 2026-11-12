@@ -1165,6 +1165,12 @@ suite('ChatMarkdownContentPart', () => {
 	});
 
 	suite('HTML previews', () => {
+		// WebKit never runs animation frame callbacks in a sandboxed document without allow-scripts, so wait on
+		// the host window's frame, which also renders these same-origin preview iframes.
+		function nextHostFrame(): Promise<void> {
+			return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		}
+
 		class TestPreviewWebview extends mock<IWebviewElement & IOverlayWebview>() {
 			html = '';
 			disposed = false;
@@ -1863,7 +1869,7 @@ suite('ChatMarkdownContentPart', () => {
 				const height = Math.ceil(root.getBoundingClientRect().height + frame.contentWindow!.innerHeight - root.clientHeight);
 				heights.push(height);
 				frame.style.height = `${height}px`;
-				await new Promise<void>(resolve => frame.contentWindow!.requestAnimationFrame(() => resolve()));
+				await nextHostFrame();
 			}
 			assert.deepStrictEqual(heights, [300, 300, 300]);
 		});
@@ -1883,7 +1889,7 @@ suite('ChatMarkdownContentPart', () => {
 			const main = document.querySelector('main')!;
 			const before = { sameRow: nav.getBoundingClientRect().top === main.getBoundingClientRect().top, separateColumns: main.getBoundingClientRect().left > nav.getBoundingClientRect().right };
 			frame.contentWindow!.scrollTo(0, 200);
-			await new Promise<void>(resolve => frame.contentWindow!.requestAnimationFrame(() => resolve()));
+			await nextHostFrame();
 			assert.deepStrictEqual({
 				before,
 				stickyTop: nav.getBoundingClientRect().top,
