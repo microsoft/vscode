@@ -22,10 +22,16 @@ export function initialize<T extends IWebWorkerServerRequestHandler>(factory: IW
 	}
 	initialized = true;
 
-	const webWorkerServer = new WebWorkerServer<T>(
-		msg => globalThis.postMessage(msg),
-		(workerServer) => factory(workerServer)
-	);
+	let webWorkerServer: WebWorkerServer<T>;
+	try {
+		webWorkerServer = new WebWorkerServer<T>(
+			msg => globalThis.postMessage(msg),
+			(workerServer) => factory(workerServer)
+		);
+	} catch (e) {
+		initialized = false;
+		throw e;
+	}
 
 	globalThis.onmessage = (e: MessageEvent) => {
 		webWorkerServer.onmessage(e.data);
@@ -42,3 +48,8 @@ export function bootstrapWebWorker(factory: IWebWorkerServerRequestHandlerFactor
 		}
 	};
 }
+
+export function _resetInitializedForTesting(): void {
+	initialized = false;
+}
+
