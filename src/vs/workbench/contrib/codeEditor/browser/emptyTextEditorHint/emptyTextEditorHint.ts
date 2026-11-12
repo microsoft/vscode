@@ -32,17 +32,20 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
+import { EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting } from './emptyEditorHintActions.js';
+import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
-
-type EmptyEditorHintAction = 'generateCode' | 'selectLanguage' | 'dontShowAgain';
 
 export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
 
 	static readonly ID = EmptyTextEditorHintContributionId;
 
-	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
+	private textHintContentWidget: EmptyTextEditorHintContentWidget | EmptyEditorHintActionsWidget | undefined;
+
+	/** The id of the text model for which the user closed the hint in this editor. Untitled URIs are reused, model ids are not. */
+	private closedForModelId: string | undefined;
 
 	constructor(
 		protected readonly editor: ICodeEditor,
@@ -64,7 +67,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
+			if (e.affectsConfiguration(emptyTextEditorHintSetting) || e.affectsConfiguration(emptyEditorHintActionsSetting)) {
 				this.update();
 			}
 		}));
@@ -98,6 +101,10 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 			return false;
 		}
 
+		if (this.closedForModelId === model.id) {
+			return false;
+		}
+
 		if (this.editor.getModel()?.getValueLength()) {
 			return false;
 		}
@@ -117,12 +124,34 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		return hasEditorAgents || shouldRenderDefaultHint;
 	}
 
+	/**
+	 * The list of actions is experimental and only offered for new untitled files, not in diff editors.
+	 */
+	private shouldRenderActions(): boolean {
+		return this.editor.getModel()?.uri.scheme === Schemas.untitled
+			&& !this.editor.getOption(EditorOption.inDiffEditor)
+			&& this.configurationService.getValue<boolean>(emptyEditorHintActionsSetting) === true;
+	}
+
 	protected update(): void {
 		const shouldRenderHint = this.shouldRenderHint();
-		if (shouldRenderHint && !this.textHintContentWidget) {
-			this.textHintContentWidget = this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
-		} else if (!shouldRenderHint && this.textHintContentWidget) {
+		const shouldRenderActions = shouldRenderHint && this.shouldRenderActions();
+		if (this.textHintContentWidget && (!shouldRenderHint || shouldRenderActions !== this.textHintContentWidget instanceof EmptyEditorHintActionsWidget)) {
 			this.disposeHint();
+		}
+		if (shouldRenderHint && !this.textHintContentWidget) {
+			this.textHintContentWidget = shouldRenderActions
+				? this.instantiationService.createInstance(EmptyEditorHintActionsWidget, this.editor, {
+					close: () => {
+						this.closedForModelId = this.editor.getModel()?.id;
+						this.disposeHint();
+					},
+					dontShowAgain: () => {
+						this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
+						this.disposeHint();
+					},
+				})
+				: this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
 		}
 	}
 
@@ -174,22 +203,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 	}
 
 	private logHintEvent(kind: 'shown' | 'action', action?: EmptyEditorHintAction): void {
-		type EmptyEditorHintEvent = { kind: 'shown' | 'action'; action: EmptyEditorHintAction | undefined; scheme: string; untitledDocumentId: string | undefined };
-		type EmptyEditorHintClassification = {
-			owner: 'hediet';
-			comment: 'How often the empty editor hint is shown and which of its actions are used.';
-			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'shown: the hint appeared. action: the user clicked one of its actions.' };
-			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was clicked.' };
-			scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scheme of the document, e.g. untitled or file.' };
-			untitledDocumentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The untitledDocumentId of the untitledDocument events, if the document is untitled.' };
-		};
-		const resource = this.editor.getModel()?.uri;
-		this.telemetryService.publicLog2<EmptyEditorHintEvent, EmptyEditorHintClassification>('emptyEditorHint', {
-			kind,
-			action,
-			scheme: resource?.scheme ?? '',
-			untitledDocumentId: this.untitledDocumentTelemetryService.getUntitledDocumentId(resource),
-		});
+		logEmptyEditorHintEvent(this.telemetryService, this.untitledDocumentTelemetryService, this.editor.getModel()?.uri, 'classic', kind, action);
 	}
 
 	getId(): string {
