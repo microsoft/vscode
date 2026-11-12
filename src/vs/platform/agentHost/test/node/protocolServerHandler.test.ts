@@ -61,7 +61,7 @@ import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } fr
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } from '../../common/clientArtifactIntegrations.js';
-import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
+import { PathStyle, type AutomationCapabilities, type Implementation } from '../../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
@@ -656,7 +656,7 @@ suite('ProtocolServerHandler', () => {
 			agentService,
 			stateManager,
 			server,
-			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString(), loadEstimator: { hasHighLoad: () => false } },
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, environment: { pathStyle: PathStyle.Posix }, defaultDirectory: URI.file('/home/testuser').toString(), loadEstimator: { hasHighLoad: () => false } },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
 			agentHostTelemetryService,
@@ -666,6 +666,13 @@ suite('ProtocolServerHandler', () => {
 			NullAgentHostOTelService,
 			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
 		));
+	});
+
+	test('advertises the configured host path style during initialization', () => {
+		const transport = connectClient('host-environment');
+		const response = findResponse(transport.sent, 1) as { readonly result: InitializeResult };
+
+		assert.deepStrictEqual(response.result.environment, { pathStyle: PathStyle.Posix });
 	});
 
 	test('pulls client certificates lazily over reverse RPC without changing the AH environment', async () => {
