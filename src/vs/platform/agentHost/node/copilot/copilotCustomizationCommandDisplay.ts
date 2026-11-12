@@ -643,7 +643,7 @@ function formatCopilotPluginOutput(
 			plugin = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
 		}
 		listedPluginNames.add(plugin);
-		const disabled = match.groups.disabled || installedPlugin?.enabled === false
+		const disabled = match.groups.disabled
 			? ` (${localize('copilotPlugins.disabled', "disabled")})`
 			: '';
 		output.push(`- ${appendEscapedMarkdownInlineCode(plugin)}${version ? ` — v${escapeCustomizationMarkdownText(version)}` : ''}${disabled}`);
