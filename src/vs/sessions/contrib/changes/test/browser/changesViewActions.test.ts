@@ -63,6 +63,7 @@ import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEdito
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../../browser/layoutActions.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
 
