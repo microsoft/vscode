@@ -584,13 +584,15 @@ interface ICopilotClientProxyState {
 }
 
 /**
- * The credentials of the `http.proxy` setting, as proxy origin, user name and password, that one Copilot runtime was
- * last answered for a Basic challenge, and the ones its proxy last rejected. Each runtime keeps the credentials it was
- * answered, so each tracks its own.
+ * The Basic proxy credentials one Copilot runtime was last answered, as proxy origin, user name and password. Each
+ * runtime keeps the credentials it was answered until its proxy rejects them, so each tracks its own: those of the
+ * `http.proxy` setting it was last answered and the ones its proxy last rejected, and by proxy origin, those of a
+ * client it was last answered.
  */
-interface IRuntimeConfiguredProxyCredentials {
-	answered?: string;
-	rejected?: string;
+interface IRuntimeProxyCredentials {
+	configuredAnswered?: string;
+	configuredRejected?: string;
+	readonly clientAnswered: Map<string, string>;
 }
 
 /** What a configuration check runs for, and how it may wait. */
@@ -10575,12 +10577,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** The network callbacks through which the Copilot runtime resolves proxies and looks up Kerberos tickets and proxy credentials. */
 	private _createRuntimeNetworkConfig(): NetworkConfig {
 		this._logService.info('[Copilot] The Copilot runtime resolves proxies and Kerberos tickets through this agent host');
-		const configuredCredentials: IRuntimeConfiguredProxyCredentials = {};
+		const runtimeCredentials: IRuntimeProxyCredentials = { clientAnswered: new Map() };
 		return {
 			scope: 'runtime',
 			resolveProxy: request => this._resolveRuntimeProxy(request.url),
 			authenticateNegotiate: request => this._lookupKerberosToken(request.spn),
-			authenticateBasic: request => this._lookupBasicCredentials(request, configuredCredentials),
+			authenticateBasic: request => this._lookupBasicCredentials(request, runtimeCredentials),
 		};
 	}
 
@@ -10589,29 +10591,41 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * rejects them, then a client's, with Electron's login attempts: the first may answer session or stored credentials,
 	 * a later one asks for different credentials. Changing the credentials of the setting does not restart the runtime,
 	 * which keeps the ones the proxy rejects, so a later attempt answers with the setting's credentials too when they
-	 * changed since the last answer to that runtime.
+	 * changed since the last answer to that runtime. Each runtime keeps the credentials of a client too, so after the
+	 * proxy rejects them, the first attempt answers the client's current credentials, which the login dialog of another
+	 * runtime's rejection may have replaced, and only a later attempt asks for others, so the runtimes of the local and
+	 * a WSL agent host don't each show a login dialog.
 	 */
-	private async _lookupBasicCredentials({ proxy, realm, previousRejected }: NetworkAuthenticateBasicRequest, configuredCredentials: IRuntimeConfiguredProxyCredentials): Promise<NetworkAuthenticateBasicResult | undefined> {
+	private async _lookupBasicCredentials({ proxy, realm, previousRejected }: NetworkAuthenticateBasicRequest, runtimeCredentials: IRuntimeProxyCredentials): Promise<NetworkAuthenticateBasicResult | undefined> {
 		this._logService.info(`[Copilot] The Copilot runtime asks for Basic credentials for the proxy ${originsOnlyForLog(proxy)}${previousRejected ? ', after the proxy rejected earlier ones' : ''}`);
+		const origin = new URL(proxy).origin;
+		const getKey = (credentials: NetworkAuthenticateBasicResult) => JSON.stringify([origin, credentials.username, credentials.password]);
 		const configured = this._readConfiguredProxyCredentials(proxy);
-		const configuredKey = configured && JSON.stringify([new URL(proxy).origin, configured.username, configured.password]);
+		const configuredKey = configured && getKey(configured);
 		let clientAnsweredRejected = previousRejected;
-		if (configured && configuredKey !== configuredCredentials.rejected) {
-			if (!previousRejected || configuredKey !== configuredCredentials.answered) {
-				configuredCredentials.answered = configuredKey;
+		if (configured && configuredKey !== runtimeCredentials.configuredRejected) {
+			if (!previousRejected || configuredKey !== runtimeCredentials.configuredAnswered) {
+				runtimeCredentials.configuredAnswered = configuredKey;
 				this._logService.info(`[Copilot] Answered the Copilot runtime's Basic challenge for the proxy ${originsOnlyForLog(proxy)} with the credentials of the http.proxy setting${previousRejected ? ', which changed since the last answer' : ''}`);
 				return configured;
 			}
-			configuredCredentials.rejected = configuredKey;
+			runtimeCredentials.configuredRejected = configuredKey;
 			this._logService.info(`[Copilot] The proxy ${originsOnlyForLog(proxy)} rejected the credentials of the http.proxy setting, asking a client for credentials`);
 			// The proxy rejected the credentials this agent host answered, not ones of a client.
 			clientAnsweredRejected = false;
 		}
-		const credentials = await this._proxyResolver.lookupBasicAuthorization(proxy, realm, clientAnsweredRejected ? 2 : 1);
-		if (configured && !clientAnsweredRejected && credentials && credentials.username === configured.username && credentials.password === configured.password) {
-			// The client answered the rejected credentials of its http.proxy setting, a second attempt tells it they were rejected.
-			this._logService.info(`[Copilot] A client answered the rejected credentials of the http.proxy setting for the proxy ${originsOnlyForLog(proxy)}, asking it for others`);
-			return this._proxyResolver.lookupBasicAuthorization(proxy, realm, 2);
+		// Past this point, the credentials of the setting, if any, were rejected.
+		const rejectedKey = clientAnsweredRejected ? runtimeCredentials.clientAnswered.get(origin) : undefined;
+		let credentials = await this._proxyResolver.lookupBasicAuthorization(proxy, realm, 1);
+		if (credentials && (getKey(credentials) === configuredKey || getKey(credentials) === rejectedKey)) {
+			// A second attempt tells the client the credentials it answered were rejected.
+			this._logService.info(`[Copilot] A client answered the rejected credentials ${getKey(credentials) === configuredKey ? 'of the http.proxy setting ' : ''}for the proxy ${originsOnlyForLog(proxy)}, asking it for others`);
+			credentials = await this._proxyResolver.lookupBasicAuthorization(proxy, realm, 2);
+		}
+		if (credentials) {
+			runtimeCredentials.clientAnswered.set(origin, getKey(credentials));
+		} else {
+			runtimeCredentials.clientAnswered.delete(origin);
 		}
 		return credentials;
 	}

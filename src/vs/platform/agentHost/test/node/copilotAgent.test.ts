@@ -15174,9 +15174,37 @@ suite('CopilotAgent', () => {
 				credentials: [{ username: 'alice', password: 's@cret' }, { username: 'user', password: 'secret' }, undefined, { username: 'user', password: 'secret' }],
 				basicLookups: [
 					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
 					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 2 },
 					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 1 },
 				],
+			});
+		});
+
+		test('answers a Copilot runtime the credentials a client was asked for after the proxy rejected another runtime\'s', async () => {
+			const proxyResolver = new TestProxyResolver();
+			let sessionCredentials = { username: 'alice', password: 'old' };
+			// Like Electron's login: the first attempt answers the session credentials, a later one asks for others.
+			proxyResolver.basicCredentials = attempt => attempt === 1 ? sessionCredentials : sessionCredentials = { username: 'alice', password: 'new' };
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			const internal = agent as unknown as { _startClientWithConfigRetry(scope: { kind: 'storage' }): Promise<CopilotClient> };
+			await (await internal._startClientWithConfigRetry({ kind: 'storage' })).stop();
+			await agent.listChatsToMigrate();
+			const [first, second] = getCreatedClientOptions(agent).map(options => options.network?.authenticateBasic);
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await first?.({ ...request, previousRejected: false }, signal),
+				await second?.({ ...request, previousRejected: false }, signal),
+				await first?.({ ...request, previousRejected: true }, signal),
+				await second?.({ ...request, previousRejected: true }, signal),
+			];
+
+			assert.deepStrictEqual({ credentials, attempts: proxyResolver.basicLookups.map(lookup => lookup.attempt) }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'new' }],
+				attempts: [1, 1, 1, 2, 1],
 			});
 		});
 
