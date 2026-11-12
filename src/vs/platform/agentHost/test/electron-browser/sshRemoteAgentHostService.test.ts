@@ -308,6 +308,7 @@ class LifecycleSSHMainService extends Disposable implements ISSHRemoteAgentHostM
 	readonly onDidAnnounceHostKeys = Event.None;
 
 	readonly initializedRelays = new Set<string>();
+	readonly forwardingRequests: Array<boolean | undefined> = [];
 	readonly connectCalls: Array<{ config: ISSHAgentHostConfig; expectedConnectionId: string | undefined }> = [];
 	readonly reconnectCalls: Array<{ sshConfigHost: string; preferredAgentLocation: RemoteAgentHostLocationPreference | undefined; expectedConnectionId: string | undefined }> = [];
 	readonly disconnectCalls: string[] = [];
@@ -325,8 +326,9 @@ class LifecycleSSHMainService extends Disposable implements ISSHRemoteAgentHostM
 		return this._acquireRelay(config, config.sshConfigHost);
 	}
 
-	async reconnect(sshConfigHost: string, name: string, _remoteAgentHostCommand?: string, _agentForward?: boolean, _userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, _remoteAgentHostCommand?: string, agentForward?: boolean, _userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this.reconnectCalls.push({ sshConfigHost, preferredAgentLocation, expectedConnectionId });
+		this.forwardingRequests.push(agentForward);
 		this._onDidReconnect.fire();
 		const error = this.nextReconnectError;
 		this.nextReconnectError = undefined;
@@ -2392,6 +2394,31 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			connectCalls: 1,
 			reconnectCalls: 1,
 		});
+	});
+
+	test('configured-host requests resolve in the main service without staging renderer credentials', async () => {
+		const connecting = service.connect({ sshConfigHost: 'remote.example', name: 'My Remote' });
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		const connected = await connecting;
+
+		assert.deepStrictEqual({
+			connectCalls: mainService.connectCalls,
+			reconnectCalls: mainService.reconnectCalls,
+			address: connected.localAddress,
+			forwardingRequests: mainService.forwardingRequests,
+		}, {
+			connectCalls: [],
+			reconnectCalls: [{ sshConfigHost: 'remote.example', preferredAgentLocation: undefined, expectedConnectionId: undefined }],
+			address: 'ssh:remote.example',
+			forwardingRequests: [true],
+		});
+
+		const recovery = service.reconnect('remote.example', 'My Remote', false);
+		await waitForTransport(2);
+		await transports[1].completeInitialize();
+		await recovery;
+		assert.deepStrictEqual(mainService.forwardingRequests, [true, undefined]);
 	});
 
 	test('replaces the relay during explicit recovery and disposes the transferred lease without disconnecting it', async () => {
