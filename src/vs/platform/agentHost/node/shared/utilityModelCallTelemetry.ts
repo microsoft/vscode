@@ -22,13 +22,16 @@ export type AgentHostUtilityModelCallSource =
 /** Telemetry attribution for a utility model call. Never carries prompt or response content. */
 export interface IAgentHostUtilityModelCallTelemetryContext {
 	readonly source: AgentHostUtilityModelCallSource;
-	/** The agent session the call serves; absent when no session owns the call. */
+	/**
+	 * The agent session the call serves. Absent only while preparing a dev
+	 * container worktree, before the session that uses it exists.
+	 */
 	readonly agentSessionId?: string;
 }
 
-export type AgentHostUtilityModelCallOutcome = 'success' | 'error' | 'cancelled' | 'unavailable';
+export type AgentHostUtilityModelCallOutcome = 'success' | 'error' | 'cancelled';
 
-/** One completed, failed, cancelled, or unroutable utility model call. */
+/** One completed, failed, or cancelled utility model call. */
 export interface IAgentHostUtilityModelCallReport {
 	readonly context: IAgentHostUtilityModelCallTelemetryContext;
 	readonly outcome: AgentHostUtilityModelCallOutcome;
@@ -38,7 +41,6 @@ export interface IAgentHostUtilityModelCallReport {
 	/** The Copilot model the service reported serving. Ignored for BYOK calls. */
 	readonly modelInvoked?: string;
 	readonly finishReason?: string;
-	readonly unavailableReason?: string;
 	readonly requestId?: string;
 	readonly gitHubRequestId?: string;
 	readonly copilotServiceRequestId?: string;
@@ -56,7 +58,6 @@ type AgentHostUtilityModelCallEvent = {
 	initiatorType: 'agent';
 	requestKind: 'conversation-background';
 	outcome: AgentHostUtilityModelCallOutcome;
-	unavailableReason?: string;
 	agentSessionId?: string;
 	model?: string | TelemetryTrustedValue<string>;
 	modelInvoked?: string | TelemetryTrustedValue<string>;
@@ -80,9 +81,8 @@ type AgentHostUtilityModelCallClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Feature that made the call, using the Copilot Chat extension messageSource value for the same feature.' };
 	initiatorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Always agent: utility calls are not user chat requests.' };
 	requestKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Interaction type of the call; always conversation-background.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the call succeeded, failed, was cancelled, or had no available utility model.' };
-	unavailableReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Why no utility model was available, when outcome is unavailable.' };
-	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent host session the call serves; absent when no session owns the call.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the call succeeded, failed, or was cancelled, like the Copilot Chat extension response.success, response.error, and response.cancelled events.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent host session the call serves. Absent only for branch names generated while preparing a dev container worktree, whose conversation runs in a session created afterwards on the dev container agent host.' };
 	model?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Copilot model requested, or byokModel for a BYOK model.' };
 	modelInvoked?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Copilot model the service reported serving; absent for BYOK models.' };
 	reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Finish reason the service reported for the response.' };
@@ -146,7 +146,6 @@ export function reportUtilityModelCall(telemetryService: ITelemetryService, repo
 		initiatorType: 'agent',
 		requestKind: 'conversation-background',
 		outcome: report.outcome,
-		...(report.unavailableReason ? { unavailableReason: report.unavailableReason } : {}),
 		...(reason ? { reason } : {}),
 		...(report.requestId ? { requestId: report.requestId } : {}),
 		...(report.gitHubRequestId ? { gitHubRequestId: report.gitHubRequestId } : {}),

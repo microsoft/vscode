@@ -122,32 +122,13 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	) { }
 
 	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
-		const startTime = Date.now();
+		const route = this._resolveRoute(context);
 		const attributedRequest: ICopilotUtilityChatCompletionRequest = { ...request, telemetry: { ...request.telemetry, agentSessionId: AgentSession.id(context.session) } };
-		let route: UtilityModelRoute;
-		try {
-			route = this._resolveRoute(context);
-		} catch (error) {
-			if (error instanceof AgentHostUtilityModelUnavailableError) {
-				this._reportUnavailable(attributedRequest, error, startTime);
-			}
-			throw error;
-		}
 		if (route.kind === 'copilot') {
 			// The Copilot API service reports Copilot calls.
 			return this._copilotApiService.utilityChatCompletion(route.githubToken, attributedRequest, options);
 		}
 		return this._byokChatCompletion(route.vendor, route.modelId, attributedRequest, options?.signal);
-	}
-
-	private _reportUnavailable(request: ICopilotUtilityChatCompletionRequest, error: AgentHostUtilityModelUnavailableError, startTime: number): void {
-		reportUtilityModelCall(this._telemetryService, {
-			context: request.telemetry,
-			outcome: 'unavailable',
-			isBYOK: error.reason !== AgentHostUtilityModelUnavailableReason.CopilotSignInRequired,
-			unavailableReason: error.reason,
-			timeToComplete: Date.now() - startTime,
-		});
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
@@ -303,7 +284,6 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 			context: request.telemetry,
 			outcome,
 			isBYOK: true,
-			...(outcome === 'unavailable' ? { unavailableReason: AgentHostUtilityModelUnavailableReason.ByokModelUnavailable } : {}),
 			promptTokenCount: usage?.inputTokens,
 			completionTokens: usage?.outputTokens,
 			tokenCount: usage?.inputTokens !== undefined && usage.outputTokens !== undefined ? usage.inputTokens + usage.outputTokens : undefined,
@@ -318,7 +298,6 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		};
 		const connection = this._byokBridgeRegistry.getServingConnection();
 		if (!connection) {
-			report('unavailable');
 			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
 		}
 		const bridgeRequest: IByokLmChatRequest = {

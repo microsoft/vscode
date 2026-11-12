@@ -339,7 +339,7 @@ suite('AgentHostUtilityModelService', () => {
 		});
 	});
 
-	test('attributes utility calls to the session and reports BYOK and unavailable calls with a redacted model', async () => {
+	test('attributes utility calls to the session, reports BYOK calls with a redacted model, and skips calls with no utility model', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		try {
 			const telemetryService = new RecordingTelemetryService();
@@ -351,19 +351,14 @@ suite('AgentHostUtilityModelService', () => {
 
 			const properties = { source: 'title', initiatorType: 'agent', requestKind: 'conversation-background' };
 			const byokSuccess = { ...properties, outcome: 'success' };
-			const byokUnavailable = { ...properties, outcome: 'unavailable', unavailableReason: 'byokModelUnavailable' };
-			const signedOut = { ...properties, outcome: 'unavailable', unavailableReason: 'copilotSignInRequired' };
 			const byokMeasurements = { isBYOK: 1, promptTokenCount: 20, completionTokens: 5, tokenCount: 25, reasoningTokens: 2, timeToComplete: 0 };
 			assert.deepStrictEqual({ copilotRequests, events: telemetryService.events }, {
-				// The Copilot API service reports Copilot-routed calls.
+				// The Copilot API service reports Copilot-routed calls. A disconnected
+				// BYOK bridge or a signed-out user reaches no model and reports nothing.
 				copilotRequests: [{ source: 'title', agentSessionId: 'session' }],
 				events: [
 					{ stream: 'microsoft', name: 'agentHost.utilityModelCall', data: { ...byokSuccess, ...byokMeasurements, agentSessionId: 'session', model: 'byokModel' } },
 					{ stream: 'github', name: 'agentHost.utilityModelCall', data: { ...byokSuccess, conversationId: 'session', model: 'byokModel' }, measurements: byokMeasurements },
-					{ stream: 'microsoft', name: 'agentHost.utilityModelCall', data: { ...byokUnavailable, agentSessionId: 'session', model: 'byokModel', isBYOK: 1, timeToComplete: 0 } },
-					{ stream: 'github', name: 'agentHost.utilityModelCall', data: { ...byokUnavailable, conversationId: 'session', model: 'byokModel' }, measurements: { isBYOK: 1, timeToComplete: 0 } },
-					{ stream: 'microsoft', name: 'agentHost.utilityModelCall', data: { ...signedOut, agentSessionId: 'session', isBYOK: -1, timeToComplete: 0 } },
-					{ stream: 'github', name: 'agentHost.utilityModelCall', data: { ...signedOut, conversationId: 'session' }, measurements: { isBYOK: -1, timeToComplete: 0 } },
 				],
 			});
 		} finally {
