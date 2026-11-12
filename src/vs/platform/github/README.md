@@ -70,9 +70,9 @@ The Agent Host accepts the optional AHP `authenticate.accountId` as an opaque, u
 
 Hint appearance or disappearance during renewal retains the same comparison context and bootstrap cooldown. The host remembers the last supplied hint for detecting a later explicit account switch, while replay preserves the currently supplied optional field rather than fabricating one.
 
-VS Code sends its provider/account/authorization-server tuple only in the standard field. The private `_meta['vscode.authentication.account']` convention is neither emitted nor interpreted. Older hosts ignore the standard hint, and older clients without it retain ordinary token authentication and renewal behavior; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
+VS Code sends its provider/account/authorization-server tuple only in the standard field. The private `_meta['vscode.authentication.account']` convention is neither emitted nor interpreted. Older hosts ignore the standard hint, and GitHub token authentication and renewal still work without it; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
 
-The Microsoft credential bridge also compares the standard identifier without decoding it. Its optional display label travels separately in `_meta['vscode.authentication.accountLabel']`; labels do not establish identity or affect account comparisons.
+The Microsoft credential bridge requires the standard identifier for its account-bound credential flow and compares it without decoding it. Legacy Microsoft clients supplying only private account metadata must update. Its optional display label travels separately in `_meta['vscode.authentication.accountLabel']`; labels do not establish identity or affect account comparisons.
 
 ## Typed domains
 
