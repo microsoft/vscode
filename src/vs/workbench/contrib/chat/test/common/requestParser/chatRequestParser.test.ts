@@ -18,17 +18,18 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, getPromptText, reviveParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { updateRanges } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
-import { chatReferenceVariableEntryId, toChatReferenceDynamicVariableValue } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatSessionReferenceVariableId, chatReferenceVariableEntryId, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { isValidSlashCommandName } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import assert from 'assert';
@@ -60,6 +61,23 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, 'test');
 		await assertSnapshot(result);
+	});
+
+	test('inline session references become session attachments while unrelated URI variables remain generic', () => {
+		const target = URI.parse('opaque-host-session:/target');
+		const text = 'Compare #session:Target #custom:Target';
+		variableService.setDynamicVariables(testSessionUri, [
+			{ id: ChatSessionReferenceVariableId, fullName: 'Target', range: new Range(1, 9, 1, 24), data: target },
+			{ id: 'custom', range: new Range(1, 25, 1, 39), data: target },
+		]);
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const entries = parser.parseChatRequest(testSessionUri, text).parts
+			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+			.map(part => part.toVariableEntry());
+		assert.deepStrictEqual(entries.map(entry => ({ kind: entry.kind, id: entry.id, name: entry.name, value: entry.value })), [
+			{ kind: 'sessionReference', id: target.toString(), name: 'Target', value: target },
+			{ kind: 'generic', id: 'custom', name: 'custom:Target', value: target },
+		]);
 	});
 
 	test('plain text with newlines', async () => {
@@ -385,6 +403,53 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('prompt slash command with Unicode punctuation and symbols', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptSlashCommandService.isValidSlashCommandName.callsFake(isValidSlashCommandName);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		// allow-any-unicode-next-line
+		const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+		const result = parser.parseChatRequest(testSessionUri, `/${name} arguments`);
+		const promptPart = result.parts.find((part): part is ChatRequestSlashPromptPart => part instanceof ChatRequestSlashPromptPart);
+
+		assert.deepStrictEqual({
+			name: promptPart?.name,
+			text: promptPart?.text,
+			trailing: result.parts.at(-1)?.text,
+		}, { name, text: `/${name}`, trailing: ' arguments' });
+	});
+
+	test('Unicode prompt subcommands round-trip colon and space forms', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const names = ['tool!', '\uFF160', 'cafe\u0301', '\u{1F680}'].map(name => `plugin:${name}`);
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake(isValidSlashCommandName);
+		promptsService.hasPromptSlashCommand.callsFake((name: string) => names.includes(name));
+		instantiationService.stub(IPromptsService, promptsService);
+		parser = instantiationService.createInstance(ChatRequestParser);
+
+		for (const name of names) {
+			for (const command of [name, name.replace(':', ' ')]) {
+				const result = parser.parseChatRequest(testSessionUri, `/${command} arguments`);
+				const promptPart = result.parts.find((part): part is ChatRequestSlashPromptPart => part instanceof ChatRequestSlashPromptPart);
+				assert.deepStrictEqual({
+					name: promptPart?.name,
+					text: promptPart?.text,
+					trailing: result.parts.at(-1)?.text,
+				}, { name, text: `/${command}`, trailing: ' arguments' });
+			}
+		}
+	});
+
 	test('prompt subcommand via space form resolves to colon-named prompt', () => {
 		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([]);
@@ -502,6 +567,34 @@ suite('ChatRequestParser', () => {
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
 		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionVersion: undefined, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Chat], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
+
+	for (const kind of [AgentHostCompletionReferenceKind.Skill, AgentHostCompletionReferenceKind.Command]) {
+		test(`accepted agent host ${kind} preserves structured references before and after text`, () => {
+			const metadata = { command: 'selected', uri: 'custom-skill:/selected' };
+			const entry = toAgentHostCompletionVariableEntry(kind, 'Selected', 'selected', metadata);
+			const text = '/selected first\nthen /selected after';
+			parser = instantiationService.createInstance(ChatRequestParser);
+			const result = parser.parseChatRequestWithReferences([
+				{ id: entry.id, range: new Range(1, 1, 1, 10), data: entry.value, _meta: metadata },
+				{ id: entry.id, range: new Range(2, 6, 2, 15), data: entry.value, _meta: metadata },
+			], ToolAndToolSetEnablementMap.fromEntries([]), text, ChatAgentLocation.Chat, {
+				forcedAgent: getAgentWithSlashCommands([{ name: 'selected', description: '' }]),
+			});
+			const restored = reviveParsedChatRequest(JSON.parse(JSON.stringify(result)));
+			assert.deepStrictEqual([result, restored].map(request => ({
+				prompt: getPromptText(request).message,
+				references: request.parts.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart).map(part => ({
+					text: part.text, range: Range.lift(part.editorRange), value: part.toVariableEntry().value, metadata: part.toVariableEntry()._meta,
+				})),
+			})), Array.from({ length: 2 }, () => ({
+				prompt: text,
+				references: [
+					{ text: '/selected', range: new Range(1, 1, 1, 10), value: entry.value, metadata },
+					{ text: '/selected', range: new Range(2, 6, 2, 15), value: entry.value, metadata },
+				],
+			})));
+		});
+	}
 
 	test('agent host: forcedAgent + supportsPromptAttachments revives /skill as prompt slash part', async () => {
 		// Mirrors what AgentHostSessionHandler._parsePromptForHistory does

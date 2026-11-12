@@ -39,7 +39,7 @@ export function parseGroups(args: readonly string[]): IInstallGroup[] {
 /**
  * Returns the files (relative to the repository root) that `pnpm add` in the given folders can
  * change: each folder's `package.json` and the `pnpm-lock.yaml` and `pnpm-workspace.yaml` of the
- * install root that owns the folder (the main workspace, or a separate root such as `build/rspack`).
+ * install root that owns the folder (the main workspace, or a separate root such as `build`).
  */
 export function getFilesToRestore(folders: readonly string[]): string[] {
 	const files = new Set<string>();

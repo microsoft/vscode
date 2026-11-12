@@ -12,103 +12,35 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComputers.js';
 import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { IGitHubPullRequestReview } from '../../github/common/types.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { parsePRContentUri } from '../../github/common/utils.js';
-// --- Types -------------------------------------------------------------------
-
-export interface ICodeReviewSuggestion {
-	readonly edits: readonly ICodeReviewSuggestionChange[];
-}
-
-export interface ICodeReviewSuggestionChange {
-	readonly range: IRange;
-	readonly newText: string;
-	readonly oldText: string;
-}
-
-// --- PR Review Types ---------------------------------------------------------
-
-export const enum PRReviewStateKind {
-	None = 'none',
-	Loading = 'loading',
-	Loaded = 'loaded',
-	Error = 'error',
-}
-
-export type IPRReviewState =
-	| { readonly kind: PRReviewStateKind.None }
-	| { readonly kind: PRReviewStateKind.Loading }
-	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[]; readonly incompletePullRequests: readonly Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] }
-	| { readonly kind: PRReviewStateKind.Error; readonly reason: string };
-
-export interface IPRReviewComment {
-	readonly id: string;
-	readonly pullRequest: IGitHubPullRequestRef;
-	readonly uri: URI;
-	readonly range: IRange;
-	readonly body: string;
-	readonly author: string;
-}
-
-export interface IPRReviewCommentTarget {
-	readonly pullRequest: IGitHubPullRequestRef;
-	readonly commitId: string;
-	readonly path: string;
-	readonly startLine: number | undefined;
-	readonly line: number;
-	readonly pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined;
-}
-
-// --- Service Interface -------------------------------------------------------
-
-export const ICodeReviewService = createDecorator<ICodeReviewService>('codeReviewService');
-
-export interface ICodeReviewService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Get the observable PR review state for a session.
-	 * Returns unresolved review comments from every PR associated with the session.
-	 */
-	getPRReviewState(sessionResource: URI): IObservable<IPRReviewState>;
-	getPRReviewCommentPullRequests(sessionResource: URI, resource: URI): readonly IGitHubPullRequestRef[];
-	getPRReviewCommentTargets(sessionResource: URI, resource: URI, range: IRange, currentContent: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<readonly IPRReviewCommentTarget[]>;
-	createPRReviewComment(target: IPRReviewCommentTarget, body: string): Promise<void>;
-
-	/**
-	 * Resolve a PR review thread on GitHub and remove it from local state.
-	 */
-	resolvePRReviewThread(sessionResource: URI, threadId: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<void>;
-
-	/**
-	 * Mark a PR review comment as locally converted to agent feedback.
-	 * The comment is hidden from the PR review state until the session is
-	 * cleaned up.
-	 */
-	markPRReviewCommentConverted(sessionResource: URI, commentId: string): void;
-
-	/**
-	 * Dismiss a PR review comment so it no longer appears in the review state.
-	 * Used when the user deletes the comment's pending agent-feedback mirror
-	 * from the `viewUnreviewedComments` confirmation: without suppressing the
-	 * source comment the mirror would be seeded again. Like
-	 * {@link markPRReviewCommentConverted} this is a local, in-memory filter that
-	 * does not touch GitHub and is reset when the session is cleaned up.
-	 */
-	dismissPRReviewComment(sessionResource: URI, commentId: string): void;
-}
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { parsePRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { PRReviewStateKind, IPRReviewState, IPRReviewComment, IPRReviewCommentTarget, ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';
 
 // --- Implementation ----------------------------------------------------------
 
 interface IPRSessionReviewData {
 	readonly state: ISettableObservable<IPRReviewState>;
+}
+
+export function getPRReviewComments(pullRequest: IGitHubPullRequestRef, threads: readonly IGitHubPullRequestReviewThread[], workingDirectory: URI): IPRReviewComment[] {
+	return threads.filter(thread => !thread.isResolved).map(thread => {
+		const line = thread.line ?? 1;
+		const firstComment = thread.comments[0];
+		return {
+			id: String(thread.id),
+			pullRequest,
+			uri: URI.joinPath(workingDirectory, thread.path),
+			range: new Range(thread.startLine ?? line, 1, line, 1),
+			body: firstComment?.body ?? '',
+			author: firstComment?.author.login ?? '',
+		};
+	});
 }
 
 interface IPRReviewCommentContext {
@@ -201,7 +133,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		@ILogService private readonly _logService: ILogService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 		this._registerSessionListeners();
@@ -214,11 +146,11 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				arrayEquals(a.pullRequests, b.pullRequests, (x, y) =>
 					x.owner === y.owner && x.repo === y.repo && x.number === y.number)
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
-			const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
+			const workspace = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			return {
 				sessionResource: activeSession.resource,
@@ -259,30 +191,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					incompletePullRequests.push(pullRequest);
 				}
 				const threads = reviewThreadsModel.reviewThreads.read(reader);
-				for (const thread of threads) {
-					if (thread.isResolved) {
-						continue;
-					}
-					const threadId = String(thread.id);
-					if (converted?.has(threadId)) {
-						continue;
-					}
-					const baseUri = context.workingDirectory;
-					if (!baseUri) {
-						continue;
-					}
-					const fileUri = URI.joinPath(baseUri, thread.path);
-					const line = thread.line ?? 1;
-					const startLine = thread.startLine ?? line;
-					const firstComment = thread.comments[0];
-					comments.push({
-						id: String(thread.id),
-						pullRequest,
-						uri: fileUri,
-						range: new Range(startLine, 1, line, 1),
-						body: firstComment?.body ?? '',
-						author: firstComment?.author.login ?? '',
-					});
+				if (context.workingDirectory) {
+					comments.push(...getPRReviewComments(pullRequest, threads, context.workingDirectory)
+						.filter(comment => !converted?.has(comment.id)));
 				}
 			}
 			if (!initialRefreshCompleted) {
@@ -346,9 +257,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	private _getFocusedChat(sessionResource: URI): IChat | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
-			return activeSession.activeChat.get();
+			return this._focusedSessionHostService.focusedHost.get().chat.get();
 		}
 		return this._sessionsManagementService.getSession(sessionResource)?.mainChat.get();
 	}

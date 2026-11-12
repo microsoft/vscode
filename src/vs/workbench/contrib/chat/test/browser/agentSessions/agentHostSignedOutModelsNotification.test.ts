@@ -13,8 +13,10 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
+import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { type IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -157,6 +159,15 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		instantiationService.stub(IChatEntitlementService, chatEntitlement);
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
+		instantiationService.stub(IAuthenticationService, {
+			onDidChangeSessions: Event.None,
+			onDidRegisterAuthenticationProvider: Event.None,
+			onDidUnregisterAuthenticationProvider: Event.None,
+		});
+		instantiationService.stub(IAgentHostProtectedResourcesService, {
+			onDidChange: Event.None,
+			getProtectedResources: () => undefined,
+		});
 
 		store.add(instantiationService.createInstance(AgentHostSignedOutModelsNotificationContribution));
 		// Let the account and extension readiness promises settle.

@@ -7,9 +7,10 @@ import './media/sessionCanvas.css';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { $, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { encodeBase64 } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -26,10 +27,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../browserView/electron-browser/webContentsViewHost.js';
-import { ICanvas, ICanvasReference, ICanvasService } from '../common/canvas.js';
+import { ICanvasService } from '../common/canvas.js';
+import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
 
@@ -76,6 +79,8 @@ const liveViews = new Set<CanvasView>();
 const HELD_FRAME_TIMEOUT = 300;
 /** How long the held frame stays under a revealed canvas, so its native view is composited before the frame goes. */
 const HELD_FRAME_REVEAL_DELAY = 100;
+/** How long a canvas whose provider dropped is presented as reconnecting before it is reported unavailable. */
+const PROVIDER_RECONNECT_TIMEOUT = 30_000;
 
 /** Returns the canvas view that contains keyboard focus, if any. */
 export function getFocusedCanvasView(): CanvasView | undefined {
@@ -99,13 +104,19 @@ export class CanvasView extends Disposable {
 	private readonly wrapper: HTMLElement;
 	private readonly container: HTMLElement;
 	private readonly message: HTMLElement;
+	private readonly reloadButton: Button;
 	/** The last frame of the canvas this view switched away from, shown until the next canvas is revealed. */
 	private readonly heldFrame: HTMLElement;
 	private readonly heldFrameRelease = this._register(new MutableDisposable());
+	/** A copy of this canvas's last frame, shown while its provider reconnects. */
+	private readonly frozenFrame: HTMLElement;
 	private readonly host: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
+	/** The canvas whose page `model` is, by reference key. */
+	private modelCanvas: string | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
 	private readonly pendingVisibleLayout = this._register(new MutableDisposable());
+	private readonly reconnectTimeout = this._register(new MutableDisposable());
 	private readonly currentInput = observableValue<ICanvasViewInput | undefined>(this, undefined);
 	private readonly viewVisible = observableValue(this, false);
 	private readonly _presentationVisible = observableValue(this, false);
@@ -121,6 +132,7 @@ export class CanvasView extends Disposable {
 	private loadedKey: string | undefined;
 	/** The load key whose model another view took over; reclaimed once this view is laid out visibly. */
 	private yieldedKey: string | undefined;
+	private reconnecting = false;
 	private semanticSequence = 0;
 	private semanticText = '';
 	private helpAnnounced = false;
@@ -150,9 +162,16 @@ export class CanvasView extends Disposable {
 		this.container.setAttribute('role', 'group');
 		this.container.setAttribute('aria-label', localize('canvas.content', "Canvas content. Use Accessibility Help for keyboard navigation."));
 		const placeholder = $('.browser-placeholder-contents');
+		const canvasStatus = $('.session-canvas-status');
 		this.message = $('.session-canvas-message');
 		this.message.setAttribute('role', 'status');
-		placeholder.appendChild(this.message);
+		canvasStatus.appendChild(this.message);
+		this.reloadButton = this._register(new Button(canvasStatus, defaultButtonStyles));
+		this.reloadButton.label = localize('canvas.reload', "Reload Canvas");
+		this.reloadButton.enabled = false;
+		this.reloadButton.element.style.display = 'none';
+		this._register(this.reloadButton.onDidClick(() => this._reload()));
+		placeholder.appendChild(canvasStatus);
 		this.container.appendChild(placeholder);
 		this.wrapper.appendChild(this.container);
 		this.element.appendChild(this.wrapper);
@@ -162,7 +181,9 @@ export class CanvasView extends Disposable {
 		this.host = this._register(instantiationService.createInstance(WebContentsViewHost, targetWindow, () => focusWebContentsViewContainer(this.container)));
 		this.heldFrame = $('.session-canvas-held-frame');
 		this.heldFrame.setAttribute('aria-hidden', 'true');
-		placeholder.append(this.host.screenshotElement, this.heldFrame, this.host.pauseElement);
+		this.frozenFrame = $('.session-canvas-frozen-frame');
+		this.frozenFrame.setAttribute('aria-hidden', 'true');
+		placeholder.append(this.host.screenshotElement, this.heldFrame, this.frozenFrame, this.host.pauseElement);
 		this.host.onContainerCreated(this.container);
 
 		liveViews.add(this);
@@ -181,16 +202,19 @@ export class CanvasView extends Disposable {
 				return;
 			}
 			const canvas = input.canvas.read(reader);
-			if (input.membershipPending.read(reader)) {
-				this._detach(localize('canvas.pending', "Waiting for this canvas to become available."));
-				return;
-			}
-			if (!canvas) {
+			const membershipPending = input.membershipPending.read(reader);
+			if (!membershipPending && !canvas) {
 				this._detach(localize('canvas.closed', "This canvas is no longer available."));
 				return;
 			}
-			if (canvas.source === undefined) {
-				this._detach(localize('canvas.unavailable', "The canvas provider is temporarily unavailable."));
+			if (membershipPending || canvas?.source === undefined) {
+				if (this._presents(input)) {
+					// Freeze the last frame while the provider reconnects; the next source loads into the same page in place.
+					this._invalidateLoad();
+					this._setReconnecting(true);
+				} else {
+					this._detachUnavailable(membershipPending);
+				}
 				return;
 			}
 			const key = getLoadKey(canvas.resource, canvas.source);
@@ -231,7 +255,7 @@ export class CanvasView extends Disposable {
 		if (!screenshot) {
 			return;
 		}
-		this.heldFrame.style.backgroundImage = `url('data:image/jpeg;base64,${encodeBase64(screenshot)}')`;
+		this.heldFrame.style.backgroundImage = getFrameImage(screenshot);
 		this.heldFrame.classList.add('held');
 		this.heldFrameRelease.value = disposableTimeout(() => this.releaseFrame(), HELD_FRAME_TIMEOUT);
 	}
@@ -242,20 +266,56 @@ export class CanvasView extends Disposable {
 		this.heldFrame.style.backgroundImage = '';
 	}
 
-	private async _load(input: ICanvasViewInput, key: string): Promise<void> {
+	private _reload(): void {
+		if (!this.reloadButton.enabled || this.loadingKey !== undefined || !this.model?.error || this._store.isDisposed || !this._measure().visible) {
+			return;
+		}
+		const input = this.currentInput.get();
+		const canvas = input?.canvas.get();
+		if (!input || !canvas?.source || input.membershipPending.get() || !this.canvasService.enabled.get()
+			|| !this.canvasService.isPresentable(input.reference) || !this._presents(input)) {
+			return;
+		}
+		void this._load(input, getLoadKey(canvas.resource, canvas.source), true);
+	}
+
+	private _updateReloadButton(): void {
+		const available = !!this.model?.error && this.loadingKey === undefined && !this.reconnecting;
+		// Moving focus to the container while loading can focus the native page before it is ready.
+		const loadingFocused = (this.loadingKey !== undefined || this.reconnecting) && this.reloadButton.hasFocus();
+		if (!available && !loadingFocused && this.reloadButton.hasFocus() && this.targetWindow.document.hasFocus() && this._measure().visible) {
+			const input = this.currentInput.get();
+			if (input && this.canvasService.isPresentable(input.reference)) {
+				focusWebContentsViewContainer(this.container);
+			}
+		}
+		this.reloadButton.enabled = available;
+		this.reloadButton.element.style.display = available || loadingFocused ? '' : 'none';
+	}
+
+	private async _load(input: ICanvasViewInput, key: string, reload = false): Promise<void> {
 		const canvas = input.canvas.get();
 		if (canvas === undefined || canvas.source === undefined) {
 			return;
 		}
-		this._detach(localize('canvas.loading', "Loading canvas…"));
+		// The page of this canvas stays presented while its new source loads into it in place, but no longer counts as showing its last source.
+		if (this._presents(input)) {
+			this.loadedKey = undefined;
+			if (reload) {
+				this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
+			}
+		} else {
+			this._detach(localize('canvas.loading', "Loading canvas…"));
+		}
 		const sequence = ++this.loadSequence;
 		this.loadingKey = key;
+		this._updateReloadButton();
 		const stopwatch = StopWatch.create();
 		let outcome: CanvasLoadEvent['outcome'] = 'error';
 		let reused = false;
 		try {
 			const source = canvas.source;
-			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source);
+			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source, reload);
 			const model = resolution.model;
 			reused = resolution.reused;
 			if (!this._isCurrent(input, source, sequence)) {
@@ -269,20 +329,29 @@ export class CanvasView extends Disposable {
 				return;
 			}
 			this._setModel(model);
+			this.modelCanvas = getCanvasReferenceKey(input.reference);
 			this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
 			this.loadedKey = key;
+			this._setReconnecting(false);
 			this.message.textContent = model.error ? localize('canvas.pageFailed', "The canvas page failed to load.") : '';
 			outcome = model.error ? 'error' : 'loaded';
 		} catch (error) {
 			const current = this._isCurrent(input, canvas.source, sequence);
 			outcome = !current ? 'interrupted' : isCancellationError(error) ? 'cancelled' : 'error';
 			if (current && !isCancellationError(error)) {
-				this._detach(localize('canvas.loadFailed', "The canvas could not be loaded."));
+				const message = localize('canvas.loadFailed', "The canvas could not be loaded.");
+				if (reload && this._presents(input)) {
+					this.loadedKey = key;
+					this.message.textContent = message;
+				} else {
+					this._detach(message);
+				}
 				this.logService.error(`${this.options.logPrefix} Failed to load canvas`);
 			}
 		} finally {
 			if (sequence === this.loadSequence && this.loadingKey === key) {
 				this.loadingKey = undefined;
+				this._updateReloadButton();
 			}
 			if (!reused) {
 				this.telemetryService.publicLog2<CanvasLoadEvent, CanvasLoadClassification>('agentCanvas.loadCompleted', {
@@ -330,6 +399,8 @@ export class CanvasView extends Disposable {
 		}
 		this.modelLifetime.clear();
 		this.model = model;
+		this._updateReloadButton();
+		this.modelCanvas = undefined;
 		this.layoutSequence++;
 		this._presentationVisible.set(false, undefined);
 		if (model) {
@@ -363,9 +434,14 @@ export class CanvasView extends Disposable {
 			}
 		}));
 		this.modelLifetime.add(model.onDidChangeLoadingState(event => {
+			// The reconnect status owns the message until the returning source has loaded.
+			if (this.reconnecting) {
+				return;
+			}
 			this.message.textContent = event.error
 				? localize('canvas.pageFailed', "The canvas page failed to load.")
 				: event.loading ? localize('canvas.pageLoading', "Loading canvas page…") : '';
+			this._updateReloadButton();
 		}));
 		this.modelLifetime.add(model.onDidNavigate(() => this.invalidateSemanticContent()));
 		this.modelLifetime.add(model.onDidRequestOpenExternal(url => {
@@ -376,12 +452,17 @@ export class CanvasView extends Disposable {
 				return;
 			}
 			this.model = undefined;
+			this._updateReloadButton();
+			this.modelCanvas = undefined;
 			this.loadedKey = undefined;
 			this.host.setModel(undefined);
 			const input = this.currentInput.get();
 			const canvas = input?.canvas.get();
 			if (input && canvas?.source && this.canvasService.isPresentable(input.reference)) {
 				void this._load(input, getLoadKey(canvas.resource, canvas.source));
+			} else if (input && this.canvasService.isPresentable(input.reference)) {
+				// The page kept while its provider was unavailable is gone.
+				this._detachUnavailable(input.membershipPending.get());
 			}
 		}));
 		this.layout();
@@ -393,6 +474,8 @@ export class CanvasView extends Disposable {
 				openExternal: true,
 				fromUserGesture: true,
 				allowContributedOpeners: true,
+				// In the window of the canvas: focus is in its page, outside the workbench, so it cannot tell the window.
+				sourceWindowId: this.targetWindow.vscodeWindowId,
 			});
 			if (!opened) {
 				this.logService.warn(`${this.options.logPrefix} External canvas link was not opened`);
@@ -402,12 +485,54 @@ export class CanvasView extends Disposable {
 		}
 	}
 
-	private _detach(message: string): void {
+	/** Whether the attached page is the page of `input`'s canvas, so a new source of that canvas can load into it in place. */
+	private _presents(input: ICanvasViewInput): boolean {
+		return this.model !== undefined && this.modelCanvas === getCanvasReferenceKey(input.reference);
+	}
+
+	private _invalidateLoad(): void {
 		this.loadSequence++;
 		this.loadingKey = undefined;
 		this.loadedKey = undefined;
+	}
+
+	private _detach(message: string): void {
+		this._invalidateLoad();
 		this._setModel(undefined);
+		this._setReconnecting(false);
 		this.message.textContent = message;
+	}
+
+	private _detachUnavailable(membershipPending: boolean): void {
+		this._detach(membershipPending
+			? localize('canvas.pending', "Waiting for this canvas to become available.")
+			: localize('canvas.unavailable', "The canvas provider is temporarily unavailable."));
+	}
+
+	/**
+	 * Hides the attached page behind its last frame while its provider reconnects, so the dead page
+	 * cannot be used or mistaken for a live one. Only a successful load or a detach ends it.
+	 */
+	private _setReconnecting(reconnecting: boolean): void {
+		if (this.reconnecting === reconnecting) {
+			return;
+		}
+		this.reconnecting = reconnecting;
+		this._updateReloadButton();
+		this.element.classList.toggle('provider-reconnecting', reconnecting);
+		if (reconnecting) {
+			// A copy, because the host clears its own screenshot when the retained page fails to load.
+			const screenshot = this.model?.screenshot;
+			this.frozenFrame.style.backgroundImage = screenshot ? getFrameImage(screenshot) : '';
+			this.message.textContent = localize('canvas.reconnecting', "Reconnecting to the canvas provider…");
+			this.reconnectTimeout.value = disposableTimeout(() => {
+				this.message.textContent = localize('canvas.providerUnavailable', "The canvas provider is unavailable.");
+			}, PROVIDER_RECONNECT_TIMEOUT);
+		} else {
+			this.frozenFrame.style.backgroundImage = '';
+			this.reconnectTimeout.clear();
+		}
+		this.layout();
 	}
 
 	layout(): void {
@@ -483,6 +608,7 @@ export class CanvasView extends Disposable {
 		const cornerRadius = parseFloat(this.targetWindow.getComputedStyle(this.container).borderTopLeftRadius) || 0;
 		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.targetWindow.vscodeWindowId, zoomFactor, cornerRadius };
 		const visible = this.viewVisible.get()
+			&& !this.reconnecting
 			&& bounds.width > 0
 			&& bounds.height > 0
 			&& rect.right > 0
@@ -524,15 +650,23 @@ export class CanvasView extends Disposable {
 
 	createAccessibleProvider(type: AccessibleViewType): AccessibleContentProvider {
 		const input = this.currentInput.get();
-		const help = this.options.getHelpContent();
+		const reloadFocused = this.reloadButton.hasFocus();
+		const help = [
+			this.options.getHelpContent(),
+			localize('canvas.help.reload', "If the canvas page fails while its provider is available, use Reload Canvas to reload the page."),
+		].join('\n\n');
 		this.semanticText = localize('canvas.reading', "Reading accessible canvas content…");
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionCanvas,
 			{ type, language: 'plaintext' },
 			() => type === AccessibleViewType.Help ? help : this.semanticText,
 			() => {
-				if (input && this.currentInput.get() === input && this._presentationVisible.get() && this.canvasService.isPresentable(input.reference)) {
-					this.focus();
+				if (input && this.currentInput.get() === input && this._measure().visible && this.canvasService.isPresentable(input.reference)) {
+					if (reloadFocused && this.reloadButton.enabled) {
+						this.reloadButton.focus();
+					} else {
+						this.focus();
+					}
 				}
 			},
 			AccessibilityVerbositySettingId.SessionCanvas,
@@ -579,4 +713,8 @@ export class CanvasView extends Disposable {
 
 function getLoadKey(resource: URI, source: URI): string {
 	return `${resource.toString()}\u0000${source.toString()}`;
+}
+
+function getFrameImage(screenshot: VSBuffer): string {
+	return `url('data:image/jpeg;base64,${encodeBase64(screenshot)}')`;
 }

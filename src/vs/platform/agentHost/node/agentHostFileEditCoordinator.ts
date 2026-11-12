@@ -6,10 +6,10 @@
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getFileEditResourceKey } from './fileEditPath.js';
 
 export const IAgentHostFileEditCoordinator = createDecorator<IAgentHostFileEditCoordinator>('agentHostFileEditCoordinator');
 
@@ -128,7 +128,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
 	isEditing(resource: URI): boolean {
-		return (this._files.get(extUriBiasedIgnorePathCase.getComparisonKey(resource))?.edits ?? 0) > 0;
+		return (this._files.get(getFileEditResourceKey(resource))?.edits ?? 0) > 0;
 	}
 
 	registerCoordinatedProvider(provider: string): IDisposable {
@@ -153,7 +153,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	async beginEdit(resource: URI): Promise<IDisposable> {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = getFileEditResourceKey(resource);
 		// A change of the file that runs or waits goes first; one that comes later waits for this edit.
 		for (let exclusive = this._files.get(key)?.exclusive; exclusive; exclusive = this._files.get(key)?.exclusive) {
 			await exclusive.catch(() => { });
@@ -162,7 +162,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	markEditing(resource: URI): IDisposable {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = getFileEditResourceKey(resource);
 		const state = this._getState(key);
 		state.edits++;
 		if (state.edits === 1) {
@@ -187,7 +187,7 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 	}
 
 	async runExclusive<T>(resource: URI, task: () => Promise<T>, timeoutMs = DEFAULT_EDITS_TIMEOUT_MS): Promise<T> {
-		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
+		const key = getFileEditResourceKey(resource);
 		const state = this._getState(key);
 		const previous = state.exclusive;
 		const run = (async () => {

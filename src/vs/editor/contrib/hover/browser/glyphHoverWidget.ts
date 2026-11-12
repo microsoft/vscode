@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { HoverOperation, HoverResult, HoverStartMode } from './hoverOperation.js';
 import { HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -79,7 +80,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 	}
 
 	private _updateFont(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
@@ -147,7 +148,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		for (const msg of messages) {
 			const markdownHoverElement = $('div.hover-row.markdown-hover');
 			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-			const renderedContents = this._renderDisposeables.add(this._markdownRendererService.render(msg.value, { context: this._editor }));
+			const renderedContents = this._renderDisposeables.add(this._markdownRendererService.render(msg.value, { context: this._editor, sanitizerConfig: getEditorMarkdownSanitizerConfig(this._editor) }));
 			hoverContentsElement.appendChild(renderedContents.element);
 			fragment.appendChild(markdownHoverElement);
 		}

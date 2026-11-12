@@ -32,6 +32,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 import { stub } from 'sinon';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 registerColors();
 
@@ -432,6 +433,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryDocument = iframe.contentDocument!;
 		const auxiliaryContainer = document.createElement('div');
 		auxiliaryDocument.body.appendChild(auxiliaryContainer);
@@ -475,6 +477,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryDocument = iframe.contentDocument!;
 		const auxiliaryContainer = document.createElement('div');
 		auxiliaryDocument.body.appendChild(auxiliaryContainer);
@@ -490,6 +493,37 @@ suite('XtermTerminal', () => {
 		await timeout(0);
 
 		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true]);
+	});
+
+	test('recreates the WebGL renderer once the terminal shows in another window, whose canvas loses its context', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', { ...defaultTerminalConfig, gpuAcceleration: 'on' });
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+		await timeout(0);
+		const created = TestWebglAddon.customGlyphOptions.length;
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
+		const auxiliaryContainer = document.createElement('div');
+		iframe.contentDocument!.body.appendChild(auxiliaryContainer);
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.updateGpuRendererWindow();
+		await timeout(0);
+		const afterMove = TestWebglAddon.customGlyphOptions.length;
+		xterm.updateGpuRendererWindow();
+		await timeout(0);
+
+		deepStrictEqual({ created, afterMove, inTheSameWindow: TestWebglAddon.customGlyphOptions.length, enabled: TestWebglAddon.isEnabled }, { created: 1, afterMove: 2, inTheSameWindow: 2, enabled: true });
 	});
 
 	suite('getContentsAsText', () => {

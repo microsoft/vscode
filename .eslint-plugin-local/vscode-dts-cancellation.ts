@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
+export default new class ApiProviderNaming implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			noToken: 'Function lacks a cancellation token, preferable as last argument',
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		return {
-			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: TSESTree.Node) => {
+			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: ESTree.TSMethodSignature) => {
 
 				let found = false;
-				for (const param of (node as TSESTree.TSMethodSignature).params) {
-					if (param.type === AST_NODE_TYPES.Identifier) {
+				for (const param of node.params) {
+					if (param.type === 'Identifier') {
 						found = found || param.name === 'token';
 					}
 				}

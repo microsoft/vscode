@@ -35,7 +35,8 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
@@ -173,33 +174,10 @@ function createOperationService(): IAgentHostChangesetOperationService {
 	};
 }
 
-/** Captures `publicLog2` telemetry events so tests can assert on emitted fields. */
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: Record<string, unknown> }[] = [];
-	private readonly _onDidLog = new Emitter<void>();
-	/** Fires after each event is added to {@link events}. */
-	readonly onDidLog: Event<void> = this._onDidLog.event;
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data: data ?? {} });
-		this._onDidLog.fire();
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<Record<string, unknown>> {
+	constructor() {
+		super({ captureErrors: true, normalizeData: data => data as Record<string, unknown> ?? {} });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data: data ?? {} });
-		this._onDidLog.fire();
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite.skip('AgentHostChangesetService', () => {
@@ -2210,6 +2188,23 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			awaitingRefresh: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: true, meta: undefined }],
 			afterWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: false, meta: undefined }],
 		});
+	});
+
+	test('a Working Set marks a file that an agent is writing through a spelling of its path with `.` segments', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/repo/pending.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('c'), afterContent: encodeString('c\nd') });
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		const editing = () => stateManager.getChangesetState(workingSet)?.files.map(file => file.isEditing);
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/./pending.txt')));
+		const whileWriting = editing();
+		writing.dispose();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ whileWriting, afterWriting: editing() }, { whileWriting: [true], afterWriting: [false] });
 	});
 
 	test('a Working Set clears the editing mark with the recorded version, not an older in-flight computation', async () => {

@@ -16,6 +16,17 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot native Entra accounts are unavailable on Linux
+
+The native runtime currently enables Microsoft Entra account login only on Windows and macOS. A host-supplied token source does not bypass that platform gate. Linux cannot complete the positive setup-session account and model-catalog scenario; this is not evidence that the account has no usable services.
+
+- Test: `uses the confirmed setup account for the catalog without global login` in `../providerIntegration/copilotAccountContext.integrationTest.ts`.
+- Scope: Linux with the bundled SDK `1.0.29-preview.10` / runtime `1.0.106-11`.
+- Expected on supported platforms: confirm the selected account, read its session-owned catalog, and reject global queries using that session's selection handle.
+- Observed: Linux CI rejected discovery before readiness in all three attempts. The runtime's Entra `SUPPORTED` predicate enables only Windows/macOS, and its host-owned Entra SDK suite also excludes Linux.
+- Gate: skip only this native positive-path test on Linux, matching the existing Entra transport test's platform scope. Keep protocol, credential, account-state and client tests enabled. Remove this gate when native Entra support includes Linux; do not weaken the account-confirmation assertions.
+- Reproduce on a supported platform: `./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotAccountContext.integrationTest.ts`. Re-enable the test before checking future Linux support. Cross-platform CI must distinguish this unsupported capability from a successful Entra journey.
+
 ### Copilot empty-mode native plugin agent selection
 
 A user selects an agent supplied by a plugin for a chat backed by the SDK's `empty` client mode. This mode is used by storage-scoped Copilot clients. The native plugin agent is absent from the session catalog even when its directory is supplied and configuration discovery is enabled, so the requested agent cannot be selected. Retrying as the default agent would silently change the user's request.
@@ -479,38 +490,6 @@ Users can save independent Mode and Approvals choices on an Automation and expec
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
     --grep "an automation run restores Mode and Approvals after host restart"
-  ```
-
-### Claude paused-turn cancellation is not replay-stable
-
-- Tests:
-  - `cancelling a turn paused for input allows a replacement turn`
-  - `cancelling a turn paused for file-tool approval allows a replacement turn`
-- Scope: Claude replay.
-- Expected: cancelling while the turn waits for input or tool approval ends that turn and allows a fresh replacement turn to complete.
-- Observed: replay either continues the cancelled input turn's response or reports a chat error before the replacement can complete.
-- Gate: `supportsPausedTurnCancellationE2E` is enabled for Copilot and for Codex input requests. Codex has no native file-approval variant.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "cancelling a turn paused"
-  ```
-
-### Claude truncation does not produce a replay-stable follow-up request
-
-- Test: `truncating a materialized chat removes later context and allows continuation`.
-- Scope: Claude.
-- Expected: after `chat/truncated` removes the second turn, the follow-up model request contains the first turn and follow-up only.
-- Observed: live recording sends the expected pruned request, while replay rebuilds the follow-up request with the removed second turn still present.
-- Gate: `supportsTruncateE2E` is enabled only for Copilot.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "truncating a materialized chat"
   ```
 
 ## Structural coverage gaps

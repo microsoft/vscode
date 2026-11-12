@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, leftoverDomDetector } from './isolationCheck.js';
+import { createAnimationFrameQueueDetector, fakeTimersDetector, focusDetector, getIsolationFindings, installIsolationCheck, leftoverDomDetector, scrollDetector } from './isolationCheck.js';
 
 suite('Isolation check', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +47,58 @@ suite('Isolation check', () => {
 		});
 	});
 
+	test('reports a page the suite scrolled, but not one that was already scrolled', () => {
+		const body = mainWindow.document.body;
+		const filler = mainWindow.document.createElement('div');
+		filler.style.height = '10000px';
+		body.append(filler);
+		const scrollTop = body.scrollTop;
+		const rootScrollTop = mainWindow.document.documentElement.scrollTop;
+		const scroll = (top: number) => {
+			body.scrollTop = top;
+			mainWindow.document.documentElement.scrollTop = top;
+		};
+		try {
+			// Start from the top, whatever an earlier suite left.
+			scroll(0);
+			const before = scrollDetector.snapshot();
+			scroll(120);
+			const scrolled = scrollDetector.check(before).length > 0;
+			const unchanged = scrollDetector.check(scrollDetector.snapshot());
+			scroll(0);
+			assert.deepStrictEqual({ scrolled, unchanged, restored: scrollDetector.check(before) }, { scrolled: true, unchanged: [], restored: [] });
+		} finally {
+			body.scrollTop = scrollTop;
+			mainWindow.document.documentElement.scrollTop = rootScrollTop;
+			filler.remove();
+		}
+	});
+
+	test('puts back the scroll position from before the suite', () => {
+		const body = mainWindow.document.body;
+		const filler = mainWindow.document.createElement('div');
+		filler.style.height = '10000px';
+		body.append(filler);
+		const scrollTop = body.scrollTop;
+		const rootScrollTop = mainWindow.document.documentElement.scrollTop;
+		const scroll = (top: number) => {
+			body.scrollTop = top;
+			mainWindow.document.documentElement.scrollTop = top;
+		};
+		try {
+			scroll(0);
+			const before = scrollDetector.snapshot();
+			scroll(120);
+			const scrolled = scrollDetector.check(before).length > 0;
+			scrollDetector.reset!(before);
+			assert.deepStrictEqual({ scrolled, reset: scrollDetector.check(before) }, { scrolled: true, reset: [] });
+		} finally {
+			body.scrollTop = scrollTop;
+			mainWindow.document.documentElement.scrollTop = rootScrollTop;
+			filler.remove();
+		}
+	});
+
 	test('reports fake timers that a suite installed and did not restore', () => {
 		const realSetTimeout = globalThis.setTimeout;
 		const realDate = globalThis.Date;
@@ -81,6 +133,57 @@ suite('Isolation check', () => {
 			globalThis.setTimeout = realSetTimeout;
 		}
 		assert.deepStrictEqual(findings, ['left fake setTimeout installed']);
+	});
+
+	test('the next suite waits for an asynchronous reset, and a failed reset is reported without skipping later detectors', async () => {
+		// installIsolationCheck replaces the runner's flush function and adds to its findings, so put both back afterwards.
+		const global = globalThis as { __vscodeTestIsolationFlush?: unknown };
+		const runnerFlush = global.__vscodeTestIsolationFlush;
+		const findings = getIsolationFindings();
+		const findingsBefore = findings.length;
+		try {
+			const order: string[] = [];
+			let finishReset: () => void = () => { };
+			const root = new Mocha.Suite('');
+			installIsolationCheck(root, [
+				{
+					kind: 'async-reset', snapshot: () => undefined, check: () => [], reset: () => new Promise<void>(resolve => {
+						order.push('reset started');
+						finishReset = () => {
+							order.push('reset finished');
+							resolve();
+						};
+					})
+				},
+				{ kind: 'failing-reset', snapshot: () => undefined, check: () => [], reset: () => Promise.reject(new Error('no pointer')) },
+				{ kind: 'later-reset', snapshot: () => undefined, check: () => [], reset: () => { order.push('later reset'); } },
+			]);
+			const checkedSuite = Mocha.Suite.create(root, 'checked suite');
+			root.emit('post-require');
+			const hooks = checkedSuite as unknown as { _beforeAll: Mocha.Hook[]; _afterAll: Mocha.Hook[] };
+			const runHook = (hook: Mocha.Hook) => (hook.fn as () => void | Promise<void>)();
+			await runHook(hooks._beforeAll[0]);
+
+			let afterAllDone = false;
+			const afterAll = Promise.resolve(runHook(hooks._afterAll[0])).then(() => { afterAllDone = true; });
+			await new Promise(resolve => setTimeout(resolve, 0));
+			const doneBeforeReset = afterAllDone;
+			finishReset();
+			await afterAll;
+
+			assert.deepStrictEqual({
+				doneBeforeReset,
+				order,
+				findings: findings.slice(findingsBefore).map(({ kind, suite, details }) => ({ kind, suite, details })),
+			}, {
+				doneBeforeReset: false,
+				order: ['reset started', 'reset finished', 'later reset'],
+				findings: [{ kind: 'failing-reset', suite: 'checked suite', details: ['reset failed: Error: no pointer'] }],
+			});
+		} finally {
+			findings.splice(findingsBefore);
+			global.__vscodeTestIsolationFlush = runnerFlush;
+		}
 	});
 
 	suite('animation frame queue', () => {
