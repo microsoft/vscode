@@ -37,7 +37,7 @@ function getFileUri(url: string): URI | undefined {
 	}
 
 	const uri = URI.parse(url);
-	return uri.scheme === Schemas.file ? uri.with({ query: null, fragment: null }) : undefined;
+	return uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote ? uri.with({ query: null, fragment: null }) : undefined;
 }
 
 interface IBrowserAutoReloadStateChangeEvent {

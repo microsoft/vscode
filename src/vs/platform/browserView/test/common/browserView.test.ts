@@ -6,10 +6,29 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, getRemoteResourceRequestDenial, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restricts vscode-remote requests to the session network and remote pages', () => {
+		const network = { authority: 'ssh-remote+Host' };
+		const resource = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/a/index.html' });
+
+		assert.deepStrictEqual({
+			noNetwork: getRemoteResourceRequestDenial(undefined, resource, undefined),
+			otherNetwork: getRemoteResourceRequestDenial({ authority: 'wsl+Ubuntu' }, resource, undefined),
+			navigation: getRemoteResourceRequestDenial(network, resource, undefined),
+			remotePage: getRemoteResourceRequestDenial(network, resource, resource.toString()),
+			webPage: getRemoteResourceRequestDenial(network, resource, 'https://example.com/'),
+		}, {
+			noNetwork: 'network',
+			otherNetwork: 'network',
+			navigation: undefined,
+			remotePage: undefined,
+			webPage: 'initiator',
+		});
+	});
 
 	test('allows navigation within an associated resource', () => {
 		const associatedResource = URI.file('/workspace/index.html');

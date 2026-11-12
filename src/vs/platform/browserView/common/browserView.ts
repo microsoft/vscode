@@ -345,6 +345,20 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 	readonly openSource?: IntegratedBrowserOpenSource;
 }
 
+/**
+ * Decides whether a `vscode-remote:` request may be served for a session bound to {@link network}:
+ * the resource must belong to the network's remote and may only be loaded by the remote's own pages.
+ */
+export function getRemoteResourceRequestDenial(network: IBrowserViewNetwork | undefined, resource: URI, referrer: string | undefined): 'network' | 'initiator' | undefined {
+	if (!network || resource.authority.toLowerCase() !== network.authority.toLowerCase()) {
+		return 'network';
+	}
+	if (referrer && referrer !== 'about:client' && URI.parse(referrer).scheme !== Schemas.vscodeRemote) {
+		return 'initiator';
+	}
+	return undefined;
+}
+
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
 	const targetResource = URI.parse(target);
 	return extUriBiasedIgnorePathCase.isEqual(

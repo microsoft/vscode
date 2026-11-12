@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session } from 'electron';
+import { net, session } from 'electron';
 import { createHash } from 'crypto';
 import { normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -12,7 +12,8 @@ import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { BrowserViewStorageScope, IBrowserViewNetwork, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../common/browserView.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { BrowserViewStorageScope, getRemoteResourceRequestDenial, IBrowserViewNetwork, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
@@ -313,6 +314,7 @@ export class BrowserSession {
 		private _network: IBrowserViewNetwork | undefined,
 		private readonly affinity: string | undefined,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
@@ -417,6 +419,35 @@ export class BrowserSession {
 			}
 			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
 		});
+		this.electronSession.protocol.handle(Schemas.vscodeRemote, request => this.handleRemoteResourceRequest(request));
+	}
+
+	/**
+	 * Serve `vscode-remote:` resources through the file service of a window connected to the
+	 * session's network. Sessions bound to another network (or none) never reach a remote.
+	 */
+	private async handleRemoteResourceRequest(request: GlobalRequest): Promise<GlobalResponse> {
+		const uri = URI.parse(request.url);
+		const denial = getRemoteResourceRequestDenial(this._network, uri, request.referrer);
+		if (denial === 'network') {
+			return new Response(localize('browserSession.remoteNetworkMismatch', 'Forbidden. Resource does not belong to the remote of this browser.'), { status: 403 });
+		} else if (denial === 'initiator') {
+			return new Response(localize('browserSession.remoteForbiddenInitiator', 'Forbidden. Remote resources cannot be loaded from other origins.'), { status: 403 });
+		}
+		const authority = this._network!.authority;
+
+		const window = this.windowsMainService.getWindows().find(candidate => candidate.remoteAuthority === authority);
+		if (!window) {
+			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
+		}
+
+		const managedUri = uri.with({
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority: `window:${window.id}`,
+			query: new URLSearchParams({ authority, scheme: Schemas.vscodeRemote }).toString(),
+			fragment: ''
+		});
+		return net.fetch(managedUri.toString(true));
 	}
 
 	/**

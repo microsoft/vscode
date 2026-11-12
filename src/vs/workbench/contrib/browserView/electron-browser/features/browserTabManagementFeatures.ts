@@ -351,7 +351,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
 		const IS_SUPPORTED_LOCAL_BROWSER_FILE = ContextKeyExpr.and(
-			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+			ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)),
 			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
 		super({
@@ -390,7 +390,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
-		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
+		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file, Schemas.vscodeRemote], supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!fileUri) {
 			return;
 		}

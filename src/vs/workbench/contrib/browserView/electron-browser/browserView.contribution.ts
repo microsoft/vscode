@@ -103,16 +103,16 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
+		for (const [scheme, extension] of [Schemas.file, Schemas.vscodeRemote].flatMap(scheme => ['html', 'htm', 'mhtml', 'mht'].map(extension => [scheme, extension] as const))) {
 			editorResolverService.registerEditor(
-				`${Schemas.file}:/**/*.${extension}`,
+				`${scheme}:/**/*.${extension}`,
 				{
 					id: BrowserEditorInput.EDITOR_ID,
 					label: localize('browser.htmlEditorLabel', "Integrated Browser"),
 					priority: RegisteredEditorPriority.option
 				},
 				{
-					canSupportResource: resource => resource.scheme === Schemas.file,
+					canSupportResource: resource => resource.scheme === scheme,
 					singlePerResource: true
 				},
 				{
