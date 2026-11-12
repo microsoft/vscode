@@ -54,8 +54,8 @@ export interface IWorkspaceEditingService {
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
-	 * Moves the folder to `location`; pass the `identity` of the workspace to return it to its own
-	 * location. The workspace identity (id, storage, extension state) is unchanged. Any other
+	 * Moves the folder to `location`; pass the `uri` of the workspace's single-folder identifier
+	 * (`toWorkspaceIdentifier`) to return it to its own location. The workspace identity (id, storage, extension state) is unchanged. Any other
 	 * `location` must be resolved by a registered `IWorkspaceFolderLocationProvider`.
 	 * Only supported for single local folder workspaces.
 	 * `options.folder` optionally names the folder to move by its current `uri`; it must match

@@ -219,7 +219,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	/**
-	 * Moves the single folder of this workspace to `location`. Passing the `identity` of the workspace
+	 * Moves the single folder of this workspace to `location`. Passing the `uri` of the workspace's single-folder identifier
 	 * moves the folder back to its own location. The workspace identity (id, storage) is unchanged:
 	 * only the folder's effective `uri` changes.
 	 */
