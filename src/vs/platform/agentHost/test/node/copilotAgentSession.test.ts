@@ -13183,6 +13183,33 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('uses the raw MCP tool name from the permission prompt instead of the runtime name', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const request = {
+				kind: 'mcp',
+				toolCallId: 'tc-mcp',
+				serverName: 'shadertoy',
+				toolName: 'shadertoy-render-shadertoy',
+				toolTitle: 'ShaderToy Renderer',
+				readOnly: false,
+			} as const;
+			const pending = runtime.handlePermissionRequest(request, {
+				sessionId: session.sessionId,
+				promptRequest: { ...request, toolName: 'render-shadertoy' },
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === request.toolCallId);
+			session.respondToPermissionRequest(request.toolCallId, true);
+			await pending;
+
+			assert.deepStrictEqual(signal.kind === 'pending_confirmation' ? {
+				mcpServerName: signal.mcpServerName,
+				mcpToolName: signal.mcpToolName,
+			} : undefined, {
+				mcpServerName: 'shadertoy',
+				mcpToolName: 'render-shadertoy',
+			});
+		});
+
 		test('an Assisted judge that requires approval outranks the runtime approve recommendation', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },

@@ -1684,6 +1684,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
+	/** Host-only raw MCP server name as configured, for MCP permission requests. */
+	readonly mcpServerName?: string;
+	/** Host-only raw MCP tool name, for MCP permission requests. */
+	readonly mcpToolName?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
 	readonly shellCommand?: string;
 	/**
