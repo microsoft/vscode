@@ -308,7 +308,7 @@ suite('Dev Container samples', () => {
 	});
 
 	for (const persistUserState of [true, false]) {
-		test(`links sample user state before cloning and adds its volume only when enabled (enabled: ${persistUserState})`, async () => {
+		test(`links sample user state after cloning and adds its volume only when enabled (enabled: ${persistUserState})`, async () => {
 			const config = { image: 'sample-image' };
 			const calls: string[] = [];
 			let upArgs: readonly string[] = [];
@@ -340,17 +340,39 @@ suite('Dev Container samples', () => {
 				reportUserStateMount: error => calls.push(`mount ${error === undefined ? 'added' : 'failed'}`),
 			}, false, persistUserState);
 			if (!persistUserState) {
-				assert.deepStrictEqual({ calls, stateMount: upArgs.some(arg => arg.includes('vscode-state-')) }, { calls: ['link container vscode', 'clone'], stateMount: false });
+				assert.deepStrictEqual({ calls, stateMount: upArgs.some(arg => arg.includes('vscode-state-')) }, { calls: ['clone', 'link container vscode'], stateMount: false });
 				return;
 			}
 			const stateVolume = calls[0]?.substring('create '.length);
 			assert.match(stateVolume, /^vscode-state-vscode-remote-try-node-[0-9a-v]{12}$/);
 			assert.deepStrictEqual({ calls, mount: upArgs.slice(-2) }, {
-				calls: [`create ${stateVolume}`, 'mount added', 'link container vscode', 'clone'],
+				calls: [`create ${stateVolume}`, 'mount added', 'clone', 'link container vscode'],
 				mount: ['--mount', `type=volume,source=${stateVolume},target=/.vscode-volume,external=true`],
 			});
 		});
 	}
+
+	test('links sample user state with the checkout\'s remoteEnv HOME when the cached configuration has another', async () => {
+		const cached = { image: 'sample-image', remoteEnv: { HOME: '/cached/home' } };
+		const checkedOut = { image: 'sample-image', remoteEnv: { HOME: '/checkout/home' } };
+		const homes: unknown[] = [];
+		await prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: () => { },
+			readSource: async () => ({ commitSha: commit, content: JSON.stringify(cached) }),
+			docker: async args => ({
+				stdout: args[0] === 'volume'
+					? args[1] === 'ls' ? getDevContainerSampleVolumeName(sample, []) : JSON.stringify({ 'vsch.local.repository': repositoryPath })
+					: args.includes('cat') ? JSON.stringify(checkedOut) : '',
+				stderr: '', code: 0,
+			}),
+			devcontainer: async () => sampleUpResult,
+			linkUserState: async (_containerId, _remoteUser, selectorArgs, configuration) => {
+				const override = JSON.parse(await readFile(selectorArgs[selectorArgs.indexOf('--override-config') + 1], 'utf8'));
+				homes.push((configuration.remoteEnv as Record<string, unknown>).HOME, override.remoteEnv.HOME);
+			},
+		});
+		assert.deepStrictEqual(homes, ['/checkout/home', '/checkout/home']);
+	});
 
 	test('reports a failed sample user state volume before failing', async () => {
 		const reports: unknown[] = [];

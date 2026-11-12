@@ -180,7 +180,6 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	if (errors.length || !isRecord(result) || result.outcome !== 'success' || typeof result.containerId !== 'string' || !result.containerId || typeof result.remoteUser !== 'string' || !result.remoteUser || result.remoteWorkspaceFolder !== workspace) {
 		throw new Error(localize('devContainerSample.invalidUpResult', "The Dev Container CLI returned an invalid sample container."));
 	}
-	await commands.linkUserState?.(result.containerId, result.remoteUser, cliArgs, config);
 
 	// Publish only a complete checkout, and never replace an existing workspace.
 	const cloneScript = `set -eu
@@ -208,6 +207,8 @@ fi`;
 	}
 	await writeConfig(actualConfig);
 	await writeAtomic(sourcePath, JSON.stringify({ commit: source.commit, content: actualContent }));
+	// Link once the checkout's configuration is in the override, so its remoteEnv selects the home folder.
+	await commands.linkUserState?.(result.containerId, result.remoteUser, cliArgs, actualConfig);
 	const lifecycleOutput = checked(await commands.devcontainer(['run-user-commands', '--log-level', 'debug', ...cliArgs, '--container-id', result.containerId]), 'devcontainer run-user-commands');
 	const lifecycleResult: unknown = JSON.parse(lifecycleOutput.trim().split(/\r?\n/).at(-1)!);
 	if (!isRecord(lifecycleResult) || lifecycleResult.outcome !== 'success') {
