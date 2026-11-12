@@ -120,6 +120,41 @@ suite('Task event replay', () => {
 		assert.strictEqual(history?.truncated, false);
 	});
 
+	for (const { name, action, rejectionReason, retained } of [
+		{ name: 'checkpoint restore', action: { type: 'chat/truncated', turnId: 't1' }, rejectionReason: undefined, retained: ['t1'] },
+		{ name: 'start over', action: { type: 'chat/truncated' }, rejectionReason: undefined, retained: [] },
+		{ name: 'refused restore', action: { type: 'chat/truncated', turnId: 't1' }, rejectionReason: 'History could not be truncated', retained: ['t1', 't2', 't3'] },
+	]) {
+		test(`reopening recorded history preserves ${name} and subsequent turns`, () => {
+			const chat = 'custom-chat:/opaque-checkpoint';
+			const peer = 'custom-chat:/independent-conversation';
+			const events = [
+				event(SESSION_A, 0, SESSION_A, { type: 'session/defaultChatChanged', defaultChat: chat }),
+				...completedTurn(SESSION_A, 1, chat, 't1', 'keep'),
+				...completedTurn(SESSION_A, 3, chat, 't2', 'discard'),
+				...completedTurn(SESSION_A, 5, chat, 't3', 'also discard'),
+				...completedTurn(SESSION_A, 7, peer, 'peer-turn', 'unaffected'),
+				event(SESSION_A, 9, chat, action, { origin: { clientId: 'editor', clientSeq: 1 }, rejectionReason }),
+			];
+			const restored = replayTaskAhpEvents(events)?.sessions[0];
+			const reopened = replayTaskAhpEvents([
+				...events,
+				...completedTurn(SESSION_A, 10, chat, 'replacement', 'continue from checkpoint'),
+			])?.sessions[0];
+			assert.deepStrictEqual({
+				restored: restored?.chats.get(chat)?.turns.map(turn => turn.id),
+				reopened: reopened?.chats.get(chat)?.turns.map(turn => turn.id),
+				peer: reopened?.chats.get(peer)?.turns.map(turn => turn.id),
+				defaultChat: reopened?.defaultChat,
+			}, {
+				restored: retained,
+				reopened: [...retained, 'replacement'],
+				peer: ['peer-turn'],
+				defaultChat: chat,
+			});
+		});
+	}
+
 	test('reports a truncated tail instead of dropping it silently', () => {
 		const chat = defaultChat(SESSION_A);
 		// Record only the first half of a two-part group: the recording stops mid-action.

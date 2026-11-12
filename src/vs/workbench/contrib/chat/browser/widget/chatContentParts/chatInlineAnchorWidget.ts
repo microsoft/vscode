@@ -83,7 +83,7 @@ export interface IRenderFileWidgetsOptions {
 }
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions) {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		renderFileAnchor(a, instantiationService, chatMarkdownAnchorService, disposables, options);

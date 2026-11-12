@@ -460,6 +460,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private updateTitleBarToolBarOverflow(): void {
+		const hasWindowControls = Array.from(this.rightContent.children).some(element => element.classList.contains('window-controls-container') && element.clientWidth > 0);
+		this.rightContent.classList.toggle('has-window-controls', hasWindowControls);
 		this.updateOverflowingToolBars();
 		this.updateLastRightToolBar();
 	}
@@ -515,7 +517,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	focus(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement | null)?.focus();
 	}
 

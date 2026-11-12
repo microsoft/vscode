@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from '../../../../base/common/uri.js';
+import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
+import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
+import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
@@ -90,6 +93,8 @@ export interface IssueReporterData extends WindowData {
 	isInstallationPure: boolean;
 	isSessionsWindow: boolean;
 	githubAccessToken: string;
+	/** The selected grant for classic issue creation, independent of token renewal. */
+	githubAuthorization?: GitHubAuthorizationContext;
 	/** Refreshes an automatically selected GitHub session before a new reporter preview. */
 	getGitHubAccessToken?: () => Promise<string>;
 	issueTitle?: string;
@@ -158,6 +163,7 @@ export interface IIssueFormService {
 	closeReporter(): Promise<void>;
 	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal?: AbortSignal): Promise<boolean>;
 	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
+	createGitHubIssue(authorization: GitHubAuthorizationContext, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string>;
 }
 
 export interface ISimilarIssue {

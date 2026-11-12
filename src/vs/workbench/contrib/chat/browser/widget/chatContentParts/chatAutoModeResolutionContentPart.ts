@@ -79,6 +79,7 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 			&& other.resolved?.reason === this.content.resolved?.reason
 			&& other.preference === this.content.preference
 			&& other.effort === this.content.effort
+			&& other.contextSize === this.content.contextSize
 			&& other.switchedFrom === this.content.switchedFrom;
 	}
 }

@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Color } from '../../../../../base/common/color.js';
 import { contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { SessionDropTarget, ISessionDropTargetDelegate } from './sessionDropTarget.js';
-import { SessionsChatSurface } from '../sessionsChatSurface.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
@@ -87,6 +87,7 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 	) {
 		super();
 
@@ -98,7 +99,10 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 	}
 
 	renderBackground(partContainer: HTMLElement): void {
-		this._register(this.instantiationService.createInstance(SessionsChatSurface, partContainer));
+		const background = this.chatViewFactory.createChatBackground?.(partContainer, this.instantiationService);
+		if (background) {
+			this._register(background);
+		}
 	}
 
 	render(contentArea: HTMLElement): void {
@@ -117,6 +121,10 @@ export class SessionsGridContent extends Disposable implements ISessionsPartCont
 		this._slots.push(placeholder);
 		this._slotsChanged.trigger(undefined);
 		contentArea.appendChild(this._gridWidget.element);
+
+		this._register(autorun(reader => {
+			this._gridWidget?.element.classList.toggle('single-chat', this.shownChatCount.read(reader) <= 1);
+		}));
 
 		// Propagate the grid's maximized-view state to each session view so the
 		// per-view toolbars can render the maximize action in its toggled state.

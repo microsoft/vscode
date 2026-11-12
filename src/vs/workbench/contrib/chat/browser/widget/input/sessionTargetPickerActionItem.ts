@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -243,7 +244,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true || ChatContextKeys.inSessionsChat.getValue(contextKeyService) === true;
 
 		if (this.delegate.onDidChangeActiveSessionProvider) {
 			this._register(this.delegate.onDidChangeActiveSessionProvider(() => {

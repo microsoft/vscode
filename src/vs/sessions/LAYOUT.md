@@ -16,7 +16,7 @@ breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
 `sessions.experimental.layoutScope` is an experimental window setting
-with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled modes
+with modes `session-shared`, `chat-shared`, and `chat` (default). Both enabled modes
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
@@ -82,6 +82,10 @@ last-open combination must not restore an old width or treat a closed grid node'
 zero width as a user resize.
 
 The desktop Panel supports two profile-scoped alignments. The default justified alignment places it below the Sessions Part and side pane, preserving the original spanning layout. Center alignment places it below the Sessions Part only, allowing the side pane to use the full content height. Switching alignment reparents the existing grid views without changing panel height or side-pane width. The mobile presentation keeps the justified topology.
+
+The experimental `sessions.experimental.detailsPosition` setting places Details to the left or right of, above, or below editor content within the desktop side pane. The side pane stays beside the Sessions Part, and the workbench grid and Panel alignment do not change. Tabs remain full-width; the editor header follows horizontal content insets and stays above the vertically stacked Editor/Details composition. Left and right positions share the remembered detail width. Detail width and height are remembered independently as window geometry, not session/chat state.
+
+With `sessions.experimental.floatingDetails`, the same Details part overlays visible editor content without reserving editor width or height. Floating presentation takes precedence over the docked detail position without discarding that preference. Existing Details visibility controls whether the floating widget is present. Within that visible widget, the editor part owns transient collapsed, hover/focus-preview, and pinned-open states; these do not write session/chat visibility profiles. The compact widget previews on hover or keyboard focus. Pointer exit schedules a brief dismissal that is canceled on re-entry, focus, pinning, or disposal. An item opening from the view dismisses an unpinned preview immediately; folder expansion does not. The pin control keeps the view open across selections. Unpinning a hovered or focused view returns to preview without collapsing, changing geometry, or moving focus; the normal preview dismissal rules then resume. Escape collapses and returns focus to the editor. Explicit view-focus commands reveal and pin the content before focusing its tree. Expanded width and the saved height limit remain independent of the compact widget's size. Views that expose an intrinsic height shrink to fit their contents and grow only to that limit; other views retain manual sizing. Floating presentation temporarily relaxes view body minimums and restores them when docking or hiding the widget. Content changes do not overwrite saved geometry preferences. When no editor content is visible, Details retain their full-pane presentation. These desktop options do not change the startup phone workbench.
 
 ## Sessions Part
 

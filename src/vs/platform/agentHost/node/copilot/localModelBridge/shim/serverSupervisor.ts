@@ -13,6 +13,7 @@ import * as path from '../../../../../../base/common/path.js';
 import { localize } from '../../../../../../nls.js';
 import type { ILogService } from '../../../../../log/common/log.js';
 import type { ITelemetryService } from '../../../../../telemetry/common/telemetry.js';
+import { isAutoAdvertisedAsFusion } from '../../../../common/autoModeTiers.js';
 import type { ILocalModelErrorV1, LocalModelLoadRetryReason, LocalModelServerState, LocalModelServingProfile } from '../../../../common/localModel.js';
 import { errorCodeForLog } from '../../../../common/logRedaction.js';
 import { FIRST_OUTPUT_TIMEOUT_MS, IDLE_UNLOAD_MS, LLAMA_API_KEY_ENV, LOAD_TIMEOUT_MS, MAX_AUTO_TTFT_MS, MIN_AUTO_DECODE_TPS, RESTART_BACKOFF_MS, SERVER_API_KEY_BYTES, SERVER_HEALTH_POLL_MS, SERVER_PORT_BIND_RETRIES, SIGKILL_GRACE_MS, STDERR_TAIL_BYTES, SYSTEM_DRAIN_TIMEOUT_MS, WARMUP_GENERATED_TOKENS } from './constants.js';
@@ -1898,7 +1899,9 @@ function insufficientMemoryMessage(displayName: string): string {
 }
 
 function crashedMessage(displayName: string): string {
-	return localize('localModel.server.crashed', "{0} stopped unexpectedly. Auto is using cloud models. Select Retry to restart it.", displayName);
+	return isAutoAdvertisedAsFusion()
+		? localize('localModel.server.crashedFusion', "{0} stopped unexpectedly. Copilot Fusion is using cloud models. Select Retry to restart it.", displayName)
+		: localize('localModel.server.crashed', "{0} stopped unexpectedly. Auto is using cloud models. Select Retry to restart it.", displayName);
 }
 
 export function ownedElsewhereMessage(displayName: string): string {

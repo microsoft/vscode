@@ -10,6 +10,7 @@ import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { combinedDisposable, Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
+import { env } from '../../../../../base/common/process.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -488,7 +489,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					isEnabled: () => result.sharesClientNetwork === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
 					loadCertificates: () => this._requestService.loadCertificates(),
 				},
-				clientProxy: remoteService ? undefined : this._instantiationService.createInstance(AgentHostClientProxy, () => result.sharesClientNetwork === true),
+				clientProxy: remoteService ? undefined : this._instantiationService.createInstance(AgentHostClientProxy, () => result.sharesClientNetwork === true, env),
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,

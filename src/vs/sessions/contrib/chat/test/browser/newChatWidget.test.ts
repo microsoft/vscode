@@ -47,7 +47,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { INewSessionTargetLabels, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
@@ -67,6 +67,9 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -150,6 +153,11 @@ const takesGlobalComposerActions = Reflect.get(NewChatWidget.prototype, '_takesG
 	readonly _draftHost?: object;
 	readonly options: { readonly hostVisible?: IObservable<boolean>; readonly inputVisible?: IObservable<boolean> };
 }, reader: IReader | undefined) => boolean;
+const getCustomizationTargetLabels = Reflect.get(NewChatWidget.prototype, '_getCustomizationTargetLabels') as (this: {
+	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
+	readonly _workspacePicker: { readonly selectedResolved: { readonly workspace: ISessionWorkspace } | undefined };
+	readonly _newChatInput: { readonly sessionTypePicker: { readonly selectedSessionType: { readonly sessionType: { readonly label: string } } | undefined } };
+}, reader: IReader | undefined) => INewSessionTargetLabels;
 const isPreferredServable = Reflect.get(NewChatWidget.prototype, '_isPreferredServable') as (
 	this: {
 		readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
@@ -315,6 +323,7 @@ interface ISessionOptionsPersistenceHarness {
 
 interface ISendHarness {
 	readonly configurationService?: IConfigurationService;
+	readonly viewsService?: Pick<IViewsService, 'getViewWithId'>;
 	readonly _backgroundSend?: boolean;
 	readonly _draftHost?: INewSessionDraftHost;
 	readonly _backgroundSendStatus?: ISettableObservable<string | undefined>;
@@ -565,6 +574,28 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds customization target labels from the selected environment, workspace, and harness', () => {
+		const root = URI.file('/workspace');
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{ root, workingDirectory: root, name: 'vscode', description: undefined }],
+			isVirtualWorkspace: false,
+		});
+		const read = (environment: ISessionCreationEnvironment, harness: string, selectedWorkspace: ISessionWorkspace | undefined) =>
+			getCustomizationTargetLabels.call({
+				_environment: constObservable(environment),
+				_workspacePicker: { selectedResolved: selectedWorkspace ? { workspace: selectedWorkspace } : undefined },
+				_newChatInput: { sessionTypePicker: { selectedSessionType: { sessionType: { label: harness } } } },
+			}, undefined);
+
+		assert.deepStrictEqual({
+			cloud: read({ id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] }, 'Ignored', workspace),
+			remoteWithoutWorkspace: read({ id: 'remote', kind: 'remote', label: 'devbox-1', icon: Codicon.remote, providerIds: ['remote'] }, 'Claude', undefined),
+		}, {
+			cloud: { harness: 'Copilot', workspace: 'vscode', environment: 'Cloud', projectRoot: URI.file('/workspace'), repositoryRoot: URI.file('/workspace') },
+			remoteWithoutWorkspace: { harness: 'Claude', workspace: undefined, environment: 'devbox-1', projectRoot: undefined, repositoryRoot: undefined },
+		});
+	});
 
 	test('revealing the Inbox composer restores a consumed draft without replacing an existing or pending draft', () => {
 		const session = observableValue<ITestSessionWithChat | undefined>('draft', createTestActiveSession('draft', false));
@@ -2320,16 +2351,19 @@ suite('NewChatWidget', () => {
 		await option?.submenuActions?.[1].run();
 
 		assert.deepStrictEqual({
+			ids: option?.submenuActions?.map(action => action.id),
 			labels: option?.submenuActions?.map(action => action.label),
 			icons: option?.submenuActions?.map(action => (action as { readonly icon?: { readonly id: string } }).icon?.id),
 			selections,
 		}, isWeb
 			? {
+				ids: undefined,
 				labels: undefined,
 				icons: undefined,
 				selections: [],
 			}
 			: {
+				ids: ['newSessionWorkspacePicker.quickChat', 'newSessionWorkspacePicker.quickChat'],
 				labels: ['This Computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
@@ -4030,8 +4064,8 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const [backgroundSend, inboxEnabled] of [[false, false], [false, true], [true, false]]) {
-		test(`confirms opted-in background sends and reseeds the workspace (always background: ${backgroundSend}, Inbox enabled: ${inboxEnabled})`, async () => {
+	for (const [backgroundSend, inboxSelected] of [[false, false], [false, true], [true, false]]) {
+		test(`confirms background sends based on grouping and reseeds the workspace (always background: ${backgroundSend}, Inbox selected: ${inboxSelected})`, async () => {
 			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 			const folderUri = URI.file('/dismissed');
@@ -4041,7 +4075,8 @@ suite('NewChatWidget', () => {
 			let sentOptions: ISendRequestOptions | undefined;
 			const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
 			const harness: ISendHarness = {
-				configurationService: new TestConfigurationService({ 'sessions.list.inboxEnabled': inboxEnabled }),
+				configurationService: new TestConfigurationService({ 'sessions.list.inboxEnabled': !inboxSelected }),
+				viewsService: { getViewWithId: <T>() => upcastPartial<SessionsView>({ grouping: inboxSelected ? SessionsGrouping.Inbox : SessionsGrouping.Workspace }) as T },
 				_backgroundSend: backgroundSend,
 				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
 				_newChatInput: { hasInput: false },
@@ -4072,8 +4107,8 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
 				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
 				restored: [folderUri], pending: 0, background: true,
-				status: backgroundSend || inboxEnabled ? 'Message sent' : undefined,
-				resource: backgroundSend || inboxEnabled ? sentSession.resource : undefined,
+				status: backgroundSend || inboxSelected ? 'Message sent' : undefined,
+				resource: backgroundSend || inboxSelected ? sentSession.resource : undefined,
 			});
 		});
 	}
@@ -5693,6 +5728,87 @@ suite('NewChatWidget', () => {
 			'claude-model',
 			'codex-model',
 			'fusion',
+		]);
+	});
+
+	test('keeps comparison mode while the selected workspace is waiting for its replacement draft', () => {
+		const second = URI.file('/second');
+		const isRepository = observableValue('isRepository', false);
+		const createWorkspace = (root: URI) => upcastPartial<ISessionWorkspace>({
+			folders: [{ root, workingDirectory: root, name: 'Workspace', description: '', gitRepository: upcastPartial<ISessionGitRepository>({ isRepository }) }],
+		});
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+		const loading = observableValue('loading', false);
+		const resolving = observableValue('resolving', false);
+		const isolationOptions = observableValue('isolationOptions', ['folder', 'worktree']);
+		const selectedFolder = observableValue<URI | undefined>('selectedFolder', undefined);
+		const session = observableValue<ISession | undefined>('session', upcastPartial<ISession>({
+			workspace, loading,
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/draft') })),
+		}));
+		const harness = {
+			_session: session,
+			_workspacePicker: { get selectedFolderUri() { return selectedFolder.get(); } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: isolationOptions.get() } } }, values: { isolation: 'folder' } }),
+				}),
+			},
+		};
+		const isPending = Reflect.get(NewChatWidget.prototype, '_isComparisonPending') as (this: typeof harness, reader: IReader, resolving: IObservable<boolean>) => boolean;
+		const pending = derived(reader => {
+			selectedFolder.read(reader);
+			isolationOptions.read(reader);
+			return isPending.call(harness, reader, resolving);
+		});
+		const available = observableValue('available', true);
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, pending, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+		selection.start();
+		selection.select('one');
+		selection.select('two');
+		selection.next();
+		selection.select('judge');
+		selection.next();
+		selection.select('synthesizer');
+		selection.finish();
+		const snapshots: { pending: boolean; enabled: boolean; judge: string | undefined; synthesizer: string | undefined }[] = [];
+		disposables.add(autorun(reader => snapshots.push({
+			pending: pending.read(reader),
+			enabled: selection.enabled.read(reader),
+			judge: selection.judgeModelId.read(reader),
+			synthesizer: selection.synthesizerModelId.read(reader),
+		})));
+		transaction(tx => {
+			selectedFolder.set(second, tx);
+			available.set(false, tx);
+		});
+		transaction(tx => {
+			workspace.set(createWorkspace(second), tx);
+			resolving.set(true, tx);
+		});
+		resolving.set(false, undefined);
+		transaction(tx => {
+			isRepository.set(true, tx);
+			available.set(true, tx);
+		});
+		transaction(tx => {
+			isolationOptions.set(['folder'], tx);
+			isRepository.set(false, tx);
+			available.set(false, tx);
+		});
+		selectedFolder.set(undefined, undefined);
+		transaction(tx => {
+			workspace.set(undefined, tx);
+			available.set(true, tx);
+		});
+		assert.deepStrictEqual(snapshots, [
+			{ pending: false, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: true, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: false, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: false, enabled: false, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: true, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
+			{ pending: false, enabled: true, judge: 'judge', synthesizer: 'synthesizer' },
 		]);
 	});
 

@@ -23,6 +23,14 @@ fi
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+
+# In the repository, the dependencies in node_modules are relative links into the node_modules/.pnpm
+# folder of the pnpm workspace, two folders up. From /root/node_modules they lead to /node_modules,
+# so mount it there. A copy made with `pnpm deploy`, as in CI, has its own node_modules/.pnpm.
+WORKSPACE_NODE_MODULES=""
+if [ ! -d "$ROOT_DIR/node_modules/.pnpm" ] && [ -d "$ROOT_DIR/../../node_modules/.pnpm" ]; then
+	WORKSPACE_NODE_MODULES=$(cd "$ROOT_DIR/../../node_modules" && pwd)
+fi
 IMAGE="$REGISTRY:$CONTAINER-$ARCH"
 HOST_UID=$(id -u)
 HOST_GID=$(id -g)
@@ -51,6 +59,7 @@ docker run \
 	--shm-size=2g \
 	$SETUID_SANDBOX \
 	--volume "$ROOT_DIR:/root" \
+	${WORKSPACE_NODE_MODULES:+--volume "$WORKSPACE_NODE_MODULES:/node_modules:ro"} \
 	${GITHUB_ACCOUNT:+--env GITHUB_ACCOUNT} \
 	${GITHUB_PASSWORD:+--env GITHUB_PASSWORD} \
 	--entrypoint sh \
