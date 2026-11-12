@@ -242,7 +242,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		validatePrimary();
 
 		await this.contextService.setFolderLocation(location, { trusted });
-		this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, options?.reason);
+		this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, reason);
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
