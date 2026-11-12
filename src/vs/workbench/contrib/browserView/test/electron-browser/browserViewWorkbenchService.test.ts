@@ -18,6 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
@@ -762,7 +763,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const { remoteNetworks, trustedFileRoots, trustAllFiles } = windowConfigurations.at(-1)!;
 		assert.deepStrictEqual({ remoteNetworks, trustedFileRoots: trustedFileRoots.map(root => URI.revive(root).fsPath), trustAllFiles }, {
 			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
-			trustedFileRoots: ['/home/test/.copilot', '/testWorkspace', '/local'].map(path => URI.file(path).fsPath),
+			trustedFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
 			trustAllFiles: false,
 		});
 	});
