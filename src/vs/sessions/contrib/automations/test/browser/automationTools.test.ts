@@ -803,7 +803,7 @@ suite('AutomationTools', () => {
 			result: JSON.parse(getText(result)),
 		}, {
 			confirmationTitle: 'Delete Automation?',
-			confirmationMessage: 'Delete **Daily review** (`automation-1`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.',
+			confirmationMessage: 'Delete **Daily review** (`automation-1`)? This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone. Runs already in flight will continue.',
 			allowAutoConfirm: undefined,
 			options: [
 				{ id: 'delete', label: 'Delete', kind: ConfirmationOptionKind.Approve },
@@ -818,30 +818,63 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('deleteAutomation confirms and forwards an explicit keep-history choice', async () => {
-		const automation = createAutomation();
-		const options: (IDeleteAutomationOptions | undefined)[] = [];
+	for (const supportsHistoryChoice of [true, false]) {
+		test(`deleteAutomation always requests history deletion (history capability: ${supportsHistoryChoice})`, async () => {
+			const automation = createAutomation();
+			const options: (IDeleteAutomationOptions | undefined)[] = [];
+			const service = new class extends FakeAutomationService {
+				override supportsDeleteHistoryChoice(): boolean { return supportsHistoryChoice; }
+				override async deleteAutomation(_id: string, guard?: AutomationMutationGuard, value?: IDeleteAutomationOptions): Promise<void> {
+					guard?.();
+					options.push(value);
+				}
+			}([automation]);
+			const tool = new DeleteAutomationTool(service, createConfigurationService());
+			const parameters = { automationId: automation.id };
+			const prepared = await tool.prepareToolInvocation({ parameters, toolCallId: 'delete', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None);
+			await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'cancel');
+			assert.deepStrictEqual(options, []);
+			await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+			const message = prepared.confirmationMessages?.message;
+			assert.deepStrictEqual({
+				options,
+				confirmation: (typeof message === 'string' ? message : message?.value)?.includes('This cannot be undone'),
+				schema: tool.getToolData().inputSchema,
+			}, {
+				options: [supportsHistoryChoice ? { deleteHistory: true } : undefined],
+				confirmation: true,
+				schema: {
+					type: 'object',
+					additionalProperties: false,
+					properties: { automationId: { type: 'string', description: 'Stable automation ID from listAutomations.' } },
+					required: ['automationId'],
+				},
+			});
+		});
+
+		test(`deleteAutomation rejects the removed history option (history capability: ${supportsHistoryChoice})`, async () => {
+			const automation = createAutomation();
+			const service = new class extends FakeAutomationService {
+				override supportsDeleteHistoryChoice(): boolean { return supportsHistoryChoice; }
+			}([automation]);
+			const tool = new DeleteAutomationTool(service, createConfigurationService());
+			const parameters = { automationId: automation.id, deleteHistory: false };
+			await assert.rejects(tool.prepareToolInvocation({ parameters, toolCallId: 'keep', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /unsupported "deleteHistory" property/);
+			const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+			assert.deepStrictEqual({ deleted: service.deleted, error: result.toolResultError }, {
+				deleted: [],
+				error: 'deleteAutomation input has an unsupported "deleteHistory" property.',
+			});
+		});
+	}
+
+	test('listAutomations does not advertise a history retention choice', async () => {
 		const service = new class extends FakeAutomationService {
 			override supportsDeleteHistoryChoice(): boolean { return true; }
-			override async deleteAutomation(_id: string, _guard?: AutomationMutationGuard, value?: IDeleteAutomationOptions): Promise<void> { options.push(value); }
-		}([automation]);
-		const tool = new DeleteAutomationTool(service, createConfigurationService());
-		const parameters = { automationId: automation.id, deleteHistory: false };
-		const prepared = await tool.prepareToolInvocation({ parameters, toolCallId: 'keep', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None);
-		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
-		const message = prepared.confirmationMessages?.message;
-		assert.deepStrictEqual({
-			options,
-			confirmation: (typeof message === 'string' ? message : message?.value)?.includes('Run history will be kept.'),
-		}, { options: [{ deleteHistory: false }], confirmation: true });
-	});
-
-	test('deleteAutomation rejects history options on unsupported providers', async () => {
-		const automation = createAutomation();
-		const service = new FakeAutomationService([automation]);
-		const tool = new DeleteAutomationTool(service, createConfigurationService());
-		const result = await invoke(tool, { automationId: automation.id, deleteHistory: false }, SESSION_RESOURCE, CancellationToken.None, 'delete');
-		assert.deepStrictEqual({ deleted: service.deleted, rejected: getText(result).includes('does not support') }, { deleted: [], rejected: true });
+		}([createAutomation()]);
+		const tool = createListAutomationsTool(service, createConfigurationService());
+		const result = await invoke(tool, {});
+		assert.strictEqual(getText(result).includes('supportsDeleteHistoryChoice'), false);
 	});
 
 	test('deleteAutomation rejects stale IDs before confirmation', async () => {
