@@ -428,6 +428,7 @@ export class ChatListWidget extends Disposable {
 	private _effectivePaddingBottom: number;
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
+	private readonly _pendingScrollDownButtonPosition = this._register(new MutableDisposable<IDisposable>());
 
 	//#endregion
 
@@ -909,8 +910,23 @@ export class ChatListWidget extends Disposable {
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
 		// Scrolling cannot move the progress row; layout and its resize observer reposition a shown button.
 		if (showButton !== wasShown) {
-			this.updateScrollDownButtonPosition();
+			this.scheduleScrollDownButtonPosition();
 		}
+	}
+
+	/**
+	 * Positions the scroll-down button once before the next paint. While a response streams, the
+	 * button can be shown and hidden many times per frame as the content grows past the bottom and
+	 * is revealed again, and each positioning reads layout.
+	 */
+	private scheduleScrollDownButtonPosition(): void {
+		if (this._pendingScrollDownButtonPosition.value) {
+			return;
+		}
+		this._pendingScrollDownButtonPosition.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this._container), () => {
+			this._pendingScrollDownButtonPosition.clear();
+			this.updateScrollDownButtonPosition();
+		});
 	}
 
 	private updateStickyProgress(): void {
@@ -923,6 +939,7 @@ export class ChatListWidget extends Disposable {
 	 * input even while no progress is shown.
 	 */
 	private updateScrollDownButtonPosition(): void {
+		this._pendingScrollDownButtonPosition.clear();
 		const button = this._scrollDownButton.element;
 		const progress = this._workingProgressContainer;
 		let bottom = '';
