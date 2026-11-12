@@ -146,7 +146,6 @@ const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
 const CHAT_PET_SUBAGENT_MAX_WIDTH = 288;
 const CHAT_PET_SUBAGENT_MAX_HEIGHT = 96;
-const CHAT_PET_FOLDED_ANTENNAE_FRAME = 20;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -228,7 +227,6 @@ interface ChatPetSubagent {
 	readonly updateAppearance: (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => void;
 	readonly fallTo: (top: number, respawn?: boolean) => void;
 	readonly isRespawning: () => boolean;
-	readonly updateStacked: (stacked: boolean) => void;
 }
 
 interface ChatPetPendingRender {
@@ -1805,9 +1803,6 @@ export class ChatPetWidget extends Disposable {
 					pet.updateAppearance(wasMotionReduced !== this._motionReduced, variantChanged, accessoryChanged);
 				}
 			}
-			if (wasMotionReduced !== this._motionReduced) {
-				this._updateSubagentStacking();
-			}
 
 			if (!enabled) {
 				for (const pet of this._subagentPets.values()) {
@@ -2248,7 +2243,6 @@ export class ChatPetWidget extends Disposable {
 
 	private _handleHostLayoutChange(): void {
 		this._constrainSubagentPets();
-		this._updateSubagentStacking();
 		if (this._jumpGame.value) {
 			this._jumpGame.value.layout();
 			return;
@@ -2280,7 +2274,6 @@ export class ChatPetWidget extends Disposable {
 	private _updatePlatformPosition(): void {
 		if (this._enabled) {
 			this._settleSubagentPets(true);
-			this._updateSubagentStacking();
 		}
 		if (this._jumpGame.value) {
 			this._jumpGame.value.layout();
@@ -2943,7 +2936,6 @@ export class ChatPetWidget extends Disposable {
 			}
 			const disposables = this._subagentEffects.add(new DisposableStore());
 			let state: 'idle' | 'splat' = 'idle';
-			let stacked = false;
 			let respawnPhase: 'none' | 'falling' | 'despawning' | 'respawning' = 'none';
 			const respawnTimer = disposables.add(new RunOnceScheduler(() => advanceRespawn(), RESPAWN_EFFECT_REDUCED_MOTION_DURATION));
 			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
@@ -2967,9 +2959,7 @@ export class ChatPetWidget extends Disposable {
 					return this._motionReduced ? sources.reducedMotion : sources.animated;
 				}
 				const sources = getChatPetSpriteSources(this._variant)[state];
-				return stacked && state === 'idle'
-					? { ...sources.animated, frameIndices: [CHAT_PET_FOLDED_ANTENNAE_FRAME], frameDurations: [], iterations: 1 }
-					: this._motionReduced ? sources.reducedMotion : sources.animated;
+				return this._motionReduced ? sources.reducedMotion : sources.animated;
 			};
 			const setState = (nextState: 'idle' | 'splat') => {
 				respawnTimer.cancel();
@@ -2977,7 +2967,7 @@ export class ChatPetWidget extends Disposable {
 				state = nextState;
 				updateBlink();
 				if (this._motionReduced) {
-					eyes.classList.toggle('bobbed', stacked && state === 'idle');
+					eyes.classList.remove('bobbed');
 				}
 				setChatPetImageSource(image, getSource().url);
 			};
@@ -3018,7 +3008,7 @@ export class ChatPetWidget extends Disposable {
 				const source = getSource();
 				eyes.classList.toggle('tracking', state === 'idle');
 				this._startSpriteAnimation(source, sprite, animation, state === 'splat' ? () => setState('idle') : undefined, false, frameIndex => {
-					eyes.classList.toggle('bobbed', state === 'idle' && (stacked || !this._motionReduced) && (source.accessoryRigFrame ?? frameIndex) >= CHAT_PET_FOLDED_ANTENNAE_FRAME);
+					eyes.classList.toggle('bobbed', state === 'idle' && !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
 					if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
 						const context = canvas.getContext('2d');
 						if (context) {
@@ -3033,10 +3023,9 @@ export class ChatPetWidget extends Disposable {
 					if (respawnPhase === 'falling') {
 						respawnPhase = 'despawning';
 						setState('idle');
-					} else if (!this._motionReduced && !stacked) {
+					} else if (!this._motionReduced) {
 						setState('splat');
 					}
-					this._updateSubagentStacking();
 				}
 			}));
 			const updateAppearance = (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => {
@@ -3060,9 +3049,6 @@ export class ChatPetWidget extends Disposable {
 			const fallTo = (top: number, respawn = false) => {
 				const previousTop = element.getBoundingClientRect().top - this._overlay.getBoundingClientRect().top;
 				respawnPhase = respawn ? 'falling' : 'none';
-				if (respawn) {
-					stacked = false;
-				}
 				element.classList.remove('arriving');
 				element.style.top = `${top}px`;
 				setState('idle');
@@ -3091,39 +3077,14 @@ export class ChatPetWidget extends Disposable {
 					const landing = getChatPetFallTarget(overlay.left + Number.parseFloat(element.style.left), -size, size, size, this._getPlatforms(), input.top);
 					fallTo(landing.top - overlay.top);
 					this._constrainSubagentPets();
-					this._updateSubagentStacking();
-				}
-			};
-			const updateStacked = (value: boolean) => {
-				if (stacked !== value) {
-					stacked = value;
-					if (respawnPhase === 'none' && (state === 'idle' || stacked)) {
-						setState('idle');
-					}
 				}
 			};
 			setState('idle');
-			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo, updateStacked, isRespawning: () => respawnPhase !== 'none' });
+			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo, isRespawning: () => respawnPhase !== 'none' });
 		}
 		this._constrainSubagentPets();
 		if (removed) {
 			this._settleSubagentPets();
-		}
-		this._updateSubagentStacking();
-	}
-
-	/** Hold the folded idle pose only while another mini pet is resting directly on this one. */
-	private _updateSubagentStacking(): void {
-		const pets = [...this._subagentPets.values()].filter(pet => !pet.isRespawning()).map(pet => ({
-			pet,
-			left: Number.parseFloat(pet.element.style.left),
-			top: Number.parseFloat(pet.element.style.top),
-			size: CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale')),
-		}));
-		for (const pet of pets) {
-			pet.pet.updateStacked(pets.some(above => above !== pet && !above.pet.element.classList.contains('arriving')
-				&& Math.abs(above.top + above.size - pet.top) <= POSITION_EPSILON
-				&& pet.left < above.left + above.size - POSITION_EPSILON && pet.left + pet.size > above.left + POSITION_EPSILON));
 		}
 	}
 
