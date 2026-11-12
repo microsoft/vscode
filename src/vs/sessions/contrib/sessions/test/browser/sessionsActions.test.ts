@@ -49,7 +49,7 @@ import { SessionView } from '../../../../../workbench/contrib/sessions/browser/p
 import { createSessionsPartTestHarness, createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { type ICloseChatOptions, type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
@@ -65,7 +65,7 @@ import { createTestSession, TestCommandService } from './sessionsListTestUtils.j
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_OTHER_CHATS_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -1710,6 +1710,40 @@ suite('Sessions - Actions', () => {
 			`closeGroup:${tabChat.resource.toString()}`,
 			`close:${tabChat.resource.toString()}`,
 			`closeGroup:${mainChat.resource.toString()}`,
+		]);
+	});
+
+	test('Close Others closes the other chats of the strip but the main chat, in one batch Reopen Closed Chat does not offer', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const { session } = createTestSession('close-others');
+		const mainChat = session.mainChat.get();
+		const createChat = (name: string, status: SessionStatus): IChat => ({ ...mainChat, resource: URI.parse(`test-chat://${name}`), title: constObservable(name), status: constObservable(status) });
+		const keptChat = createChat('kept', SessionStatus.Completed);
+		const otherChat = createChat('other', SessionStatus.Completed);
+		const draftChat = createChat('draft', SessionStatus.Untitled);
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override async closeChat(_session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+				operations.push(`close:${chat.resource.toString()}:skipHistory=${options?.skipHistory}`);
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async deleteChat(_session: ISession, chatResource: URI, options?: { readonly skipConfirmation?: boolean }): Promise<boolean> {
+				operations.push(`delete:${chatResource.toString()}:skipConfirmation=${options?.skipConfirmation}`);
+				return true;
+			}
+		});
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+
+		const command = CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService, session, keptChat, undefined, [mainChat, otherChat, keptChat, draftChat]);
+		// Without the tabs of a strip there is nothing to close.
+		await command.handler(instantiationService, session, keptChat, undefined, undefined);
+
+		assert.deepStrictEqual(operations, [
+			`close:${otherChat.resource.toString()}:skipHistory=true`,
+			`delete:${draftChat.resource.toString()}:skipConfirmation=true`,
 		]);
 	});
 
