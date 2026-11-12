@@ -161,6 +161,11 @@ export interface IBrowserViewWindowConfiguration {
 
 	/** Whether AI features are disabled for this window. */
 	readonly aiFeaturesDisabled?: boolean;
+	/**
+	 * User agent for the window's browser views. When unset, the default
+	 * Electron user agent is used. Device emulation still takes precedence.
+	 */
+	readonly userAgent?: string;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
