@@ -60,6 +60,17 @@ suite('BrowserViewPrompts', () => {
 		assert.deepStrictEqual(answers, [null, null]);
 	});
 
+	test('settleOwnedBy cancels only the prompts of that owner', () => {
+		const { prompts } = create();
+		const answers: string[] = [];
+		const frameA = {};
+		const frameB = {};
+		prompts.request('https://a.example', 'a', '', v => answers.push(`a:${v}`), frameA);
+		prompts.request('https://b.example', 'b', '', v => answers.push(`b:${v}`), frameB);
+		prompts.settleOwnedBy(frameA);
+		assert.deepStrictEqual({ answers, a: prompts.hasPendingFor(frameA), b: prompts.hasPendingFor(frameB) }, { answers: ['a:null'], a: false, b: true });
+	});
+
 	test('dispose cancels pending prompts', () => {
 		const { prompts, answers, ask } = create();
 		ask('one');

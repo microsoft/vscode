@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { Severity } from '../../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -27,13 +27,16 @@ export class BrowserPromptFeature extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
-		store.add(model.onDidRequestPrompt(request => void this._showPrompt(model, request)));
+		store.add(model.onDidRequestPrompt(request => void this._showPrompt(model, request, store)));
 	}
 
-	private async _showPrompt(model: IBrowserViewModel, request: IBrowserViewPromptRequestEvent): Promise<void> {
+	private async _showPrompt(model: IBrowserViewModel, request: IBrowserViewPromptRequestEvent, attachment: DisposableStore): Promise<void> {
 		const cts = new CancellationTokenSource();
 		const cleanup = new DisposableStore();
 		cleanup.add(cts);
+		// Close the dialog when the model is disposed or detached from the editor.
+		const attachmentListener = attachment.add(toDisposable(() => cts.cancel()));
+		cleanup.add(toDisposable(() => attachment.deleteAndLeak(attachmentListener)));
 		cleanup.add(model.onDidSettlePrompt(requestId => {
 			if (requestId === request.requestId) {
 				cts.cancel();
@@ -55,8 +58,8 @@ export class BrowserPromptFeature extends BrowserEditorContribution {
 			// pending so an attached agent can still answer it; navigating away settles it.
 		} finally {
 			cleanup.dispose();
-			if (value !== undefined) {
-				void model.respondToPrompt(request.requestId, value);
+			if (value !== undefined && !cts.token.isCancellationRequested) {
+				model.respondToPrompt(request.requestId, value).catch(() => { });
 			}
 		}
 	}

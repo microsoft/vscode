@@ -194,6 +194,7 @@ export class BrowserView extends Disposable {
 			if (e.reason === LoadReason.LOAD) {
 				this.dispose(); // Dispose when switching workspaces.
 			} else if (e.reason === LoadReason.RELOAD) {
+				this._prompts.settleAll(); // The reloaded workbench can't show a dialog for a pending prompt.
 				this.setVisible(false); // Hide when reloading.
 			}
 		}));
@@ -476,8 +477,13 @@ export class BrowserView extends Disposable {
 
 		// A blocked `prompt()` can't outlive the document that called it.
 		webContents.on('did-start-navigation', (details) => {
-			if (details.isMainFrame && !details.isSameDocument) {
+			if (details.isSameDocument) {
+				return;
+			}
+			if (details.isMainFrame) {
 				this._prompts.settleAll();
+			} else if (details.frame) {
+				this._prompts.settleOwnedBy(details.frame);
 			}
 		});
 
@@ -490,7 +496,19 @@ export class BrowserView extends Disposable {
 				respond(null);
 				return;
 			}
-			this._prompts.request(event.senderFrame?.origin ?? webContents.getURL(), message, defaultValue, respond);
+			const frame = event.senderFrame ?? undefined;
+			this._prompts.request(frame?.origin ?? webContents.getURL(), message, defaultValue, respond, frame);
+			if (frame) {
+				// Electron has no frame-removed event, so poll until the prompt is settled.
+				const timer = setInterval(() => {
+					if (frame.detached) {
+						this._prompts.settleOwnedBy(frame);
+					}
+					if (!this._prompts.hasPendingFor(frame)) {
+						clearInterval(timer);
+					}
+				}, 500);
+			}
 		});
 
 		// Navigation events (when URL actually changes)

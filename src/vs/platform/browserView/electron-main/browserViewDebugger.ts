@@ -33,6 +33,7 @@ export type CDPCommandInterceptor = (method: string, params: unknown, session: I
 export class BrowserViewDebugger extends Disposable {
 
 	private readonly _sessions = this._register(new DisposableMap<string, DebugSession>());
+	private readonly _internalSessionIds = new Set<string>();
 	private readonly _onSessionCreated = this._register(new Emitter<{ session: ICDPConnection; waitingForDebugger: boolean }>());
 	readonly onSessionCreated = this._onSessionCreated.event;
 
@@ -84,11 +85,14 @@ export class BrowserViewDebugger extends Disposable {
 	 * Attach to a target by its targetId, returning the session.
 	 * Works for both the root page and sub-targets.
 	 */
-	async attach(): Promise<ICDPConnection> {
-		return this.attachToTarget(this.targetId);
+	async attach(internal?: boolean): Promise<ICDPConnection> {
+		return this.attachToTarget(this.targetId, internal);
 	}
 
-	async attachToTarget(targetId: string): Promise<ICDPConnection> {
+	/**
+	 * @param internal Marks the session as VS Code's own plumbing, so it is not mistaken for an external CDP client.
+	 */
+	async attachToTarget(targetId: string, internal?: boolean): Promise<ICDPConnection> {
 		this.ensureAttached();
 		const result = await this._electronDebugger.sendCommand('Target.attachToTarget', {
 			targetId,
@@ -99,6 +103,9 @@ export class BrowserViewDebugger extends Disposable {
 			throw new Error(`Failed to attach to target ${targetId}`);
 		}
 
+		if (internal) {
+			this._internalSessionIds.add(result.sessionId);
+		}
 		return this._sessions.get(result.sessionId)!;
 	}
 
@@ -113,10 +120,10 @@ export class BrowserViewDebugger extends Disposable {
 		return readBrowserViewAccessibilityTree((method, params) => this._electronDebugger.sendCommand(method, params));
 	}
 
-	/** Whether a CDP client (for example an agent's Playwright connection) is attached to the page itself. */
+	/** Whether an external CDP client (for example an agent's Playwright connection) is attached to the page itself. */
 	get hasPageSessions(): boolean {
 		for (const session of this._sessions.values()) {
-			if (session.targetId === this.targetId) {
+			if (session.targetId === this.targetId && !this._internalSessionIds.has(session.sessionId)) {
 				return true;
 			}
 		}
@@ -293,6 +300,7 @@ export class BrowserViewDebugger extends Disposable {
 		this._sessions.set(sessionId, session);
 		const closeListener = session.onClose(() => {
 			closeListener.dispose();
+			this._internalSessionIds.delete(sessionId);
 			if (this._sessions.deleteAndLeak(sessionId) !== session) {
 				return;
 			}

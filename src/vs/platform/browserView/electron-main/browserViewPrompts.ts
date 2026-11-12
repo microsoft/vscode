@@ -28,7 +28,7 @@ export interface IBrowserViewPromptSettledEvent {
  */
 export class BrowserViewPrompts extends Disposable {
 
-	private readonly _pending = new Map<string, { readonly request: IBrowserViewPromptRequestEvent; readonly respond: (value: string | null) => void }>();
+	private readonly _pending = new Map<string, { readonly request: IBrowserViewPromptRequestEvent; readonly respond: (value: string | null) => void; readonly owner: object | undefined }>();
 
 	private readonly _onDidRequestPrompt = this._register(new Emitter<IBrowserViewPromptRequestEvent>());
 	/** Fires for prompts the workbench UI should show. */
@@ -48,15 +48,16 @@ export class BrowserViewPrompts extends Disposable {
 
 	/**
 	 * Register a prompt request. `respond` is called exactly once, with the entered text or `null`.
+	 * `owner` identifies what raised the prompt (for example its frame), for {@link settleOwnedBy}.
 	 */
-	request(origin: string, message: string, defaultValue: string, respond: (value: string | null) => void): void {
+	request(origin: string, message: string, defaultValue: string, respond: (value: string | null) => void, owner?: object): void {
 		const responders = this._getResponders();
 		if (!responders.workbench && !responders.agent) {
 			respond(null);
 			return;
 		}
 		const request = { requestId: generateUuid(), origin, message, defaultValue };
-		this._pending.set(request.requestId, { request, respond });
+		this._pending.set(request.requestId, { request, respond, owner });
 		this._onDidOpenPrompt.fire(request);
 		if (responders.workbench) {
 			this._onDidRequestPrompt.fire(request);
@@ -80,6 +81,24 @@ export class BrowserViewPrompts extends Disposable {
 		}
 		this.respond(pending.request.requestId, getValue(pending.request));
 		return true;
+	}
+
+	hasPendingFor(owner: object): boolean {
+		for (const pending of this._pending.values()) {
+			if (pending.owner === owner) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Cancel the outstanding prompts raised by `owner`, leaving other prompts untouched. */
+	settleOwnedBy(owner: object): void {
+		for (const [requestId, pending] of [...this._pending]) {
+			if (pending.owner === owner) {
+				this.respond(requestId, null);
+			}
+		}
 	}
 
 	/** Cancel all outstanding prompts, for example because the page navigated or crashed. */
