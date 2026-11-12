@@ -9,9 +9,11 @@
  * settings, and every color is a theme token, so visuals follow the active theme.
  */
 
+/* The visual has no frame of its own, so its focus ring stands clear of the content instead of crossing it. */
 .chat-native-components:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline-offset: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .chat-native-components-notice {
