@@ -371,8 +371,8 @@ suite('ExtHostLanguageFeatures', function () {
 			return {
 				root: {
 					id: 'file',
-					original: { name: 'original.a', kind: types.SymbolKind.File, range: fullRange },
-					modified: { name: 'file.a', kind: types.SymbolKind.File, range: fullRange },
+					originalItem: { name: 'original.a', kind: types.SymbolKind.File, range: fullRange },
+					modifiedItem: { name: 'file.a', kind: types.SymbolKind.File, range: fullRange },
 					originalChanges: [],
 					modifiedChanges: [],
 					children: [],
@@ -423,8 +423,8 @@ suite('ExtHostLanguageFeatures', function () {
 				result: {
 					root: {
 						id: 'file',
-						original: { name: 'original.a', kind: languages.SymbolKind.File, range: fullRange },
-						modified: { name: 'file.a', kind: languages.SymbolKind.File, range: fullRange },
+						originalItem: { name: 'original.a', kind: languages.SymbolKind.File, range: fullRange },
+						modifiedItem: { name: 'file.a', kind: languages.SymbolKind.File, range: fullRange },
 						originalChanges: [],
 						modifiedChanges: [],
 						children: [],
