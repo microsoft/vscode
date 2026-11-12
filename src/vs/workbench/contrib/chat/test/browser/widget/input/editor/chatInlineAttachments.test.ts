@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { OS } from '../../../../../../../../base/common/platform.js';
 import { DisposableStore, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
@@ -36,6 +37,10 @@ import { IContextKeyService } from '../../../../../../../../platform/contextkey/
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuService } from '../../../../../../../../platform/contextview/browser/contextView.js';
 import { KeybindingsRegistry } from '../../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { registerAction2 } from '../../../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../../../../platform/dnd/browser/dnd.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../../../platform/files/common/files.js';
@@ -50,6 +55,7 @@ import { ChatDynamicVariableModel } from '../../../../../browser/attachments/cha
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
 import { ChatResponseAccessibleView } from '../../../../../browser/accessibility/chatResponseAccessibleView.js';
+import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
 import '../../../../../browser/widget/input/editor/chatInputEditorHover.js';
@@ -221,6 +227,85 @@ suite('ChatInlineAttachments', () => {
 	function settle(): Promise<void> {
 		return timeout(0);
 	}
+
+	test('Show or Focus Hover is scoped to the composer text input, not its toolbar or attachments', () => {
+		const binding = KeybindingsRegistry.getDefaultKeybindings().find(binding =>
+			binding.command === SHOW_OR_FOCUS_HOVER_ACTION_ID &&
+			binding.when?.keys().includes(ChatContextKeys.inChatInput.key));
+		assert.ok(binding?.when);
+		const configuration = new TestConfigurationService();
+		const context = store.add(new ContextKeyService(configuration));
+		ChatContextKeys.inChatInput.bindTo(context).set(true);
+		const textInputFocus = EditorContextKeys.textInputFocus.bindTo(context);
+		const toolbarOrAttachment = context.contextMatchesRules(binding.when);
+		textInputFocus.set(true);
+		const composer = context.contextMatchesRules(binding.when);
+		textInputFocus.set(false);
+		configuration.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, false);
+		assert.deepStrictEqual({
+			toolbarOrAttachment,
+			composer,
+			toolbarOrAttachmentWithInlineDisabled: context.contextMatchesRules(binding.when),
+		}, { toolbarOrAttachment: false, composer: true, toolbarOrAttachmentWithInlineDisabled: false });
+	});
+
+	test('Enter in the focused reference hover does not open the active pill or submit the draft', async () => {
+		store.add(registerAction2(ChatSubmitAction));
+		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(OS).flatMap(item => {
+			if (!item.keybinding || ![ChatSubmitAction.ID, 'workbench.action.chat.openInlineAttachment'].includes(item.command ?? '')) {
+				return [];
+			}
+			return [new ResolvedKeybindingItem(USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, OS)[0], item.command, item.commandArgs, item.when ?? undefined, true, null, false)];
+		});
+		const resolver = new KeybindingResolver(items, [], () => { });
+		const actual: { activePill: boolean; composerCommand: string | null | undefined; hoverCommands: (string | null | undefined)[] }[] = [];
+		for (const position of [new Position(1, 9), new Position(1, 8)]) {
+			const content = dom.$('div');
+			const link = dom.append(content, dom.$('a', { href: '#reference' }, 'Reference'));
+			const button = dom.append(content, dom.$('button', { type: 'button' }, 'Branch'));
+			const input = createInput('review ', true, true, false, () => content);
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext({
+				kind: 'generic',
+				id: 'github-context:https://github.com/microsoft/vscode/issues/123',
+				name: 'microsoft/vscode#123',
+				value: '',
+			});
+			await settle();
+			input.editor.invokeWithinContext(accessor => {
+				const context = accessor.get(IContextKeyService);
+				ChatContextKeys.enabled.bindTo(context).set(true);
+				ChatContextKeys.inChatInput.bindTo(context).set(true);
+				ChatContextKeys.inputHasSendableContent.bindTo(context).set(true);
+				ChatContextKeys.chatSessionOptionsValid.bindTo(context).set(true);
+			});
+			const contextService = input.instantiationService.get(IContextKeyService);
+			const resolveEnter = (target: Element) => {
+				const result = resolver.resolve(contextService.getContext(target), [], 'Enter');
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			};
+			input.editor.focus();
+			input.editor.setPosition(position, 'keyboard');
+			const activePill = input.isActive();
+			const composerCommand = resolveEnter(input.editor.getDomNode()!);
+			ContentHoverController.get(input.editor)!.showContentHover(new Range(1, 9, 1, 9), HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
+			await settle();
+			const hoverCommands: (string | null | undefined)[] = [];
+			const container = content.closest<HTMLElement>('.monaco-hover')!;
+			for (const target of [container, link, button]) {
+				target.focus();
+				target.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+				hoverCommands.push(resolveEnter(target));
+			}
+			actual.push({ activePill, composerCommand, hoverCommands });
+			ContentHoverController.get(input.editor)!.hideContentHover();
+			await settle();
+		}
+		assert.deepStrictEqual(actual, [
+			{ activePill: true, composerCommand: 'workbench.action.chat.openInlineAttachment', hoverCommands: [undefined, undefined, undefined] },
+			{ activePill: false, composerCommand: ChatSubmitAction.ID, hoverCommands: [undefined, undefined, undefined] },
+		]);
+	});
 
 	test('keyboard activation reveals the shared hover without focusing it or showing it after edits', async () => {
 		const events: string[] = [];

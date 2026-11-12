@@ -15,6 +15,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../../../base/commo
 import { KeyCode, KeyMod } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
+import { EditorContextKeys } from '../../../../../../../editor/common/editorContextKeys.js';
 import { IClipboardCopyEvent } from '../../../../../../../editor/browser/controller/editContext/clipboardUtils.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
@@ -2030,7 +2031,7 @@ class OpenInlineAttachmentAction extends Action2 {
 			title: localize2('chat.openInlineAttachment', "Open Inline Attachment"),
 			precondition: ChatContextKeys.enabled,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.inputInlineAttachmentActive),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.inputInlineAttachmentActive, EditorContextKeys.hoverFocused.negate()),
 				primary: KeyCode.Enter,
 				// Above sending the request, below accepting a suggestion.
 				weight: KeybindingWeight.EditorContrib + 10,

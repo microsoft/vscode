@@ -27,11 +27,13 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../../../../base/common/keyC
 import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../../../../editor/contrib/hover/browser/hoverActionIds.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../../../../editor/common/editorContextKeys.js';
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: SHOW_OR_FOCUS_HOVER_ACTION_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ChatContextKeys.inChatInput,
+	when: ContextKeyExpr.and(ChatContextKeys.inChatInput, EditorContextKeys.textInputFocus),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 });
 
