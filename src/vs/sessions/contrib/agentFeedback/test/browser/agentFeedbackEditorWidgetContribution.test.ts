@@ -143,14 +143,16 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 		assert.deepStrictEqual({ states, firstAnchorAboveViewport, offscreenGroupHidden, previewMutations }, { states: [visible, visible], firstAnchorAboveViewport: true, offscreenGroupHidden: true, previewMutations: 0 });
 	});
 
-	test('does not reveal or focus a comment when the navigation changes passively', () => {
+	test('does not reveal or focus a passive anchor on initialization, rebuild or navigation change', () => {
 		const session = URI.parse('test://session/passive-navigation');
 		const navigation = store.add(new Emitter<IAgentFeedbackNavigationChangeEvent>());
+		const changes = store.add(new Emitter<IAgentFeedbackChangeEvent>());
 		let activeIdx = -1;
+		let reveal = true;
 		let feedback: readonly IAgentFeedback[] = [];
 		const services = new ServiceCollection();
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
-			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeFeedback = changes.event;
 			override readonly onDidChangeFeedbackVisibility = Event.None;
 			override readonly onDidChangeFeedbackScope = Event.None;
 			override readonly onDidChangeNavigation = navigation.event;
@@ -160,7 +162,7 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 			override isAgentHostSession(): boolean { return true; }
 			override hasLoadedFeedback(): boolean { return true; }
 			override getChatChanges() { return []; }
-			override getNavigationBearing() { return { activeIdx, totalCount: feedback.length }; }
+			override getNavigationBearing() { return { activeIdx, totalCount: feedback.length, reveal }; }
 		});
 		const prState = constObservable<IPRReviewState>({ kind: PRReviewStateKind.None });
 		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
@@ -172,7 +174,7 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 			override readonly currentDefaultAccount = null;
 		});
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
-		const states: { scrollTop: number; focused: string | undefined }[] = [];
+		const states: Record<string, { scrolled: boolean; focused: boolean }> = {};
 		const lines = Array.from({ length: 80 }, (_, index) => `Line ${index + 1}`);
 		withTestCodeEditor(lines, { serviceCollection: services }, (testEditor, _viewModel, instantiationService) => {
 			const disposables = store.add(new DisposableStore());
@@ -198,27 +200,40 @@ suite('AgentFeedbackEditorWidgetContribution', () => {
 				kind: AgentFeedbackKind.UserReview,
 				state: AgentFeedbackState.Accepted,
 			}));
+			const record = (name: string) => {
+				editor.render();
+				states[name] = {
+					scrolled: editor.getScrollTop() > 0,
+					focused: container.querySelector('.agent-feedback-widget-item.focused') !== null,
+				};
+			};
 			let contribution: AgentFeedbackEditorWidgetContribution | undefined;
 			try {
+				// The anchor was set passively before this editor's contribution was created.
+				activeIdx = 9;
+				reveal = false;
 				contribution = disposables.add(instantiationService.createInstance(AgentFeedbackEditorWidgetContribution, editor));
-				const navigate = (index: number, reveal: boolean) => {
-					activeIdx = index;
-					navigation.fire({ sessionResource: session, reveal });
-					editor.render();
-					states.push({
-						scrollTop: editor.getScrollTop(),
-						focused: container.querySelector<HTMLElement>('.agent-feedback-widget-item.focused')?.textContent?.trim(),
-					});
-				};
-				navigate(9, false);
-				navigate(9, true);
+				record('initialization');
+				changes.fire({ sessionResource: session, feedbackItems: feedback });
+				record('rebuild');
+				navigation.fire({ sessionResource: session, reveal: false });
+				record('passiveNavigation');
+				reveal = true;
+				navigation.fire({ sessionResource: session, reveal: true });
+				record('revealedNavigation');
 			} finally {
 				contribution?.dispose();
 				disposables.dispose();
 				container.remove();
 			}
 		});
-		assert.deepStrictEqual({ passive: states[0], revealedScrolled: states[1].scrollTop > 0, revealedFocused: states[1].focused !== undefined }, { passive: { scrollTop: 0, focused: undefined }, revealedScrolled: true, revealedFocused: true });
+		const passive = { scrolled: false, focused: false };
+		assert.deepStrictEqual(states, {
+			initialization: passive,
+			rebuild: passive,
+			passiveNavigation: passive,
+			revealedNavigation: { scrolled: true, focused: true },
+		});
 	});
 
 	for (const readonlyState of [AgentFeedbackState.Submitted, AgentFeedbackState.Resolved]) {

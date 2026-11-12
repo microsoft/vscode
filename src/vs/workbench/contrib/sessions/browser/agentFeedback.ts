@@ -47,6 +47,8 @@ export interface IAgentFeedbackChangeEvent {
 export interface IAgentFeedbackNavigationBearing {
 	readonly activeIdx: number;
 	readonly totalCount: number;
+	/** Whether editors should reveal and focus the anchored item. `false` when the anchor was set without revealing it; a missing value means `true`. */
+	readonly reveal?: boolean;
 }
 
 export interface IAgentFeedbackNavigationChangeEvent {
