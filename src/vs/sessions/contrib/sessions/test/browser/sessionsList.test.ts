@@ -7848,7 +7848,7 @@ suite('Sessions - SessionsList', () => {
 			'Judge: Copilot · Claude Opus 5', 'Synthesizer: Copilot · Claude Opus 5',
 		].join('\n');
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean } = {}) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean; originatingChatResource?: URI; folderless?: boolean; groupParentId?: string } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -7856,9 +7856,10 @@ suite('Sessions - SessionsList', () => {
 			const comparison: ISessionComparison = {
 				id: 'comparison-1',
 				groupId: group.id,
+				originatingChatResource: presentation.originatingChatResource,
 				title: 'Improve the picker',
 				createdAt: 1,
-				workspace: URI.parse('file:///workspace'),
+				workspace: presentation.folderless ? undefined : URI.parse('file:///workspace'),
 				prompt: 'Improve the picker',
 				launching: sessionVariant === 'launching' ? true : undefined,
 				verdict,
@@ -7927,7 +7928,7 @@ suite('Sessions - SessionsList', () => {
 			}
 			const sectionId = grouping === SessionsGrouping.Environment ? 'environment:local' : 'workspace:Workspace';
 			const harness = createListHarness(disposables, sessions, {
-				groups: sectionParent ? [group, sectionParent] : [group],
+				groups: sectionParent ? [{ ...group, parentId: presentation.groupParentId }, sectionParent] : [group],
 				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
 				memberships, comparisons: [comparison], pinnedSessionIds,
 			});
@@ -7967,6 +7968,89 @@ suite('Sessions - SessionsList', () => {
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list, contextMenus };
+		}
+
+		for (const folderless of [false, true]) {
+			test(`attaches an agent-created ${folderless ? 'folderless' : 'workspace'} comparison to its originating session`, () => {
+				const source = buildTestSession({
+					id: 'source', title: 'Review PR', workspace: 'Source project',
+					chats: folderless ? undefined : [{ id: 'evaluator', title: 'Review details' }],
+				});
+				const { list, container, harness, attempt1 } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined,
+					harness => {
+						harness.managementService.sessions.push(source.session);
+						harness.instantiationService.stub(IListService, harness.store.add(new ListService()));
+					}, false,
+					{ originatingChatResource: folderless ? source.session.mainChat.get().resource : source.chats.get('evaluator')!.chat.resource, folderless });
+				list.layout(1000, 400);
+				const sourceNode = list.getTreeSnapshot().flatMap(node => node.type === 'section' ? node.children : [])
+					.find(node => node.type === 'session' && node.session === source.session);
+				const comparisonNode = sourceNode?.type === 'session' ? sourceNode.children?.[0] : undefined;
+				const expanded = {
+					sourceLevel: list.getItemRow({ session: source.session.resource })?.getAttribute('aria-level'),
+					comparisonLevel: list.getItemRow({ group: group.id })?.getAttribute('aria-level'),
+					attemptLevel: list.getItemRow({ session: attempt1.session.resource })?.getAttribute('aria-level'),
+					sourceHasTwistie: !list.getItemRow({ session: source.session.resource })?.querySelector('.monaco-tl-twistie.force-no-twistie'),
+					participants: comparisonNode?.type === 'group' ? comparisonNode.children.map(node => node.type === 'session' ? node.session.sessionId : node.id) : undefined,
+				};
+				list.setFocusedItem({ session: source.session.resource });
+				list.focus();
+				if (!mainWindow.document.hasFocus()) {
+					container.querySelector('.monaco-list')?.dispatchEvent(new FocusEvent('focus'));
+				}
+				harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+				const collapsed = list.getItemRow({ session: source.session.resource })?.getAttribute('aria-expanded') === 'false';
+				list.update();
+				assert.deepStrictEqual({
+					expanded,
+					collapsed,
+					comparisonHidden: !container.querySelector('.session-comparison-group'),
+					callerChats: source.session.chats.get().length,
+					sessionCount: harness.managementService.sessions.length,
+				}, {
+					expanded: {
+						sourceLevel: '2', comparisonLevel: '3', attemptLevel: '4', sourceHasTwistie: true,
+						participants: ['synthesis', 'judge', 'attempt-1', 'attempt-2'],
+					},
+					collapsed: true, comparisonHidden: true, callerChats: folderless ? 1 : 2, sessionCount: 5,
+				});
+			});
+		}
+
+		test('keeps an agent-created comparison accessible when its originating session is unavailable or archived', () => {
+			const source = createTestSession('Source', { resourceId: 'source' });
+			const { list, container, harness } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined,
+				harness => harness.managementService.sessions.push(source.session), false,
+				{ originatingChatResource: source.session.mainChat.get().resource });
+			const levels = [container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level')];
+			source.isArchived.set(true, undefined);
+			list.update();
+			levels.push(container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level'));
+			harness.managementService.sessions = harness.managementService.sessions.filter(session => session !== source.session);
+			list.refresh();
+			levels.push(container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level'));
+			assert.deepStrictEqual(levels, ['3', '2', '2']);
+		});
+
+		for (const placement of ['customGroup', 'inbox'] as const) {
+			test(`preserves ${placement} placement for an agent-created comparison`, () => {
+				const source = createTestSession('Source', { resourceId: 'source', workspaceLabel: 'Source project' });
+				const parent = placement === 'customGroup' ? { id: 'custom', name: 'Custom', createdAt: 1 } : undefined;
+				const { list } = renderComparison(undefined, 'all', new Set(), false, placement === 'inbox' ? SessionsGrouping.Inbox : SessionsGrouping.Workspace, parent,
+					harness => {
+						harness.managementService.sessions.push(source.session);
+						if (placement === 'inbox') {
+							harness.instantiationService.stub(ISessionsListModelService, harness.store.add(harness.instantiationService.createInstance(SessionsListModelService)));
+						}
+					}, false,
+					{ originatingChatResource: source.session.mainChat.get().resource, groupParentId: parent?.id });
+				const rows = list.getTreeSnapshot().flatMap(node => node.type !== 'session' ? node.children : []);
+				const sourceNode = rows.find(node => node.type === 'session' && node.session === source.session);
+				assert.deepStrictEqual({
+					sourceChildren: sourceNode?.type === 'session' ? sourceNode.children : undefined,
+					comparisonAtHeaderLevel: rows.some(node => node.type === 'group' && node.id === `group:${group.id}`),
+				}, { sourceChildren: undefined, comparisonAtHeaderLevel: true });
+			});
 		}
 
 		test('inbox keeps comparisons together, prioritizes input over recency, ignores manual sorting, and hides group archiving', () => {

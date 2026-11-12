@@ -20,6 +20,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -52,8 +53,8 @@ function parse(result: IToolResult): { readonly view: Record<string, unknown>; r
 suite('Sessions - Sessions list tools', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: ISession[], options: { readonly groups?: readonly ISessionGroup[]; readonly memberships?: Record<string, string>; readonly pinnedSessionIds?: ReadonlySet<string>; readonly realListModel?: boolean } = {}) {
-		const harness = createListHarness(disposables, sessions, { liveListModel: true, pinnedSessionIds: options.pinnedSessionIds });
+	function setup(sessions: ISession[], options: { readonly groups?: readonly ISessionGroup[]; readonly memberships?: Record<string, string>; readonly pinnedSessionIds?: ReadonlySet<string>; readonly realListModel?: boolean; readonly comparisons?: readonly ISessionComparison[] } = {}) {
+		const harness = createListHarness(disposables, sessions, { liveListModel: true, pinnedSessionIds: options.pinnedSessionIds, comparisons: options.comparisons });
 		if (options.realListModel) {
 			harness.instantiationService.stub(ISessionsListModelService, harness.store.add(harness.instantiationService.createInstance(SessionsListModelService)));
 		}
@@ -166,6 +167,36 @@ suite('Sessions - Sessions list tools', () => {
 			],
 			tree: [{ 'Release': [{ 'Hotfixes+': ['Beta'] }, { 'vscode': ['Gamma'] }, 'Alpha'] }],
 			pinChanges: [{ sessionId: 'Gamma', pinned: true }],
+		});
+	});
+
+	test('reads and addresses comparison headers nested beneath their initiating session', async () => {
+		const source = session('Source', 1);
+		const attempt = session('Attempt', 2);
+		const { read, organize } = setup([source, attempt], {
+			groups: [{ id: 'comparison', name: 'Comparison', createdAt: 1 }],
+			memberships: { Attempt: 'comparison' },
+			comparisons: [{
+				id: 'comparison', groupId: 'comparison', title: 'Comparison', prompt: 'Review', createdAt: 1,
+				originatingChatResource: source.mainChat.get().resource,
+				participants: [{
+					id: 'attempt', role: SessionComparisonParticipantRole.Attempt, sessionResource: attempt.resource,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				}],
+			}],
+		});
+		const tree = (await read()).tree;
+		const sourceNode = tree.flatMap(node => node.children ?? []).find(node => node.id === source.sessionId);
+		const { results } = await organize({ action: 'setCollapsed', id: 'group:comparison', collapsed: true });
+		const comparisonTree = (await read({ headerId: 'group:comparison' })).tree;
+		assert.deepStrictEqual({
+			nested: sourceNode?.children?.map(node => node.id),
+			results,
+			comparison: outline(comparisonTree),
+		}, {
+			nested: ['group:comparison'],
+			results: [{ action: 'setCollapsed', ok: true }],
+			comparison: [{ 'Comparison+': ['Attempt'] }],
 		});
 	});
 
