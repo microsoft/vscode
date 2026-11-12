@@ -43,7 +43,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, writeSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, isWorktreeSessionIsolation, writeSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../chat/common/chatPermissionWarnings.js';
@@ -232,6 +232,73 @@ function getBranchUncommittedChanges(branchName: string, repositoryBranchName: s
 	return branchName === repositoryBranchName && (repositoryUncommittedChanges ?? 0) > 0
 		? repositoryUncommittedChanges
 		: undefined;
+}
+
+type CreateBranchSourceItem = IQuickPickItem & { value: string };
+
+function toCreateBranchSourceItem(source: SessionConfigValueItem): CreateBranchSourceItem {
+	return {
+		value: source.value,
+		label: source.label,
+		detail: source.description,
+		iconClass: ThemeIcon.asClassName(source.value.startsWith('refs/remotes/') ? Codicon.cloud : source.value.startsWith('refs/tags/') ? Codicon.tag : Codicon.gitBranch),
+	};
+}
+
+/**
+ * Builds the starting points for Create New Branch From..., with HEAD first,
+ * then local branches, remote branches, and tags under separate headings.
+ */
+function getCreateBranchSourceItems(head: SessionConfigValueItem, sources: readonly SessionConfigValueItem[]): QuickPickInput<CreateBranchSourceItem>[] {
+	const items: QuickPickInput<CreateBranchSourceItem>[] = [toCreateBranchSourceItem(head)];
+	const otherSources = sources.filter(source => source.value !== 'HEAD');
+	for (const [label, group] of [
+		[localize('agentHostSessionConfig.createBranch.localBranches', "Branches"), otherSources.filter(source => !source.value.startsWith('refs/remotes/') && !source.value.startsWith('refs/tags/'))],
+		[localize('agentHostSessionConfig.createBranch.remoteBranches', "Remote Branches"), otherSources.filter(source => source.value.startsWith('refs/remotes/'))],
+		[localize('agentHostSessionConfig.createBranch.tags', "Tags"), otherSources.filter(source => source.value.startsWith('refs/tags/'))],
+	] as const) {
+		if (group.length) {
+			items.push({ type: 'separator', label }, ...group.map(toCreateBranchSourceItem));
+		}
+	}
+	return items;
+}
+
+/**
+ * Checks a new branch name against Git's naming rules and the existing local branches.
+ * Returns an error message, a warning for a case-only match, or `undefined` when the name is usable.
+ */
+function validateCreateBranchName(name: string, branches: readonly SessionConfigValueItem[]): string | { content: string; severity: Severity } | undefined {
+	// Reject names that violate Git's ref-format rules.
+	if (!name || name === 'HEAD' || name === '@' || name.startsWith('-') || name.endsWith('.')
+		|| name.includes('..') || name.includes('@{') || /[\s~^:?*[\]\\]/.test(name)
+		|| Array.from(name).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+		|| name.split('/').some(part => !part || part.startsWith('.') || part.endsWith('.lock'))) {
+		return localize('agentHostSessionConfig.createBranch.invalid', "Enter a valid Git branch name.");
+	}
+	// Git cannot store both a ref and another ref nested under the same name.
+	if (branches.some(branch => branch.value === name || branch.value.startsWith(`${name}/`) || name.startsWith(`${branch.value}/`))) {
+		return localize('agentHostSessionConfig.createBranch.exists', "A branch named '{0}' already exists or conflicts with an existing branch.", name);
+	}
+	const caseMatch = branches.find(branch => equalsIgnoreCase(branch.value, name));
+	if (caseMatch) {
+		return {
+			content: localize('agentHostSessionConfig.createBranch.caseConflict', "Branch '{0}' already exists with different casing. This can cause problems on case-insensitive but case-preserving file systems. Press Enter to attempt creation anyway.", caseMatch.value),
+			severity: Severity.Warning,
+		};
+	}
+	return undefined;
+}
+
+/** The composer state captured when branch creation started, used to detect stale requests. */
+interface ICreateBranchContext {
+	readonly property: string;
+	readonly config: ResolveSessionConfigResult;
+	readonly chat: URI | undefined;
+	readonly workspaceUri: URI | undefined;
+	readonly isolationKey: string;
+	readonly isolationValue: unknown;
+	readonly isWorktree: boolean;
 }
 
 interface IBranchPickerContext {
@@ -1058,22 +1125,34 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
+	/** Returns the changeset that supports branch creation when the current session can set a base branch. */
 	protected _getCreateBranchChangeset(provider: IAgentHostSessionsProvider, sessionId: string): ISessionChangeset | undefined {
 		const session = this._session.get();
+		if (session?.sessionId !== sessionId || provider.getCreateSessionConfig(sessionId) === undefined) {
+			return undefined;
+		}
 		const config = this._getSessionConfig(provider, sessionId);
 		const workspace = config && getSessionWorkspaceProperties(config.schema);
 		const branch = workspace?.baseBranch;
-		const isolation = workspace && (config?.values[workspace.isolationKey] ?? workspace.isolation?.schema.default);
-		return session?.sessionId === sessionId && provider.getCreateSessionConfig(sessionId) !== undefined
-			&& isolation !== 'worktree'
-			&& branch?.schema.enumDynamic && isSessionConfigWritable(branch.schema, true)
-			&& session.workspace.get()?.folders[0]?.gitRepository
-			? this._chat.get()?.changesets.get()?.find(changeset =>
-				changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
-				&& changeset.operations.get().some(operation => operation.id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID))
-			: undefined;
+		// New Worktree creates its own branch when the session starts.
+		if (workspace && isWorktreeSessionIsolation(workspace.isolation, config?.values[workspace.isolationKey] ?? workspace.isolation?.schema.default)) {
+			return undefined;
+		}
+		if (!branch?.schema.enumDynamic || !isSessionConfigWritable(branch.schema, true)) {
+			return undefined;
+		}
+		if (!session.workspace.get()?.folders[0]?.gitRepository) {
+			return undefined;
+		}
+		return this._chat.get()?.changesets.get()?.find(changeset =>
+			changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
+			&& changeset.operations.get().some(operation => operation.id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID));
 	}
 
+	/**
+	 * Coordinates branch creation from the current HEAD or a selected source, then asks the host to create it.
+	 * @param from Whether to ask for a starting branch or tag before asking for the new branch name.
+	 */
 	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, from = false): Promise<void> {
 		const config = this._getSessionConfig(provider, sessionId);
 		const schema = config?.schema.properties[property];
@@ -1081,9 +1160,19 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 		const chat = this._getChat(provider, sessionId);
-		const workspace = this._session.get()?.workspace.get()?.uri;
-		const isolationKey = getSessionWorkspaceProperties(config.schema).isolationKey;
-		const isolation = config.values[isolationKey] ?? config.schema.properties[isolationKey]?.default;
+		const workspaceUri = this._session.get()?.workspace.get()?.uri;
+		const workspaceConfigProperties = getSessionWorkspaceProperties(config.schema);
+		const isolationKey = workspaceConfigProperties.isolationKey;
+		const isolationValue = config.values[isolationKey] ?? config.schema.properties[isolationKey]?.default;
+		const context: ICreateBranchContext = {
+			property,
+			config,
+			chat,
+			workspaceUri,
+			isolationKey,
+			isolationValue,
+			isWorktree: isWorktreeSessionIsolation(workspaceConfigProperties.isolation, isolationValue),
+		};
 		const focusProperty = this._property ?? property;
 		this._propertyTriggers.get(focusProperty)?.focus();
 		const inputDisposables = new DisposableStore();
@@ -1121,6 +1210,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				provider.getSessionConfigCompletions(sessionId, property),
 				provider.getBranchCreationSources?.(sessionId),
 			]), cancellation.token);
+			// Keep any text entered while the branch lists were loading.
 			const loadingValue = loading.value;
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return;
@@ -1129,26 +1219,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				value: 'HEAD',
 				label: localize('agentHostSessionConfig.createBranch.unknownHead', "HEAD (Commit Details Unavailable)"),
 			};
-			const toSourceItem = (source: SessionConfigValueItem) => ({
-				value: source.value,
-				label: source.label,
-				detail: source.description,
-				iconClass: ThemeIcon.asClassName(source.value.startsWith('refs/remotes/') ? Codicon.cloud : source.value.startsWith('refs/tags/') ? Codicon.tag : Codicon.gitBranch),
-			});
 			let startPoint = 'HEAD';
 			let sourceLabel = head.label;
 			if (from) {
-				const items: QuickPickInput<IQuickPickItem & { value: string }>[] = [toSourceItem(head)];
-				const sources = (sourceDetails?.length ? sourceDetails : branches).filter(source => source.value !== 'HEAD');
-				for (const [label, group] of [
-					[localize('agentHostSessionConfig.createBranch.localBranches', "Branches"), sources.filter(source => !source.value.startsWith('refs/remotes/') && !source.value.startsWith('refs/tags/'))],
-					[localize('agentHostSessionConfig.createBranch.remoteBranches', "Remote Branches"), sources.filter(source => source.value.startsWith('refs/remotes/'))],
-					[localize('agentHostSessionConfig.createBranch.tags', "Tags"), sources.filter(source => source.value.startsWith('refs/tags/'))],
-				] as const) {
-					if (group.length) {
-						items.push({ type: 'separator', label }, ...group.map(toSourceItem));
-					}
-				}
+				// Rich sources include remote branches and tags; older hosts provide only ordinary completions.
+				const items = getCreateBranchSourceItems(head, sourceDetails?.length ? sourceDetails : branches);
 				const sourcePromise = this._quickInputService.pick(items, {
 					value: loadingValue,
 					placeHolder: localize('agentHostSessionConfig.createBranch.selectSource', "Select a branch or tag to create the new branch from"),
@@ -1171,50 +1246,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				prompt: localize('agentHostSessionConfig.createBranch.prompt', "Enter a name for the new branch, starting from '{0}'.", sourceLabel),
 				placeHolder: localize('agentHostSessionConfig.createBranch.placeholder', "Branch name"),
 				ignoreFocusLost: true,
-				validateInput: async name => {
-					if (!name || name === 'HEAD' || name === '@' || name.startsWith('-') || name.endsWith('.')
-						|| name.includes('..') || name.includes('@{') || /[\s~^:?*[\]\\]/.test(name)
-						|| Array.from(name).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
-						|| name.split('/').some(part => !part || part.startsWith('.') || part.endsWith('.lock'))) {
-						return localize('agentHostSessionConfig.createBranch.invalid', "Enter a valid Git branch name.");
-					}
-					if (branches.some(branch => branch.value === name || branch.value.startsWith(`${name}/`) || name.startsWith(`${branch.value}/`))) {
-						return localize('agentHostSessionConfig.createBranch.exists', "A branch named '{0}' already exists or conflicts with an existing branch.", name);
-					}
-					const caseMatch = branches.find(branch => equalsIgnoreCase(branch.value, name));
-					if (caseMatch) {
-						return {
-							content: localize('agentHostSessionConfig.createBranch.caseConflict', "Branch '{0}' already exists with different casing. This can cause problems on case-insensitive but case-preserving file systems. Press Enter to attempt creation anyway.", caseMatch.value),
-							severity: Severity.Warning,
-						};
-					}
-					return undefined;
-				},
+				validateInput: async name => validateCreateBranchName(name, branches),
 			});
 			trackInputFocus();
 			const branchName = await branchNamePromise;
 			if (branchName === undefined || !this._isCurrentSession(provider, sessionId)) {
 				return;
 			}
-			const operation = repositoryConfigSequencer.queue(sessionId, async () => {
-				const currentConfig = this._getSessionConfig(provider, sessionId);
-				const changeset = this._getCreateBranchChangeset(provider, sessionId);
-				if (!this._isCurrentSession(provider, sessionId) || !changeset
-					|| provider.isSessionConfigResolving(sessionId, this._requireChat(provider, sessionId)).get()
-					|| !isEqual(this._getChat(provider, sessionId), chat)
-					|| !isEqual(this._session.get()?.workspace.get()?.uri, workspace)
-					|| currentConfig?.values[property] !== config.values[property]
-					|| (currentConfig?.values[isolationKey] ?? currentConfig?.schema.properties[isolationKey]?.default) !== isolation) {
-					return;
-				}
-				await changeset.invokeOperation(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, undefined,
-					createBranchOperationMeta(branchName, startPoint, isolation !== 'worktree'));
-				if (this._isCurrentSession(provider, sessionId)
-					&& isEqual(this._getChat(provider, sessionId), chat)
-					&& isEqual(this._session.get()?.workspace.get()?.uri, workspace)) {
-					await provider.setSessionConfigValue(sessionId, this._requireChat(provider, sessionId), property, branchName);
-				}
-			});
+			// Keep repository configuration operations for this session ordered.
+			const operation = repositoryConfigSequencer.queue(sessionId, () => this._runCreateBranchOperation(provider, sessionId, context, branchName, startPoint));
 			provider.trackSessionConfigOperation(sessionId, operation);
 			await operation;
 		} catch (error) {
@@ -1223,6 +1263,33 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 		} finally {
 			inputDisposables.dispose();
+		}
+	}
+
+	/**
+	 * Creates the branch on the agent host and selects it, unless the session, chat,
+	 * workspace, branch, or isolation changed since the user started creating it.
+	 */
+	private async _runCreateBranchOperation(provider: IAgentHostSessionsProvider, sessionId: string, context: ICreateBranchContext, branchName: string, startPoint: string): Promise<void> {
+		const { property, config, chat, workspaceUri, isolationKey, isolationValue } = context;
+		const currentConfig = this._getSessionConfig(provider, sessionId);
+		const changeset = this._getCreateBranchChangeset(provider, sessionId);
+		if (!this._isCurrentSession(provider, sessionId) || !changeset
+			|| provider.isSessionConfigResolving(sessionId, this._requireChat(provider, sessionId)).get()
+			|| !isEqual(this._getChat(provider, sessionId), chat)
+			|| !isEqual(this._session.get()?.workspace.get()?.uri, workspaceUri)
+			|| currentConfig?.values[property] !== config.values[property]
+			|| (currentConfig?.values[isolationKey] ?? currentConfig?.schema.properties[isolationKey]?.default) !== isolationValue) {
+			return;
+		}
+		await changeset.invokeOperation(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, undefined,
+			// Worktree sessions create a separate branch but must keep the original checkout untouched.
+			createBranchOperationMeta(branchName, startPoint, !context.isWorktree));
+		if (this._isCurrentSession(provider, sessionId)
+			&& isEqual(this._getChat(provider, sessionId), chat)
+			&& isEqual(this._session.get()?.workspace.get()?.uri, workspaceUri)) {
+			// The host call is asynchronous; only select the new branch if its original session and workspace are still active.
+			await provider.setSessionConfigValue(sessionId, this._requireChat(provider, sessionId), property, branchName);
 		}
 	}
 

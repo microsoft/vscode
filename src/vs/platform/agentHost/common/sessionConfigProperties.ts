@@ -97,6 +97,11 @@ export function readSessionIsolation(property: ISessionConfigProperty | undefine
 	return isString(value) && property?.schema.enum?.includes(value) && (isolation === 'folder' || isolation === 'worktree') ? isolation : undefined;
 }
 
+/** Whether a provider's isolation value selects a new worktree, whatever the provider calls its isolation setting. */
+export function isWorktreeSessionIsolation(property: ISessionConfigProperty | undefined, value: unknown): boolean {
+	return readSessionIsolation(property, value) === 'worktree';
+}
+
 export function writeSessionIsolation(property: ISessionConfigProperty | undefined, isolation: string): string | undefined {
 	const value = property?.key === 'target' && isolation === 'folder' ? 'workspace' : isolation;
 	return readSessionIsolation(property, value) === isolation ? value : undefined;

@@ -1146,7 +1146,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._gitService.getCurrentBranch(workingDirectory),
 			this._gitService.getDefaultBranch(workingDirectory),
 		]);
-		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
+		const branchNames = new Set(branches.map(branch => branch.name));
+		if (currentBranch) {
+			branchNames.add(currentBranch);
+		}
+		const branchCompletions = getBranchCompletions([...branchNames], {
 			currentBranch,
 			defaultBranch: defaultBranch?.name,
 		});

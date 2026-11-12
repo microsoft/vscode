@@ -761,6 +761,16 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('branchCompletions includes the current branch before the first commit', async () => {
+		const gitService = createGitService();
+		gitService.getBranches = async () => [];
+		gitService.getCurrentBranch = async () => 'newbranch';
+		const isolation = createIsolation(disposables, { gitService });
+		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot), {
+			items: [{ value: 'newbranch', label: 'newbranch' }],
+		});
+	});
+
 	for (const detached of [false, true]) {
 		test(`branch creation completions describe ${detached ? 'detached' : 'attached'} HEAD and preserve full refs`, async () => {
 			const gitService = createGitService();
