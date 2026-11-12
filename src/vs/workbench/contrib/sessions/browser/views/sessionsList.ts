@@ -6728,7 +6728,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionItem(node.element)) {
 				sessions.set(node.element.sessionId, node.element);
-				if (node.collapsed || (node.collapsible && node.visibleChildrenCount === 0)) {
+				if (node.collapsed || (node.collapsible && !node.children.some(child => child.visible && child.element && isSessionChatItem(child.element)))) {
 					collapsedSessionIds.add(node.element.sessionId);
 				}
 			}
