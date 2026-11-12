@@ -17,8 +17,8 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceContextService, IWorkspaceFolder, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
@@ -27,6 +27,12 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, SWITCH_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
+
+const identityFake = {
+	getFolderIdentity: (folder: IWorkspaceFolder) => folder.identity ?? folder.uri,
+	isFolderAtAlternateLocation: (folder: IWorkspaceFolder) => (folder.identity ?? folder.uri).toString() !== folder.uri.toString(),
+	getLocationText: (location: Pick<IFolderLocation, 'label' | 'description'>) => location.description ? `${location.label} · ${location.description}` : location.label,
+};
 
 suite('FolderLocationStatusBarContribution', () => {
 
@@ -52,7 +58,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false);
 
 		const contribution = ds.add(new FolderLocationStatusBarContribution(
-			{ get currentLocation() { return currentLocation; }, onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
+			{ ...identityFake, get currentLocation() { return currentLocation; }, onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
 			{
 				onDidChangeEntryVisibility: onDidChangeEntryVisibility.event,
@@ -241,7 +247,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		const calls: [URI, URI | undefined, string | undefined][] = [];
 		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 		const accessor = {
-			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p, l, o?.reason]); } } : id === IUriIdentityService ? { extUri } : undefined
+			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p, l, o?.reason]); } } : id === IWorkspaceFolderLocationService ? identityFake : id === IUriIdentityService ? { extUri } : undefined
 		} as unknown as ServicesAccessor;
 
 		await CommandsRegistry.getCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
@@ -260,7 +266,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-					: id === IWorkspaceFolderLocationService ? { currentLocation: atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, getLocations: async () => { await lookup; return [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }]; } }
+					: id === IWorkspaceFolderLocationService ? { ...identityFake, currentLocation: atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, getLocations: async () => { await lookup; return [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }]; } }
 						: id === IUriIdentityService ? { extUri }
 							: id === IQuickInputService ? {
 								createQuickPick: () => {
@@ -363,7 +369,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				};
 				const accessor = {
 					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: alternate, identity: primary, name: 'project', index: 0 })], false, null, () => false) }
-						: id === IWorkspaceFolderLocationService ? { currentLocation: { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranchCheckout }, getLocations: async () => { await lookup; return []; } }
+						: id === IWorkspaceFolderLocationService ? { ...identityFake, currentLocation: { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranchCheckout }, getLocations: async () => { await lookup; return []; } }
 							: id === IUriIdentityService ? { extUri }
 								: id === IActionWidgetService ? widget
 									: id === IWorkspaceEditingService ? { setFolderLocation: async (_p: URI, l: URI | undefined) => { calls.push(l?.toString()); } } : undefined

@@ -6,7 +6,7 @@
 import './media/agenttitlebarstatuswidget.css';
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, reset } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event as EventUtils } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
@@ -42,7 +42,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
 import { IFolderLocation } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { getCommandCenterLabelText, renderCommandCenterLabel } from '../../../../../browser/parts/titlebar/commandCenterControl.js';
+import { CommandCenterLabel } from '../../../../../browser/parts/titlebar/commandCenterLabel.js';
 import { ChatAIDisabledSettingId, ChatConfiguration } from '../../../common/constants.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -564,10 +564,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// While the folder is at an alternate location, the label shows the location layout
 		const folderLocation = !isCompactMode && progressText ? undefined : this._windowTitle.folderLocationInfo;
-		const labelHovers = disposables.add(new MutableDisposable());
-		const setupLabelHover = (element: HTMLElement, content: string) => this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, content);
+		const commandCenterLabel = disposables.add(this.instantiationService.createInstance(CommandCenterLabel, label, getDefaultHoverDelegate('mouse')));
 		const showLabel = (text: string, location: IFolderLocation | undefined) => {
-			labelHovers.value = renderCommandCenterLabel(label, text, location, setupLabelHover);
+			commandCenterLabel.update(text, location);
 			// The button's own name overrides its descendants, so it has to carry the location
 			inputArea.setAttribute('aria-label', location
 				? localize('openQuickAccessAtFolderLocation', "Open Quick Access, {0}", label.getAttribute('aria-label') ?? text)
@@ -1413,34 +1412,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * Falls back to file name when tabs are hidden, or "Search" when empty.
 	 */
 	private _getLabel(): string {
-		const { prefix, suffix } = this._windowTitle.getTitleDecorations();
-
-		// At an alternate folder location the label is always the folder name
-		if (this._windowTitle.folderLocationInfo) {
-			return getCommandCenterLabelText({ atFolderLocation: true, prefix, suffix, workspaceName: this._windowTitle.workspaceName });
-		}
-
-		// Base label: custom title, workspace name, or file name when tabs are hidden
-		let label = this._windowTitle.workspaceName;
-		if (this._windowTitle.isCustomTitleFormat()) {
-			label = this._windowTitle.getWindowTitle();
-		} else if (!label && this.editorGroupsService.partOptions.showTabs === 'none') {
-			label = this._windowTitle.fileName ?? '';
-		}
-
-		if (!label) {
-			label = localize('agentStatusWidget.search', "Search");
-		}
-
-		// Apply prefix and suffix decorations
-		if (prefix) {
-			label = localize('label1', "{0} {1}", prefix, label);
-		}
-		if (suffix) {
-			label = localize('label2', "{0} {1}", label, suffix);
-		}
-
-		return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+		return this._windowTitle.getCommandCenterLabel({ showFileName: this.editorGroupsService.partOptions.showTabs === 'none', fileNameAsFallback: true });
 	}
 
 	// #endregion

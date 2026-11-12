@@ -9,6 +9,10 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/com
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../platform/workspace/common/folderLocations.js';
 import { WorkspaceFolderLocationService } from '../../common/workspaceFolderLocationService.js';
 
@@ -28,12 +32,16 @@ suite('WorkspaceFolderLocationService', () => {
 		};
 	}
 
+	function createService(): WorkspaceFolderLocationService {
+		return new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))));
+	}
+
 	test('getLocations merges providers, dedupes and reports failures', async () => {
 		const reported: string[] = [];
 		const previous = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(error => reported.push(error.message));
 		disposables.add(toDisposable(() => setUnexpectedErrorHandler(previous)));
-		const service = disposables.add(new WorkspaceFolderLocationService());
+		const service = disposables.add(createService());
 		disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }], true)));
 		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A' }, { uri: b, label: 'B' }])));
 		disposables.add(service.registerProvider(provider('z', [{ uri: a, label: 'A2' }])));
@@ -44,7 +52,7 @@ suite('WorkspaceFolderLocationService', () => {
 	});
 
 	test('resolveLocation reports provider and built-in flag', async () => {
-		const service = disposables.add(new WorkspaceFolderLocationService());
+		const service = disposables.add(createService());
 		const registration = disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }]), { builtIn: true }));
 		disposables.add(service.registerProvider(provider('y', [{ uri: b, label: 'B' }])));
 
@@ -60,7 +68,7 @@ suite('WorkspaceFolderLocationService', () => {
 	});
 
 	test('setCurrentLocation fires an event', () => {
-		const service = disposables.add(new WorkspaceFolderLocationService());
+		const service = disposables.add(createService());
 		const reasons: string[] = [];
 		disposables.add(service.onDidChangeCurrentLocation(e => reasons.push(e.reason)));
 
@@ -68,5 +76,23 @@ suite('WorkspaceFolderLocationService', () => {
 		service.setCurrentLocation(undefined);
 
 		assert.deepStrictEqual({ reasons, current: service.currentLocation }, { reasons: ['user', 'programmatic'], current: undefined });
+	});
+
+	test('folder identity and alternate location checks', () => {
+		const service = disposables.add(createService());
+		const atAlternate = { uri: a, identity: primary, name: '', index: 0, toResource: () => a };
+		const withoutIdentity: IWorkspaceFolder = { uri: a, name: '', index: 0, toResource: () => a };
+
+		assert.deepStrictEqual(
+			{ identity: service.getFolderIdentity(atAlternate).toString(), alternate: service.isFolderAtAlternateLocation(atAlternate), fallback: service.getFolderIdentity(withoutIdentity).toString(), fallbackAlternate: service.isFolderAtAlternateLocation(withoutIdentity) },
+			{ identity: primary.toString(), alternate: true, fallback: a.toString(), fallbackAlternate: false });
+	});
+
+	test('getLocationText joins label and description', () => {
+		const service = disposables.add(createService());
+
+		assert.deepStrictEqual(
+			[service.getLocationText({ label: 'A' }), service.getLocationText({ label: 'A', description: 'x' })],
+			['A', 'A · x']);
 	});
 });

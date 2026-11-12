@@ -11,8 +11,8 @@ import { IProgressService, ProgressLocation, } from '../../../../../platform/pro
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { isTemporaryWorkspace, IWorkspaceContextService, isWorkspaceFolderAtAlternateLocation, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
@@ -820,13 +820,6 @@ export interface IFileTemplateData {
 	currentContext?: ExplorerItem;
 }
 
-/**
- * The label of an Explorer root: while its folder is at an alternate location, the location is appended to the name.
- */
-export function getExplorerRootLabel(name: string, atAlternateLocation: boolean, locationLabel: string | undefined): string {
-	return atAlternateLocation && locationLabel ? localize('explorerRootAtLocation', "{0} ({1})", name, locationLabel) : name;
-}
-
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
@@ -1130,7 +1123,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private getRootLabel(stat: ExplorerItem): string {
 		const location = this.folderLocationService.currentLocation;
-		return getExplorerRootLabel(stat.name, this.contextService.getWorkspace().folders.some(folder => isWorkspaceFolderAtAlternateLocation(folder) && (isEqual(folder.uri, stat.resource) || isEqual(folder.identity, stat.resource))), location && getFolderLocationText(location));
+		const atAlternateLocation = this.contextService.getWorkspace().folders.some(folder => this.folderLocationService.isFolderAtAlternateLocation(folder) && (isEqual(folder.uri, stat.resource) || isEqual(this.folderLocationService.getFolderIdentity(folder), stat.resource)));
+		return atAlternateLocation && location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, this.folderLocationService.getLocationText(location)) : stat.name;
 	}
 
 	getAriaLevel(element: ExplorerItem): number {

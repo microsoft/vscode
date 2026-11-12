@@ -9,6 +9,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IWorkspaceFolder } from './workspace.js';
 
 /**
  * An alternate location of a workspace folder.
@@ -18,14 +19,6 @@ export interface IFolderLocation {
 	readonly label: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
-}
-
-/**
- * The compact text of a location shown in the UI: its label, followed by
- * its description if there is one, e.g. `my-location · my-description`.
- */
-export function getFolderLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string {
-	return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
 }
 
 /**
@@ -72,6 +65,22 @@ export const IWorkspaceFolderLocationService = createDecorator<IWorkspaceFolderL
 
 export interface IWorkspaceFolderLocationService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * The compact text of a location shown in the UI: its label, followed by
+	 * its description if there is one, e.g. `my-location · my-description`.
+	 */
+	getLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string;
+
+	/**
+	 * The identity of a folder: its own location, which is `uri` unless the folder is at an alternate location.
+	 */
+	getFolderIdentity(folder: IWorkspaceFolder): URI;
+
+	/**
+	 * Whether the folder is opened at an alternate location, that is, `uri` differs from its identity.
+	 */
+	isFolderAtAlternateLocation(folder: IWorkspaceFolder): boolean;
 
 	/**
 	 * Fires when a provider is registered or unregistered.

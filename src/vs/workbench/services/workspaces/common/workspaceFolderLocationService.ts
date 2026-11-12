@@ -10,6 +10,8 @@ import { toDisposable, Disposable, IDisposable } from '../../../../base/common/l
 import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -31,6 +33,24 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	private readonly _onDidChangeCurrentLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
 	readonly onDidChangeCurrentLocation = this._onDidChangeCurrentLocation.event;
+
+	constructor(
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	) {
+		super();
+	}
+
+	getLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string {
+		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
+	}
+
+	getFolderIdentity(folder: IWorkspaceFolder): URI {
+		return folder.identity ?? folder.uri;
+	}
+
+	isFolderAtAlternateLocation(folder: IWorkspaceFolder): boolean {
+		return !this.uriIdentityService.extUri.isEqual(folder.uri, this.getFolderIdentity(folder));
+	}
 
 	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
 		this._currentLocation = location;

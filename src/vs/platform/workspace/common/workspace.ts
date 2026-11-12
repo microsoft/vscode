@@ -7,7 +7,7 @@ import { localize } from '../../../nls.js';
 import { Event } from '../../../base/common/event.js';
 import { basename, extname } from '../../../base/common/path.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
-import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase, IExtUri } from '../../../base/common/resources.js';
+import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -500,18 +500,4 @@ export function hasWorkspaceFileExtension(path: string | URI) {
 	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
 
 	return ext === WORKSPACE_SUFFIX;
-}
-
-/**
- * The identity of a folder: its own location, which is `uri` unless the folder is at an alternate location.
- */
-export function getWorkspaceFolderIdentity(folder: IWorkspaceFolder): URI {
-	return folder.identity ?? folder.uri;
-}
-
-/**
- * Whether the folder is opened at an alternate location, that is, `uri` differs from its identity.
- */
-export function isWorkspaceFolderAtAlternateLocation(folder: IWorkspaceFolder, extUri: IExtUri = extUriBiasedIgnorePathCase): boolean {
-	return !extUri.isEqual(folder.uri, getWorkspaceFolderIdentity(folder));
 }

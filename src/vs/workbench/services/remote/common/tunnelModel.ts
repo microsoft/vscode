@@ -16,7 +16,8 @@ import { IAddressProvider } from '../../../../platform/remote/common/remoteAgent
 import { IRemoteAuthorityResolverService, TunnelDescription } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOST_ADDRESSES, ProvidedPortAttributes, PortAttributesProvider, isLocalhost, isAllInterfaces, ProvidedOnAutoForward, ALL_INTERFACES_ADDRESSES } from '../../../../platform/tunnel/common/tunnel.js';
-import { IWorkspaceContextService, getWorkspaceFolderIdentity } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -437,7 +438,8 @@ export class TunnelModel extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService
 	) {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
@@ -558,7 +560,7 @@ export class TunnelModel extends Disposable {
 
 	private async addStorageKeyPostfix(prefix: string): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(getWorkspaceFolderIdentity(workspace.folders[0]).path) : undefined);
+		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(this.workspaceFolderLocationService.getFolderIdentity(workspace.folders[0]).path) : undefined);
 		if (workspaceHash === undefined) {
 			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
 			return undefined;

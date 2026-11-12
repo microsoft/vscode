@@ -10,16 +10,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../..
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { ExplorerView, getContext, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { CompressedNavigationController, ExplorerDataSource, ExplorerFindProvider, FileDragAndDrop, FilesFilter, FilesRenderer, FileSorter, getExplorerRootLabel, ICompressedNavigationController } from '../../browser/views/explorerViewer.js';
+import { CompressedNavigationController, ExplorerDataSource, ExplorerFindProvider, FileDragAndDrop, FilesFilter, FilesRenderer, FileSorter, ICompressedNavigationController } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -54,12 +54,6 @@ suite('Files - ExplorerView', () => {
 		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
 	}
 
-	test('explorer root label shows the alternate location only while switched', () => {
-		assert.deepStrictEqual(
-			[getExplorerRootLabel('project', true, 'Alternate'), getExplorerRootLabel('project', false, undefined), getExplorerRootLabel('project', true, undefined)],
-			['project (Alternate)', 'project', 'project']);
-	});
-
 	test('explorer root aria label follows the presented label while switched', () => {
 		const primary = URI.file('/work/project');
 		const alternate = URI.file('/work/project-alt');
@@ -68,7 +62,7 @@ suite('Files - ExplorerView', () => {
 			dom.$('div'), undefined!, undefined!, () => { },
 			undefined!, configService, undefined!, undefined!,
 			{ getWorkspace: () => ({ folders: [switched ? { uri: alternate, identity: primary } : { uri: alternate, identity: alternate }] }) } as unknown as IWorkspaceContextService,
-			{ get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
+			{ getFolderIdentity: (folder: IWorkspaceFolder) => folder.identity, isFolderAtAlternateLocation: (folder: IWorkspaceFolder) => folder.identity!.toString() !== folder.uri.toString(), getLocationText: (location: IFolderLocation) => location.description ? `${location.label} · ${location.description}` : location.label, get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
 			undefined!));
 		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
 		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);

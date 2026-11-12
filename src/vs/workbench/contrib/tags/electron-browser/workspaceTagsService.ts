@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, IFileStatResult, IFileStat } from '../../../../platform/files/common/files.js';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace, getWorkspaceFolderIdentity } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -529,7 +530,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService
 	) { }
 
 	async getTags(): Promise<Tags> {
@@ -551,7 +553,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = await createHash(getWorkspaceFolderIdentity(workspace.folders[0]));
+				workspaceId = await createHash(this.workspaceFolderLocationService.getFolderIdentity(workspace.folders[0]));
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
