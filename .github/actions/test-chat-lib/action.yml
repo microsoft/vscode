@@ -29,12 +29,13 @@ runs:
     # Copilot and chat-lib are members of the root pnpm workspace. pnpm runs the root install
     # scripts, which install the whole repository, on every install that runs scripts, filtered or
     # not: the install skips the scripts, then builds Copilot's dependencies and runs its postinstall,
-    # like the Copilot jobs of pr.yml.
+    # like the Copilot jobs of pr.yml. The rebuild ignores the root .pnpmfile.mjs, which builds native
+    # modules for Electron: chat-lib runs in Node.js.
     - name: Install Copilot dependencies
       shell: bash
       run: |
         pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
-        pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+        pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
         pnpm --dir extensions/copilot run postinstall
 
     # The extraction sets chat-lib's dependencies to Copilot's versions, in its package.json and in

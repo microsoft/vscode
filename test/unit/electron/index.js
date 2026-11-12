@@ -411,6 +411,10 @@ app.on('ready', async () => {
 	// A second view lets tests blur the page without stealing desktop focus.
 	/** @type {Map<number, import('electron').WebContentsView>} */
 	const focusTestViews = new Map();
+	// Moves the page's pointer off the window, so `:hover` from a real pointer does not carry over between suites.
+	ipcMain.handle('vscode:test-pointer-leave', event => {
+		event.sender.sendInputEvent({ type: 'mouseLeave', x: -1, y: -1 });
+	});
 	ipcMain.handle('vscode:test-set-web-contents-focus', async (event, focused) => {
 		const window = BrowserWindow.fromWebContents(event.sender);
 		if (!window) {

@@ -42,6 +42,8 @@ export interface IAgentHostClientConnectionService {
 	usesLegacySessionUris(clientId: string): boolean;
 	usesLegacyChatUris(clientId: string): boolean;
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts;
+	/** The number of distinct clients connected through any source. */
+	getConnectedClientCount(): number;
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
 	/** Requests silent MCP authentication, stopping at the first successful source. */
 	requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean>;
@@ -89,6 +91,16 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 			}
 		}
 		return false;
+	}
+
+	getConnectedClientCount(): number {
+		const connectedClients = new Set<string>();
+		for (const source of this._sources) {
+			for (const connectedClientId of source.getConnectedClientTransportCounts().keys()) {
+				connectedClients.add(connectedClientId);
+			}
+		}
+		return connectedClients.size;
 	}
 
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts {

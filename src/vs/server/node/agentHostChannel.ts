@@ -17,6 +17,7 @@ import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../base/common/network.js';
 import { isObject } from '../../base/common/types.js';
 import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { isRemoteAgentHostLocationPreference } from '../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import type { IAgentHostIpcConnectionOptions } from '../../platform/agentHost/common/agentService.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import type * as wsTypes from 'ws';
@@ -41,7 +42,8 @@ export type AgentHostUpstreamEndpointResolver = (options?: IAgentHostIpcConnecti
 function isConnectionOptions(value: unknown): value is IAgentHostIpcConnectionOptions {
 	return isObject(value)
 		&& (!('env' in value) || isEnvironment(value.env))
-		&& (!('debugEnv' in value) || isEnvironment(value.debugEnv));
+		&& (!('debugEnv' in value) || isEnvironment(value.debugEnv))
+		&& (!('preferredAgentLocation' in value) || value.preferredAgentLocation === undefined || isRemoteAgentHostLocationPreference(value.preferredAgentLocation));
 }
 
 function isEnvironment(value: unknown): value is IAgentHostIpcConnectionOptions['env'] {
@@ -345,7 +347,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		switch (command) {
 			case 'connect':
 				if (arg !== undefined && !isConnectionOptions(arg)) {
-					throw new Error('Invalid agent host connection environment: expected string or null values');
+					throw new Error('Invalid agent host connection options');
 				}
 				this._logService.info(`[AgentHostChannel] Renderer ctx=${String(ctx)} requested connect to upstream`);
 				await conn.connect(arg);

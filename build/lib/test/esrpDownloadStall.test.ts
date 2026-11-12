@@ -87,13 +87,13 @@ suite('ESRP macOS download stall guard', () => {
 		assert.ok(Date.now() - started < 10_000, 'the stalled session was not stopped promptly');
 	});
 
-	// Like esrpcli: reads and deletes its key file, downloads to <file>.tmp and
+	// Like esrpcli: reads authentication from stdin, downloads to <file>.tmp and
 	// moves it into place. Sessions listed in `stallingSessions` never finish their download.
 	const fakeEsrpcli = `
 		const fs = require('fs'), path = require('path');
-		const [keyFile, folder, counterFile, stallingSessions] = process.argv.slice(1);
-		if (!fs.existsSync(keyFile)) { console.log('Missing the encryption key data...'); process.exit(1); }
-		fs.rmSync(keyFile);
+		const [folder, counterFile, stallingSessions] = process.argv.slice(1);
+		require('node:assert/strict').equal(fs.readFileSync(0, 'utf8'), 'synthetic-esrp-token\\n');
+		console.log('ESRP_AUTH_INPUT_READY');
 		const session = fs.existsSync(counterFile) ? Number(fs.readFileSync(counterFile, 'utf8')) + 1 : 1;
 		fs.writeFileSync(counterFile, String(session));
 		const tmp = path.join(folder, 'VSCode-darwin-arm64.zip.tmp');
@@ -114,19 +114,15 @@ suite('ESRP macOS download stall guard', () => {
 			fs.writeFileSync(path.join(folder, 'VSCode-darwin-arm64.zip'), 'unsigned');
 			// A leftover .tmp from an earlier, killed run
 			fs.writeFileSync(path.join(folder, 'VSCode-darwin-arm64.zip.tmp'), 'leftover');
-			const createArgs = () => {
-				const keyFile = path.join(folder, `key-${Math.random()}`);
-				fs.writeFileSync(keyFile, 'key');
-				return ['-e', fakeEsrpcli, keyFile, folder, counterFile, stallingSessions];
-			};
-			const exitCode = await runWithEsrpDownloadResubmission(process.execPath, createArgs, folder, 'VSCode-darwin-arm64.zip', { windowMs: 150, minBytesPerSecond: MB }, (_stall, attempt) => stalls.push(attempt), 50);
+			const createArgs = () => ['-e', fakeEsrpcli, folder, counterFile, stallingSessions];
+			const exitCode = await runWithEsrpDownloadResubmission(process.execPath, createArgs, folder, 'VSCode-darwin-arm64.zip', { windowMs: 150, minBytesPerSecond: MB }, (_stall, attempt) => stalls.push(attempt), 50, 'synthetic-esrp-token');
 			return { exitCode, stalls, sessions: Number(fs.readFileSync(counterFile, 'utf8')), signed: fs.readFileSync(path.join(folder, 'VSCode-darwin-arm64.zip'), 'utf8'), leftover: fs.existsSync(path.join(folder, 'VSCode-darwin-arm64.zip.tmp')) };
 		} finally {
 			fs.rmSync(folder, { recursive: true, force: true });
 		}
 	}
 
-	test('submits the file again with a new key after a killed session stalls', async () => {
+	test('sends authentication again after a killed session stalls', async () => {
 		const result = await runFakeSessions('1');
 		assert.deepEqual(result.stalls, [1]);
 		assert.equal(result.sessions, 2);

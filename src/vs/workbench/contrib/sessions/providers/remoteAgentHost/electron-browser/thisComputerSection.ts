@@ -103,7 +103,7 @@ export class ThisComputerSection extends Disposable {
 	}
 
 	get isBusy(): boolean {
-		return this.applying || this.renaming;
+		return this.applying || this.renaming || this.sharing.pendingMethod !== undefined;
 	}
 
 	constructor(
@@ -415,6 +415,7 @@ export class ThisComputerSection extends Disposable {
 	private update(): void {
 		const state = this.sharing.getState();
 		const active = this.sharing.activeMethod;
+		const pending = this.sharing.pendingMethod;
 		const availability = this.sharing.gitHubEnvironmentsAvailability;
 		const methods: SharingMethod[] = [];
 		if (availability !== 'unavailable' || active === 'githubEnvironment' || this.selectedMethod === 'githubEnvironment') {
@@ -473,11 +474,13 @@ export class ThisComputerSection extends Disposable {
 		this.stopButton.enabled = !this.isBusy;
 		this.shareButton.element.setAttribute('aria-expanded', String(this.showingOptions));
 		dom.clearNode(this.statusIcon);
-		dom.append(this.statusIcon, renderIcon(active === 'off' ? Codicon.circleSlashCompact
+		dom.append(this.statusIcon, renderIcon(pending !== undefined ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : active === 'off' ? Codicon.circleSlashCompact
 			: state.isConnecting ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : Codicon.radioTower));
-		this.status.textContent = active === 'off' ? localize('thisComputer.notShared', "Not shared")
-			: state.isConnecting ? localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[active].label)
-				: localize('thisComputer.sharedVia', "Sharing via {0}", sharingChoices[active].label);
+		this.status.textContent = pending !== undefined ? pending === 'off' ? localize('thisComputer.stopping', "Stopping sharing...")
+			: localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[pending].label)
+			: active === 'off' ? localize('thisComputer.notShared', "Not shared")
+				: state.isConnecting ? localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[active].label)
+					: localize('thisComputer.sharedVia', "Sharing via {0}", sharingChoices[active].label);
 		const feedbackParent = this.showingOptions ? this.pageDescription.parentElement! : this.domNode;
 		if (this.feedbackContainer.parentElement !== feedbackParent) {
 			if (this.showingOptions) {

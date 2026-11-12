@@ -1024,7 +1024,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpSkillsEnabled.title', "MCP Skills"),
 		description: localize('agentHost.config.mcpSkillsEnabled.description', "Whether Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
-		default: false,
+		default: true,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1105,7 +1105,7 @@ export const platformRootSchema = createSchema({
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
 		enumDescriptions: [
 			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
-			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. At startup, external sessions older than the second-most-recently updated local session are hidden."),
+			localize('agentHost.config.showExternalSessions.recent', "Show the 2 most recently updated external sessions from the last 7 days, hiding any that are older than your 2 newest local sessions."),
 			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
 			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),

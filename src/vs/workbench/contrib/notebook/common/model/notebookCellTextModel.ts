@@ -515,7 +515,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 		mime: cell.mime,
 		cellKind: cell.cellKind,
 		outputs: cell.outputs.map(output => ({
-			outputs: output.outputs,
+			outputs: output.outputs.slice(),
 			/* paste should generate new outputId */ outputId: UUID.generateUuid()
 		})),
 		metadata: {}

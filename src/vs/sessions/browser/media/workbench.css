@@ -396,6 +396,25 @@
 	z-index: 2;
 }
 
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar-left {
+	border-left: 0;
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar-top {
+	border-left: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar-bottom {
+	border-left: 0;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar:is(.docked-auxiliarybar-top, .docked-auxiliarybar-bottom)::before {
+	display: none;
+}
+
 /* Only the card next to a native window corner follows the frame's inset curve. */
 .monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout):not(.modern-ui-compact) {
 	--agents-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--agents-outer-panel-gap)));
@@ -508,9 +527,8 @@
 
 /* ---- Part Visibility Transitions ---- */
 
-.agent-sessions-workbench .part.auxiliarybar,
-.agent-sessions-workbench .part.panel,
-.agent-sessions-workbench .agents-part-card {
+.agent-sessions-workbench .part.auxiliarybar:not(.docked-auxiliarybar):not(.floating-auxiliarybar),
+.agent-sessions-workbench .part.panel {
 	transition:
 		opacity 250ms ease-out,
 		margin-top 250ms ease-out,
@@ -526,9 +544,8 @@
 
 @starting-style {
 
-	.agent-sessions-workbench .part.auxiliarybar,
-	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .agents-part-card {
+	.agent-sessions-workbench .part.auxiliarybar:not(.docked-auxiliarybar):not(.floating-auxiliarybar),
+	.agent-sessions-workbench .part.panel {
 		opacity: 0;
 		border-color: transparent;
 		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
@@ -543,12 +560,8 @@
 		margin: 6px 16px 16px 16px;
 	}
 
-	.agent-sessions-workbench .part.auxiliarybar {
+	.agent-sessions-workbench .part.auxiliarybar:not(.docked-auxiliarybar):not(.floating-auxiliarybar) {
 		margin: 0 16px 0 6px;
-	}
-
-	.agent-sessions-workbench .agents-part-card {
-		margin: 6px 16px 0 16px;
 	}
 }
 
@@ -556,7 +569,6 @@
 
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .agents-part-card,
 	.agent-sessions-workbench .part.sidebar > .content {
 		transition: none;
 	}
