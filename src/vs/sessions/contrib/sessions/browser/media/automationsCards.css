@@ -437,6 +437,12 @@
 	margin-top: var(--vscode-spacing-size120);
 }
 
+/* The header's flex row would otherwise leave the chevron shorter than the primary button. */
+.custom-view-header-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	height: auto;
+	align-self: stretch;
+}
+
 /* Loading and error states */
 .automations-cards-state {
 	display: flex;
