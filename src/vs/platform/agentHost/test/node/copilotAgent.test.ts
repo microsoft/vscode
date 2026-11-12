@@ -2744,6 +2744,43 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	test('keeps a chat usable when its extensions fail to start or stop', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'lifecycle-extension-failure');
+		const selected = defaultChatUri(session);
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const published = new DeferredPromise<void>();
+		setDefaultSessionStub(agent, 'lifecycle-extension-failure', {
+			listExtensions: async () => [],
+			reconcileExtensions: async () => { },
+		});
+		setPeerChatStub(agent, peer, {
+			listCanvases: async () => [],
+			listExtensions: async () => [{ id: 'user:broken', name: 'Broken', source: 'user', status: 'failed' }],
+			reconcileExtensions: async () => {
+				throw Object.assign(new Error('extension did not become ready: user:broken'), { data: { code: 'extension_reconciliation_lifecycle_failed' } });
+			},
+			publishCanvases: () => { published.complete(); },
+		});
+		for (const chat of [selected, peer]) {
+			contributeActiveClient(agent, chat, exactChatContext(session, chat, isEqual(chat, selected) ? session : chat));
+		}
+
+		await agent.setAgentExtensionEnabled('user:preview', false, session, selected);
+		await published.p;
+
+		assert.deepStrictEqual({
+			reconciliation: (await agent.listAgentExtensions(session, peer)).reconciliation,
+			canvases: await agent.listSessionCanvases(session, peer, exactChatContext(session, peer)),
+		}, { reconciliation: undefined, canvases: [] });
+	});
+
 	test('defers busy extension catch-up without queuing inventory reads behind the turn', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
@@ -27296,6 +27333,46 @@ suite('CopilotAgent', () => {
 				});
 			});
 		}
+
+		test('retries a failed extension start or stop before each turn until it succeeds, without restarting', async () => {
+			const client = new TestCopilotClient([]);
+			client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'lifecycle-extension-turn');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const peer = makeFakeChatSession(session, 'lifecycle-extension-turn-peer');
+			let reconciles = 0;
+			let launches = 0;
+			const failures = ['extension_reconciliation_lifecycle_failed', 'extension_reconciliation_lifecycle_failed', 'extension_reconciliation_discovery_failed'];
+			peer.fake.reconcileExtensions = async () => {
+				const code = failures[reconciles++];
+				if (code) {
+					throw Object.assign(new Error(code), { data: { code } });
+				}
+			};
+			peer.fake.listExtensions = async () => [];
+			setPeerChatStub(agent, chat, peer.fake);
+			agent['_ensureResolvedChatSession'] = async () => {
+				launches++;
+				return peer.fake;
+			};
+			await agent.setAgentExtensionEnabled('user:preview', false);
+			const context = exactChatContext(session, chat);
+			const prompts = ['first turn', 'second turn', 'third turn', 'fourth turn', 'fifth turn'];
+			const reconciliation: (string | undefined)[] = [];
+			for (const [index, prompt] of prompts.entries()) {
+				await agent.chats.sendMessage(chat, prompt, undefined, undefined, `turn-${index}`, undefined, context);
+				reconciliation.push((await agent.listAgentExtensions(session, chat)).reconciliation?.status);
+			}
+
+			assert.deepStrictEqual({ reconciles, launches, disposed: peer.rec.disposed, sends: peer.rec.sends.map(s => s.prompt), reconciliation }, {
+				reconciles: 4, launches: 0, disposed: false, sends: prompts, reconciliation: prompts.map(() => undefined),
+			});
+		});
 
 		test('registers an initialized runtime as unconfirmed so the turn can recover a raced extension change', async () => {
 			const client = new TestCopilotClient([]);
