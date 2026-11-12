@@ -184,6 +184,9 @@ class MockCopilotSession {
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
+	/** Overrides the instance `rpc.canvas.open` returns. */
+	onCanvasOpen: ((params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => Promise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>) | undefined;
+	canvasOpenError: Error | undefined;
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	canvasCloseGate: Promise<void> | undefined;
 	canvasCloseError: Error | undefined;
@@ -218,6 +221,10 @@ class MockCopilotSession {
 	/** The agent mode `rpc.mode.get` reports. */
 	currentMode: 'interactive' | 'plan' | 'autopilot' = 'interactive';
 	readonly permissionModeSetCalls: PermissionMode[] = [];
+	/** The permission mode the runtime opened the session in, when the launch asked for one. */
+	launchPermissionMode: PermissionMode | undefined;
+	/** What the runtime reports for the permission mode the session was opened with. */
+	permissionModeResult: CopilotSession['permissionModeResult'];
 	permissionModeSetSuccess = true;
 	/** Per-call `setMode` success results, consumed in order before falling back to {@link permissionModeSetSuccess}. */
 	readonly permissionModeSetResults: boolean[] = [];
@@ -647,6 +654,12 @@ class MockCopilotSession {
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
+				if (this.canvasOpenError) {
+					throw this.canvasOpenError;
+				}
+				if (this.onCanvasOpen) {
+					return this.onCanvasOpen(params);
+				}
 				return {
 					instanceId: params.instanceId,
 					extensionId: params.extensionId ?? 'project:preview',
@@ -683,7 +696,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
-			getMode: async () => ({ mode: this.permissionModeSetCalls.at(-1) ?? 'manual' as const }),
+			getMode: async () => ({ mode: this.permissionModeSetCalls.at(-1) ?? this.launchPermissionMode ?? 'manual' as const }),
 			setMode: async (params: { mode?: PermissionMode }) => {
 				const mode = params.mode ?? 'manual';
 				this.operationLog.push('permissions.setMode');
@@ -1509,6 +1522,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	managedSettings?: CopilotClient['rpc']['managedSettings'];
 	modelPolicyModels?: CopilotSessionLaunchPlan['modelPolicyModels'];
 	resume?: boolean;
+	/** Whether a resumed session keeps the permission mode the runtime restored. */
+	keepsRestoredPermissionMode?: boolean;
+	/** Whether the session's configuration is absent until the launch returns, as when a restore reads the conversation first. */
+	configLoadsAfterLaunch?: boolean;
 	resolvedAgentName?: string;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: (rootValues: Record<string, unknown>) => void;
@@ -1637,6 +1654,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			...launchPlanBase,
 			kind: 'resume',
 			workingDirectory: options.workingDirectory ?? URI.file('/workspace'),
+			...(options.keepsRestoredPermissionMode ? { keepsRestoredPermissionMode: true } : {}),
 			fallback: { model },
 		}
 		: {
@@ -1749,6 +1767,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sandboxResults: Array<boolean | string | undefined> = [];
 	let sandboxEnabled: boolean | undefined;
 	const configValues = options?.configValues ?? {};
+	let configLoaded = !options?.configLoadsAfterLaunch;
 	const rootValues: Record<string, unknown> = { ...(options?.rootValues ?? {}) };
 	const rootConfigUpdates: Record<string, unknown>[] = [];
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
@@ -1775,9 +1794,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? (configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getEffectiveValue'],
 		// The session's config changes reach the session's chat, as the real service fans them out.
 		onDidChatConfigChange: Event.map(Event.filter(sessionConfigEmitter.event, event => event.session === sessionUri.toString()), event => ({ ...event, chat: chatChannelUri.toString() })),
-		getChatEffectiveValue: ((target: { session: string; chat: string }, _schema: unknown, key: string) => target.session === sessionUri.toString() ? ((target.chat === chatChannelUri.toString() ? options?.chatConfigValues?.[key] : undefined) ?? configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getChatEffectiveValue'],
+		getChatEffectiveValue: ((target: { session: string; chat: string }, _schema: unknown, key: string) => configLoaded && target.session === sessionUri.toString() ? ((target.chat === chatChannelUri.toString() ? options?.chatConfigValues?.[key] : undefined) ?? configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getChatEffectiveValue'],
 		getChatConfigState: () => undefined,
-		getChatConfigValues: target => target.session === sessionUri.toString() ? (target.chat === chatChannelUri.toString() && options?.chatConfigValues ? { ...configValues, ...options.chatConfigValues } : configValues) : undefined,
+		getChatConfigValues: target => configLoaded && target.session === sessionUri.toString() ? (target.chat === chatChannelUri.toString() && options?.chatConfigValues ? { ...configValues, ...options.chatConfigValues } : configValues) : undefined,
 		getChatOwnConfigValues: target => target.chat === chatChannelUri.toString() ? { ...options?.chatConfigValues } : {},
 		updateChatConfig: (target, patch) => { chatConfigUpdates.push({ chat: target.chat, patch }); },
 		seedChatConfig: () => ({ values: {}, dispose: () => { } }),
@@ -1788,7 +1807,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// Own values only, like the real service; `inheritedConfigValues` is
 		// visible through `getEffectiveValue` alone so tests can prove a
 		// consumer does not fall through to root or parent config.
-		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
+		getSessionConfigValues: (session: string) => configLoaded && session === sessionUri.toString() ? configValues : undefined,
 		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => options?.sandboxPolicy,
 		getSessionSandboxPaths: () => sessionSandboxPaths,
@@ -1991,6 +2010,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	options?.onSessionCreated?.(session);
 
 	await session.initializeSession();
+	configLoaded = true;
 	if (!launchedRuntime) {
 		throw new Error('Expected session runtime');
 	}
@@ -5669,7 +5689,7 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
-		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
+		test('reconciles handed-over canvases with the canvases the replacement runtime has open or still declares', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
 			const replacement = await createAgentSession(disposables, {
 				resume: true,
@@ -5677,6 +5697,8 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.openCanvases.push({ ...preview });
 					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+					// The chart's provider is gone, so the replacement runtime no longer declares its canvas.
+					mock.canvases.splice(mock.canvases.findIndex(canvas => canvas.canvasId === chart.canvasId), 1);
 				},
 			});
 			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
@@ -5693,6 +5715,168 @@ suite('CopilotAgentSession', () => {
 					{ resource: previewResource, url: 'https://example.test/replacement' },
 				],
 				membership: [[previewResource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a handed-over canvas the replacement runtime restored without starting its provider', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					// A lazily activated provider's canvas stays declared, but its restored instance is not open until demanded.
+					mock.onCanvasOpen = async params => ({ ...preview, input: params.input, url: 'https://example.test/reopened' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+			const publishedInput = replacement.signals.some(signal => signal.kind === 'canvas' && Object.hasOwn(signal.state, 'input'));
+
+			assert.deepStrictEqual({
+				adopted,
+				openCalls: replacement.mockSession.canvasOpenCalls,
+				...summarizeCanvasSignals(replacement.signals),
+				publishedInput,
+				nextHandoffInput: replacement.session.takeCanvasProjection()?.projections.map(projection => projection.input),
+			}, {
+				adopted: true,
+				openCalls: [{ extensionId: preview.extensionId, canvasId: preview.canvasId, instanceId: preview.instanceId, input }],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+				publishedInput: false,
+				nextHandoffInput: [input],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a handed-over canvas unavailable when reopening it fails', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.canvasOpenError = new Error('provider failed to start');
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a restored canvas without delaying the resume', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			// The session finishes starting while the provider is still starting.
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			const whileReopening = { reopenPending: !reopen.isSettled, ...summarizeCanvasSignals(replacement.signals) };
+			reopen.complete({ ...preview, url: 'https://example.test/reopened' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, whileReopening, states: summarizeCanvasSignals(replacement.signals).states }, {
+				adopted: true,
+				whileReopening: {
+					reopenPending: true,
+					states: [{ resource, url: undefined }],
+					membership: [[resource]],
+				},
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a slowly reopening canvas without desynchronizing the session', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 1,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(10);
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the reopen once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ desynchronized, ...summarizeCanvasSignals(replacement.signals) }, {
+				desynchronized: false,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('ignores a background reopen that finishes after the canvas was closed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+
+			await replacement.session.closeCanvas({ resource });
+			reopen.complete({ ...preview, url: 'https://example.test/stale' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [{ resource: resource.toString(), url: undefined }],
+				membership: [[resource.toString()], []],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not restore a handed-over canvas closed while it is being reopened', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = async () => {
+						mock.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+						return { ...preview, url: 'https://example.test/stale' };
+					};
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[]],
 			});
 			replacement.session.dispose();
 		});
@@ -16351,6 +16535,79 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
 		});
 
+		for (const { name, result, resume, keepsRestoredPermissionMode, expected } of [
+			{ name: 'an applied mode is not set again by the first turn', result: { success: true, mode: 'assisted' as const }, expected: { requested: 'assisted', firstTurn: [], afterChange: ['allow-all'] } },
+			{ name: 'a resumed session is opened in the configured mode too', result: { success: true, mode: 'assisted' as const }, resume: true, expected: { requested: 'assisted', firstTurn: [], afterChange: ['allow-all'] } },
+			{ name: 'a refused mode is set by the first turn', result: { success: false, mode: 'manual' as const }, expected: { requested: 'assisted', firstTurn: ['assisted'], afterChange: ['assisted', 'allow-all'] } },
+			{ name: 'a runtime that reports no result has the mode set by the first turn', result: undefined, expected: { requested: 'assisted', firstTurn: ['assisted'], afterChange: ['assisted', 'allow-all'] } },
+			{ name: 'an imported session keeps its restored mode until the first turn', result: undefined, resume: true, keepsRestoredPermissionMode: true, expected: { requested: undefined, firstTurn: ['assisted'], afterChange: ['assisted', 'allow-all'] } },
+		]) {
+			test(`opens the session in the configured permission mode: ${name}`, async () => {
+				let requested: PermissionMode | undefined;
+				const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+					resume,
+					keepsRestoredPermissionMode,
+					configureMockSession: mock => { mock.permissionModeResult = result; },
+					duringLaunch: runtime => {
+						runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
+						requested = runtime.resolveInitialPermissionMode?.();
+					},
+				});
+				await session.syncPermissionMode('turn-start');
+				const firstTurn = [...mockSession.permissionModeSetCalls];
+				setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
+				await session.syncPermissionMode('turn-start');
+
+				assert.deepStrictEqual({ requested, firstTurn, afterChange: mockSession.permissionModeSetCalls }, expected);
+			});
+		}
+
+		test('fails the first turn when the runtime keeps refusing the mode it refused to open the session in', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+				configureMockSession: mock => {
+					mock.permissionModeResult = { success: false, mode: 'manual' };
+					mock.permissionModeSetSuccess = false;
+				},
+				duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+			});
+			fireManagedSettingsResolved(mockSession);
+
+			await assert.rejects(session.syncPermissionMode('turn-start'), /rejected permission mode 'assisted'/);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
+		});
+
+		test('a session resumed before its configuration is loaded keeps the mode the runtime restored, which an import then adopts', async () => {
+			let requested: PermissionMode | undefined;
+			let launched: MockCopilotSession | undefined;
+			const { session, mockSession, chatConfigUpdates } = await createAgentSession(disposables, {
+				resume: true,
+				// Restoring a session reads its conversation, which resumes the SDK session, before it loads the saved configuration.
+				configLoadsAfterLaunch: true,
+				// The host's default would be Allow All, which the resume must not impose on the session.
+				rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configureMockSession: mock => { launched = mock; },
+				duringLaunch: runtime => {
+					runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
+					requested = runtime.resolveInitialPermissionMode?.();
+					launched!.launchPermissionMode = requested;
+				},
+			});
+			await session.adoptRuntimeModes();
+			const adopted = chatConfigUpdates.map(update => update.patch[SessionConfigKey.AutoApprove]);
+			await session.syncPermissionMode('turn-start');
+
+			assert.deepStrictEqual({ requested, adopted, firstTurn: mockSession.permissionModeSetCalls }, {
+				requested: undefined,
+				// The mode the session ran with elsewhere, not a bypass the chat never chose.
+				adopted: ['default'],
+				// Global auto-approval still applies to the turn, as it did before.
+				firstTurn: ['allow-all'],
+			});
+		});
+
 		test('a peer chat applies its own approvals and mode, reports its effective approval mode to itself, and the session\'s to the session', async () => {
 			const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
 			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
@@ -18033,6 +18290,41 @@ Use the attached image as context.
 		function startedTurns(signals: readonly AgentSignal[]) {
 			return getActions(signals).flatMap(action => action.type === ActionType.ChatTurnStarted ? [{ text: action.message.text, queuedMessageId: action.queuedMessageId }] : []);
 		}
+
+		test('sends each message with the source of whoever authored it and marks the ones no person authored', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.send('from a person', undefined, 'turn-person');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await session.send('run the nightly task', undefined, 'turn-automation', undefined, undefined, undefined, undefined, undefined, false, undefined, undefined, 'automation-ahp-automation:/nightly');
+			await session.sendSteering({ id: 'steer-person', message: { text: 'person steers', origin: { kind: MessageKind.User } } }, undefined, { kind: 'user' });
+			await session.sendSteering({ id: 'steer-coordinator', message: { text: 'coordinator steers', origin: { kind: MessageKind.Agent } } }, undefined, { kind: 'agent', id: 'copilot:/coordinator' });
+			await session.sendSteering({ id: 'steer-peer', message: { text: 'peer steers', origin: { kind: MessageKind.Agent } } }, undefined, { kind: 'agent', id: 'copilot:/peer' });
+			await session.sendSteering({ id: 'steer-unattributed', message: { text: 'unattributed', origin: { kind: MessageKind.Agent } } });
+
+			assert.deepStrictEqual(mockSession.sendRequests, [
+				{ prompt: 'from a person', attachments: undefined },
+				{ prompt: 'run the nightly task', attachments: undefined, source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-automation' },
+				{ prompt: 'person steers', attachments: undefined, mode: 'immediate' },
+				{ prompt: 'coordinator steers', attachments: undefined, mode: 'immediate', source: 'agent-copilot:/coordinator', clientTurnId: 'steer-coordinator' },
+				{ prompt: 'peer steers', attachments: undefined, mode: 'immediate', source: 'agent-copilot:/peer', clientTurnId: 'steer-peer' },
+				{ prompt: 'unattributed', attachments: undefined, mode: 'immediate', source: 'system', clientTurnId: 'steer-unattributed' },
+			]);
+		});
+
+		test('the echo of an agent message the host sent starts its turn, unlike a runtime injection with the same source', async () => {
+			const steer = async (echo: Partial<SessionEventPayload<'user.message'>['data']>) => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				await session.sendSteering({ id: 'steer-1', message: { text: 'review this', origin: { kind: MessageKind.Agent } } }, undefined, { kind: 'agent', id: 'copilot:/coordinator' });
+				mockSession.fire('user.message', { content: 'review this', source: 'agent-copilot:/coordinator', ...echo } as SessionEventPayload<'user.message'>['data']);
+				return startedTurns(signals);
+			};
+
+			assert.deepStrictEqual({ hostSent: await steer({ clientTurnId: 'steer-1' }), injected: await steer({}) }, {
+				hostSent: [{ text: 'review this', queuedMessageId: 'steer-1' }],
+				injected: [],
+			});
+		});
 
 		test('a steering message the user removes before the model reads it is withdrawn and never becomes a turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -29526,6 +29818,31 @@ Use the attached image as context.
 			]);
 		});
 
+		test('reports whether a completed native view call named a file or a directory', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-view');
+			const views: Record<string, { readonly viewType?: string; readonly success?: boolean; readonly mcpServerName?: string }> = {
+				file: { viewType: 'file' },
+				image: { viewType: 'image' },
+				directory: { viewType: 'directory' },
+				failed: { viewType: 'file', success: false },
+				unreported: {},
+				mcp: { viewType: 'file', mcpServerName: 'server' },
+			};
+			for (const [toolCallId, { viewType, success = true, mcpServerName }] of Object.entries(views)) {
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'view', arguments: { path: `/workspace/${toolCallId}` }, mcpServerName });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success, toolTelemetry: viewType ? { properties: { viewType } } : undefined,
+					...(success ? { result: { content: 'Contents' } } : { error: { message: 'Path does not exist' } }),
+				});
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+			}
+			assert.deepStrictEqual(Object.fromEntries(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, readToolCallMeta(action)['vscode.viewedResourceType']]] : [])), {
+				file: 'file', image: 'file', directory: 'directory', failed: undefined, unreported: undefined, mcp: undefined,
+			});
+		});
+
 		test('permission before a held client-tool start retains the owning client', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client'),
@@ -38396,6 +38713,19 @@ Use the attached image as context.
 
 			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
 			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 0, 'should short-circuit before the RPC');
+		});
+
+		test('counts a message the host sent for an automation, unlike a runtime injection with the same source', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			fireUserMessage(mockSession, { source: 'automation-ahp-automation:/nightly' });
+			await timeout(0);
+			const injected = mockSession.getInstructionSourcesCallCount;
+			mockSession.fire('user.message', { content: 'Run the nightly task', source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-1' } as SessionEventPayload<'user.message'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual({ injected, hostSent: telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length }, { injected: 0, hostSent: 1 });
 		});
 
 		test('skips subagent user messages', async () => {

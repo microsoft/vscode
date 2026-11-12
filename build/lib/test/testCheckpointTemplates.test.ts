@@ -308,7 +308,7 @@ suite('Product test checkpoint templates', () => {
 		const productTestJob = records(productTestTemplate).find(record => record.job === 'Windows_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}');
 		const productSteps = records(productTestTemplate).filter(record => record.template === './steps/product-build-win32-test.yml@self' || record.template === './steps/product-build-win32-setup.yml@self');
 		const compileSteps = records(compileTemplate).filter(record => record.template === 'product-build-win32-test.yml@self' || record.template === 'product-build-win32-setup.yml@self');
-		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
+		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml', 'product-build-ci.yml'];
 		const jobsByPipeline = pipelineFiles.map(file => ciJobs(file, 'win32'));
 		const jobs = jobsByPipeline[0];
 		const productJobsByPipeline = ['product-build.yml', 'product-build-template.yml'].map(file => {
@@ -411,7 +411,7 @@ suite('Product test checkpoint templates', () => {
 	});
 
 	test('Linux and macOS CI assign every test ID to one job', () => {
-		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
+		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml', 'product-build-ci.yml'];
 		const observed = ([
 			{ platform: 'linux', testFile: linuxTestFile, jobPrefix: 'Linux' },
 			{ platform: 'darwin', testFile: darwinTestFile, jobPrefix: 'macOS' },
@@ -546,7 +546,7 @@ suite('Product test checkpoint templates', () => {
 	});
 
 	test('Linux and macOS CI stage labels include the architecture', () => {
-		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
+		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml', 'product-build-ci.yml'];
 		assert.deepStrictEqual(pipelineFiles.map(file => ({
 			file,
 			stages: records(readTemplate(file))

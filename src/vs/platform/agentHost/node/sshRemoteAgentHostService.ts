@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type WebSocket from 'ws';
-import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
+import type { AnyAuthMethod, AuthenticationType, ClientErrorExtensions, ConnectConfig } from 'ssh2';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -38,6 +38,7 @@ import {
 	type SSHAgentHostLifecycle,
 	type SSHStrictHostKeyChecking,
 	SSHHostKeyDeniedError,
+	SSHAuthenticationFailedError,
 } from '../common/sshRemoteAgentHost.js';
 import {
 	computeHostKeyFingerprint,
@@ -75,7 +76,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHConfigIncludePaths, parseSSHGOutput } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
@@ -100,7 +101,7 @@ interface ISSHKnownHostsEvidence {
 /** Minimal subset of ssh2.Client used by this module. */
 interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
-	on(event: 'error', listener: (err: Error) => void): SSHClient;
+	on(event: 'error', listener: (err: Error & ClientErrorExtensions) => void): SSHClient;
 	on(event: 'close', listener: () => void): SSHClient;
 	/**
 	 * OpenSSH's `UpdateHostKeys` announcement. ssh2 verifies the
@@ -1422,8 +1423,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				continue;
 			}
 
-			const rawValue = stripSSHComment(includeMatch[1]);
-			const patterns = rawValue.split(/\s+/).filter(Boolean);
+			const patterns = parseSSHConfigIncludePaths(includeMatch[1]);
+			if (!patterns) {
+				this._logService.warn(`${LOG_PREFIX} Skipping invalid SSH Include directive in ${configDir}`);
+				continue;
+			}
 
 			for (const rawPattern of patterns) {
 				const pattern = rawPattern.replace(/^~/, os.homedir());
@@ -1729,7 +1733,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				resolveConnect();
 			});
 
-			client.on('error', (err: Error) => {
+			client.on('error', (err: Error & ClientErrorExtensions) => {
 				if (err instanceof AggregateError && !err.message) {
 					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
 					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
@@ -1739,7 +1743,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// ssh2 reports a refused host key as "Host denied (verification
 				// failed)", which is both jargon and redundant — the host key
 				// UI has already told the user what happened.
-				rejectConnect(hostKeyDenied ? new SSHHostKeyDeniedError(displayHost) : err, false);
+				rejectConnect(
+					hostKeyDenied ? new SSHHostKeyDeniedError(displayHost)
+						: err.level === 'client-authentication' ? new SSHAuthenticationFailedError(err.message)
+							: err,
+					false);
 			});
 
 			// A server can drop the connection cleanly mid-handshake (for

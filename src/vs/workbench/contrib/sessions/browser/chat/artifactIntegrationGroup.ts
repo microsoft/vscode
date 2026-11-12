@@ -29,7 +29,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ChatPillActionViewItem, getChatPillEntryToolbarActions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection } from './artifactDetailsView.js';
-import { ArtifactIntegrationPresentation, countEnabledArtifactAutomations, createArtifactOpenAction, getArtifactStatusButtons, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
+import { ArtifactIntegrationPresentation, countEnabledArtifactAutomations, getArtifactOpenAriaLabel, getArtifactStatusButtons, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 
 /** One artifact listed by an {@link ArtifactIntegrationGroup}. */
 export interface IArtifactIntegrationGroupMember {
@@ -253,22 +253,22 @@ export interface IArtifactGroupRowAction {
 }
 
 /**
- * The actions a group dropdown row offers for its artifact: Open, then the entry's own actions in the order the other
- * pill dropdowns show them, with Pin before the entry's promoted action, such as Remove.
+ * The actions a group dropdown row offers for its artifact, whose main part opens it: the entry's own actions in the
+ * order the other pill dropdowns show them, with Pin before the entry's promoted action, such as Remove.
  */
 export function getArtifactGroupRowActions(member: Pick<IArtifactIntegrationGroupMember, 'entry' | 'pinAction'>): readonly IArtifactGroupRowAction[] {
 	const { entry, pinAction } = member;
-	const open = createArtifactOpenAction(entry);
 	const entryActions = getChatPillEntryToolbarActions({ ...entry, toolbarActions: [...entry.toolbarActions ?? [], ...pinAction ? [pinAction] : []] });
-	return [open, ...entryActions].map(action => ({ action, keepOpen: action === pinAction || action === entry.promotedAction }));
+	return entryActions.map(action => ({ action, keepOpen: action === pinAction || action === entry.promotedAction }));
 }
 
 /** Marks the focusable controls of a dropdown row, in their visual order. */
 const controlAttribute = 'data-artifact-group-control';
 
 /**
- * Lists a group's artifacts above its pill. Each row is a toolbar: the artifact's main part opens its details,
- * each status section opens the matching list, and the trailing actions open, copy, pin or remove the artifact.
+ * Lists a group's artifacts above its pill. Each row is a toolbar: the artifact's main part opens its resource, each
+ * status section opens the matching list in its details, or a Details section opens them when it has no status
+ * sections, and the trailing actions copy, pin or remove the artifact.
  */
 class ArtifactIntegrationGroupDropdown extends Disposable {
 	private readonly element: HTMLElement;
@@ -319,6 +319,7 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 				let row = this.rows.get(member.entry.id);
 				if (!row) {
 					row = new ArtifactIntegrationGroupRow(this.hoverService, this.hoverLifecycleOptions, {
+						open: entry => this.openResource(entry),
 						openDetails: (presentation, selection) => this.openDetails(presentation, selection),
 						run: (action, keepOpen) => this.runAction(action, keepOpen),
 					});
@@ -394,6 +395,11 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 		this.view?.close();
 	}
 
+	private openResource(entry: IChatPillEntry): void {
+		this.hide(true);
+		entry.open();
+	}
+
 	private openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined): void {
 		const button = this.button;
 		const host = this.group.detailsHost;
@@ -465,6 +471,7 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 }
 
 interface IArtifactIntegrationGroupRowDelegate {
+	open(entry: IChatPillEntry): void;
 	openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined): void;
 	run(action: IChatPillAction, keepOpen: boolean): void;
 }
@@ -489,7 +496,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 	) {
 		super();
 		this.element = $('.artifact-group-row', { role: 'toolbar', 'aria-orientation': 'horizontal' });
-		this.main = append(this.element, $('.artifact-group-row-main', { role: 'button', tabindex: '-1', [controlAttribute]: '', 'aria-haspopup': 'dialog' }));
+		this.main = append(this.element, $('.artifact-group-row-main', { role: 'button', tabindex: '-1', [controlAttribute]: '' }));
 		this.icon = append(this.main, $('span.artifact-group-row-icon'));
 		this.label = append(this.main, $('span.artifact-group-row-label'));
 		this.statuses = append(this.element, $('.artifact-group-row-statuses'));
@@ -498,7 +505,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		this._register(toDisposable(() => this.element.remove()));
 		this._register(this.hoverService.setupDelayedHover(this.main, () => ({ content: this.mainDescription(), style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		this._register(this.hoverService.setupDelayedHover(this.title, () => ({ content: this.member?.entry.label ?? '', style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
-		// The row's free space, such as its title, opens the artifact's details like its main part.
+		// The row's free space, such as its title, opens the artifact's resource like its main part.
 		this._register(addDisposableListener(this.element, EventType.CLICK, event => {
 			const target = event.target;
 			if (isHTMLElement(target) && (target.closest('.artifact-group-row-statuses') || target.closest('.artifact-group-row-actions'))) {
@@ -506,7 +513,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 			}
 			EventHelper.stop(event, true);
 			if (this.member) {
-				this.delegate.openDetails(this.member.presentation, undefined);
+				this.delegate.open(this.member.entry);
 			}
 		}));
 	}
@@ -527,9 +534,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		this.element.setAttribute('aria-label', localize('artifactGroup.row', "{0}, {1} of {2}", description, index + 1, count));
 		reset(this.icon, renderArtifactIcon(main ? getArtifactThemeIcon(main.icon) : member.entry.icon ?? Codicon.link));
 		this.label.textContent = label;
-		this.main.setAttribute('aria-label', localize('artifactGroup.showDetails', "Show artifact details: {0}", description));
-		this.main.setAttribute('aria-expanded', String(selected));
-		this.main.setAttribute('aria-controls', member.presentation.detailsHost.id);
+		this.main.setAttribute('aria-label', getArtifactOpenAriaLabel(label));
 		const title = member.entry.label !== label ? member.entry.label : '';
 		this.title.textContent = title;
 		this.title.hidden = !title;
@@ -585,7 +590,9 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		if (status.icon) {
 			append(element, renderArtifactIcon(status.icon));
 		}
-		append(element, $('span.artifact-group-row-status-label', undefined, status.label));
+		if (!status.iconOnly) {
+			append(element, $('span.artifact-group-row-status-label', undefined, status.label));
+		}
 		element.setAttribute('aria-label', status.ariaLabel ?? status.description ?? status.label);
 		if (status.controls) {
 			element.setAttribute('aria-controls', status.controls);

@@ -76,6 +76,14 @@ suite('Agent host _meta readers', () => {
 		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
 
+	test('validates what the path of a view call named', () => {
+		const key = 'vscode.viewedResourceType';
+		assert.deepStrictEqual([
+			...(['file', 'directory'] as const).map(value => readToolCallMeta(toolCall(toToolCallMeta({ [key]: value })))[key]),
+			...[undefined, null, {}, true, 'image', 'unknown'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['file', 'directory', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+
 	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
 		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
 		const key = 'vscode.copilotSandboxNetworkRestrictions';

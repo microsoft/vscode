@@ -13,7 +13,6 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { autorun, derived, IObservable, observableValue } from '../../../base/common/observable.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -54,9 +53,10 @@ import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
+import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
 import { InsecureRemoteAgentHostError } from '../common/remoteAgentHostWebSocket.js';
+import { PathStyle } from '../common/state/protocol/common/commands.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
 
@@ -79,9 +79,6 @@ interface IConnectionEntry {
 	/** Current connection status for UI display. */
 	status: RemoteAgentHostConnectionStatus;
 	lastConnectionError?: string;
-	operatingSystemResolved?: boolean;
-	operatingSystemRequest?: Promise<void>;
-	operatingSystemRetryRequested?: boolean;
 }
 
 interface IPendingConnectionAttempt {
@@ -108,6 +105,10 @@ function disposeEntry(entry: IConnectionEntry): void {
  */
 function isTerminalConnectError(err: unknown): boolean {
 	return err instanceof NonReconnectableTransportError || isCancellationError(err);
+}
+
+function isAuthenticationFailureReason(reason: AgentHostTransportFailureReason | undefined): boolean {
+	return reason === AgentHostTransportFailureReason.AuthenticationFailed || reason === AgentHostTransportFailureReason.SSHAuthenticationFailed;
 }
 
 /** Builds WebSocket-backed protocol clients without performing their handshake. */
@@ -218,7 +219,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _names = new Map<string, string>();
 	private readonly _displayNameOwners = new Map<string, { readonly name: IObservable<string | undefined>; readonly setName: (name: string | undefined) => void }>();
 	private readonly _tokens = new Map<string, string | undefined>();
-	private readonly _operatingSystems = new Map<string, OperatingSystem>();
+	private readonly _pathStyles = new Map<string, PathStyle>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
 	/** Terminal failures retained until removal or a fresh connection attempt. */
 	private readonly _failedReconnects = new Map<string, Error>();
@@ -232,7 +233,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 * human-readable name as the host label so any UI looking up the host
 	 * label for an agent host URI gets the friendly name.
 	 */
-	private readonly _labelFormatters = new Map<string, { readonly name: string; readonly operatingSystem: OperatingSystem | undefined; readonly disposable: IDisposable }>();
+	private readonly _labelFormatters = new Map<string, { readonly name: string; readonly pathStyle: PathStyle | undefined; readonly disposable: IDisposable }>();
 
 	protected get clientInfo() {
 		return editorWindowAgentHostClientInfo;
@@ -353,7 +354,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	get connections(): readonly IRemoteAgentHostConnectionInfo[] {
 		const result: IRemoteAgentHostConnectionInfo[] = [];
 		for (const [address, entry] of this._entries) {
-			const operatingSystem = this._operatingSystems.get(address);
+			const pathStyle = this._pathStyles.get(address);
 			result.push({
 				address,
 				name: this.getDisplayNameOverride(address) ?? this._names.get(address) ?? address,
@@ -361,7 +362,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				defaultDirectory: entry.client?.defaultDirectory,
 				status: entry.status,
 				...(entry.lastConnectionError ? { lastConnectionError: entry.lastConnectionError } : {}),
-				...(operatingSystem === undefined ? {} : { operatingSystem }),
+				...(pathStyle === undefined ? {} : { pathStyle }),
 			});
 		}
 		return result;
@@ -564,7 +565,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// (the config change listener will reconcile, but this is instant).
 		this._names.delete(normalized);
 		this._tokens.delete(normalized);
-		this._operatingSystems.delete(normalized);
+		this._pathStyles.delete(normalized);
 		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
 		this._reconnectAttempts.delete(normalized);
@@ -637,7 +638,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._names.clear();
 			this._tokens.clear();
-			this._operatingSystems.clear();
+			this._pathStyles.clear();
 			this._reconnectAttempts.clear();
 			// Drop label formatters for entries no longer represented by an active connection.
 			for (const address of [...this._labelFormatters.keys()]) {
@@ -676,7 +677,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Drop formatters for addresses that are no longer configured.
 		for (const address of [...this._labelFormatters.keys()]) {
 			if (!desired.has(address)) {
-				this._operatingSystems.delete(address);
+				this._pathStyles.delete(address);
 				this._clearHostLabelFormatter(address);
 			}
 		}
@@ -878,8 +879,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
-			entry.lastConnectionError = reason === AgentHostTransportFailureReason.AuthenticationFailed
-				? localize('remoteAgentHost.authenticationFailed', "Authentication failed. Reconnect to sign in again.")
+			entry.lastConnectionError = isAuthenticationFailureReason(reason)
+				? reason === AgentHostTransportFailureReason.SSHAuthenticationFailed
+					? localize('remoteAgentHost.sshAuthenticationFailed', "SSH authentication failed. Check your username, key, or SSH agent, then reconnect.")
+					: localize('remoteAgentHost.authenticationFailed', "Authentication failed. Reconnect to sign in again.")
 				: undefined;
 			entry.client = undefined;
 			disposeEntry(entry);
@@ -888,7 +891,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// the "fatal" path — the protocol client already gave up its own
 			// soft-reconnect attempts (or it was never enabled), so we rebuild
 			// from scratch.
-			if (createdConnection.reconnectManagedByClient || reason === AgentHostTransportFailureReason.AuthenticationFailed) {
+			if (createdConnection.reconnectManagedByClient || isAuthenticationFailureReason(reason)) {
 				this._rejectPendingConnectionWait(address, new Error(entry.lastConnectionError ?? localize('remoteAgentHost.recoveryClosed', "Connection to {0} closed before recovery completed.", address)));
 				observer?.('failed');
 			} else if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
@@ -920,7 +923,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					break;
 				case 'connected':
 					observer?.('connected');
-					this._resolveHostOperatingSystem(address, entry, client, true);
+					this._updateHostPathStyle(address, client);
 					entry.connected = true;
 					entry.status = RemoteAgentHostConnectionStatus.connected;
 					entry.lastConnectionError = undefined;
@@ -964,7 +967,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._logService.info(`[RemoteAgentHost] Connected to ${address}`);
 			observer?.('connected');
-			this._resolveHostOperatingSystem(address, entry, client);
+			this._updateHostPathStyle(address, client);
 			entry.connected = true;
 			entry.status = RemoteAgentHostConnectionStatus.connected;
 			entry.lastConnectionError = undefined;
@@ -1021,7 +1024,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._cancelReconnect(address);
 			}
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
-			if (disconnectReason !== AgentHostTransportFailureReason.AuthenticationFailed) {
+			if (!isAuthenticationFailureReason(disconnectReason)) {
 				entry.lastConnectionError = (attempt.showError || err instanceof InsecureRemoteAgentHostError) && !isCancellationError(err) ? toErrorMessage(err) : undefined;
 			}
 			entry.client = undefined;
@@ -1178,16 +1181,16 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 */
 	private _updateHostLabelFormatter(address: string, name: string): void {
 		name = this.getDisplayNameOverride(address) ?? name;
-		const operatingSystem = this._operatingSystems.get(address);
+		const pathStyle = this._pathStyles.get(address);
 		const existing = this._labelFormatters.get(address);
-		if (existing?.name === name && existing.operatingSystem === operatingSystem) {
+		if (existing?.name === name && existing.pathStyle === pathStyle) {
 			return;
 		}
 		this._clearHostLabelFormatter(address);
 		const authority = agentHostAuthority(address);
-		const pathFormatting = operatingSystem === undefined
+		const pathFormatting = pathStyle === undefined
 			? AGENT_HOST_LABEL_FORMATTER.formatting
-			: agentHostLabelFormatter(authority, operatingSystem).formatting;
+			: agentHostLabelFormatter(authority, pathStyle).formatting;
 		const handle = this._labelService.registerFormatter({
 			scheme: AGENT_HOST_SCHEME,
 			authority,
@@ -1197,41 +1200,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				workspaceSuffix: name,
 			},
 		});
-		this._labelFormatters.set(address, { name, operatingSystem, disposable: handle });
+		this._labelFormatters.set(address, { name, pathStyle, disposable: handle });
 	}
 
-	private _resolveHostOperatingSystem(address: string, entry: IConnectionEntry, connection: IAgentConnection, retryIfPending = false): void {
-		if (entry.operatingSystemResolved) {
-			return;
+	private _updateHostPathStyle(address: string, connection: IAgentConnection): void {
+		const pathStyle = getAgentHostPathStyle(connection);
+		if (pathStyle === undefined) {
+			this._pathStyles.delete(address);
+		} else {
+			this._pathStyles.set(address, pathStyle);
 		}
-		if (entry.operatingSystemRequest) {
-			entry.operatingSystemRetryRequested ||= retryIfPending;
-			return;
-		}
-
-		const request = getAgentHostOperatingSystem(connection).then(operatingSystem => {
-			if (this._entries.get(address) !== entry) {
-				return;
-			}
-			entry.operatingSystemResolved = true;
-			this._operatingSystems.set(address, operatingSystem);
-			this._updateHostLabelFormatter(address, this._names.get(address) ?? address);
-			this._onDidChangeConnections.fire();
-		}, error => {
-			if (this._entries.get(address) === entry) {
-				this._logService.error(`[RemoteAgentHost] Failed to resolve the operating system for ${address}`, error);
-			}
-		}).finally(() => {
-			if (entry.operatingSystemRequest === request) {
-				entry.operatingSystemRequest = undefined;
-				const retry = entry.operatingSystemRetryRequested;
-				entry.operatingSystemRetryRequested = false;
-				if (retry && !entry.operatingSystemResolved && this._entries.get(address) === entry) {
-					this._resolveHostOperatingSystem(address, entry, connection);
-				}
-			}
-		});
-		entry.operatingSystemRequest = request;
+		this._updateHostLabelFormatter(address, this._names.get(address) ?? address);
 	}
 
 	private _clearHostLabelFormatter(address: string): void {
@@ -1268,7 +1247,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 		}
 		this._retainedReconnectEntries.clear();
-		this._operatingSystems.clear();
+		this._pathStyles.clear();
 		for (const handle of this._labelFormatters.values()) {
 			handle.disposable.dispose();
 		}

@@ -13,6 +13,7 @@ import { mapsStrictEqualIgnoreOrder } from '../../../util/vs/base/common/map';
 import { runOnChange } from '../../../util/vs/base/common/observable';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { AuthProviderId, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 import { IEnvService } from '../../env/common/envService';
 import { packageJson } from '../../env/common/packagejson';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
@@ -228,7 +229,7 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 }
 
 /**
- * Emits Copilot account, Chat extension version, and environment userParams for the new TAS assignments API.
+ * Emits integrator, Copilot account, Chat extension version, and environment userParams for the new TAS assignments API.
  * Reads the token fresh on each call; generic app/build/extension-identity/target filters come from `vscode-tas-client`.
  */
 export class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
@@ -248,6 +249,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 			: undefined;
 
 		const filters = new Map<string, string | undefined>();
+		filters.set('integratorid', INTEGRATION_ID);
 		filters.set('vscode_core_platform', PlatformToString(platform));
 		if (this._releaseDate) {
 			filters.set('vscode_core_releasedate', this._releaseDate);
