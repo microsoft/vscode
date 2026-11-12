@@ -56,6 +56,7 @@ import { IChatAttachmentResolveService } from '../../../../../browser/attachment
 import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
 import { ChatResponseAccessibleView } from '../../../../../browser/accessibility/chatResponseAccessibleView.js';
 import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
+import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../../../browser/actions/chatQueueActions.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
 import '../../../../../browser/widget/input/editor/chatInputEditorHover.js';
@@ -251,15 +252,22 @@ suite('ChatInlineAttachments', () => {
 
 	test('Enter in the focused reference hover does not open the active pill or submit the draft', async () => {
 		store.add(registerAction2(ChatSubmitAction));
+		store.add(registerAction2(ChatQueueMessageAction));
+		store.add(registerAction2(ChatSteerWithMessageAction));
 		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(OS).flatMap(item => {
-			if (!item.keybinding || ![ChatSubmitAction.ID, 'workbench.action.chat.openInlineAttachment'].includes(item.command ?? '')) {
+			if (!item.keybinding || ![ChatSubmitAction.ID, ChatQueueMessageAction.ID, ChatSteerWithMessageAction.ID, 'workbench.action.chat.openInlineAttachment'].includes(item.command ?? '')) {
 				return [];
 			}
 			return [new ResolvedKeybindingItem(USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, OS)[0], item.command, item.commandArgs, item.when ?? undefined, true, null, false)];
 		});
 		const resolver = new KeybindingResolver(items, [], () => { });
-		const actual: { activePill: boolean; composerCommand: string | null | undefined; hoverCommands: (string | null | undefined)[] }[] = [];
-		for (const position of [new Position(1, 9), new Position(1, 8)]) {
+		const actual: { activePill: boolean; composerCommand: string | null | undefined; enterCommands: (string | null | undefined)[]; enterPrevented: boolean[] }[] = [];
+		for (const [position, defaultAction] of [
+			[new Position(1, 9), 'queue'],
+			[new Position(1, 8), 'queue'],
+			[new Position(1, 9), 'steer'],
+			[new Position(1, 8), 'steer'],
+		] as const) {
 			const content = dom.$('div');
 			const link = dom.append(content, dom.$('a', { href: '#reference' }, 'Reference'));
 			const button = dom.append(content, dom.$('button', { type: 'button' }, 'Branch'));
@@ -276,8 +284,11 @@ suite('ChatInlineAttachments', () => {
 				const context = accessor.get(IContextKeyService);
 				ChatContextKeys.enabled.bindTo(context).set(true);
 				ChatContextKeys.inChatInput.bindTo(context).set(true);
+				ChatContextKeys.inputHasText.bindTo(context).set(true);
 				ChatContextKeys.inputHasSendableContent.bindTo(context).set(true);
 				ChatContextKeys.chatSessionOptionsValid.bindTo(context).set(true);
+				ChatContextKeys.requestInProgress.bindTo(context).set(true);
+				context.createKey(`config.${ChatConfiguration.RequestQueueingDefaultAction}`, defaultAction);
 			});
 			const contextService = input.instantiationService.get(IContextKeyService);
 			const resolveEnter = (target: Element) => {
@@ -290,20 +301,33 @@ suite('ChatInlineAttachments', () => {
 			const composerCommand = resolveEnter(input.editor.getDomNode()!);
 			ContentHoverController.get(input.editor)!.showContentHover(new Range(1, 9, 1, 9), HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
 			await settle();
-			const hoverCommands: (string | null | undefined)[] = [];
+			const enterCommands: (string | null | undefined)[] = [];
+			const enterPrevented: boolean[] = [];
 			const container = content.closest<HTMLElement>('.monaco-hover')!;
+			const keydownListener = store.add(dom.addDisposableListener(dom.getWindow(container).document, 'keydown', event => {
+				if (event.key === 'Enter' && event.target instanceof Element) {
+					const command = resolveEnter(event.target);
+					enterCommands.push(command);
+					if (command) {
+						event.preventDefault();
+					}
+				}
+			}));
 			for (const target of [container, link, button]) {
 				target.focus();
 				target.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-				hoverCommands.push(resolveEnter(target));
+				enterPrevented.push(!target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true })));
 			}
-			actual.push({ activePill, composerCommand, hoverCommands });
+			keydownListener.dispose();
+			actual.push({ activePill, composerCommand, enterCommands, enterPrevented });
 			ContentHoverController.get(input.editor)!.hideContentHover();
 			await settle();
 		}
 		assert.deepStrictEqual(actual, [
-			{ activePill: true, composerCommand: 'workbench.action.chat.openInlineAttachment', hoverCommands: [undefined, undefined, undefined] },
-			{ activePill: false, composerCommand: ChatSubmitAction.ID, hoverCommands: [undefined, undefined, undefined] },
+			{ activePill: true, composerCommand: 'workbench.action.chat.openInlineAttachment', enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+			{ activePill: false, composerCommand: ChatQueueMessageAction.ID, enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+			{ activePill: true, composerCommand: 'workbench.action.chat.openInlineAttachment', enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+			{ activePill: false, composerCommand: ChatSteerWithMessageAction.ID, enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
 		]);
 	});
 
