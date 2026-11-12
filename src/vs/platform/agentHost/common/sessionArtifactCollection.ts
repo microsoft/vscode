@@ -164,8 +164,8 @@ export class SessionArtifactCollection {
 		const value = getSessionArtifactValue(artifact);
 		const existing = this._artifacts.find(candidate => getSessionArtifactValue(candidate) === value);
 		if (existing && input.mode !== undefined && existing.mode !== input.mode) {
-			// Recording an entry again with another mode changes how the chat shows it.
-			const updated = { ...existing, mode: input.mode };
+			// Recording an entry again with another mode asks again; the revision tells clients that it is a new request.
+			const updated = { ...existing, mode: input.mode, ...(existing.mode !== undefined ? { modeRevision: (existing.modeRevision ?? 0) + 1 } : {}) };
 			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false };
 		}
 		if (existing) {
@@ -182,7 +182,8 @@ export class SessionArtifactCollection {
 		}
 		// The reference's request for how to show it stays unless the input replaces it.
 		const mode = input.mode ?? result.artifact.mode;
-		const artifact = this._create(mode !== undefined ? { ...input, mode } : input, () => result.artifact.id, result.artifact.origin);
+		const created = this._create(mode !== undefined ? { ...input, mode } : input, () => result.artifact.id, result.artifact.origin);
+		const artifact = result.artifact.modeRevision !== undefined ? { ...created, modeRevision: result.artifact.modeRevision } : created;
 		return {
 			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
 			artifact,

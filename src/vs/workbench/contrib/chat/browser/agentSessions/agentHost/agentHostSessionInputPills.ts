@@ -1007,7 +1007,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
 				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
 				// The agent's label describes the resource for people; lists show files by their name.
-				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource, ...(artifact?.mode ? { requested: artifact.mode } : {}) }] : [];
+				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource, ...(artifact?.mode ? { requested: { mode: artifact.mode, revision: artifact.modeRevision ?? 0 } } : {}) }] : [];
 			}));
 		});
 		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.

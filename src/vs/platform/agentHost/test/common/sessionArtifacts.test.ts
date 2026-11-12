@@ -87,9 +87,9 @@ suite('Session Artifacts', () => {
 			roundTrip: parseSessionArtifacts(stringifySessionArtifacts(again.artifacts)).artifacts,
 		}, {
 			first: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'aboveInput' }],
-			again: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
-			unchanged: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
-			roundTrip: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned' }],
+			again: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned', modeRevision: 1 }],
+			unchanged: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned', modeRevision: 1 }],
+			roundTrip: [{ id: 'id-1', type: SessionArtifactType.Website, label: 'Preview', isArtifact: false, link: 'https://example.com', mode: 'pinned', modeRevision: 1 }],
 		});
 		assert.throws(() => parseSessionArtifactInput({ type: 'website', label: 'Preview', link: 'https://example.com', isArtifact: false, mode: 'sideways' }, TOOL), /mode must be one of/);
 	});

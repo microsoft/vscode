@@ -63,6 +63,8 @@ export interface ISessionArtifact {
 	readonly isGitHub?: boolean;
 	readonly origin?: ArtifactOrigin;
 	readonly mode?: SessionArtifactMode;
+	/** Counts the changes of {@link mode} after the first, so that a client can tell a new request from one it applied. */
+	readonly modeRevision?: number;
 }
 
 /**
@@ -103,6 +105,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		isGitHub?: boolean;
 		origin?: ArtifactOrigin;
 		mode?: SessionArtifactMode;
+		modeRevision?: number;
 	} = {
 		id: raw['id'],
 		...(typeof raw['chat'] === 'string' ? { chat: raw['chat'] } : {}),
@@ -116,6 +119,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
 	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
 	if (isSessionArtifactMode(raw['mode'])) { artifact.mode = raw['mode']; }
+	if (typeof raw['modeRevision'] === 'number' && Number.isSafeInteger(raw['modeRevision']) && raw['modeRevision'] > 0) { artifact.modeRevision = raw['modeRevision']; }
 	const origin = raw['origin'];
 	if (origin && typeof origin === 'object') {
 		const rawOrigin = origin as Record<string, unknown>;

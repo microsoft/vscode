@@ -14,7 +14,7 @@ import { autorun, derived, IObservable, IReader, ISettableObservable, mapObserva
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { isSessionArtifactMode, SessionArtifactMode } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { SessionArtifactMode } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -31,8 +31,11 @@ import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight
 export interface IChatResource extends IChatResourceTarget {
 	/** The ID of the pill entry that stands for the resource. */
 	readonly id: string;
-	/** How whoever recorded the file asked the chat to show it; see {@link ChatResourcesControl}. */
-	readonly requested?: SessionArtifactMode;
+	/**
+	 * How whoever recorded the file asked the chat to show it, and how often that request changed; see
+	 * {@link ChatResourcesControl}.
+	 */
+	readonly requested?: { readonly mode: SessionArtifactMode; readonly revision: number };
 }
 
 /** The transcript height that shown resources leave visible. */
@@ -267,15 +270,20 @@ export class ChatResourcesControl extends Disposable {
 		const applied = { ...all[chat] };
 		let changed = false;
 		for (const resource of resources) {
-			if (!resource.requested || applied[resource.id] === resource.requested || !this._pin(resource)) {
+			if (!resource.requested) {
+				continue;
+			}
+			// The revision tells a new request from the applied one even if the chat missed the requests in between.
+			const request = `${resource.requested.mode}#${resource.requested.revision}`;
+			if (applied[resource.id] === request || !this._pin(resource)) {
 				continue;
 			}
 			// A pinned file opens in an editor; one shown above the input opens there.
-			this._setOpensInChat(resource.id, resource.requested === 'aboveInput');
-			if (resource.requested === 'aboveInput') {
+			this._setOpensInChat(resource.id, resource.requested.mode === 'aboveInput');
+			if (resource.requested.mode === 'aboveInput') {
 				this._select(resource.id);
 			}
-			applied[resource.id] = resource.requested;
+			applied[resource.id] = request;
 			changed = true;
 		}
 		if (changed) {
@@ -283,12 +291,12 @@ export class ChatResourcesControl extends Disposable {
 		}
 	}
 
-	private _readAppliedRequests(): Record<string, Record<string, SessionArtifactMode>> {
+	private _readAppliedRequests(): Record<string, Record<string, string>> {
 		try {
 			const value: unknown = JSON.parse(this._storageService.get(APPLIED_REQUESTS_STORAGE_KEY, StorageScope.WORKSPACE, '{}'));
-			const result: Record<string, Record<string, SessionArtifactMode>> = {};
+			const result: Record<string, Record<string, string>> = {};
 			for (const [chat, requests] of Object.entries(value && typeof value === 'object' ? value : {})) {
-				result[chat] = Object.fromEntries(Object.entries(requests && typeof requests === 'object' ? requests : {}).filter((entry): entry is [string, SessionArtifactMode] => isSessionArtifactMode(entry[1])));
+				result[chat] = Object.fromEntries(Object.entries(requests && typeof requests === 'object' ? requests : {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
 			}
 			return result;
 		} catch {
