@@ -1105,6 +1105,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private _addAllToClear(): void {
+		this._addTreeToClear(this._roots);
 		this._roots = undefined;
 		this._nodes.forEach(node => {
 			this._nodesToClear.add(node);
@@ -1114,11 +1115,23 @@ class ExtHostTreeView<T> extends Disposable {
 		this._childrenFetchTokens.clear();
 	}
 
+	/**
+	 * Adds the given nodes and all their descendants to the nodes to clear. A node replaced in `_nodes` by a node
+	 * for the same element under another parent is only reachable through its parent's children.
+	 */
+	private _addTreeToClear(nodes: readonly TreeNode[] | undefined): void {
+		for (const node of nodes ?? []) {
+			this._nodesToClear.add(node);
+			this._addTreeToClear(node.children);
+		}
+	}
+
 	private _clearNodes(nodes: TreeNode[]): void {
 		dispose(nodes);
 	}
 
 	private _clearAll(): void {
+		this._addTreeToClear(this._roots);
 		this._roots = undefined;
 		this._elements.clear();
 		dispose(this._nodes.values());
