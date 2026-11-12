@@ -11268,30 +11268,33 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('createChat infers workspace-less from an omitted workingDirectory and uses a stable scratch dir', async () => {
-		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
-		const agent = createTestAgent(disposables, { userHome });
-		afterTest(async () => {
-			await disposeAgent(agent);
-			await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
-		});
-		await agent.authenticate('https://api.github.com', 'token');
+	for (const workingDirectories of [undefined, []]) {
+		test(`createChat infers workspace-less from ${workingDirectories ? 'empty' : 'omitted'} workingDirectories and uses a stable scratch dir`, async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const agent = createTestAgent(disposables, { userHome });
+			afterTest(async () => {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
+			});
+			await agent.authenticate('https://api.github.com', 'token');
 
-		const result = await provisionSession(agent, {
-			session: AgentSession.uri('copilotcli', 'temp-fallback'),
-		});
+			const result = await provisionSession(agent, {
+				session: AgentSession.uri('copilotcli', 'temp-fallback'),
+				workingDirectories,
+			});
 
-		assert.strictEqual(result.provisional, true);
-		const resultWorkingDirectory = result.resolvedWorkingDirectory;
-		assert.ok(resultWorkingDirectory);
-		const expected = URI.joinPath(userHome, '.copilot', 'chats', 'temp-fallback');
-		assert.strictEqual(resultWorkingDirectory.scheme, Schemas.file);
-		assert.strictEqual(resultWorkingDirectory.fsPath, expected.fsPath);
-		assert.deepStrictEqual(await fs.readdir(resultWorkingDirectory.fsPath), []);
-		// Tagged workspace-less purely from inference (no input flag).
-		const provisional = (agent as unknown as { _provisionalSessions: Map<string, { workspaceless?: boolean }> })._provisionalSessions.get('temp-fallback');
-		assert.strictEqual(provisional?.workspaceless, true);
-	}).timeout(30_000);
+			const resultWorkingDirectory = result.resolvedWorkingDirectory;
+			assert.ok(resultWorkingDirectory);
+			const expected = URI.joinPath(userHome, '.copilot', 'chats', 'temp-fallback');
+			assert.deepStrictEqual({
+				provisional: result.provisional,
+				scheme: resultWorkingDirectory.scheme,
+				directory: resultWorkingDirectory.fsPath,
+				contents: await fs.readdir(resultWorkingDirectory.fsPath),
+				workspaceless: agent['_provisionalSessions'].get('temp-fallback')?.workspaceless,
+			}, { provisional: true, scheme: Schemas.file, directory: expected.fsPath, contents: [], workspaceless: true });
+		}).timeout(30_000);
+	}
 
 	suite('quick chat scratch directory', () => {
 		test('workspaceless system message stays identical after release and restore', async () => {
@@ -22801,7 +22804,7 @@ suite('CopilotAgent', () => {
 			};
 		}
 
-		test('a client-startup failure on a workspace-less deferred create leaves no trace of the scope (including its scratch dir)', async () => {
+		test('a client-startup failure on a workspace-less deferred create with empty folders leaves no trace of the scope (including its scratch dir)', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/rollback-startup-home-`));
 			const client = new TestCopilotClient([]);
 			client.startError = new Error('Failed to start CLI server: spawn failed');
@@ -22816,10 +22819,10 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			});
 			await agent.authenticate('https://api.github.com', 'token');
-			// No workingDirectories: `_resolveCreateWorkingDirectory` mkdir's the
+			// Empty workingDirectories: `_resolveCreateWorkingDirectory` mkdir's the
 			// stable scratch dir before `_ensureClient()` throws, so the scratch
 			// dir exists at the moment of failure — the rollback must remove it.
-			await assert.rejects(() => provisionSession(agent, { session }), /Failed to start CLI server/);
+			await assert.rejects(() => provisionSession(agent, { session, workingDirectories: [] }), /Failed to start CLI server/);
 
 			assert.deepStrictEqual({
 				chatScope: chatScopes(agent).has(chat.toString()),

@@ -4,16 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { Schemas } from '../../../base/common/network.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../base/common/platform.js';
+import { extUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { applySessionSandboxPathGrant, isSandboxPathGrant, ISandboxPathGrant, ISessionSandboxPaths, parseSessionSandboxPaths, removeSandboxReadonlyPaths } from '../common/sandboxPathGrant.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 
-const storageKeyPrefix = 'agentHost.workspaceSandboxPaths.';
+const storageKeyPrefix = 'agentHost.workspaceSandboxPaths.v2.';
+
+/** Preserves path case because filesystem case sensitivity cannot be inferred from the host OS. */
+export function getWorkspaceSandboxScopeId(workingDirectories: readonly URI[]): string {
+	const keys = [...new Set(workingDirectories.map(directory => {
+		// Collapsing parent traversal can change the directory when a preceding segment is a symlink.
+		const normalized = directory.path.split(isWindows ? /[\\/]/ : '/').includes('..')
+			? directory
+			: extUri.removeTrailingPathSeparator(extUri.normalizePath(directory));
+		return extUri.getComparisonKey(normalized);
+	}))].sort();
+	const sha1 = new StringSHA1();
+	sha1.update(JSON.stringify(keys));
+	return sha1.digest();
+}
 
 export const IWorkspaceSandboxPathService = createDecorator<IWorkspaceSandboxPathService>('workspaceSandboxPathService');
 
@@ -94,6 +109,6 @@ export class WorkspaceSandboxPathService implements IWorkspaceSandboxPathService
 		if (!workingDirectories.length || workingDirectories.some(directory => directory.scheme !== Schemas.file || !directory.path.startsWith('/') || directory.query || directory.fragment)) {
 			throw new Error(localize('workspaceSandboxRootsRequired', "Workspace sandbox permissions require resolved filesystem workspace folders."));
 		}
-		return storageKeyPrefix + getWorkingDirectoryScopeId(workingDirectories.map(directory => directory.toString()));
+		return storageKeyPrefix + getWorkspaceSandboxScopeId(workingDirectories);
 	}
 }

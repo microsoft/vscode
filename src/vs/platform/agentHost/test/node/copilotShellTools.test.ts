@@ -32,8 +32,6 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
 import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
-import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 
 /** Chat that owns the terminals created by the shells under test. */
 const TEST_CHAT_URI = URI.parse(buildDefaultChatUri('copilot:/session-1'));
@@ -193,7 +191,7 @@ suite('CopilotShellTools', () => {
 		} satisfies ISandboxHelperService;
 	}
 
-	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[]; createdFiles?: Map<string, string> }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; agentConfigurationService: IFakeAgentConfigurationService; workspacePaths: IWorkspaceSandboxPathService } {
+	function createServices(options?: { sandboxEnabled?: boolean; deletedFolders?: string[]; createdFiles?: Map<string, string> }): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager; agentConfigurationService: IFakeAgentConfigurationService } {
 		const terminalManager = new TestAgentHostTerminalManager();
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
@@ -205,8 +203,6 @@ suite('CopilotShellTools', () => {
 		services.set(IAgentHostTerminalManager, terminalManager);
 		services.set(IAgentConfigurationService, agentConfigurationService.service);
 		services.set(ISessionDataService, createNullSessionDataService());
-		const workspacePaths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
-		services.set(IWorkspaceSandboxPathService, workspacePaths);
 		services.set(IFileService, {
 			createFile: async (uri: URI, content: VSBuffer) => {
 				if (options?.createdFiles) {
@@ -225,7 +221,7 @@ suite('CopilotShellTools', () => {
 		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
-		return { instantiationService, terminalManager, agentConfigurationService, workspacePaths };
+		return { instantiationService, terminalManager, agentConfigurationService };
 	}
 
 	async function waitForSentTexts(terminalManager: TestAgentHostTerminalManager, count: number): Promise<void> {
@@ -934,42 +930,6 @@ suite('CopilotShellTools', () => {
 			initialRootPresent: true,
 			oldRootPresent: false,
 			newRootPresent: true,
-		});
-	});
-
-	test('workspace sandbox grants update the shell config without following shell cwd or other folder sets', async function () {
-		if (platform.isWindows) {
-			this.skip();
-		}
-		const createdFiles = new Map<string, string>();
-		const { instantiationService, workspacePaths, agentConfigurationService } = createServices({ sandboxEnabled: true, createdFiles });
-		const roots = [URI.file('/workspace'), URI.file('/second')];
-		const owner = URI.parse('copilot:/session-1');
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, owner, TEST_CHAT_URI, owner, roots[0]));
-		shellManager.setSandboxWorkspaceDirectories(roots);
-		const engine = shellManager.getOrCreateSandboxEngine();
-		const read = async () => {
-			await engine.getSandboxConfigPath();
-			const entry = [...createdFiles.entries()].find(([path]) => /vscode-sandbox-settings-.*\.json$/.test(path));
-			assert.ok(entry);
-			const config: { filesystem: { allowWrite: string[] } } = JSON.parse(entry[1]);
-			return config.filesystem.allowWrite.filter(path => ['/shared', '/other-scope'].includes(path));
-		};
-		const before = await read();
-		await workspacePaths.grant([...roots].reverse(), { path: '/shared', access: 'readWrite' });
-		await workspacePaths.grant([roots[0]], { path: '/other-scope', access: 'readWrite' });
-		const granted = await read();
-		shellManager.setWorkingDirectory(URI.file('/shell-cwd'));
-		const afterCwd = await read();
-		agentConfigurationService.service.setSessionSandboxPolicy(owner.toString(), { enabled: true, readwritePaths: [] });
-		engine.setNeedsForceUpdateConfigFile();
-		const managed = await read();
-		agentConfigurationService.service.setSessionSandboxPolicy(owner.toString(), { enabled: false });
-		await workspacePaths.clear(roots);
-		const cleared = await read();
-		shellManager.setSandboxWorkspaceDirectories([roots[0]]);
-		assert.deepStrictEqual({ before, granted, afterCwd, managed, cleared, newScope: await read() }, {
-			before: [], granted: ['/shared'], afterCwd: ['/shared'], managed: [], cleared: [], newScope: ['/other-scope'],
 		});
 	});
 

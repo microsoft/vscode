@@ -13,12 +13,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import type { IAgentPermissionResponseContext } from '../../common/agent.js';
 import { getAttachedLocalPaths } from '../../common/attachedLocalPaths.js';
 import type { IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -28,9 +27,9 @@ import { SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPa
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
-import { getSessionSandboxConfig } from '../sessionSandbox.js';
+import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { ISessionSandboxPathService } from '../sessionSandboxPathService.js';
-import { IWorkspaceSandboxPathService } from '../workspaceSandboxPathService.js';
+import { getWorkspaceSandboxScopeId, IWorkspaceSandboxPathService } from '../workspaceSandboxPathService.js';
 import type { ActionOrigin } from '../../common/state/sessionActions.js';
 import { attributePermissionResult } from './copilotPermissionAttribution.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
@@ -86,6 +85,7 @@ export class CopilotSessionSandbox extends Disposable {
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
 	private _configUpdateDeferred = false;
+	private _workspacePathsLoadFailed = false;
 	private _disabledForSession = false;
 	private _launchSession: CopilotSession | undefined;
 	private _pendingSelection: 'on' | 'off' | 'default' | undefined;
@@ -122,14 +122,34 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	private _workspaceScopeId(roots: readonly URI[] | undefined): string | undefined {
-		return roots?.length ? getWorkingDirectoryScopeId(roots.map(root => root.toString())) : undefined;
+		return roots?.length ? getWorkspaceSandboxScopeId(roots) : undefined;
 	}
 
 	private _getWorkspacePaths(): ISessionSandboxPaths | undefined {
+		const enabled = getSessionSandboxOverrides(this._configurationService, this._target())[AgentHostSandboxKey.Enabled]
+			?? this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.Enabled];
+		if (enabled !== AgentSandboxEnabledValue.On) {
+			return undefined;
+		}
 		const roots = this._options.getWorkspaceWorkingDirectories();
-		const paths = roots?.length ? this._workspacePaths.getPaths(roots) : undefined;
-		this._options.shellManager?.setSandboxWorkspaceDirectories(roots);
-		return paths;
+		if (!roots?.length) {
+			return undefined;
+		}
+		try {
+			const paths = this._workspacePaths.getPaths(roots);
+			this._workspacePathsLoadFailed = false;
+			return paths;
+		} catch (error) {
+			if (!this._workspacePathsLoadFailed) {
+				this._workspacePathsLoadFailed = true;
+				this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to load workspace sandbox settings`);
+				this._configurationService.reportChatSandboxConflict(this._target(), localize(
+					'copilot.sandbox.workspaceLoadFailed',
+					"Workspace-specific sandbox settings are not loaded.",
+				));
+			}
+			return undefined;
+		}
 	}
 
 	setPendingRequest(toolCallId: string, requestId: string): void {

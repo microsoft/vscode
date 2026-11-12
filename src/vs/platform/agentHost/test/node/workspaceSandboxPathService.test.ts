@@ -7,7 +7,7 @@ import assert from 'assert';
 import { readFile, rename, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { OperatingSystem } from '../../../../base/common/platform.js';
+import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
@@ -16,7 +16,7 @@ import { SandboxSettingsResolutionHelper } from '../../../sandbox/common/sandbox
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { applySessionSandboxPathGrant, parseSessionSandboxPaths, resolveSessionSandboxPaths } from '../../common/sandboxPathGrant.js';
 import { AgentHostStorageService, IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
-import { WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
+import { getWorkspaceSandboxScopeId, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 
 suite('Workspace sandbox path storage', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,7 +62,70 @@ suite('Workspace sandbox path storage', () => {
 			superset: undefined,
 			worktree: undefined,
 			otherHost: undefined,
-			changes: [getWorkingDirectoryScopeId(roots.map(root => root.toString()))],
+			changes: [getWorkspaceSandboxScopeId(roots)],
+		});
+	});
+
+	test('normalizes equivalent folder spellings before deduplicating workspace scopes', async () => {
+		const { service } = create();
+		const changes: string[] = [];
+		disposables.add(service.onDidChange(scope => changes.push(scope)));
+		const alternateRoots = [
+			roots[1].with({ path: '/project/./library//' }),
+			roots[0].with({ path: '/project/app/./' }),
+			roots[0],
+		];
+		await service.grant(alternateRoots, { path: '/external', access: 'read' });
+		const restored = create().service.getPaths(roots);
+		await service.removeReadonlyPaths(roots, ['/external'], OperatingSystem.Linux);
+		const cleaned = create().service.getPaths(alternateRoots);
+		await service.clear(alternateRoots);
+		assert.deepStrictEqual({
+			restored, cleaned,
+			cleared: create().service.getPaths(roots),
+			changes,
+		}, {
+			restored: { readonlyPaths: ['/external'], readwritePaths: [], removedReadonlyPaths: [] },
+			cleaned: { readonlyPaths: [], readwritePaths: [], removedReadonlyPaths: [] },
+			cleared: undefined,
+			changes: Array(3).fill(getWorkspaceSandboxScopeId(roots)),
+		});
+	});
+
+	test('normalizing workspace spellings preserves filesystem roots', async () => {
+		const { service } = create();
+		const filesystemRoots = isWindows ? [URI.file('C:\\'), URI.file('\\\\server\\share\\')] : [URI.file('/')];
+		const restored = [];
+		for (const root of filesystemRoots) {
+			await service.grant([root.with({ path: `${root.path}./` })], { path: '/external', access: 'read' });
+			restored.push(create().service.getPaths([root]));
+		}
+		assert.deepStrictEqual(restored, filesystemRoots.map(() => ({
+			readonlyPaths: ['/external'], readwritePaths: [], removedReadonlyPaths: [],
+		})));
+	});
+
+	test('keeps parent traversal spellings separate rather than collapsing possible symlinks', async () => {
+		const { service } = create();
+		const parent = URI.file('/project');
+		const traversalRoots = [
+			URI.file('/project/link/..'),
+			...(isWindows ? [parent.with({ path: '/project/link\\..' })] : []),
+		];
+		for (const root of traversalRoots) {
+			await service.grant([root], { path: '/traversal-only', access: 'read' });
+		}
+		const parentBeforeGrant = service.getPaths([parent]);
+		await service.grant([parent], { path: '/parent-only', access: 'read' });
+		const restarted = create().service;
+		assert.deepStrictEqual({
+			parentBeforeGrant,
+			traversal: traversalRoots.map(root => restarted.getPaths([root])),
+			parent: restarted.getPaths([parent]),
+		}, {
+			parentBeforeGrant: undefined,
+			traversal: traversalRoots.map(() => ({ readonlyPaths: ['/traversal-only'], readwritePaths: [], removedReadonlyPaths: [] })),
+			parent: { readonlyPaths: ['/parent-only'], readwritePaths: [], removedReadonlyPaths: [] },
 		});
 	});
 
@@ -78,6 +141,37 @@ suite('Workspace sandbox path storage', () => {
 			readwritePaths: ['${HOME}/write', '/external/upgrade'],
 			removedReadonlyPaths: ['/external/upgrade'],
 		});
+	});
+
+	test('keeps differently cased workspace roots isolated across grants, clear and restart', async () => {
+		const { service } = create();
+		const upper = [URI.file('/project/App')];
+		const lower = [URI.file('/project/app')];
+		await service.grant(upper, { path: '/upper-only', access: 'read' });
+		const lowerBeforeGrant = service.getPaths(lower);
+		await service.grant(lower, { path: '/lower-only', access: 'readWrite' });
+		const restarted = create().service;
+		const beforeClear = [restarted.getPaths(upper), restarted.getPaths(lower)];
+		await service.clear(lower);
+		const afterClear = create().service;
+		const upperPaths = { readonlyPaths: ['/upper-only'], readwritePaths: [], removedReadonlyPaths: [] };
+		assert.deepStrictEqual({
+			lowerBeforeGrant,
+			beforeClear,
+			afterClear: [afterClear.getPaths(upper), afterClear.getPaths(lower)],
+		}, {
+			lowerBeforeGrant: undefined,
+			beforeClear: [upperPaths, { readonlyPaths: [], readwritePaths: ['/lower-only'], removedReadonlyPaths: [] }],
+			afterClear: [upperPaths, undefined],
+		});
+	});
+
+	test('does not reuse legacy workspace grants whose original path casing is unknown', async () => {
+		const { storage } = create();
+		const key = `agentHost.workspaceSandboxPaths.${getWorkingDirectoryScopeId(roots.map(root => root.toString()))}`;
+		storage.set(key, JSON.stringify({ readonlyPaths: ['/legacy'], readwritePaths: [], removedReadonlyPaths: [] }));
+		await storage.whenIdle();
+		assert.strictEqual(create().service.getPaths(roots), undefined);
 	});
 
 	test('pending and failed saves retain live grants and a later save includes them', async () => {
@@ -153,7 +247,7 @@ suite('Workspace sandbox path storage', () => {
 			restarted: undefined,
 			other: { readonlyPaths: ['/external/second'], readwritePaths: [], removedReadonlyPaths: [] },
 			unrelated: { enabled: true },
-			changes: [getWorkingDirectoryScopeId(roots.map(root => root.toString()))],
+			changes: [getWorkspaceSandboxScopeId(roots)],
 		});
 	});
 
