@@ -84,8 +84,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		}
 
 		const workspace = this.contextService.getWorkspace();
-		const identity = toWorkspaceIdentifier(workspace);
-		const primary = isSingleFolderWorkspaceIdentifier(identity) ? identity.uri : workspace.folders[0].uri;
+		const primary = workspace.uri ?? workspace.folders[0].uri;
 
 		// The location is applied at startup without validation, so a missing one is detected here
 		const exists = await this.isDirectory(location);
