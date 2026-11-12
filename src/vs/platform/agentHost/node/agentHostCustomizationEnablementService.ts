@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
-import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { AH_META_WORKSPACELESS_DB_KEY, isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { isChatWorkspaceless } from './agentChatContext.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -19,6 +19,7 @@ import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { parseSessionWorkingDirectories, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 
 const STORAGE_KEY = 'customizationEnablement';
 const LRU_STORAGE_KEY = 'customizationEnablementLru';
@@ -242,17 +243,22 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	getWorkingDirectoryState(session: string): WorkingDirectoryState {
 		const summary = this._sessionState.getSessionSummary(session);
-		// The session's customizations follow its default chat, so the default chat's own decision applies.
-		const defaultChat = this._chatOwnership.getDefaultChat(session);
+		const stored = this._sessionStateStore.peek(URI.parse(session));
+		// Restoration loads central metadata before registering the host state that SDK enablement normally reads.
+		const storedDefaultChat = !summary && stored ? [...stored.chats].find(([, chat]) => chat.isDefault) : undefined;
+		const workspaceless = summary ? readSessionWorkspaceless(summary._meta) : stored?.values.get(AH_META_WORKSPACELESS_DB_KEY) === 'true';
+		// Workspace-less status follows the default chat's own folders.
+		const defaultChat = this._chatOwnership.getDefaultChat(session) ?? storedDefaultChat?.[0];
 		if (defaultChat !== undefined
-			? isChatWorkspaceless(this._sessionState, defaultChat, this._sessionStateStore.peek(URI.parse(session)), readSessionWorkspaceless(summary?._meta))
-			: readSessionWorkspaceless(summary?._meta)) {
+			? isChatWorkspaceless(this._sessionState, defaultChat, stored, workspaceless)
+			: workspaceless) {
 			return { kind: 'workspaceless' };
 		}
 		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
 			return { kind: 'pending' };
 		}
-		const directory = getEffectiveWorkingDirectories(this._sessionState, session)?.[0];
+		const directory = summary ? getEffectiveWorkingDirectories(this._sessionState, session)?.[0]
+			: parseSessionWorkingDirectories(stored?.values.get(SESSION_WORKING_DIRECTORIES_KEY))?.[0];
 		if (directory === undefined) {
 			return { kind: 'pending' };
 		}
