@@ -8929,10 +8929,11 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
 
 		assert.deepStrictEqual({
-			items: picker.getItems().map(item => `${item.label} ${item.group?.icon?.id}${item.description ? ` (${item.description})` : ''}${item.item?.checked ? ' *' : ''}`),
+			// Its selected choice is checked, in front of the choice's own icon
+			items: picker.getItems().map(item => `${item.group?.icon?.id} ${item.labelIcon?.id} ${item.label}${item.description ? ` (${item.description})` : ''}`),
 			trigger: { label: trigger.getAttribute('aria-label'), worktreeIcon: !!trigger.querySelector(`.${ThemeIcon.asClassNameArray(Codicon.gitBranchCheckout).join('.')}`) },
 		}, {
-			items: ['a git-branch-checkout (feature-a) *', 'local/vscode folder'],
+			items: ['check git-branch-checkout a (feature-a)', 'blank folder local/vscode'],
 			trigger: { label: 'Workspace: a', worktreeIcon: true },
 		});
 	});
